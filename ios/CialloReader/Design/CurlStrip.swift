@@ -152,7 +152,7 @@ struct CurlStripCanvas: View {
             // 5. 折缝阴影（打在未折平面上）
             let shadowWidth: CGFloat = 44
             let shadowRect: CGRect
-            let shade: LinearGradient
+            let shade: Gradient
             if geo.rtl {
                 shadowRect = CGRect(x: geo.fold, y: 0, width: min(shadowWidth, size.width - geo.fold), height: H)
                 shade = Gradient(colors: [.black.opacity(0.20), .clear])

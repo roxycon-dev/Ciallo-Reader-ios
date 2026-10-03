@@ -53,7 +53,7 @@ enum EpubParser {
         for (i, id) in spineIds.enumerated() {
             guard let m = manifest[id], isHtmlMediaType(m.mediaType) else { continue }
             let itemPath = resolve(opfDir: opfDir, href: m.href)
-            guard let entry = entryPath(of: itemPath, in: entryPaths) else { continue }
+            guard let entry = archive.first(where: { $0.path == itemPath }) else { continue }
             let data = try readEntry(archive, entry)
             let html = CharsetSniffer.decode(data)
             let content = try extractCleanText(from: html, bookURL: url, entryPath: itemPath, archive: archive)
