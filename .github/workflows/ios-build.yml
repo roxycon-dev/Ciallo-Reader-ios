@@ -1,0 +1,91 @@
+# 无 Mac 编译打包：GitHub Actions 云端 macOS 构建 → 产出未签名 ipa
+#
+# 用法：
+#   1. 把整个工作区推到 GitHub（含 .github/workflows/ios-build.yml）
+#   2. Actions 页面手动触发 "iOS Build (unsigned ipa)"（或 push 到 main/master 自动触发）
+#   3. 完成后在 run 的 Artifacts 下载 CialloReader-unsigned-ipa
+#   4. Windows 上用 Sideloadly（需装 iTunes 官方版 + iCloud 驱动）选 ipa + Apple ID 自签安装
+#      免费账号 7 天有效期，到期重新签一次即可
+#
+# 有付费开发者账号（$99/年）想出正式签名 ipa：
+#   在仓库 Secrets 加 APPLE_CERTIFICATE_P12 / APPLE_CERTIFICATE_PASSWORD / KEYCHAIN_PASSWORD，
+#   并把下面 "sign" job 里注释的三步解开（fastlane match 或手动 security import 均可）。
+
+name: iOS Build (unsigned ipa)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16+
+        run: |
+          ls /Applications | grep -i xcode
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app
+          elif [ -d "/Applications/Xcode_16.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app
+          elif [ -d "/Applications/Xcode_16.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.app
+          else
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcodebuild -version
+
+      - name: Sync Venera JS assets
+        run: bash ios/tools/sync_js_assets.sh
+
+      - name: Resolve SPM packages
+        run: |
+          cd ios
+          xcodebuild -resolvePackageDependencies -project CialloReader.xcodeproj -scheme CialloReader
+
+      - name: Build (device arm64, unsigned)
+        run: |
+          set -o pipefail
+          cd ios
+          xcodebuild archive \
+            -project CialloReader.xcodeproj \
+            -scheme CialloReader \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/CialloReader.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tail -40
+
+      - name: Package unsigned ipa
+        run: |
+          cd ios/build
+          mkdir -p Payload
+          cp -R CialloReader.xcarchive/Products/Applications/CialloReader.app Payload/
+          zip -qry CialloReader-unsigned.ipa Payload
+          ls -la CialloReader-unsigned.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CialloReader-unsigned-ipa
+          path: ios/build/CialloReader-unsigned.ipa
+          if-no-files-found: error
+
+      # ── 可选：付费账号出正式签名 ipa（解开下面注释并配 Secrets）──
+      # - name: Import signing certificate
+      #   env:
+      #     CERT: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+      #     CERT_PASS: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      #   run: |
+      #     echo "$CERT" | base64 --decode > cert.p12
+      #     security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain || true
+      #     security import cert.p12 -k build.keychain -P "$CERT_PASS" -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+      #     security default-keychain -s build.keychain
+      #   # 然后把 Build 步骤的 CODE_SIGNING_ALLOWED=NO 换成
+      #   # DEVELOPMENT_TEAM=<你的TeamID> CODE_SIGN_STYLE=Manual + 描述文件，重新 archive 并用
+      #   # xcodebuild -exportArchive -exportOptionsPlist 导出签名 ipa

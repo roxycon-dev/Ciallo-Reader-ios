@@ -1,0 +1,19 @@
+# 云端 iOS 构建专用精简仓库：
+# 只保留 ios/ 工程、CI 工作流、以及 Venera JS 资产（sync_js_assets.sh 的拷贝源，
+# 以 git add -f 强加方式入库：novel-reader/app/src/main/assets/{venera,js_extra}/）。
+# 其余（安卓工程、构建产物、宣传素材等）留在本地，不入库。
+
+/*
+!/ios/
+!/.github/
+!/PROJECT_GUIDE.md
+!/.gitignore
+
+# 构建产物与本地杂项
+ios/build/
+.DS_Store
+Thumbs.db
+*.ipa
+**/.mimosa/
+**/.workbuddy/
+**/.kotlin/
