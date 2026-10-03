@@ -84,11 +84,13 @@ final class DiamWallSolver {
                 guard let n1 = Int(String(token.prefix(1)), radix: 16),
                       let target1 = UInt8(b1s.dropFirst(2), radix: 16),
                       let target2 = UInt8(b2s.dropFirst(2), radix: 16) else { break }
-                guard let nonce = Self.solveBounded(key: "sha1|\(token)|\(n1)|\(target1)|\(target2)") { input -> Bool in
+                let nonce = Self.solveBounded(key: "sha1|\(token)|\(n1)|\(target1)|\(target2)") { nonceStr -> Bool in
+                    let input = token + nonceStr
                     let digest = Array(Insecure.SHA1.hash(data: Data(input.utf8)))
                     guard n1 + 1 < digest.count else { return false }
                     return digest[n1] == target1 && digest[n1 + 1] == target2
-                } input: { nonce in token + String(nonce) } else { break }
+                }
+                guard let nonce else { break }
 
                 cookieJar.store(domain: host, name: "c_token", value: token + String(nonce))
                 cookieJar.store(domain: host, name: "c_time", value: "1")
@@ -148,7 +150,8 @@ final class DiamWallSolver {
 
     static func solveSha256(token: String, difficulty: Int) -> Int64? {
         guard difficulty >= 0, difficulty <= 6 else { return nil }
-        return solveBounded(key: "sha256|\(token)|\(difficulty)") { input -> Bool in
+        return solveBounded(key: "sha256|\(token)|\(difficulty)") { nonceStr -> Bool in
+            let input = "\(token):\(nonceStr)"
             let digest = Array(SHA256.hash(data: Data(input.utf8)))
             for nibble in 0..<difficulty {
                 let byte = digest[nibble / 2]
@@ -156,24 +159,24 @@ final class DiamWallSolver {
                 if !ok { return false }
             }
             return true
-        } input: { nonce in "\(token):\(nonce)" }
+        }
     }
 
-    private static func solveBounded(key: String, matches: (String) -> Bool, input: (Int64) -> String) -> Int64? {
+    private static func solveBounded(key: String, _ matches: (String) -> Bool) -> Int64? {
         solveLock.lock()
         defer { solveLock.unlock() }
         if let cached = solved[key] { return cached }
         let deadline = Date().addingTimeInterval(5)
         for nonce in 0..<1_000_000 {
             if nonce % 4096 == 0 && Date() >= deadline { return nil }
-            if matches(input(nonce)) {
+            if matches(String(nonce)) {
                 if solvedOrder.count >= 64 {
                     let oldest = solvedOrder.removeFirst()
                     solved.removeValue(forKey: oldest)
                 }
-                solved[key] = nonce
+                solved[key] = Int64(nonce)
                 solvedOrder.append(key)
-                return nonce
+                return Int64(nonce)
             }
         }
         return nil
