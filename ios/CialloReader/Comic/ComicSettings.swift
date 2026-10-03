@@ -79,7 +79,8 @@ final class ComicSettingsStore: ObservableObject {
     }
 
     func config(for bookKey: String?) -> ComicReaderConfig {
-        perBook[bookKey] ?? global
+        if let key = bookKey, let hit = perBook[key] { return hit }
+        return global
     }
 
     func set(config: ComicReaderConfig, for bookKey: String?, followGlobal: Bool) {

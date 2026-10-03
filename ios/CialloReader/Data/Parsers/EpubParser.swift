@@ -19,7 +19,7 @@ enum EpubParser {
         guard let containerEntry = entryPath(of: "META-INF/container.xml", in: entryPaths) else {
             throw ImportError("EPUB 缺少 container.xml")
         }
-        guard let opfPath = opfPath(archive: archive, entry: containerEntry) else {
+        guard let opfPath = opfPath(archive: archive, containerPath: containerEntry) else {
             throw ImportError("EPUB 缺少 container.xml")
         }
         guard let opfEntry = entryPath(of: opfPath, in: entryPaths) else { throw ImportError("EPUB 缺少 OPF") }
@@ -84,7 +84,8 @@ enum EpubParser {
         return all.first { $0.lowercased().hasSuffix(tail) }
     }
 
-    private static func opfPath(archive: Archive, entry: Entry) throws -> String? {
+    private static func opfPath(archive: Archive, containerPath: String) throws -> String? {
+        guard let entry = archive.first(where: { $0.path == containerPath }) else { return nil }
         let data = try readEntry(archive, entry)
         let doc = try SwiftSoup.parse(String(decoding: data, as: UTF8.self))
         guard let root = try doc.select("rootfile").first() else { return nil }

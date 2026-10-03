@@ -219,11 +219,11 @@ final class JsSourceEngine {
                     let stringify = ctx.objectForKeyedSubscript("JSON").objectForKeyedSubscript("stringify")
                     then.call(withArguments: [
                         { v in
-                            let s = stringify.call(withArguments: [v as Any]).toString() ?? "{}"
+                            let s = stringify?.call(withArguments: [v as Any])?.toString() ?? "{}"
                             cont.resume(returning: JsonPathResolver.parseJson(s))
                         } as @convention(block) (JSValue) -> Void,
                         { e in
-                            cont.resume(throwing: JsCallError.script("JS 错误：\(e?.toString() ?? "unknown")"))
+                            cont.resume(throwing: JsCallError.script("JS 错误：\(e.toString())"))
                         } as @convention(block) (JSValue) -> Void,
                     ])
                     return

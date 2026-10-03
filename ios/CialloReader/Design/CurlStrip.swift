@@ -114,11 +114,9 @@ struct CurlStripCanvas: View {
                     let flippedDest: CGRect = geo.rtl
                         ? CGRect(x: geo.fold, y: 0, width: geo.flippedLen, height: H)
                         : CGRect(x: geo.fold - geo.flippedLen, y: 0, width: geo.flippedLen, height: H)
-                    let shade = LinearGradient(colors: [.black.opacity(0.24), .black.opacity(0.30)],
-                                               startPoint: geo.rtl ? .leading : .trailing,
-                                               endPoint: geo.rtl ? .trailing : .leading)
+                    let shade = Gradient(colors: [.black.opacity(0.24), .black.opacity(0.30)])
                     ctx.fill(Path(CGRect(origin: flippedDest.origin, size: flippedDest.size)),
-                             with: .linearGradient(Gradient(shade), startPoint: CGPoint(x: flippedDest.minX, y: 0),
+                             with: .linearGradient(shade, startPoint: CGPoint(x: flippedDest.minX, y: 0),
                                                    endPoint: CGPoint(x: flippedDest.maxX, y: 0)))
                 }
             }
