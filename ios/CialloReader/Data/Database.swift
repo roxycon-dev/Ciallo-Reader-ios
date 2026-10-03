@@ -52,9 +52,9 @@ final class SQLiteDatabase {
             throw NSError(domain: "SQLiteDatabase", code: -1, userInfo: [NSLocalizedDescriptionKey: msg])
         }
         handle = db
-        exec("PRAGMA journal_mode=WAL")
-        exec("PRAGMA foreign_keys=ON")
-        exec("PRAGMA synchronous=NORMAL")
+        try exec("PRAGMA journal_mode=WAL")
+        try exec("PRAGMA foreign_keys=ON")
+        try exec("PRAGMA synchronous=NORMAL")
     }
 
     deinit {
@@ -64,7 +64,7 @@ final class SQLiteDatabase {
     // MARK: 基础执行
 
     @discardableResult
-    func exec(_ sql: String, binds: [SQLiteValue] = []) throws -> Int {
+    func exec(_ sql: String, _ binds: [SQLiteValue] = []) throws -> Int {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &stmt, nil) == SQLITE_OK else {
             throw dbError(sql)
@@ -76,7 +76,7 @@ final class SQLiteDatabase {
         return Int(sqlite3_changes(handle))
     }
 
-    func query(_ sql: String, binds: [SQLiteValue] = []) throws -> [[String: SQLiteValue]] {
+    func query(_ sql: String, _ binds: [SQLiteValue] = []) throws -> [[String: SQLiteValue]] {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &stmt, nil) == SQLITE_OK else {
             throw dbError(sql)
@@ -373,8 +373,8 @@ final class AppDatabase {
     func insertBook(_ b: Book, chapters: [Chapter]) throws -> Int {
         var bookId = b.id
         try db.transaction {
-            if b.id > 0, try count("SELECT COUNT(*) FROM books WHERE id=?", [int(Int64(b.id))]) > 0 {
-                try db.exec("DELETE FROM chapters WHERE bookId=?", [int(Int64(b.id))])
+            if b.id > 0, try count("SELECT COUNT(*) FROM books WHERE id=?", [.int(Int64(b.id))]) > 0 {
+                try db.exec("DELETE FROM chapters WHERE bookId=?", [.int(Int64(b.id))])
                 try db.exec("""
                     UPDATE books SET title=?, author=?, filePath=?, coverUri=?, category=?, currentChapterIndex=?,
                     scrollOffset=?, isFinished=?, totalChapters=?, contentType=?, lastReadTime=?, sourceId=?, comicId=?
@@ -427,7 +427,7 @@ final class AppDatabase {
     }
 
     private func book(from row: [String: SQLiteValue]) -> Book {
-        var b = Book()
+        var b = Book(title: "", filePath: "")
         b.id = Int(row["id"]?.intValue ?? 0)
         b.title = row["title"]?.textValue ?? ""
         b.author = row["author"]?.textValue ?? "未知作者"
@@ -451,7 +451,7 @@ final class AppDatabase {
     }
 
     func book(id: Int) throws -> Book? {
-        try db.query("SELECT * FROM books WHERE id=?", [int(Int64(id))]).first.map(book(from:))
+        try db.query("SELECT * FROM books WHERE id=?", [.int(Int64(id))]).first.map(book(from:))
     }
 
     func updateProgress(bookId: Int, chapterIndex: Int, scrollOffset: Int) throws {
@@ -463,13 +463,13 @@ final class AppDatabase {
 
     func deleteBook(id: Int) throws {
         try db.transaction {
-            try db.exec("DELETE FROM chapters WHERE bookId=?", [int(Int64(id))])
-            try db.exec("DELETE FROM bookmarks WHERE bookId=?", [int(Int64(id))])
-            try db.exec("DELETE FROM highlights WHERE bookId=?", [int(Int64(id))])
+            try db.exec("DELETE FROM chapters WHERE bookId=?", [.int(Int64(id))])
+            try db.exec("DELETE FROM bookmarks WHERE bookId=?", [.int(Int64(id))])
+            try db.exec("DELETE FROM highlights WHERE bookId=?", [.int(Int64(id))])
             // 历史会话只断开 bookId（不删记录，统计保留）
-            try db.exec("UPDATE reading_sessions SET bookId=NULL WHERE bookId=?", [int(Int64(id))])
-            try db.exec("UPDATE reading_records SET bookId=NULL WHERE bookId=?", [int(Int64(id))])
-            try db.exec("DELETE FROM books WHERE id=?", [int(Int64(id))])
+            try db.exec("UPDATE reading_sessions SET bookId=NULL WHERE bookId=?", [.int(Int64(id))])
+            try db.exec("UPDATE reading_records SET bookId=NULL WHERE bookId=?", [.int(Int64(id))])
+            try db.exec("DELETE FROM books WHERE id=?", [.int(Int64(id))])
         }
     }
 
@@ -488,12 +488,12 @@ final class AppDatabase {
     }
 
     func chapters(bookId: Int) throws -> [Chapter] {
-        try db.query("SELECT * FROM chapters WHERE bookId=? ORDER BY chapterOrder", [int(Int64(bookId))]).map(chapter(from:))
+        try db.query("SELECT * FROM chapters WHERE bookId=? ORDER BY chapterOrder", [.int(Int64(bookId))]).map(chapter(from:))
     }
 
     func chapter(bookId: Int, order: Int) throws -> Chapter? {
         try db.query("SELECT * FROM chapters WHERE bookId=? AND chapterOrder=? LIMIT 1",
-                     [int(Int64(bookId)), .int(Int64(order))]).first.map(chapter(from:))
+                     [.int(Int64(bookId)), .int(Int64(order))]).first.map(chapter(from:))
     }
 
     // MARK: - Bookmark / Highlight DAO
@@ -515,7 +515,7 @@ final class AppDatabase {
     }
 
     func bookmarks(bookId: Int) throws -> [Bookmark] {
-        try db.query("SELECT * FROM bookmarks WHERE bookId=? ORDER BY chapterIndex", [int(Int64(bookId))]).map { row in
+        try db.query("SELECT * FROM bookmarks WHERE bookId=? ORDER BY chapterIndex", [.int(Int64(bookId))]).map { row in
             Bookmark(id: Int(row["id"]?.intValue ?? 0),
                      bookId: Int(row["bookId"]?.intValue ?? 0),
                      chapterIndex: Int(row["chapterIndex"]?.intValue ?? 0),
@@ -536,7 +536,7 @@ final class AppDatabase {
     }
 
     func highlights(bookId: Int) throws -> [Highlight] {
-        try db.query("SELECT * FROM highlights WHERE bookId=? ORDER BY id", [int(Int64(bookId))]).map { row in
+        try db.query("SELECT * FROM highlights WHERE bookId=? ORDER BY id", [.int(Int64(bookId))]).map { row in
             Highlight(id: Int(row["id"]?.intValue ?? 0),
                       bookId: Int(row["bookId"]?.intValue ?? 0),
                       chapterIndex: Int(row["chapterIndex"]?.intValue ?? 0),
@@ -558,13 +558,13 @@ final class AppDatabase {
     }
 
     func ensureDefaultCategory() throws {
-        if try count("SELECT COUNT(*) FROM categories WHERE name=?", [text(defaultCategory)]) == 0 {
-            try db.exec("INSERT INTO categories (name, isProtected) VALUES (?,1)", [text(defaultCategory)])
+        if try count("SELECT COUNT(*) FROM categories WHERE name=?", [.text(defaultCategory)]) == 0 {
+            try db.exec("INSERT INTO categories (name, isProtected) VALUES (?,1)", [.text(defaultCategory)])
         }
     }
 
     func addCategory(name: String) throws {
-        try db.exec("INSERT INTO categories (name, isProtected) VALUES (?,0)", [text(name)])
+        try db.exec("INSERT INTO categories (name, isProtected) VALUES (?,0)", [.text(name)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
@@ -572,7 +572,7 @@ final class AppDatabase {
         guard name != defaultCategory else { return }
         try db.transaction {
             try db.exec("UPDATE books SET category=? WHERE category=?", [.text(defaultCategory), .text(name)])
-            try db.exec("DELETE FROM categories WHERE name=?", [text(name)])
+            try db.exec("DELETE FROM categories WHERE name=?", [.text(name)])
         }
     }
 
@@ -657,7 +657,7 @@ final class AppDatabase {
     }
 
     func deleteTask(id: String) throws {
-        try db.exec("DELETE FROM download_tasks WHERE id=?", [text(id)])
+        try db.exec("DELETE FROM download_tasks WHERE id=?", [.text(id)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
@@ -818,8 +818,8 @@ final class AppDatabase {
 
     func deleteFavoriteCategory(name: String) throws {
         try db.transaction {
-            try db.exec("UPDATE favorites SET categoryName=NULL WHERE categoryName=?", [text(name)])
-            try db.exec("DELETE FROM favorite_categories WHERE name=?", [text(name)])
+            try db.exec("UPDATE favorites SET categoryName=NULL WHERE categoryName=?", [.text(name)])
+            try db.exec("DELETE FROM favorite_categories WHERE name=?", [.text(name)])
         }
     }
 
@@ -880,12 +880,12 @@ final class AppDatabase {
     }
 
     func deleteGodMoment(id: Int) throws {
-        try db.exec("DELETE FROM god_moments WHERE id=?", [int(Int64(id))])
+        try db.exec("DELETE FROM god_moments WHERE id=?", [.int(Int64(id))])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
     func deleteGodMoments(forBook bookId: String) throws {
-        try db.exec("DELETE FROM god_moments WHERE bookId=?", [text(bookId)])
+        try db.exec("DELETE FROM god_moments WHERE bookId=?", [.text(bookId)])
     }
 
     // MARK: - AniList 标题索引（跨语言标题匹配）

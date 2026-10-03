@@ -173,6 +173,6 @@ enum BackupManager {
             return .text(v)
         }
         let sql = "INSERT INTO \(table) (\(cols.joined(separator: ","))) VALUES (\(placeholders))"
-        try? AppDatabase.shared.db.exec(sql, binds: binds)
+        try? AppDatabase.shared.db.exec(sql, binds)
     }
 }
