@@ -234,8 +234,9 @@ struct YearHeatmap: View {
 
     private func heatColor(_ seconds: Int64) -> Color {
         guard seconds > 0 else { return Color.primary.opacity(0.06) }
-        let levels: [Double] = [600, 1800, 3600, 7200]
-        let alpha = 0.25 + 0.19 * Double(min(levels.firstIndex(where: { seconds < $0 } ) ?? 3, 3) + 1)
+        let levels: [Int64] = [600, 1800, 3600, 7200]
+        let idx = levels.firstIndex { seconds < $0 } ?? levels.count
+        let alpha = 0.25 + 0.19 * Double(min(idx, 3) + 1)
         return Color(hex: 0x2563EB).opacity(min(alpha, 1))
     }
 }

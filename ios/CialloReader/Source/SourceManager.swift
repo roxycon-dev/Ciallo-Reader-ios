@@ -105,7 +105,7 @@ final class SourceManager: ObservableObject {
         allSources.append(source)
         var dict = customSourceJsons()
         dict[source.id] = json
-        prefs.setString(String(data: (try? JSONSerialization.data(withJSONObject: dict)) ?? Data(), encoding: .utf8), for: "custom_source_jsons")
+        prefs.setString(String(data: ((try? JSONSerialization.data(withJSONObject: dict)) ?? Data()), encoding: .utf8) ?? "{}", for: "custom_source_jsons")
         return .success(source)
     }
 
@@ -114,13 +114,13 @@ final class SourceManager: ObservableObject {
         allSources.removeAll { $0.id == id }
         var dict = customSourceJsons()
         dict.removeValue(forKey: id)
-        prefs.setString(String(data: (try? JSONSerialization.data(withJSONObject: dict)) ?? Data(), encoding: .utf8), for: "custom_source_jsons")
+        prefs.setString(String(data: ((try? JSONSerialization.data(withJSONObject: dict)) ?? Data()), encoding: .utf8) ?? "{}", for: "custom_source_jsons")
         persist()
     }
 
     private func persist() {
         if let data = try? JSONSerialization.data(withJSONObject: enabledStates) {
-            prefs.setString(String(data: data, encoding: .utf8), for: "source_enabled_map")
+            prefs.setString(String(data: data, encoding: .utf8) ?? "{}", for: "source_enabled_map")
         }
     }
 }
