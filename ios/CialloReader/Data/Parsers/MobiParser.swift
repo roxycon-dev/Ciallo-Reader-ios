@@ -89,7 +89,7 @@ enum MobiParser {
         // 文本记录
         guard recordCount > 0, recordCount + 1 <= records.count else { throw ImportError("MOBI 文本记录缺失") }
         var extraFlags: UInt32 = 0
-        if mobiVersion >= 5, r0.count >= 244 { extraFlags = be16(r0, at: 242) }
+        if mobiVersion >= 5, r0.count >= 244 { extraFlags = UInt32(be16(r0, at: 242)) }
 
         var compressed = Data()
         for i in 1...recordCount {
@@ -249,7 +249,7 @@ enum MobiParser {
         // 收集所有 img[recindex]
         guard let imgs = try? body.select("img[recindex]") else { return html }
         for img in imgs {
-            guard let rec = Int(try? img.attr("recindex") ?? ""), let path = imageIndex[rec - 1] else { continue }
+            guard let recStr = try? img.attr("recindex"), let rec = Int(recStr), let path = imageIndex[rec - 1] else { continue }
             var (w, h) = (0, 0)
             if let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
                let size = CharsetSniffer.imageSize(of: data) { (w, h) = size }
@@ -333,14 +333,20 @@ enum MobiParser {
 
     static func be32(_ d: Data, at i: Int) -> UInt32 {
         guard i + 4 <= d.count else { return 0 }
-        let b = d[d.startIndex + i...]
-        return UInt32(b[b.startIndex]) << 24 | UInt32(b[b.startIndex + 1]) << 16 | UInt32(b[b.startIndex + 2]) << 8 | UInt32(b[b.startIndex + 3])
+        let s = d.index(d.startIndex, offsetBy: i)
+        let b0 = UInt32(d[s])
+        let b1 = UInt32(d[d.index(s, offsetBy: 1)])
+        let b2 = UInt32(d[d.index(s, offsetBy: 2)])
+        let b3 = UInt32(d[d.index(s, offsetBy: 3)])
+        return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
     }
 
     static func be16(_ d: Data, at i: Int) -> UInt16 {
         guard i + 2 <= d.count else { return 0 }
-        let b = d[d.startIndex + i...]
-        return UInt16(b[b.startIndex]) << 8 | UInt16(b[b.startIndex + 1])
+        let s = d.index(d.startIndex, offsetBy: i)
+        let b0 = UInt16(d[s])
+        let b1 = UInt16(d[d.index(s, offsetBy: 1)])
+        return b0 << 8 | b1
     }
 
     static func decode(_ data: Data, encoding: UInt32) -> String {

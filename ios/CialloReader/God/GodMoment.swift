@@ -248,8 +248,8 @@ enum GodCoverEngine {
     static func compose(source: UIImage, preview: Bool = false) -> String? {
         let size = preview ? CGSize(width: 450, height: 600) : CGSize(width: coverWidth, height: coverHeight)
         guard let bg = centerCrop(source, to: size),
-              let blurred = boxBlur(bg, passes: 3, downsample: 8),
-              let fg = containCrop(source, to: size) else { return nil }
+              let blurred = boxBlur(bg, passes: 3, downsample: 8) else { return nil }
+        let fg = containCrop(source, to: size)
 
         let renderer = UIGraphicsImageRenderer(size: size)
         let composed = renderer.image { ctx in

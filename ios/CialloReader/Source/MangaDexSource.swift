@@ -127,7 +127,7 @@ final class MangaDexSource: BookSource, ComicSourceProtocol {
         // 镜像回退
         let slug = await slugFor(mirrorId: bookId)
         guard let slug else { return .error(.bookNotFound) }
-        let resp = await searchMirror(slug.urlEncode())
+        let resp = (try? await searchMirror(slug.urlEncode())) ?? []
         if let hit = resp.first(where: { $0.id == bookId }) {
             return .success(hit)
         }
@@ -199,7 +199,7 @@ final class MangaDexSource: BookSource, ComicSourceProtocol {
         let url = "https://mangadex.live/title/\(mirrorId)"
         let resp = try await Http.get(url, headers: ["Referer": Self.mirrorReferer])
         guard (200..<300).contains(resp.status) else { return [] }
-        let doc = try SwiftSoup(resp.text)
+        let doc = try SwiftSoup.parse(resp.text)
         var chapters: [ComicChapter] = []
         for el in try doc.select("a[href^=/chapter/]").array() {
             let href = try el.attr("href")
@@ -224,7 +224,7 @@ final class MangaDexSource: BookSource, ComicSourceProtocol {
         // 镜像回退：读章节页图片
         let resp = try? await Http.get("https://mangadex.live/chapter/\(chapterId)", headers: ["Referer": Self.mirrorReferer])
         if let resp, (200..<300).contains(resp.status) {
-            if let doc = try? SwiftSoup(resp.text),
+            if let doc = try? SwiftSoup.parse(resp.text),
                let imgs = try? doc.select("img").array(),
                let urls = JsonBookSource.extractImageUrls(from: imgs) as [String]? {
                 let filtered = urls.filter { $0.contains("/data/") || $0.contains("mangadex") }

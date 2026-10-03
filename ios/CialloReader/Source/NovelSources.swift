@@ -270,7 +270,7 @@ final class IxdzsSource: BookSource {
             ((try? $0.text()) ?? "").contains("TXT下载")
         }
         guard let linkEl = downloadLink else { throw SourceException.parseError("本书未提供 TXT 下载") }
-        let downloadHref = linkEl.attr("abs:href").isEmpty ? linkEl.attr("href") : linkEl.attr("abs:href")
+        let downloadHref = ((try? linkEl.attr("abs:href")) ?? "").isEmpty ? ((try? linkEl.attr("href")) ?? "") : ((try? linkEl.attr("abs:href")) ?? "")
         guard let downloadUrl = URL(string: downloadHref),
               downloadUrl.scheme == "https",
               downloadUrl.host == "ixdzs8.com" || downloadUrl.host?.range(of: "^down[0-9]+\\.ixdzs8\\.com$", options: .regularExpression) != nil else {
@@ -283,7 +283,7 @@ final class IxdzsSource: BookSource {
         let cover = (try? doc.select(".n-img img[src]").first()?.attr("abs:src")) ?? "" ?? ""
         let book = SearchBook(
             id: bookId, sourceId: id, title: title,
-            author: (try? info?.select(".bauthor")?.first()?.text()) ?? "" ?? "",
+            author: (try? info?.select(".bauthor").first()?.text()) ?? "" ?? "",
             cover: cover.isEmpty ? nil : cover,
             description: "中文网文，TXT 下载到书架阅读。原站下载包可能缺章或更新滞后。\n\(latest ?? "")\n\(updated ?? "")\n\n\(intro)",
             format: "txt", language: "中文",
@@ -304,7 +304,7 @@ final class IxdzsSource: BookSource {
             var books: [SearchBook] = []
             for info in try doc.select(".l-info").array() {
                 guard let link = try? info.select("h3.bname a[href]").first() else { continue }
-                let href = link.attr("abs:href").isEmpty ? link.attr("href") : link.attr("abs:href")
+                let href = ((try? link.attr("abs:href")) ?? "").isEmpty ? ((try? link.attr("href")) ?? "") : ((try? link.attr("abs:href")) ?? "")
                 guard let url = URL(string: href), url.host == "ixdzs8.com" else { continue }
                 guard let m = url.path.range(of: "^/read/([1-9][0-9]{0,8})/$", options: .regularExpression) else { continue }
                 let bookId = String(url.path[m])
@@ -313,10 +313,10 @@ final class IxdzsSource: BookSource {
                 let title = (try? link.text()) ?? ""
                 guard !title.isEmpty, seen.insert(bookId).inserted else { continue }
                 let cover = (try? info.select("img[src]").first()?.attr("abs:src")) ?? "" ?? ""
-                let intro = (try? info.select(".l-p2")?.first()?.text()) ?? "" ?? ""
+                let intro = (try? info.select(".l-p2").first()?.text()) ?? "" ?? ""
                 books.append(SearchBook(
                     id: bookId, sourceId: id, title: title,
-                    author: (try? info.select(".bauthor")?.first()?.text()) ?? "" ?? "",
+                    author: (try? info.select(".bauthor").first()?.text()) ?? "" ?? "",
                     cover: cover.isEmpty ? nil : cover,
                     description: "中文网文，TXT 下载到书架阅读；原站下载包可能缺章或更新滞后。\n\(intro)",
                     format: "txt", language: "中文",

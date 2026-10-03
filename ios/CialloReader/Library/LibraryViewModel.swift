@@ -56,13 +56,13 @@ actor SourceSearchCoordinator {
 
 /// 跨站并发槽池（8 路）
 actor SlotPool {
-    private let max: Int
+    private let limit: Int
     private var active = 0
 
-    init(max: Int) { self.max = max }
+    init(limit: Int) { self.limit = limit }
 
     func acquire() async {
-        while active >= max {
+        while active >= limit {
             try? await Task.sleep(nanoseconds: 60_000_000)
         }
         active += 1
@@ -88,7 +88,7 @@ final class ComicAggregateSearch: ObservableObject {
 
     @Published var groups: [Group] = []
     private var generation = 0
-    private let slots = SlotPool(max: 8)
+    private let slots = SlotPool(limit: 8)
     private let coordinator = SourceSearchCoordinator()
 
     func search(keyword: String, sources: [BookSource]) async {

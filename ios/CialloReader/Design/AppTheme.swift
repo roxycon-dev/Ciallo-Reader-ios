@@ -140,7 +140,7 @@ final class AppTheme: ObservableObject {
         baseSecondaryColors.indices.contains(colorSecondaryIndex) ? baseSecondaryColors[colorSecondaryIndex] : baseSecondaryColors[2]
     }
 
-    var preferredColorScheme: ColorScheme? { darkMode }
+    var preferredColorScheme: ColorScheme? { darkMode.map { $0 ? ColorScheme.dark : ColorScheme.light } }
 
     private init() {
         colorPrimaryIndex = prefs.int(for: "theme_color_primary") ?? 2

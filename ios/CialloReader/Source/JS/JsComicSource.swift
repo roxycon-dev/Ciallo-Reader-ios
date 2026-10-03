@@ -13,7 +13,7 @@ final class JsComicSource: BookSource, ComicSourceProtocol {
     var name: String { name_override }
     var registrationUrl: String? { nil }
     var capabilities: SourceCapabilities {
-        SourceCapabilities(supportComic: true, downloadRequiresLogin: loginRequiredFlag)
+        SourceCapabilities(downloadRequiresLogin: loginRequiredFlag, supportComic: true)
     }
 
     init(engine: JsSourceEngine, key: String, name: String, loginRequired: Bool) {

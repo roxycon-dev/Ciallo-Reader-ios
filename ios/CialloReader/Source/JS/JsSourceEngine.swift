@@ -1,6 +1,7 @@
 import Foundation
 import JavaScriptCore
 import CryptoKit
+import SwiftSoup
 
 // MARK: - JS 源引擎（source/js/JsSourceEngine.kt + JsMessageHandler.kt 对应物）
 // 引擎从 QuickJS 换成系统 JavaScriptCore；消息桥协议（http/convert/cookie/storage/ui/async）
@@ -9,9 +10,9 @@ import CryptoKit
 
 final class JsSourceEngine {
     let sourceId: String
-    private let queue: DispatchQueue
+    let queue: DispatchQueue
     private var context: JSContext?
-    private var instance: JSValue?
+    var instance: JSValue?
     private(set) var sourceName = ""
     private(set) var sourceVersion = "1.0.0"
 
@@ -113,45 +114,45 @@ final class JsSourceEngine {
         let engine = self
         // __nativeLog(text)（console 由 prelude 聚合变参后调用）
         ctx.setObject({ text in
-            SourceLog.log(engine.sourceId, text?.toString() ?? "")
-        } as @convention(block) (JSValue) -> Void, forKeyedSubscript: "__nativeLog")
+            SourceLog.log(engine.sourceId, text.toString())
+        } as @convention(block) (JSValue) -> Void, forKeyedSubscript: "__nativeLog" as NSString)
 
         // __nativeRequest(config, resolve, reject)
         ctx.setObject({ config, resolve, reject in
             engine.nativeRequest(config: config, resolve: resolve, reject: reject)
-        } as @convention(block) (JSValue, JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeRequest")
+        } as @convention(block) (JSValue, JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeRequest" as NSString)
 
         // __nativeConvert(type, value, arg) -> string
         ctx.setObject({ type, value, arg in
-            return JsConvert.convert(type: type?.toString() ?? "", value: value?.toString() ?? "", arg: arg?.toString())
-        } as @convention(block) (JSValue, JSValue, JSValue) -> String, forKeyedSubscript: "__nativeConvert")
+            return JsConvert.convert(type: type.toString(), value: value.toString(), arg: arg.toString())
+        } as @convention(block) (JSValue, JSValue, JSValue) -> String, forKeyedSubscript: "__nativeConvert" as NSString)
 
         // __nativeStorageGet(key, resolve)
         ctx.setObject({ key, resolve in
             let storage = JsSourceStorage(sourceId: engine.sourceId)
-            let value = storage.get(key?.toString() ?? "")
+            let value = storage.get(key.toString())
             resolve.call(withArguments: [value as Any])
-        } as @convention(block) (JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeStorageGet")
+        } as @convention(block) (JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeStorageGet" as NSString)
 
         // __nativeStorageSet(key, value, resolve)
         ctx.setObject({ key, value, resolve in
             let storage = JsSourceStorage(sourceId: engine.sourceId)
-            storage.set(key?.toString() ?? "", value?.toString() ?? "{}")
+            storage.set(key.toString(), value.toString())
             resolve.call(withArguments: [])
-        } as @convention(block) (JSValue, JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeStorageSet")
+        } as @convention(block) (JSValue, JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeStorageSet" as NSString)
 
         // __nativeInputDialog(prompt, resolve)
         ctx.setObject({ prompt, resolve in
             Task { @MainActor in
-                let text = await JsUiInput.requestInput(prompt: prompt?.toString() ?? "")
+                let text = await JsUiInput.requestInput(prompt: prompt.toString())
                 resolve.call(withArguments: [text as Any])
             }
-        } as @convention(block) (JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeInputDialog")
+        } as @convention(block) (JSValue, JSValue) -> Void, forKeyedSubscript: "__nativeInputDialog" as NSString)
 
         // __nativeHtmlParse(html, baseUrl) -> JSON tree
         ctx.setObject({ html, baseUrl in
-            return JsHtmlBridge.parse(html?.toString() ?? "", baseUrl: baseUrl?.toString())
-        } as @convention(block) (JSValue, JSValue) -> String, forKeyedSubscript: "__nativeHtmlParse")
+            return JsHtmlBridge.parse(html.toString(), baseUrl: baseUrl.toString())
+        } as @convention(block) (JSValue, JSValue) -> String, forKeyedSubscript: "__nativeHtmlParse" as NSString)
     }
 
     private func nativeRequest(config: JSValue?, resolve: JSValue, reject: JSValue) {
@@ -163,7 +164,7 @@ final class JsSourceEngine {
             do {
                 let response = try await JsNetwork.send(req)
                 engine.queue.async {
-                    let json = JsNetwork.serialize(response)
+                    let json = JsNetwork.Response.serialize(response)
                     let value = ctx.evaluateScript("(\(json))")
                     resolve.call(withArguments: [value as Any])
                 }
@@ -178,7 +179,7 @@ final class JsSourceEngine {
     private func toJsonString(_ value: JSValue?) -> String {
         guard let value else { return "{}" }
         if value.isString { return value.toString() }
-        let stringify = context?.objectForKeyedSubscript("JSON")?.objectForKeyedSubscript("stringify")
+        let stringify = context?.objectForKeyedSubscript("JSON").objectForKeyedSubscript("stringify")
         return stringify?.call(withArguments: [value])?.toString() ?? "{}"
     }
 
@@ -215,7 +216,7 @@ final class JsSourceEngine {
                 }
                 // Promise 处理：等待 resolve 后 stringify
                 if result.isObject, let then = result.objectForKeyedSubscript("then"), !then.isUndefined {
-                    let stringify = ctx.objectForKeyedSubscript("JSON")?.objectForKeyedSubscript("stringify")
+                    let stringify = ctx.objectForKeyedSubscript("JSON").objectForKeyedSubscript("stringify")
                     then.call(withArguments: [
                         { v in
                             let s = stringify?.call(withArguments: [v as Any])?.toString() ?? "{}"
@@ -244,7 +245,7 @@ final class JsSourceEngine {
 
     static func toJsValue(_ value: Any, ctx: JSContext) -> JSValue {
         switch value {
-        case let s as String: return JSValue(string: s, in: ctx) ?? JSValue(nullIn: ctx)
+        case let s as String: return JSValue(object: s, in: ctx) ?? JSValue(nullIn: ctx)
         case let n as Int: return JSValue(int32: Int32(n), in: ctx) ?? JSValue(nullIn: ctx)
         case let d as Double: return JSValue(double: d, in: ctx) ?? JSValue(nullIn: ctx)
         case let b as Bool: return JSValue(bool: b, in: ctx) ?? JSValue(nullIn: ctx)
@@ -392,7 +393,7 @@ enum JsConvert {
             var bytes: [UInt8] = []
             var i = 0
             while i + 1 < chars.count {
-                if let b = UInt8(String(chars[i]...chars[i + 1]), radix: 16) { bytes.append(b) }
+                if let b = UInt8(String([chars[i], chars[i + 1]]), radix: 16) { bytes.append(b) }
                 i += 2
             }
             return String(decoding: Data(bytes), as: UTF8.self)

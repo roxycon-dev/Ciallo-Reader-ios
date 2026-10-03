@@ -252,7 +252,6 @@ final class SniHttpClient {
             let tlsOptions = NWProtocolTLS.Options()
             sec_protocol_options_set_tls_server_name(tlsOptions.securityProtocolOptions, sniHost)
             let params = NWParameters(tls: tlsOptions)
-            params.connectTimeout = 10
 
             let connection = NWConnection(host: NWEndpoint.Host(ip), port: 443, using: params)
             let state = NSLock()

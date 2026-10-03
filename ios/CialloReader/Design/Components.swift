@@ -29,7 +29,7 @@ struct AppButton: View {
             .frame(height: compact ? 34 : 44)
             .frame(maxWidth: compact ? nil : .infinity)
             .foregroundStyle(foreground)
-            .background(background)
+            .background(backgroundStyle)
             .clipShape(RoundedRectangle(cornerRadius: DT.rMD, style: .continuous))
             .opacity(enabled ? 1 : 0.45)
         }
@@ -44,12 +44,11 @@ struct AppButton: View {
         }
     }
 
-    @ViewBuilder
-    private var background: some View {
+    private var backgroundStyle: AnyShapeStyle {
         switch variant {
-        case .primary: AnyShapeStyle(theme.primary)
-        case .secondary: AnyShapeStyle(theme.primary.opacity(0.14))
-        case .ghost: AnyShapeStyle(Color.primary.opacity(0.06))
+        case .primary: return AnyShapeStyle(theme.primary)
+        case .secondary: return AnyShapeStyle(theme.primary.opacity(0.14))
+        case .ghost: return AnyShapeStyle(Color.primary.opacity(0.06))
         }
     }
 }
@@ -289,7 +288,7 @@ struct MascotEmptyState: View {
                 .scaledToFit()
                 .frame(width: 88, height: 72)
                 .opacity(mood == .sadAlpha ? 0.45 : 1)
-                .offset(y: animate ? offset.y : .zero)
+                .offset(y: animate ? offset.height : .zero)
                 .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: animate)
             Text(title)
                 .font(.system(size: 15, weight: .medium))
@@ -320,7 +319,7 @@ struct MascotEmptyState: View {
 
 enum AppSnackKind { case neutral, success, error }
 
-struct AppSnack: Identifiable, Equatable {
+struct AppSnack: Identifiable {
     let id = UUID()
     let message: String
     var kind: AppSnackKind = .neutral
@@ -388,7 +387,7 @@ struct AppSnackbarHost: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: DT.rMD, style: .continuous)
-                .fill(snack.kind == .error ? Color(hex: 0x8C1D18) : .regularMaterial)
+                .fill(snack.kind == .error ? AnyShapeStyle(Color(hex: 0x8C1D18)) : AnyShapeStyle(.regularMaterial))
         )
         .consistentShadow(radius: 12, y: 4, opacity: 0.2)
     }

@@ -195,7 +195,8 @@ final class ZLibrarySource: BookSource {
     }
 
     func isLoggedIn() async -> Bool {
-        storage.isLoggedIn() && cookieJar.isLoggedInCookie(host: await provider.resolveDomain())
+        let domain = await provider.resolveDomain()
+        return storage.isLoggedIn() && cookieJar.isLoggedInCookie(host: domain)
     }
 
     func getAuthenticationState() async -> AuthenticationState {

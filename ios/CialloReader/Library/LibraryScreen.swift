@@ -73,6 +73,7 @@ struct LibraryScreen: View {
     }
 
     private var searchBar: some View {
+        VStack(spacing: 8) {
         HStack(spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
@@ -121,6 +122,7 @@ struct LibraryScreen: View {
         }
         .padding(.horizontal, DT.spPage)
         .padding(.bottom, DT.spSM)
+        }
     }
 
     private var resultList: some View {

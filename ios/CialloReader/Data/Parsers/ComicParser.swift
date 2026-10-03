@@ -61,7 +61,7 @@ enum ComicParser {
         let archive = try Archive(url: url, accessMode: .read)
         var budget = ArchiveBudget()
         var pages: [(String, URL)] = []
-        for entry in archive where !entry.isDirectory {
+        for entry in archive where entry.type == .file {
             let name = entry.path.replacingOccurrences(of: "\\", with: "/")
             let visible = name.split(separator: "/").allSatisfy { !$0.hasPrefix(".") && $0 != "__MACOSX" }
             let ext = (name as NSString).pathExtension.lowercased()
@@ -122,9 +122,9 @@ enum ComicParser {
                 let lengthOrder = (i - ai) - (j - bj)
                 if lengthOrder != 0 { return lengthOrder }
                 while ai < i {
-                    let digitOrder = ac[ai].compare(bc[bj], options: .caseInsensitive).rawValue
+                    let ca = ac[ai].lowercased(), cb = bc[bj].lowercased()
+                    if ca != cb { return ca < cb ? -1 : 1 }
                     ai += 1; bj += 1
-                    if digitOrder != 0 { return digitOrder }
                 }
             } else {
                 let order = ac[i].lowercased().compare(bc[j].lowercased()).rawValue
@@ -133,6 +133,6 @@ enum ComicParser {
             }
         }
         let lenOrder = (ac.count - i) - (bc.count - j)
-        return lenOrder != 0 ? lenOrder : a.compare(b)
+        return lenOrder != 0 ? lenOrder : (a < b ? -1 : (a == b ? 0 : 1))
     }
 }

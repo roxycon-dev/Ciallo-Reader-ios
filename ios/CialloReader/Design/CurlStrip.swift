@@ -78,7 +78,7 @@ struct CurlStripCanvas: View {
                 flatRect = CGRect(x: 0, y: 0, width: geo.fold, height: H)
             }
             if flatRect.width > 0 {
-                ctx.draw(image, in: flatRect, source: flatRect)
+                ctx.draw(image, in: flatRect)
             }
 
             // 3. 已翻过卷筒的镜像背面（压暗 = "透纸"）
@@ -98,7 +98,7 @@ struct CurlStripCanvas: View {
                     ctx.drawLayer { layer in
                         layer.translateBy(x: anchor, y: 0)
                         layer.scaleEffect(x: -1, y: 1)
-                        layer.draw(image, in: flippedSource, source: flippedSource)
+                        layer.draw(image, in: flippedSource)
                     }
                     // 背面压暗（Android: 20% alpha 叠纸底 + 轻模糊的近似）
                     let flippedDest: CGRect = geo.rtl
@@ -129,7 +129,7 @@ struct CurlStripCanvas: View {
                     // RTL: dest 从 fold 向左减小，source 从 fold 向左减小 → 取 s(u1) 再正序画
                     let srcX = geo.rtl ? geo.capSourceX(u1) : geo.capSourceX(u0)
                     let source = CGRect(x: srcX, y: 0, width: srcW, height: H)
-                    ctx.draw(image, in: dest, source: source)
+                    CurlStripCanvas.drawStrip(&ctx, image: image, dest: dest, source: source)
 
                     // 曲面明暗（θ 越大越背光）
                     let theta = u1 / geo.radius

@@ -156,7 +156,8 @@ final class DownloadManager: ObservableObject {
 
     private func startWorker(task: DownloadTaskEntity, headers: [String: String], referer: String?) {
         let t = Task { [weak self] in
-            await self?.runWorker(task: task, headers: headers, referer: referer)
+            guard let self else { return }
+            await self.runWorker(task: task, headers: headers, referer: referer)
         }
         running[task.id] = t
     }

@@ -174,7 +174,8 @@ enum ZLParser {
                 guard let href = try? link.attr("href") else { continue }
                 guard href.contains("/book/") else { continue }
                 let container = try? link.parent()?.parent()
-                let title = ((try? container?.select("h3, .title, .book-title").first()?.text()) ?? "") ?? link.text()
+                let fromCard = ((try? container?.select("h3, .title, .book-title").first()?.text()) ?? "")
+                let title = fromCard.isEmpty ? ((try? link.text()) ?? "") : fromCard
                 guard !title.isEmpty else { continue }
                 let cover = ((try? container?.select("img").first()?.attr("data-src")) ?? "")
                     ?? ((try? container?.select("img").first()?.attr("src")) ?? "") ?? ""

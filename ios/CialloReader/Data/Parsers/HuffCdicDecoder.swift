@@ -10,7 +10,7 @@ final class HuffCdicDecoder {
     private struct Dict1Entry {
         let codeLen: Int
         let term: Bool
-        let maxCode: UInt64
+        var maxCode: UInt64
     }
 
     private var dict1: [Dict1Entry] = []
@@ -132,9 +132,9 @@ final class HuffCdicDecoder {
             if !literal {
                 // 递归解压并缓存（先占位防环）
                 dictionary[r] = ([], true)
-                let resolved = unpack(sliceBytes)
-                dictionary[r] = (resolved, true)
-                sliceBytes = resolved
+                let resolvedBytes = [UInt8](unpack(sliceBytes))
+                dictionary[r] = (resolvedBytes, true)
+                sliceBytes = resolvedBytes
             }
             s.append(contentsOf: sliceBytes)
         }

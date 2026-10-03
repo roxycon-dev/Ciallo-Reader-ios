@@ -67,7 +67,7 @@ struct SettingsTabScreen: View {
         .sheet(isPresented: $showCache) { CacheManagementScreen() }
         .sheet(isPresented: $showPrivacy) { PrivacySetupSheet() }
         .fileImporter(isPresented: $showBackup, allowedContentTypes: [.zip, .data]) { result in
-            if case .success(let urls) = result, let url = urls.first {
+            if case .success(let url) = result {
                 Task {
                     do {
                         try await BackupManager.importBackup(from: url)

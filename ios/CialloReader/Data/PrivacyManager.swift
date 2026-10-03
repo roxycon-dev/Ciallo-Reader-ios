@@ -22,7 +22,7 @@ final class PrivacyManager: ObservableObject {
     }
 
     func enable(pin: String) throws {
-        let salt = (0..<16).map { _ in UInt8.random(in: 0...255) }
+        let salt = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
         let hash = try PBKDF2.derive(password: pin, salt: salt, iterations: 120_000)
         prefs.setString(salt.base64EncodedString(), for: "privacy_salt")
         prefs.setString(hash.base64EncodedString(), for: "privacy_hash")

@@ -46,7 +46,7 @@ final class JsSourceRepo: BookSource {
     var id: String { "js_sources" }
     var name: String { "漫画源仓库" }
     var registrationUrl: String? { nil }
-    var capabilities: SourceCapabilities { SourceCapabilities(supportComic: true, supportImport: true) }
+    var capabilities: SourceCapabilities { SourceCapabilities(supportImport: true, supportComic: true) }
 
     private init() {
         loadLocalExtras()

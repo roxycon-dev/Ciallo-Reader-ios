@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - 漫画阅读配置（ui/comic/ComicReaderConfig.kt + ComicSettingsStore.kt 对应物）
 // 五模式 × 方向 × 适配 + 每本独立配置 + 预设。
 
-enum ComicMode: String, CaseIterable, Identifiable {
+enum ComicMode: String, Codable, CaseIterable, Identifiable {
     case pagedRtl = "日漫（RTL 翻页）"
     case pagedLtr = "翻页（LTR）"
     case webtoon = "条漫"
@@ -15,7 +15,7 @@ enum ComicMode: String, CaseIterable, Identifiable {
     var isVertical: Bool { self == .webtoon || self == .continuous || self == .vertical }
 }
 
-enum ComicFit: String, CaseIterable, Identifiable {
+enum ComicFit: String, Codable, CaseIterable, Identifiable {
     case fitWidth = "适配宽度"
     case fitScreen = "适配屏幕"
     case fitHeight = "适配高度"
@@ -24,7 +24,7 @@ enum ComicFit: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum ComicBgStyle: String, CaseIterable, Identifiable {
+enum ComicBgStyle: String, Codable, CaseIterable, Identifiable {
     case auto = "跟随主题"
     case black = "纯黑"
     case paper = "纸纹"

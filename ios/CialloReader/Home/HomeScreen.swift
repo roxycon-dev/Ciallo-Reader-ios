@@ -102,7 +102,7 @@ struct HomeScreen: View {
                     readingNow
                 }
                 // 2. 我的书架
-                sectionTitle("我的书架", icon: "books.vertical", trailing: shelfActions)
+                sectionTitle("我的书架", icon: "books.vertical", trailing: { shelfActions })
                 categoryPills
                 shelfGrid
                 // 3. 我喜欢的
@@ -119,7 +119,7 @@ struct HomeScreen: View {
         }
         .background(Color(.systemBackground))
         .fileImporter(isPresented: $showImporter, allowedContentTypes: importTypes, allowsMultipleSelection: false) { result in
-            if case .success(let urls) = result, let url = urls.first {
+            if case .success(let url) = result {
                 Task { await viewModel.importFile(url: url) }
             }
         }

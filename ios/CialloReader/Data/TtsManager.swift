@@ -43,7 +43,7 @@ final class TtsManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
     }
 
     func pause() {
-        synthesizer.pause(at: .immediate)
+        synthesizer.pauseSpeaking(at: .immediate)
         isPlaying = false
     }
 

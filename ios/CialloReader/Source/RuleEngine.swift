@@ -8,7 +8,7 @@ enum JsonPathResolver {
     static func parseJson(_ text: String) -> Any? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed, .topLevelWithFragments])
+        return try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
     }
 
     /// 主入口：从 JSON 根取任意路径值
@@ -16,7 +16,7 @@ enum JsonPathResolver {
         var p = path.trimmingCharacters(in: .whitespaces)
         if p.hasPrefix("@json:") {
             let inner = String(p.dropFirst("@json:".count))
-            if let parsed = parseJson(stringValue(of: resolve(root, inner) ?? "")) {
+            if let parsed = parseJson(stringValue(of: resolve(root, inner)) ?? "") {
                 return parsed
             }
             return nil
@@ -108,7 +108,7 @@ enum JsonPathResolver {
                 while i < path.endIndex, path[i] != "]" {
                     inner.append(path[i]); i = path.index(after: i)
                 }
-                tokens.append("[]" == inner.isEmpty ? "[]" : "[\(inner)]")
+                tokens.append(inner.isEmpty ? "[]" : "[\(inner)]")
             } else {
                 buf.append(c)
             }
@@ -230,7 +230,6 @@ enum LegadoRule {
                 let all = (try? el.select(sel))?.array() ?? []
                 return filter(all, by: pos)
             }
-            sel = sel
             return (try? el.select(sel))?.array() ?? []
         case "id":
             guard parts.count >= 2 else { return [] }
@@ -301,7 +300,6 @@ enum LegadoRule {
         guard let suffix, let sepRange = suffix.range(of: "##") else { return value }
         let pattern = String(suffix[suffix.startIndex..<sepRange.lowerBound])
         let replacement = String(suffix[sepRange.upperBound...])
-            .replacingOccurrences(of: "$1", with: "$1")
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return value }
         let ns = value as NSString
         return regex.stringByReplacingMatches(in: value, options: [], range: NSRange(location: 0, length: ns.length), withTemplate: replacement)
@@ -349,13 +347,13 @@ enum LegadoRule {
         case "text": return (try? el.text()) ?? ""
         case "owntext": return (try? el.ownText()) ?? ""
         case "textnodes", "textnode":
-            let nodes = (try? el.textNodes())?.array() ?? []
-            return nodes.compactMap { (try? $0.text()) ?? nil }.joined(separator: " ")
+            let nodes = (try? el.textNodes()) ?? []
+            return nodes.compactMap { (try? $0.text()) ?? "" }.joined(separator: " ")
         case "html": return (try? el.html()) ?? ""
         case "all": return (try? el.outerHtml()) ?? ""
-        case "href": return el.attr("href")
-        case "src": return el.attr("src")
-        default: return el.attr(key)
+        case "href": return (try? el.attr("href")) ?? ""
+        case "src": return (try? el.attr("src")) ?? ""
+        default: return (try? el.attr(key)) ?? ""
         }
     }
 

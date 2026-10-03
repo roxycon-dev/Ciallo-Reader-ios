@@ -400,11 +400,6 @@ struct ReaderPageTurnContainer<Page: View>: View {
     let theme: ReaderTheme
     @ViewBuilder let pageContent: (Int) -> Page
 
-    @GestureState private var drag: CGFloat = 0
-    @State private var direction: Int = 0   // -1 下一页动画, +1 上一页
-
-    @GestureState private var drag: CGFloat = 0
-    @State private var direction: Int = 0   // -1 下一页动画, +1 上一页
     // 仿真卷页驱动（GL 纹理信箱的对应物：起手快照、拖拽喂 t、松手结算）
     @State private var curlT: CGFloat = 0
     @State private var curlActive = false

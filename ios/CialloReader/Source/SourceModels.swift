@@ -106,6 +106,8 @@ struct SearchBook: Identifiable, Hashable {
     var downloadUrl: String? = nil
     var eapiId: String? = nil
     var eapiHash: String? = nil
+    var novelInfo: NovelInfo? = nil
+    var comicInfo: ComicInfo? = nil
 }
 
 struct BookFormat: Identifiable, Hashable {
@@ -216,6 +218,16 @@ extension ComicSourceProtocol {
     func resolveChapterImage(url: String) async -> String? { nil }
     func getResolvedHeaders(url: String) async -> [String: String] { [:] }
     func getCoverHeaders(url: String) async -> [String: String] { [:] }
+}
+
+// MARK: 工具
+
+extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
+extension Optional where Wrapped == String {
+    var nilIfEmpty: String? { flatMap { $0.isEmpty ? nil : $0 } }
 }
 
 // MARK: 书源调试日志（SourceLog.kt：环形缓冲）

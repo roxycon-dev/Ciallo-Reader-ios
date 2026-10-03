@@ -150,8 +150,8 @@ final class JsonBookSource: BookSource, ComicSourceProtocol {
                                                    cover: absolute(JsonPathResolver.getString(json, f.cover ?? "")),
                                                    description: JsonPathResolver.getString(json, f.description ?? ""),
                                                    format: JsonPathResolver.getString(json, f.format ?? "") ?? detailDefaultFormat,
-                                                   downloadUrl: JsonPathResolver.getString(json, f.downloadUrl ?? ""),
-                                                   size: JsonPathResolver.getString(json, "size").flatMap { Int64($0) }))
+                                                   size: JsonPathResolver.getString(json, "size").flatMap { Int64($0) },
+                                                   downloadUrl: JsonPathResolver.getString(json, f.downloadUrl ?? "")))
                     }
                 }
                 // HTML 详情
@@ -249,7 +249,7 @@ final class JsonBookSource: BookSource, ComicSourceProtocol {
             let doc = try SwiftSoup.parse(resp.text, absolute(url) ?? url)
             if let imgSel = content.imageSelector.nilIfEmpty {
                 let imgs = try doc.select(imgSel.contains("@") ? String(imgSel.split(separator: "@")[0]) : imgSel).array()
-                let urls = extractImageUrls(from: imgs)
+                let urls = Self.extractImageUrls(from: imgs)
                 guard !urls.isEmpty else { return .error(.parseError("未解析到图片")) }
                 return .success(urls.map { absolute($0) ?? $0 })
             }
@@ -390,6 +390,4 @@ final class JsonBookSource: BookSource, ComicSourceProtocol {
     }
 }
 
-extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
-}
+// extractImageUrls 为 static（源码内注释保留原实现说明）
