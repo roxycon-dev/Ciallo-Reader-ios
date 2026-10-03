@@ -69,7 +69,7 @@ enum BookRepository {
                 throw ImportError("暂不支持该格式：\(ext)")
             }
 
-            var book = Book()
+            var book = Book(title: "", filePath: "")
             book.title = parsed.title
             book.author = parsed.author
             book.filePath = parsed.filePath.isEmpty ? privateCopy.path : parsed.filePath
@@ -109,16 +109,18 @@ enum BookRepository {
         if matches.count >= 3 {
             var lastTitle = "开始"
             var bufferStart = 0
-            for m in matches + [NSRange(location: ns.length, length: 0)] {
+            for m in matches {
                 let chunk = ns.substring(with: NSRange(location: bufferStart, length: max(0, m.location - bufferStart)))
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !chunk.isEmpty {
                     chapters.append(contentsOf: ChapterSplitter.split(chunk, title: lastTitle))
                 }
-                if m.location < ns.length {
-                    lastTitle = ns.substring(with: m.range).trimmingCharacters(in: .whitespacesAndNewlines)
-                    bufferStart = m.location + m.length
-                }
+                lastTitle = ns.substring(with: m.range).trimmingCharacters(in: .whitespacesAndNewlines)
+                bufferStart = m.location + m.length
+            }
+            let tail = ns.substring(from: bufferStart).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !tail.isEmpty {
+                chapters.append(contentsOf: ChapterSplitter.split(tail, title: lastTitle))
             }
         } else {
             chapters = ChapterSplitter.split(text, title: "正文")

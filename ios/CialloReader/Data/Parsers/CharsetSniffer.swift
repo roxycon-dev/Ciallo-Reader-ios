@@ -39,7 +39,6 @@ enum CharsetSniffer {
         case "gbk", "gb2312", "gb18030", "cp936": return gbk
         case "big5": return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.big5.rawValue)))
         case "shift_jis", "sjis": return .shiftJIS
-        case "euc-kr": return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.euc_KR.rawValue)))
         default: return nil
         }
     }

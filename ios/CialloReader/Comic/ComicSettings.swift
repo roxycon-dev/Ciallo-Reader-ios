@@ -78,7 +78,7 @@ final class ComicSettingsStore: ObservableObject {
         activePreset = prefs.string(for: "comic_active_preset") ?? "preset_builtin_manga"
     }
 
-    func config(for bookKey: String) -> ComicReaderConfig {
+    func config(for bookKey: String?) -> ComicReaderConfig {
         perBook[bookKey] ?? global
     }
 
@@ -100,13 +100,13 @@ final class ComicSettingsStore: ObservableObject {
 
     private func persistGlobal() {
         if let data = try? JSONEncoder().encode(global) {
-            prefs.setString(String(data: data, encoding: .utf8), for: "comic_config_global")
+            prefs.setString(String(data: data, encoding: .utf8) ?? "{}", for: "comic_config_global")
         }
     }
 
     private func persistPerBook() {
         if let data = try? JSONEncoder().encode(perBook) {
-            prefs.setString(String(data: data, encoding: .utf8), for: "comic_config_perbook")
+            prefs.setString(String(data: data, encoding: .utf8) ?? "{}", for: "comic_config_perbook")
         }
     }
 }

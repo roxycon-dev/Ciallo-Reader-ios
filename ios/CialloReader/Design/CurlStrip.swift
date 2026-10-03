@@ -49,6 +49,16 @@ enum CurlMath {
 }
 
 struct CurlStripCanvas: View {
+    /// 源矩形 → 目标矩形的水平重映射绘制（source/dest 等高）
+    static func drawStrip(_ ctx: inout GraphicsContext, image: Image, dest: CGRect, source: CGRect) {
+        guard source.width > 0, dest.width > 0 else { return }
+        let k = dest.width / source.width
+        ctx.drawLayer { layer in
+            layer.translateBy(x: dest.minX - source.minX * k, y: 0)
+            layer.scaleBy(x: k, y: 1)
+            layer.draw(image, in: source)
+        }
+    }
     let front: UIImage
     let beneath: UIImage?
     let t: CGFloat
@@ -97,7 +107,7 @@ struct CurlStripCanvas: View {
                     let anchor = 2 * geo.fold + sign * .pi * geo.radius
                     ctx.drawLayer { layer in
                         layer.translateBy(x: anchor, y: 0)
-                        layer.scaleEffect(x: -1, y: 1)
+                        layer.scaleBy(x: -1, y: 1)
                         layer.draw(image, in: flippedSource)
                     }
                     // 背面压暗（Android: 20% alpha 叠纸底 + 轻模糊的近似）

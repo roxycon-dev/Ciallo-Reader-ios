@@ -72,9 +72,9 @@ enum BackupManager {
             _ = try? archive.addEntry(with: "data/\(name).ndjson", type: .file,
                                       uncompressedSize: total,
                                       bufferSize: 64 * 1024,
-                                      progress: nil) { position in
+                                      progress: nil) { position, size in
                 let start = Int(position)
-                return data.subdata(in: start..<min(start + 64 * 1024, data.count))
+                return data.subdata(in: start..<min(start + Int(size), data.count))
             }
         }
         // 私有书籍与图片
@@ -89,11 +89,11 @@ enum BackupManager {
                     _ = try? archive.addEntry(with: prefix + relative, type: .file,
                                               uncompressedSize: Int64(size),
                                               bufferSize: 128 * 1024,
-                                              progress: nil) { position in
+                                              progress: nil) { position, size in
                         guard let handle = try? FileHandle(forReadingFrom: fileURL) else { return Data() }
                         defer { try? handle.close() }
                         try? handle.seek(toOffset: UInt64(position))
-                        return (try? handle.read(upToCount: 128 * 1024)) ?? Data()
+                        return (try? handle.read(upToCount: Int(size))) ?? Data()
                     }
                 }
             }
@@ -112,7 +112,10 @@ enum BackupManager {
         var tableData: [String: String] = [:]
         for entry in archive where entry.path.hasPrefix("data/") && entry.path.hasSuffix(".ndjson") {
             let name = (entry.path as NSString).lastPathComponent.replacingOccurrences(of: ".ndjson", with: "")
-            tableData[name] = String(decoding: try archive.extract(entry), as: UTF8.self)
+            let tmp = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try archive.extract(entry, to: tmp)
+            defer { try? fm.removeItem(at: tmp) }
+            tableData[name] = String(decoding: try Data(contentsOf: tmp), as: UTF8.self)
         }
         guard !tableData.isEmpty else { throw ImportError("备份文件缺少数据表") }
 
@@ -148,12 +151,14 @@ enum BackupManager {
             let src = staging.appendingPathComponent(stagingSub)
             guard fm2.fileExists(atPath: src.path) else { continue }
             try? fm2.createDirectory(at: destDir, withIntermediateDirectories: true)
-            for case let fileURL as URL in fm2.enumerator(at: src, includingPropertiesForKeys: nil) ?? [] {
-                let relative = fileURL.path.replacingOccurrences(of: src.path, with: "")
-                let dest = destDir.appendingPathComponent(relative)
-                try? fm2.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? fm2.removeItem(at: dest)
-                try? fm2.moveItem(at: fileURL, to: dest)
+            if let enum2 = fm2.enumerator(at: src, includingPropertiesForKeys: nil) {
+                for case let fileURL as URL in enum2 {
+                    let relative = fileURL.path.replacingOccurrences(of: src.path, with: "")
+                    let dest = destDir.appendingPathComponent(relative)
+                    try? fm2.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? fm2.removeItem(at: dest)
+                    try? fm2.moveItem(at: fileURL, to: dest)
+                }
             }
         }
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)

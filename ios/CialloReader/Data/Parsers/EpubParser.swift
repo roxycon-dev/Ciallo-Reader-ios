@@ -16,8 +16,10 @@ enum EpubParser {
         let entryPaths = archive.map { $0.path }
 
         // 1) container.xml → OPF
-        guard let containerEntry = entryPath(of: "META-INF/container.xml", in: entryPaths),
-              let opfPath = opfPath(archive: archive, entry: containerEntry) else {
+        guard let containerEntry = entryPath(of: "META-INF/container.xml", in: entryPaths) else {
+            throw ImportError("EPUB 缺少 container.xml")
+        }
+        guard let opfPath = opfPath(archive: archive, entry: containerEntry) else {
             throw ImportError("EPUB 缺少 container.xml")
         }
         guard let opfEntry = entryPath(of: opfPath, in: entryPaths) else { throw ImportError("EPUB 缺少 OPF") }
@@ -88,8 +90,11 @@ enum EpubParser {
         return try root.attr("full-path")
     }
 
-    static func readEntry(_ archive: Archive, _ entry: Archive.Entry) throws -> Data {
-        let data = try archive.extract(entry)
+    static func readEntry(_ archive: Archive, _ entry: Entry) throws -> Data {
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try archive.extract(entry, to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let data = try Data(contentsOf: tmp)
         var budget = ArchiveBudget()
         try budget.copy(data.count)
         return data
@@ -153,10 +158,10 @@ enum EpubParser {
     private static func appendImageToken(src: String, bookURL: URL, itemPath: String, archive: Archive, into out: inout String) {
         let itemDir = (itemPath as NSString).deletingLastPathComponent
         let imagePath = resolve(opfDir: itemDir, href: src)
-        guard let entry = archive.entries.first(where: { $0.path.lowercased() == imagePath.lowercased() }) else { return }
+        guard let entry = archive.first(where: { $0.path.lowercased() == imagePath.lowercased() }) else { return }
         // 读数据拿尺寸（图片通常几 MB 内）
-        guard let head = try? archive.extract(entry),
-              let (w, h) = CharsetSniffer.imageSize(of: head) else { return }
+        let head = (try? readEntry(archive, entry)) ?? Data()
+        guard let (w, h) = CharsetSniffer.imageSize(of: head) else { return }
         let ref = "epzip:file://\(bookURL.path)!\(entry.path)"
         out.append("[IMG:\(ref)|\(w)|\(h)]")
     }
@@ -170,10 +175,10 @@ enum EpubParser {
 
     // MARK: 封面三级策略
 
-    private static func findCover(archive: Archive, entryPaths: [String], manifest: [String: (href: String, props: String, mediaType: String)], opfHtml: Document) -> Archive.Entry? {
-        func entry(forHref href: String, in opfDir: String = "") -> Archive.Entry? {
+    private static func findCover(archive: Archive, entryPaths: [String], manifest: [String: (href: String, props: String, mediaType: String)], opfHtml: Document) -> Entry? {
+        func entry(forHref href: String, in opfDir: String = "") -> Entry? {
             let p = resolve(opfDir: opfDir, href: href)
-            return entryPath(of: p, in: entryPaths).flatMap { path in archive.entries.first { $0.path == path } }
+            return entryPath(of: p, in: entryPaths).flatMap { path in archive.first { $0.path == path } }
         }
 
         // EPUB3: properties=cover-image
@@ -191,11 +196,11 @@ enum EpubParser {
             if let e = entry(forHref: href) { return e }
         }
         // 暴力兜底：文件名含 cover
-        if let e = archive.entries.first(where: { $0.path.lowercased().contains("cover") && isImageEntry($0.path) }) {
+        if let e = archive.first(where: { $0.path.lowercased().contains("cover") && isImageEntry($0.path) }) {
             return e
         }
         // 首 spine 首图 / 体积最大图
-        if let e = archive.entries.first(where: { isImageEntry($0.path) }) {
+        if let e = archive.first(where: { isImageEntry($0.path) }) {
             return e
         }
         return nil
@@ -207,7 +212,7 @@ enum EpubParser {
     }
 
     /// 抽出封面文件
-    static func extractCover(_ archive: Archive, entry: Archive.Entry) throws -> String {
+    static func extractCover(_ archive: Archive, entry: Entry) throws -> String {
         let data = try readEntry(archive, entry)
         let dir = BookRepository.coversDirectory
         let file = dir.appendingPathComponent("cover_\(UUID().uuidString).img")

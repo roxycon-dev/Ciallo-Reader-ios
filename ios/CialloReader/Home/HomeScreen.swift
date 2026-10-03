@@ -119,7 +119,7 @@ struct HomeScreen: View {
         }
         .background(Color(.systemBackground))
         .fileImporter(isPresented: $showImporter, allowedContentTypes: importTypes, allowsMultipleSelection: false) { result in
-            if case .success(let url) = result {
+            if case .success(let urls) = result, let url = urls.first {
                 Task { await viewModel.importFile(url: url) }
             }
         }

@@ -68,10 +68,17 @@ enum NovelInlineImages {
     static func loadImageData(for uri: String) -> Data? {
         if let ref = epubImageRef(uri) {
             guard let archive = try? Archive(url: URL(fileURLWithPath: ref.bookPath), accessMode: .read),
-                  let entry = archive.entries.first(where: { $0.path == ref.entry || $0.path.lowercased() == ref.entry.lowercased() }) else {
+                  let entry = archive.first(where: { $0.path == ref.entry || $0.path.lowercased() == ref.entry.lowercased() }) else {
                 return nil
             }
-            return try? archive.extract(entry)
+            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            do {
+                try archive.extract(entry, to: tmp)
+                defer { try? FileManager.default.removeItem(at: tmp) }
+                return try? Data(contentsOf: tmp)
+            } catch {
+                return nil
+            }
         }
         if uri.hasPrefix("file://") {
             let path = String(uri.dropFirst("file://".count))
