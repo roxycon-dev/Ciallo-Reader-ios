@@ -19,10 +19,10 @@ enum EpubParser {
         guard let containerEntry = entryPath(of: "META-INF/container.xml", in: entryPaths) else {
             throw ImportError("EPUB 缺少 container.xml")
         }
-        guard let opfPath = opfPath(archive: archive, containerPath: containerEntry) else {
+        guard let opfPath = try opfPath(archive: archive, containerPath: containerEntry) else {
             throw ImportError("EPUB 缺少 container.xml")
         }
-        guard let opfEntry = entryPath(of: opfPath, in: entryPaths) else { throw ImportError("EPUB 缺少 OPF") }
+        guard let opfEntry = archive.first(where: { $0.path == opfPath }) else { throw ImportError("EPUB 缺少 OPF") }
 
         // 2) OPF
         let opfData = try readEntry(archive, opfEntry)

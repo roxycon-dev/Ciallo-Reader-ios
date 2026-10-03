@@ -155,10 +155,10 @@ struct CurlStripCanvas: View {
             let shade: LinearGradient
             if geo.rtl {
                 shadowRect = CGRect(x: geo.fold, y: 0, width: min(shadowWidth, size.width - geo.fold), height: H)
-                shade = LinearGradient(colors: [.black.opacity(0.20), .clear], startPoint: .leading, endPoint: .trailing)
+                shade = Gradient(colors: [.black.opacity(0.20), .clear])
             } else {
                 shadowRect = CGRect(x: max(0, geo.fold - shadowWidth), y: 0, width: min(shadowWidth, geo.fold), height: H)
-                shade = LinearGradient(colors: [.clear, .black.opacity(0.20)], startPoint: .leading, endPoint: .trailing)
+                shade = Gradient(colors: [.clear, .black.opacity(0.20)])
             }
             if shadowRect.width > 0 {
                 ctx.fill(Path(CGRect(origin: shadowRect.origin, size: shadowRect.size)),
