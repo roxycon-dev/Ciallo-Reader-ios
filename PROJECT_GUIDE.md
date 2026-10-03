@@ -1399,7 +1399,7 @@ MultiLanguageSearchTest 4 项（含 9.4 万行真实资产端到端导入+查询
 
 ## 10. 第十二轮执行（2026-09-04：合作者 v1.0.1 整合 + 四项用户任务）
 
-**背景**：合作者在上游仓库（github.com/a1553846342-dotcom/EASYREADER）push 了 v1.0.1。
+**背景**：合作者在上游仓库（github.com/roxycon-dev/Ciallo-Reader）push 了 v1.0.1。
 对比分析（`.tmp-repos/EASYREADER-collab` 克隆）确认本地已有 JS 源域 5 个文件的等价变更
 （JsComicSource/JsMessageHandler/JsSourceProxy/ComicLocalImporter/GenericCoverLoader），
 其余 v1.0.1 特性按「冲突保留本地版」原则整合。
@@ -2875,7 +2875,7 @@ ONNX Runtime。当前维持本地 OCR 以保证离线可用。
 
 ### 未做
 
-- 本轮未重跑 JVM / instrumentation 测试，也未安装到用户手机。GitHub 仓库已由 `EASYREADER` 改名为 `Ciallo-Reader`（显示名 Ciallo Reader）；提交 `bb24ec6` 已推送至 `main`，`v1.2.0` 标签和公开 Release 已发布：[Ciallo Reader v1.2.0](https://github.com/a1553846342-dotcom/Ciallo-Reader/releases/tag/v1.2.0)。Release 附件为构建好的 `Ciallo-Reader-v1.2.0.apk`，23,307,407 B，SHA-256 `f48ad0c5a980a8b52361cb1be5e1704a0995c9f3f5202fb05a67006a36620dd3`。APK 由本机构建环境的 Android debug 证书签名；应用商店发布前需用目标渠道正式密钥重签。
+- 本轮未重跑 JVM / instrumentation 测试，也未安装到用户手机。GitHub 仓库已由 `EASYREADER` 改名为 `Ciallo-Reader`（显示名 Ciallo Reader）；提交 `bb24ec6` 已推送至 `main`，`v1.2.0` 标签和公开 Release 已发布：[Ciallo Reader v1.2.0](https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.0)。Release 附件为构建好的 `Ciallo-Reader-v1.2.0.apk`，23,307,407 B，SHA-256 `f48ad0c5a980a8b52361cb1be5e1704a0995c9f3f5202fb05a67006a36620dd3`。APK 由本机构建环境的 Android debug 证书签名；应用商店发布前需用目标渠道正式密钥重签。
 - `promo` 某些作品录屏的发行授权没有由此轮取得；README 仅引用品牌图和不含漫画作品画面的界面素材。
 
 ### 踩到的坑

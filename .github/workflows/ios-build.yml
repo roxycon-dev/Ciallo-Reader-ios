@@ -25,19 +25,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16+
+      - name: Select newest Xcode
         run: |
-          ls /Applications | grep -i xcode
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app
-          elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app
-          elif [ -d "/Applications/Xcode_16.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.app
-          else
-            sudo xcode-select -s /Applications/Xcode.app
-          fi
+          ls -d /Applications/Xcode*.app
+          NEWEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "selecting $NEWEST"
+          sudo xcode-select -s "$NEWEST"
           xcodebuild -version
+          xcrun simctl list runtimes | head -10 || true
 
       - name: Sync Venera JS assets
         run: bash ios/tools/sync_js_assets.sh
