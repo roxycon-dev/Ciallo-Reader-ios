@@ -172,7 +172,7 @@ final class LibraryViewModel: ObservableObject {
         searching = true
         addToHistory(kw)
         let sources: [BookSource]
-        if !aggregateMode, let active = SourceManager.shared.activeSource ?? sources.first {
+        if !aggregateMode, let active = SourceManager.shared.activeSource {
             sources = [active]
         } else {
             sources = self.sources

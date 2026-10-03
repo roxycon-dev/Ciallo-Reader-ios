@@ -305,6 +305,7 @@ struct JsNetworkRequest {
     var bytes: Int64 = 1024 * 1024 * 10
 
     init(json: String) {
+        url = ""
         guard let obj = JsonPathResolver.parseJson(json) as? [String: Any] else { return }
         url = obj["url"] as? String ?? ""
         method = (obj["method"] as? String ?? "GET").uppercased()
