@@ -2954,5 +2954,21 @@ ONNX Runtime。当前维持本地 OCR 以保证离线可用。
 - SwiftUI Canvas 的 `draw(_:in:source:)` 不支持负向缩放，镜像背面用 `drawLayer + translateBy + scaleEffect(x:-1)` 实现，锚点 `A = 2·fold ± πR` 推错一格就会把背面铺到折缝错误一侧；
 - `NWParameters.connectTimeout` 是 Int 秒；`sec_protocol_options_set_tls_server_name` 需要 Network + Security 双 import。
 
+***
+
+## 35. 第四十一轮执行（2026-10-04：GitHub 用户名链接与 1.2.0 APK 重建）
+
+### 已落地
+
+- README、设置页 GitHub 项目卡片和翻译模型备用下载链接统一为 `https://github.com/roxycon-dev/Ciallo-Reader`；最新提交 `8c29a57` 已推送到 `main`。
+- 使用原有 Android Studio JBR 21.0.10 构建 `:app:assembleRelease --offline`，未安装或切换 JDK。Codex Windows 命令环境下将本次进程的 `TEMP` / `TMP` 指向 `C:\Temp` 后构建通过，耗时 6 分 17 秒。
+- APK 校验：版本 `1.2.0 / 201`，仅 `arm64-v8a`，23,307,647 B；`apksigner` 的 APK v2 签名验证通过，签名者 `CN=Android Debug`。SHA-256：`65680c4bfbec0a3d4b347fbbc5468b82bb802abe0c892e1922c7abafdec1833b`。
+- 已替换 GitHub v1.2.0 Release 的 APK 附件并更新 SHA-256；GitHub 返回的附件摘要与本机构建产物一致，下载链接仍为 `https://github.com/roxycon-dev/Ciallo-Reader/releases/download/v1.2.0/Ciallo-Reader-v1.2.0.apk`。旧附件已移除，Release 说明保留成人源入口步骤：设置页连按六次「主色按钮实时联动效果」显示「高级内容」，再打开「带你登大郎~~~」。
+- `v1.2.0` 标签已移到包含新 GitHub 链接的提交 `8c29a57`，使 Release 源码归档与新 APK 对齐。
+
+### 未做
+
+- 本轮未重跑 JVM / instrumentation 测试，也未安装到用户手机；APK 仍使用本机构建环境的 Android debug 证书。
+
 
 
