@@ -1,4 +1,5 @@
 import Foundation
+import JavaScriptCore
 
 // MARK: - JS 漫画源包装（source/js/JsComicSource.kt 对应物）
 // 把 Venera JS 源包装成 ComicSourceProtocol：search / loadComic / loadEp 双代 API 兼容、

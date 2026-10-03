@@ -27,8 +27,9 @@ enum EpubParser {
         // 2) OPF
         let opfData = try readEntry(archive, opfEntry)
         let opfHtml = try SwiftSoup.parse(String(decoding: opfData, as: UTF8.self))
-        let bookTitle = (try? opfHtml.select("metadata > dc|title").first()?.text()) ?? nil
-            ?? (try? opfHtml.select("title").first()?.text()) ?? ""
+        let t1 = (try? opfHtml.select("metadata > dc|title").first()?.text()) ?? nil
+        let t2 = (try? opfHtml.select("title").first()?.text()) ?? nil
+        let bookTitle = t1 ?? t2 ?? ""
         let author = (try? opfHtml.select("metadata > dc|creator").first()?.text()) ?? nil ?? "未知作者"
 
         // manifest: id → (href, properties, mediaType)
@@ -83,7 +84,7 @@ enum EpubParser {
         return all.first { $0.lowercased().hasSuffix(tail) }
     }
 
-    private static func opfPath(archive: Archive, entry: Archive.Entry) throws -> String? {
+    private static func opfPath(archive: Archive, entry: Entry) throws -> String? {
         let data = try readEntry(archive, entry)
         let doc = try SwiftSoup.parse(String(decoding: data, as: UTF8.self))
         guard let root = try doc.select("rootfile").first() else { return nil }
@@ -96,7 +97,7 @@ enum EpubParser {
         defer { try? FileManager.default.removeItem(at: tmp) }
         let data = try Data(contentsOf: tmp)
         var budget = ArchiveBudget()
-        try budget.copy(data.count)
+        try budget.add(data.count)
         return data
     }
 

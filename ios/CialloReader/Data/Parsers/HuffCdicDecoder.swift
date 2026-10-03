@@ -8,7 +8,7 @@ import Foundation
 
 final class HuffCdicDecoder {
     private struct Dict1Entry {
-        let codeLen: Int
+        var codeLen: Int
         let term: Bool
         var maxCode: UInt64
     }

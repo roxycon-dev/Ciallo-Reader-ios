@@ -73,7 +73,6 @@ final class AutoNovelSource: BookSource, ComicSourceProtocol {
         return SearchBook(
             id: bookId, sourceId: id, title: title(data),
             author: authors.isEmpty ? "未知作者" : authors.joined(separator: "、"),
-            format: "epub", language: "中文（机翻）",
             description: "日本轻小说 Web 版，正文为中文机器翻译；缺译章节会提示等待译文。\n\n" + intro,
             novelInfo: NovelInfo(intro: intro, kind: tags,
                                  lastChapter: chapters.last.flatMap { title($0) },

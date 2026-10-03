@@ -110,13 +110,13 @@ enum BookRepository {
             var lastTitle = "开始"
             var bufferStart = 0
             for m in matches {
-                let chunk = ns.substring(with: NSRange(location: bufferStart, length: max(0, m.location - bufferStart)))
+                let chunk = ns.substring(with: NSRange(location: bufferStart, length: max(0, m.range.location - bufferStart)))
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !chunk.isEmpty {
                     chapters.append(contentsOf: ChapterSplitter.split(chunk, title: lastTitle))
                 }
                 lastTitle = ns.substring(with: m.range).trimmingCharacters(in: .whitespacesAndNewlines)
-                bufferStart = m.location + m.length
+                bufferStart = m.range.location + m.range.length
             }
             let tail = ns.substring(from: bufferStart).trimmingCharacters(in: .whitespacesAndNewlines)
             if !tail.isEmpty {

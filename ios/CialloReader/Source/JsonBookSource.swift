@@ -352,9 +352,9 @@ final class JsonBookSource: BookSource, ComicSourceProtocol {
         case "", "text": return (try? el.text()) ?? ""
         case "owntext": return (try? el.ownText()) ?? ""
         case "html": return (try? el.html()) ?? ""
-        case "src": return el.attr("src")
-        case "href": return el.attr("href")
-        default: return el.attr(attr)
+        case "src": return (try? el.attr("src")) ?? ""
+        case "href": return (try? el.attr("href")) ?? ""
+        default: return (try? el.attr(attr)) ?? ""
         }
     }
 

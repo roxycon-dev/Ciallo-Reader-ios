@@ -242,9 +242,8 @@ final class ZLEapiClient {
 
     private func requestHeaders(domain: String, referer: String?) -> [String: String] {
         var h = ["Referer": referer ?? "https://\(domain)/"]
-        if let cookie = cookieJar.cookieHeader(for: domain), !cookie.isEmpty {
-            h["Cookie"] = cookie
-        }
+        let cookie = cookieJar.cookieHeader(for: domain)
+        if !cookie.isEmpty { h["Cookie"] = cookie }
         return h
     }
 

@@ -85,8 +85,8 @@ final class ComicSettingsStore: ObservableObject {
     func set(config: ComicReaderConfig, for bookKey: String?, followGlobal: Bool) {
         if followGlobal || bookKey == nil {
             global = config
-        } else if let bookKey {
-            perBook[bookKey] = config
+        } else if let key = bookKey {
+            perBook[key] = config
         }
     }
 

@@ -219,7 +219,7 @@ final class JsSourceEngine {
                     let stringify = ctx.objectForKeyedSubscript("JSON").objectForKeyedSubscript("stringify")
                     then.call(withArguments: [
                         { v in
-                            let s = stringify?.call(withArguments: [v as Any])?.toString() ?? "{}"
+                            let s = stringify.call(withArguments: [v as Any]).toString() ?? "{}"
                             cont.resume(returning: JsonPathResolver.parseJson(s))
                         } as @convention(block) (JSValue) -> Void,
                         { e in
@@ -438,7 +438,7 @@ enum JsHtmlBridge {
 
     private static func elementJson(_ el: Element) -> String {
         let tag = el.tagName()
-        let attrs = el.getAttributes()?.array() ?? []
+        let attrs = el.getAttributes()?.asList() ?? []
         let attrJson = attrs.compactMap { attr -> String? in
             "\"\(escape(attr.getKey()))\": \"\(escape(attr.getValue()))\""
         }.joined(separator: ",")
