@@ -5,39 +5,6 @@ import UIKit
 // 末页拉拽状态机（GodPull）+ 自绘标记窗口（GodMomentSheet）+ 三种陈列排行榜（GodRanking）。
 // 唯一索引 (bookId, chapterId)：同一话只有一个神回。
 
-@MainActor
-final class GodMomentRepository: ObservableObject {
-    static let shared = GodMomentRepository()
-    @Published private(set) var moments: [GodMomentEntity] = []
-    private let db = AppDatabase.shared
-
-    private init() {
-        reload()
-        NotificationCenter.default.addObserver(forName: dbChangedNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.reload() }
-        }
-    }
-
-    func reload() {
-        moments = (try? db.godMoments()) ?? []
-    }
-
-    func upsert(_ g: GodMomentEntity) {
-        try? db.upsertGodMoment(g)
-        reload()
-    }
-
-    func moment(bookId: String, chapterId: String) -> GodMomentEntity? {
-        (try? db.godMoment(bookId: bookId, chapterId: chapterId)) ?? nil
-    }
-
-    func delete(_ g: GodMomentEntity) {
-        try? db.deleteGodMoment(id: g.id)
-        if let path = g.coverPath { try? FileManager.default.removeItem(atPath: path) }
-        reload()
-    }
-}
-
 // MARK: - 末页拉拽浮层（GodPull：阻尼公式 (1 - 1/(raw·c/span + 1))·(span/c)，c=0.55）
 
 struct GodPullOverlay: View {
@@ -219,7 +186,7 @@ struct GodMomentSheet: View {
         // 封面合成（GodCoverEngine：900×1200，JPEG 90，背景模糊 + 15% 暗蒙版）
         var coverPath: String? = existing?.coverPath
         if let source = coverImage {
-            coverPath = GodCoverEngine.compose(source: source)
+            coverPath = GodCoverEngine.composeAndSave(bookId: bookId, chapterId: chapterId, cropped: source)
         }
         let entity = GodMomentEntity(
             id: existing?.id ?? 0,
@@ -228,128 +195,22 @@ struct GodMomentSheet: View {
             chapterNumber: chapterNumber,
             title: title.isEmpty ? chapterTitle : title,
             titleIsCustom: !title.isEmpty,
-            rating: rating, note: note,
+            rating: Float(rating), note: note,
             coverPath: coverPath,
-            coverSource: coverPath != nil ? "reader" : nil,
-            createdAt: existing?.createdAt ?? Int64(Date().timeIntervalSince1970 * 1000))
-        repo.upsert(entity)
+            coverSource: (existing?.coverSource) ?? CoverSource.comicDefault().toTag,
+            cropParams: (existing?.cropParams) ?? CropParams.DEFAULT.toTag,
+            createdAt: existing?.createdAt ?? Int64(Date().timeIntervalSince1970 * 1000),
+            updatedAt: Int64(Date().timeIntervalSince1970 * 1000))
+        repo.save(entity)
         HapticsGate.success()
         AppToastCenter.shared.show("神回已标记 ⭐️\(String(format: "%.1f", rating))", kind: .success)
         dismiss()
     }
 }
 
-// MARK: - 封面合成引擎（GodCoverEngine：1/8 降采样 → 3 次盒式模糊 → 暗蒙版 → 前景 contain 圆角）
-
-enum GodCoverEngine {
-    static let coverWidth: CGFloat = 900
-    static let coverHeight: CGFloat = 1200
-
-    static func compose(source: UIImage, preview: Bool = false) -> String? {
-        let size = preview ? CGSize(width: 450, height: 600) : CGSize(width: coverWidth, height: coverHeight)
-        guard let bg = centerCrop(source, to: size),
-              let blurred = boxBlur(bg, passes: 3, downsample: 8) else { return nil }
-        let fg = containCrop(source, to: size)
-
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let composed = renderer.image { ctx in
-            blurred.draw(in: CGRect(origin: .zero, size: size))
-            // 15% 暗色蒙版
-            UIColor.black.withAlphaComponent(0.15).setFill()
-            ctx.fill(CGRect(origin: .zero, size: size))
-            // 前景 contain 居中（8% 边距 + 圆角 3% 短边）
-            let margin: CGFloat = size.width * 0.08
-            let availW = size.width - margin * 2
-            let availH = size.height - margin * 2
-            let scale = min(availW / fg.size.width, availH / fg.size.height)
-            let w = fg.size.width * scale, h = fg.size.height * scale
-            let rect = CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
-            let path = UIBezierPath(roundedRect: rect, cornerRadius: min(w, h) * 0.03)
-            ctx.cgContext.saveGState()
-            ctx.cgContext.addPath(path.cgPath)
-            ctx.cgContext.clip()
-            ctx.cgContext.setShadow(offset: CGSize(width: 0, height: 6), blur: 18,
-                                    color: UIColor.black.withAlphaComponent(0.4).cgColor)
-            fg.draw(in: rect)
-            ctx.cgContext.restoreGState()
-        }
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("god_covers")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let file = dir.appendingPathComponent("god_\(UUID().uuidString).jpg")
-        guard let jpeg = composed.jpegData(compressionQuality: 0.9) else { return nil }
-        try? jpeg.write(to: file)
-        return file.path
-    }
-
-    private static func centerCrop(_ image: UIImage, to size: CGSize) -> UIImage? {
-        let scale = max(size.width / image.size.width, size.height / image.size.height)
-        let w = image.size.width * scale, h = image.size.height * scale
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { _ in
-            image.draw(in: CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h))
-        }
-    }
-
-    private static func containCrop(_ image: UIImage, to size: CGSize) -> UIImage { image }
-
-    /// 1/8 降采样 → N 次盒式模糊（中心极限逼近高斯，全系统一致）
-    private static func boxBlur(_ image: UIImage, passes: Int, downsample: Int) -> UIImage? {
-        let small = CGSize(width: image.size.width / CGFloat(downsample), height: image.size.height / CGFloat(downsample))
-        let downsampler = UIGraphicsImageRenderer(size: small)
-        let smallImg = downsampler.image { _ in image.draw(in: CGRect(origin: .zero, size: small)) }
-        guard let cg = smallImg.cgImage else { return nil }
-        var result = cg
-        for _ in 0..<passes {
-            result = boxBlurOnce(result) ?? result
-        }
-        let out = UIGraphicsImageRenderer(size: CGSize(width: image.size.width, height: image.size.height))
-        return out.image { _ in
-            UIImage(cgImage: result).draw(in: CGRect(origin: .zero, size: image.size))
-        }
-    }
-
-    private static func boxBlurOnce(_ input: CGImage) -> CGImage? {
-        let w = input.width, h = input.height
-        guard let inData = input.dataProvider?.data, let ptr = CFDataGetBytePtr(inData) else { return nil }
-        let bytesPerRow = input.bytesPerRow
-        var outData = Data(count: CFDataGetLength(inData))
-        outData.withUnsafeMutableBytes { outPtr in
-            let dst = outPtr.bindMemory(to: UInt8.self)
-            let src = ptr
-            for y in 0..<h {
-                for x in 0..<w {
-                    var r = 0, g = 0, b = 0, n = 0
-                    for dy in -1...1 {
-                        for dx in -1...1 {
-                            let nx = min(max(x + dx, 0), w - 1)
-                            let ny = min(max(y + dy, 0), h - 1)
-                            let off = ny * bytesPerRow + nx * 4
-                            r += Int(src[off]); g += Int(src[off + 1]); b += Int(src[off + 2]); n += 1
-                        }
-                    }
-                    let off = y * bytesPerRow + x * 4
-                    dst[off] = UInt8(r / n); dst[off + 1] = UInt8(g / n); dst[off + 2] = UInt8(b / n)
-                    dst[off + 3] = 255
-                }
-            }
-        }
-        return CGImage(width: w, height: h, bitsPerComponent: input.bitsPerComponent, bitsPerPixel: input.bitsPerPixel,
-                       bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
-                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-                       provider: CGDataProvider(data: outData as CFData)!, decode: nil, shouldInterpolate: false,
-                       intent: .defaultIntent)
-    }
-}
 
 // MARK: - 神回排行榜（GodRankingCard：领奖台 / 唱片架 / 照片墙）
 
-enum GodRankingStyle: String, CaseIterable, Identifiable {
-    case podium = "领奖台"
-    case records = "唱片架"
-    case photoWall = "照片墙"
-
-    var id: String { rawValue }
-}
 
 struct GodRankingView: View {
     @StateObject private var repo = GodMomentRepository.shared
@@ -374,8 +235,8 @@ struct GodRankingView: View {
 
                 switch style {
                 case .podium: podium
-                case .records: records
-                case .photoWall: photoWall
+                case .vinylShelf: records
+                case .polaroidWall: photoWall
                 }
             }
             .padding(DT.spPage)

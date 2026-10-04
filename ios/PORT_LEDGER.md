@@ -74,7 +74,7 @@
 | app/src/main/java/com/example/god/GodCoverCropScreen.kt | 432 | ios/CialloReader/Sources/com/example/god/GodCoverCropScreen.swift | 缺失 |
 | app/src/main/java/net/engawapg/lib/zoomable/Zoomable.kt | 432 | ios/CialloReader/Sources/net/engawapg/lib/zoomable/Zoomable.swift | 缺失 |
 | app/src/main/java/com/example/ui/OnlineComicReaderScreen.kt | 415 | ios/CialloReader/Sources/com/example/ui/OnlineComicReaderScreen.swift | 缺失 |
-| app/src/main/java/com/example/god/GodCoverEngine.kt | 412 | ios/CialloReader/Sources/com/example/god/GodCoverEngine.swift | 缺失 |
+| app/src/main/java/com/example/god/GodCoverEngine.kt | 412 | ios/CialloReader/Sources/com/example/god/GodCoverEngine.swift | 对齐|
 | app/src/main/java/com/example/ui/reader/NovelInlineImages.kt | 406 | ios/CialloReader/Sources/com/example/ui/reader/NovelInlineImages.swift | 骨架 |
 | app/src/main/java/com/example/mangatranslate/BubbleDetector.kt | 401 | ios/CialloReader/Sources/com/example/mangatranslate/BubbleDetector.swift | 缺失 |
 | app/src/main/java/com/example/ui/components/ReadingTrendCard.kt | 401 | ios/CialloReader/Sources/com/example/ui/components/ReadingTrendCard.swift | 缺失 |
@@ -95,7 +95,7 @@
 | app/src/main/java/com/example/library/ComicLocalImporter.kt | 346 | ios/CialloReader/Sources/com/example/library/ComicLocalImporter.swift | 缺失 |
 | app/src/main/java/com/example/god/GodRankingShared.kt | 340 | ios/CialloReader/Sources/com/example/god/GodRankingShared.swift | 缺失 |
 | app/src/main/java/com/example/ui/comic/ComicPanelDesign.kt | 336 | ios/CialloReader/Sources/com/example/ui/comic/ComicPanelDesign.swift | 缺失 |
-| app/src/main/java/com/example/god/GodMomentModels.kt | 335 | ios/CialloReader/Sources/com/example/god/GodMomentModels.swift | 缺失 |
+| app/src/main/java/com/example/god/GodMomentModels.kt | 335 | ios/CialloReader/Sources/com/example/god/GodMomentModels.swift | 对齐|
 | app/src/main/java/com/example/ui/comic/ComicSettingsStore.kt | 335 | ios/CialloReader/Sources/com/example/ui/comic/ComicSettingsStore.swift | 缺失 |
 | app/src/main/java/com/example/source/zlibrary/network/ZLibraryDns.kt | 332 | ios/CialloReader/Sources/com/example/source/zlibrary/network/ZLibraryDns.swift | 骨架 |
 | app/src/main/java/com/example/download/DownloadManager.kt | 326 | ios/CialloReader/Sources/com/example/download/DownloadManager.swift | 骨架 |
@@ -181,7 +181,7 @@
 | app/src/main/java/com/example/source/zlibrary/parser/GenericFallbackParser.kt | 164 | ios/CialloReader/Sources/com/example/source/zlibrary/parser/GenericFallbackParser.swift | 缺失 |
 | app/src/main/java/com/example/ui/comic/ComicReaderBackground.kt | 164 | ios/CialloReader/Sources/com/example/ui/comic/ComicReaderBackground.swift | 缺失 |
 | app/src/main/java/com/example/mangatranslate/TextTranslator.kt | 163 | ios/CialloReader/Sources/com/example/mangatranslate/TextTranslator.swift | 缺失 |
-| app/src/main/java/com/example/god/GodMomentRepository.kt | 159 | ios/CialloReader/Sources/com/example/god/GodMomentRepository.swift | 缺失 |
+| app/src/main/java/com/example/god/GodMomentRepository.kt | 159 | ios/CialloReader/Sources/com/example/god/GodMomentRepository.swift | 对齐|
 | app/src/main/java/com/example/data/favorite/FavoriteModels.kt | 158 | ios/CialloReader/Sources/com/example/data/favorite/FavoriteModels.swift | 缺失 |
 | backdrop/src/androidMain/kotlin/com/kashif_e/backdrop/highlight/HighlightStyle.kt | 158 | ios/CialloReader/Sources/com/kashif_e/backdrop/highlight/HighlightStyle.swift | 缺失 |
 | app/src/main/java/eu/wewox/pagecurl/page/DragCommonGesture.kt | 155 | ios/CialloReader/Sources/eu/wewox/pagecurl/page/DragCommonGesture.swift | 缺失 |
@@ -265,10 +265,10 @@
 | app/src/main/java/eu/wewox/pagecurl/page/DragGesture.kt | 73 | ios/CialloReader/Sources/eu/wewox/pagecurl/page/DragGesture.swift | 缺失 |
 | app/src/main/java/com/example/data/ImportSafety.kt | 72 | ios/CialloReader/Sources/com/example/data/ImportSafety.swift | 缺失 |
 | app/src/main/java/com/example/ui/components/LiquidGlassControls.kt | 72 | ios/CialloReader/Sources/com/example/ui/components/LiquidGlassControls.swift | 缺失 |
-| app/src/main/java/com/example/god/GodMomentSettingsStore.kt | 71 | ios/CialloReader/Sources/com/example/god/GodMomentSettingsStore.swift | 缺失 |
+| app/src/main/java/com/example/god/GodMomentSettingsStore.kt | 71 | ios/CialloReader/Sources/com/example/god/GodMomentSettingsStore.swift | 对齐|
 | app/src/main/java/com/example/source/zlibrary/parser/CoverExtractor.kt | 71 | ios/CialloReader/Sources/com/example/source/zlibrary/parser/CoverExtractor.swift | 缺失 |
 | app/src/main/java/com/example/ui/components/HazeProgress.kt | 69 | ios/CialloReader/Sources/com/example/ui/components/HazeProgress.swift | 缺失 |
-| app/src/main/java/com/example/god/GodMomentDao.kt | 68 | ios/CialloReader/Sources/com/example/god/GodMomentDao.swift | 缺失 |
+| app/src/main/java/com/example/god/GodMomentDao.kt | 68 | ios/CialloReader/Sources/com/example/god/GodMomentDao.swift | 对齐|
 | app/src/main/java/com/example/ui/components/LiquidBlob.kt | 68 | ios/CialloReader/Sources/com/example/ui/components/LiquidBlob.swift | 缺失 |
 | app/src/main/java/com/example/source/zlibrary/parser/ZLibraryParserManager.kt | 67 | ios/CialloReader/Sources/com/example/source/zlibrary/parser/ZLibraryParserManager.swift | 缺失 |
 | app/src/main/java/com/example/library/ZLibraryCoverLoader.kt | 66 | ios/CialloReader/Sources/com/example/library/ZLibraryCoverLoader.swift | 缺失 |
@@ -280,7 +280,7 @@
 | app/src/main/java/com/example/ui/theme/Color.kt | 61 | ios/CialloReader/Sources/com/example/ui/theme/Color.swift | 缺失 |
 | app/src/main/java/me/trishiraj/shadowglow/Animation.kt | 61 | ios/CialloReader/Sources/me/trishiraj/shadowglow/Animation.swift | 缺失 |
 | backdrop/src/commonMain/kotlin/com/kashif_e/backdrop/effects/SdfShader.kt | 61 | ios/CialloReader/Sources/com/kashif_e/backdrop/effects/SdfShader.swift | 缺失 |
-| app/src/main/java/com/example/god/GodMomentViewModel.kt | 60 | ios/CialloReader/Sources/com/example/god/GodMomentViewModel.swift | 缺失 |
+| app/src/main/java/com/example/god/GodMomentViewModel.kt | 60 | ios/CialloReader/Sources/com/example/god/GodMomentViewModel.swift | 对齐|
 | app/src/main/java/com/example/ui/components/SourceAvatar.kt | 59 | ios/CialloReader/Sources/com/example/ui/components/SourceAvatar.swift | 缺失 |
 | backdrop/src/commonMain/kotlin/com/kashif_e/backdrop/DrawBackdropModifier.kt | 59 | ios/CialloReader/Sources/com/kashif_e/backdrop/DrawBackdropModifier.swift | 缺失 |
 | app/src/main/java/com/example/ui/design/DesignTokens.kt | 58 | ios/CialloReader/Sources/com/example/ui/design/DesignTokens.swift | 缺失 |
@@ -395,4 +395,4 @@
 - 安卓源文件：381 个，106924 行
 - 已有对应文件（骨架）：41 个（覆盖 33687 行源码）
 - 缺失：340 个（73237 行）
-- 已逐行对齐：0 个（从此逐个推进，状态改 `对齐`）
+- 已逐行对齐：6 个（god 基础层：Models/Dao/Repository/SettingsStore/ViewModel/CoverEngine）
