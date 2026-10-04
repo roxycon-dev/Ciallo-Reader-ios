@@ -2884,78 +2884,6 @@ ONNX Runtime。当前维持本地 OCR 以保证离线可用。
 
 ***
 
-## 33. 第三十九轮执行（2026-10-03：iOS 原生移植版落地 `ios/`）
-
-### 已落地
-
-- **iOS 原生工程**：`ios/CialloReader.xcodeproj`（Xcode 16，objectVersion 70 文件夹同步组），53 个 Swift 文件，
-  Bundle ID 与安卓一致 `com.aistudio.novelreader.kxmpzq`，版本 1.2.0 (201)，最低 iOS 17；依赖仅 SwiftSoup + ZIPFoundation（SPM）。
-- **数据层**：`Data/Database.swift` 用 libsqlite3 直连，**建表 SQL 与 Room v12（app/schemas/12.json）逐字段镜像**
-  （books/chapters/bookmarks/highlights/categories/reading_records/reading_sessions/download_tasks/anilist_titles/
-  favorites/comic_progress/comic_chapter_read/favorite_categories/god_moments 全部 14 表 + 索引含 `bookmarked` 列兜底迁移）。
-- **书源体系**：接口签名与 `BookSource`/`ComicSource` 一致；JSONPath 子集 + Legado 规则解释器（class/id/tag/text 段、
-  `||`/`&&`、`##正则##`、CSS 兼容）；Legado 书源导入转换；Z-Library（**DiamWall PoW 双算法逐条移植**：SHA-1 双字节 +
-  SHA-256 前缀零 + dwid/_dwa/c_token cookie 链 + __ab/verify + seenUrls 去重；eapi `md5(email:pass:md5(pass))` 登录、
-  formats、每日额度；PRESET_DOMAINS 十三域容灾；搜索三道假结果守卫）；MangaDex 双路搜索 + at-home + 官方/镜像 Referer 隔离；
-  AutoNovel/Ixdzs/Wenku8 三小说源逐端点移植；**Venera JS 漫画源用系统 JavaScriptCore**（QuickJS→JSC），
-  消息桥（http/convert/storage/dialog/html-DOM）齐备，本地 `_venera_.js` 官方运行时可经 `ios/tools/sync_js_assets.sh` 注入。
-- **解析器**：EPUB（OPF/spine/封面三级/`epzip:file://…!条目` 图片 token 与安卓同一编码）、MOBI（PDB+MOBI+EXTH+PalmDOC
-  LZ77+尾随条目；HUFF/CDIC 明确报不支持）、DOCX、FB2、CBZ/PDF（自然排序同算法）、章节合并（"(续N)"≤4）、搜索定位（1000 上限）。
-- **UI**：四 Tab（书库/书架/统计/设置）+ 自定义底部 Tab 栏（**顶部 3pt 小横条选中指示**，红线保持）；文字阅读器
-  （CoreText 块驱动分页 + 五主题 + 五种翻页 + 书签/目录/全文搜索/TTS/内嵌图全屏保存）；漫画阅读器（RTL/LTR 翻页 + 条漫 +
-  缩放 + 每书配置 + 预设迁移）；书架多选/分类/我喜欢的；统计（周月年 + GitHub 贡献图布局热力图 + 连续打卡）；
-  神回全链路（末页拉拽浮层 + 标记窗口 + 900×1200 封面合成三盒式模糊 + 领奖台/唱片架/照片墙三陈列）；
-  隐私 PIN（PBKDF2 120000 次 CommonCrypto）；缓存管理；ZIP 备份导出导入（NDJSON 12 表 + 路径重定位）；
-  漫画翻译（Vision OCR 替代 ONNX PP-OCR + gtx 在线兜底同端点 + 隐私闸）。
-- **静态自检**：`ios/tools/balance_check.py`（括号/引号状态机）对 53 个 Swift 文件全部通过。
-
-### 未做 / 已知差异（详见 ios/README.md）
-
-- 本机为 Windows，无法编译/运行 iOS：交付为可构建 Xcode 工程，需在 macOS 上首次编译验证（SPM 拉包 + 真机跑通）；
-- MOBI 的 HUFF/CDIC 压缩（17480）未实现（PalmDOC 全支持），DRM 拒绝导入；
-- 漫画 GL 逐顶点卷页以 SwiftUI 2D 圆柱投影近似（视觉同源）；YOLO 气泡分割未移植（Vision 文本行聚类兜底）；
-- 抗污染 DoH DNS 未移植（URLSession 无法安全按 IP 指向 + SNI），依赖域名级容灾；
-- 三个本地 JS 漫画源（bilimanga/pufei/vomic）在 Mac 上跑 `sync_js_assets.sh` 后生效（Windows 侧安全钩子禁止复制 .js）。
-
-### 踩到的坑
-
-- Windows 上 Mimosa 钩子会拦一切经 Bash 的源码/脚本写入（含 `cp` 复制 .js 资产）——iOS 移植全部改走 Write/Edit 通道；
-- Swift memberwise init 对参数顺序敏感：SearchBook 等 15 字段模型有三处顺序写错（description 必须在 format 前），静态自检靠人工核对捕获；
-- ZIPFoundation 公开 API 没有 consumer 闭包变体（只有整读 `extract(_:)` 与 `extract(_:to:)`），EPUB 头部探测改为整读；
-- JavaScriptCore 的 `console.log` 变参桥必须先在 JS 侧 `Array.prototype.slice` 聚合再过单参 `@convention(block)`。
-
-***
-
-## 34. 第四十轮执行（2026-10-04：iOS 二轮——翻译模块移除 + 三项"未移植"全部落地）
-
-### 背景与用户决策
-
-用户问"为什么这些不能移植"，并指示：**移除 iOS 漫画翻译模块**，其余未移植项"想尽方法移植"。
-上一轮标注不能移植的真实原因：① HUFF/CDIC 是精确算法，离线凭记忆写会静默产出乱码，宁可报错；
-② GL 卷页第一版只做了视觉近似而非同一数学；③ DoH DNS 卡在 URLSession 无自定义解析钩子。
-本轮三项全部解决。
-
-### 已落地
-
-- **翻译模块移除**：`ios/CialloReader/MangaTranslate/` 整目录删除（含 Vision OCR / 气泡聚类 / 在线兜底翻译 / 覆盖渲染），全仓无残留引用；README 映射表同步移除。
-- **HUFF/CDIC 哈夫曼解压**（`Data/Parsers/HuffCdicDecoder.swift`，55 个 Swift 文件之一）：联网取回 KindleUnpack `mobi_uncompress.py` 原文后**逐行移植**——HUFF 魔数 `HUFF\0\0\0\x18`、dict1 256 项（codelen=v&0x1F / term=v&0x80 / maxcode=((v>>8)+1)<<(32-codelen)-1）、mincode/maxcode 64 项奇偶表、CDIC 跨记录短语累积（blen&0x8000 字面量 / 递归解压后占位缓存）、64 位滑动窗口解码（`code=(x>>n)&0xFFFFFFFF`、`r=(maxcode-code)>>(32-codelen)`）；MOBI 压缩 17480 分支由报错改为逐记录解码，AZW3/HUFF 类 Kindle 文件恢复可导入。
-- **圆柱投影卷页真移植**（`Design/CurlStrip.swift`）：harism CurlMesh 的投影公式 `x′ = F + R·sin(s/R)` 用 Canvas 竖向条带逐条重映射位图（每帧 ~110 条带），卷筒前/后平面 + θ∈[0,π/2] 曲面 + θ>π 镜像背面平铺（"透纸"压暗）+ 折缝阴影；RTL 镜像几何且纹理保持正向。接入两端：文字阅读器 SIMULATE 模式（起手 `ImageRenderer` 快照当前/目标页当纹理，拖拽喂 t、过半推进否则回卷——curlSyncPlan 相邻步进语义）、漫画阅读器翻页模式（默认日漫预设即真卷页，放大态不触发，末页前进拖拽仍接神回）。
-- **抗污染 DNS + SNI 传输**（`Source/ZLibrary/ZLibraryDns.swift`）：ZLibraryDns 完整移植——保留/私有网段 + Meta/Facebook 段黑名单前缀、系统 DNS 限时 2s 进候选池、AliDNS/DNSPod/Cloudflare/Google 四家 DoH 并行聚合 A 记录、Network.framework 443 TCP 探测（1.5s）可达优先、三级缓存（负 5s / 正向 5min / 已验证 24h）；SniHttpClient 走 NWConnection 对解析 IP 直连 TLS（`sec_protocol_options_set_tls_server_name` 指定 SNI），裸 HTTP/1.1 收发（Content-Length/Chunked/重定向 ≤3）；`ZLHttp` 门面接管 DiamWall 求解器、eapi、端点健康检查的全部请求，DoH 全败时回退系统栈。
-
-### 未做 / 保留差异
-
-- ONNX PP-OCR 与 YOLO 气泡分割：随翻译模块移除，不再需要替代实现；
-- Cronet HTTP/3 语义由 Apple 栈承担（平台差异，不追求 1:1）；
-- 逐顶点光照 / 非水平折线的卷页细节未复刻（条带模型为纯圆柱投影）。
-
-### 踩到的坑
-
-- KindleUnpack 源码在 GitHub raw 直连 ECONNRESET、jsdelivr 的 WebFetch 拒收 octet-stream——最终 curl + jsdelivr 拿到原文，说明"离线写不了精确算法"的旧结论应改为"先想办法拿权威实现"；
-- SwiftUI Canvas 的 `draw(_:in:source:)` 不支持负向缩放，镜像背面用 `drawLayer + translateBy + scaleEffect(x:-1)` 实现，锚点 `A = 2·fold ± πR` 推错一格就会把背面铺到折缝错误一侧；
-- `NWParameters.connectTimeout` 是 Int 秒；`sec_protocol_options_set_tls_server_name` 需要 Network + Security 双 import。
-
-***
-
 ## 35. 第四十一轮执行（2026-10-04：GitHub 用户名链接与 1.2.0 APK 重建）
 
 ### 已落地
@@ -2975,25 +2903,3 @@ ONNX Runtime。当前维持本地 OCR 以保证离线可用。
 
 ***
 
-## 35. 第四十一轮执行（2026-10-04：iOS 云端构建打通，出包成功）
-
-### 已落地
-
-- 仓库 `roxycon-dev/Ciallo-Reader-ios`（main），精简入库：ios/ 工程 + CI 工作流 + Venera JS 资产 + PROJECT_GUIDE（1.9MB / 74 文件）；
-- GitHub Actions（macos-15 + Xcode 16.4）**Run #14 BUILD SUCCESS**：产物 `CialloReader-unsigned-ipa`（4.0MB），
-  包内验证：主二进制 5.97MB、venera_runtime.js(36KB) + bilimanga/pufei/vomic 三个本地 JS 漫画源、AppIcon、SwiftSoup/ZIPFoundation 动态库齐全；
-- ipa 已取回本地：`ios/build/CialloReader-unsigned.ipa`（未签名，供 Sideloadly/AltStore 自签安装）。
-
-### 迭代轨迹（14 轮 CI 修复，146 → 0 编译错误）
-
-1. Xcode 16.2 的 actool 与 runner 模拟器运行时注册表不匹配 → 改选策略；26.3 工具链破坏 SwiftSoup/ZIPFoundation 构建 → **最终钉死 Xcode 16.4**；
-2. ZIPFoundation 解析到 0.9.19 后发现真实 API 与假设不同：`Entry` 是顶层类型（非 `Archive.Entry` 嵌套）、
-   `Archive` 是 Sequence（无 `entries` 属性）、内存 `extract` 不存在（只有 `extract(_:to:)`）、`addEntry` provider 是双参闭包 → 全部适配并 `exactVersion 0.9.19` 钉死；
-3. SwiftSoup 2.13.9：`Element.attr/ownText/html` 全部 throws（逐个 try? 化）；`textNodes()` 直接返回数组（无 `.array()`）；`Attributes.asList()`；
-4. JavaScriptCore：`objectForKeyedSubscript` 键需 `as NSString`、块参数 JSValue 非可选（禁 `?` 链）、setObject 键类型 NSCopying；
-5. 其余为 memberwise 顺序/可选解包类机械错误与 3 个真 bug（runSearch 自引用未初始化、JsNetworkRequest init 缺 url、TXT 哨兵数组混型）。
-
-### 流程沉淀
-
-- 无 Mac 迭代回路：push → Actions 构建 → API 拉 job 日志 → grep `error:` 行 → 本地改 → push，单轮约 5-8 分钟；
-- 日志必须全量（曾因 `| tail -40` 掩盖真实错误两轮）。
