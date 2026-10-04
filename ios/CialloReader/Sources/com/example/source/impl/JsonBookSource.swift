@@ -71,19 +71,19 @@ final class JsonBookSource: BookSource, ComicSourceProtocol {
                 throw Http.statusError(resp, host: URL(string: url)?.host)
             }
             let json = try JsonPathResolver.parseJson(resp.text) ?? [String: Any]()
-            try RuleBudget.check(rule: rule.listPath, json: resp.text)
+            if resp.text.count > 4 * 1024 * 1024 { return .error(.parseError("响应过大")) }
             let items = JsonPathResolver.resolveArray(json, rule.listPath)
-            let books: [SearchBook] = items.compactMap { item in
+            let books: [SearchBook] = items.compactMap { (item: Any) -> SearchBook? in
                 let f = rule.fields
-                let title = JsonPathResolver.getString(item, f.title) ?? ""
+                let title = JsonPathResolver.getString(item as? [String: Any] ?? [:], f.title) ?? ""
                 guard !title.isEmpty else { return nil }
-                let bid = JsonPathResolver.getString(item, f.id) ?? title
+                let bid = JsonPathResolver.getString(item as? [String: Any] ?? [:], f.id) ?? title
                 return SearchBook(id: bid, sourceId: id, title: title,
-                                  author: JsonPathResolver.getString(item, f.author ?? "") ?? "未知作者",
-                                  cover: absolute(JsonPathResolver.getString(item, f.cover ?? "")),
-                                  description: JsonPathResolver.getString(item, f.description ?? ""),
-                                  format: JsonPathResolver.getString(item, f.format ?? "") ?? ruleUrlFormat(url: rule.url) ?? "epub",
-                                  downloadUrl: JsonPathResolver.getString(item, f.downloadUrl ?? ""))
+                                  author: JsonPathResolver.getString(item as? [String: Any] ?? [:], f.author ?? "") ?? "未知作者",
+                                  cover: absolute(JsonPathResolver.getString(item as? [String: Any] ?? [:], f.cover ?? "")),
+                                  description: JsonPathResolver.getString(item as? [String: Any] ?? [:], f.description ?? ""),
+                                  format: JsonPathResolver.getString(item as? [String: Any] ?? [:], f.format ?? "") ?? ruleUrlFormat(url: rule.url) ?? "epub",
+                                  downloadUrl: JsonPathResolver.getString(item as? [String: Any] ?? [:], f.downloadUrl ?? ""))
             }
             return .success(books)
         } catch {

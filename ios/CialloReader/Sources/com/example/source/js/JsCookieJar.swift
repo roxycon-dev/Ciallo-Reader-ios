@@ -12,7 +12,7 @@ enum JsCookieJar {
 
     private static func pairs(_ raw: String) -> LinkedHashMap<String, String> {
         var map = LinkedHashMap<String, String>()
-        raw.split(";").map { $0.trimmingCharacters(in: .whitespaces) }
+        raw.components(separatedBy: ";").map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { $0.contains("=") }
             .forEach {
                 let name = $0.split(separator: "=", maxSplits: 1).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -61,8 +61,8 @@ enum JsCookieJar {
         var cookies = LinkedHashMap<String, String>()
         var current = host
         while !current.isEmpty {
-            let stored = pairs(prefsString("ck_\(current)"))
-            let attributes = metadata(prefsString("ck_meta_\(current)"))
+            var stored = pairs(prefsString("ck_\(current)"))
+            var attributes = metadata(prefsString("ck_meta_\(current)"))
             var changed = false
             var kept: [String] = []
             for (name, pair) in stored {
@@ -131,8 +131,8 @@ enum JsCookieJar {
             attrsByDomain[domain] = attrs
         }
         for (host, updates) in byDomain {
-            let stored = pairs(prefsString("ck_\(host)"))
-            let attributes = metadata(prefsString("ck_meta_\(host)"))
+            var stored = pairs(prefsString("ck_\(host)"))
+            var attributes = metadata(prefsString("ck_meta_\(host)"))
             var kept: [String] = []
             for (name, value) in updates {
                 // 过期 cookie：Kotlin 按 expiresAt <= now 删除；HTTPCookie 已无 expires 属性时视为会话 cookie
@@ -158,9 +158,9 @@ enum JsCookieJar {
         defer { lock.unlock() }
         let trimmed = host.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        let domainHost = trimmed.dropWhile { $0 == "." }.lowercased()
-        let stored = pairs(prefsString("ck_\(domainHost)"))
-        let attributes = metadata(prefsString("ck_meta_\(domainHost)"))
+        let domainHost = trimmed.drop(while:) { $0 == "." }.lowercased()
+        var stored = pairs(prefsString("ck_\(domainHost)"))
+        var attributes = metadata(prefsString("ck_meta_\(domainHost)"))
         for (name, pair) in pairs(updates.joined(separator: "; ")) {
             stored[name] = pair
             attributes.removeValue(forKey: name)
@@ -260,11 +260,29 @@ struct LinkedHashMap<K: Hashable, V> {
             }
         }
     }
+    
+    mutating func removeEntry(forKey key: K) {
+        map.removeValue(forKey: key)
+        keys.removeAll { $0 == key }
+    }
 
     var values: [V] { keys.compactMap { map[$0] } }
     var entries: [(K, V)] { keys.compactMap { k in map[k].map { (k, $0) } } }
-    func removeValue(forKey key: K) { self[key] = nil }
+    func removeValue(forKey key: K) { removeEntry(forKey: key) }
     mutating func removeAll(where predicate: (K, V) -> Bool) {
         for (k, v) in entries where predicate(k, v) { self[k] = nil }
     }
+}
+
+extension LinkedHashMap: Sequence {
+    struct Iterator: IteratorProtocol {
+        let items: [(K, V)]
+        var idx = 0
+        mutating func next() -> (K, V)? {
+            guard idx < items.count else { return nil }
+            defer { idx += 1 }
+            return items[idx]
+        }
+    }
+    func makeIterator() -> Iterator { Iterator(items: entries) }
 }
