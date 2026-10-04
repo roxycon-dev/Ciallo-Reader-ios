@@ -14,7 +14,7 @@ enum GodCoverEngine {
     static let COVER_W = 900
     static let COVER_H = 1200
     /// 画布比例（3:4）；以后要改尺寸只改这一处 + 上面的宽高
-    static let COVER_RATIO: Float = 3.0 / 4.0
+    static let COVER_RATIO: CGFloat = 3.0 / 4.0
 
     /// 预览尺寸：拖动裁剪时保证流畅（合成同样走后台线程）
     static let PREVIEW_W = 450

@@ -122,7 +122,7 @@ struct ComicReaderCore: View {
                 bookTitle: model.title,
                 chapterTitle: model.chapterTitle,
                 chapterNumber: model.currentChapterIndex + 1,
-                coverProvider: { model.currentImage() })
+                coverProvider: { return model.currentImage() })
         }
     }
 

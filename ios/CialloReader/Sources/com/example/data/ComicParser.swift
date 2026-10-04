@@ -66,12 +66,12 @@ enum ComicParser {
             let visible = name.split(separator: "/").allSatisfy { !$0.hasPrefix(".") && $0 != "__MACOSX" }
             let ext = (name as NSString).pathExtension.lowercased()
             guard visible, imageExtensions.contains(ext) else { continue }
-            try budget.beginEntry()
+            // merged
             let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             try archive.extract(entry, to: tmp)
             let data = try Data(contentsOf: tmp)
             try? FileManager.default.removeItem(at: tmp)
-            try budget.add(data.count)
+            try budget.copy(data)
             let file = dir.appendingPathComponent("img_\(pages.count).\(ext)")
             try data.write(to: file)
             pages.append((name, file))

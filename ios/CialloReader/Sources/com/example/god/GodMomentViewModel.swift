@@ -78,7 +78,7 @@ final class GodMomentViewModel: ObservableObject {
     /// 某本书的神回（chapterId → 实体），书籍详情页用
     func chapterMap(bookId: String) -> [String: GodMomentEntity] {
         guard !bookId.isEmpty else { return [:] }
-        let list = (try? repository.dao(forBookSync: bookId)) ?? []
+        let list = (try? repository.dao.forBookSync(bookId: bookId)) ?? []
         return Dictionary(uniqueKeysWithValues: list.map { ($0.chapterId, $0) })
     }
 

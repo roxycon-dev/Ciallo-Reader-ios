@@ -98,7 +98,7 @@ enum EpubParser {
         defer { try? FileManager.default.removeItem(at: tmp) }
         let data = try Data(contentsOf: tmp)
         var budget = ArchiveBudget()
-        try budget.add(data.count)
+        try budget.copy(data)
         return data
     }
 

@@ -47,13 +47,13 @@ extension SearchBook {
     func withComicDetail(_ detail: SearchBook) -> SearchBook {
         var out = self
         let keepTitle = (detail.comicInfo?.alternateTitles ?? []).contains(title)
-        if !keepTitle, let dt = detail.title.takeIf({ !$0.isBlank }), dt != detail.id, dt != "未知书名" {
+        if !keepTitle, let dt = detail.title.nilIfEmpty, dt != detail.id, dt != "未知书名" {
             out.title = dt
         }
         if detail.author.isKnownComicAuthor { out.author = detail.author }
-        if let c = detail.cover.takeIf({ !$0.isBlank }) { out.cover = c }
-        if let d = detail.description.takeIf({ !$0.isBlank }) { out.description = d }
-        if let l = detail.language.takeIf({ !$0.isBlank }) { out.language = l }
+        if let c = detail.cover.nilIfEmpty { out.cover = c }
+        if let d = detail.description.nilIfEmpty { out.description = d }
+        if let l = detail.language.nilIfEmpty { out.language = l }
         if let cid = detail.comicId { out.comicId = cid }
         switch (detail.comicInfo, comicInfo) {
         case (nil, _):

@@ -27,7 +27,7 @@ enum GodContentType: String, CaseIterable {
 
 // MARK: - 神回排行榜展示风格（设置项三选一）
 
-enum GodRankingStyle: String, CaseIterable {
+enum GodRankingStyle: String, CaseIterable, Identifiable {
     case podium = "podium"
     case vinylShelf = "vinyl"
     case polaroidWall = "polaroid"
@@ -175,7 +175,7 @@ struct CropParams: Equatable {
     }
 }
 
-private func round3(_ v: Float) -> String {
+fileprivate func round3(_ v: Float) -> String {
     let rounded = (v * 1000).rounded() / 1000
     // 与 Kotlin roundToInt/1000f 的字符串化保持一致（去掉多余 0）
     let s = String(format: "%.3f", rounded)

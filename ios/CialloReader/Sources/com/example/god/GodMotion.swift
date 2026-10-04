@@ -9,22 +9,22 @@ import UIKit
 enum GodMotion {
     // 弹簧
     /// 主弹簧：dampingRatio 0.72 / stiffness 380 —— 有轻微回弹的"精致感"
-    static func springMain<T>() -> Animation {
+    static func springMain() -> Animation {
         Animation.spring(response: 0.34, dampingFraction: 0.72) // stiffness 380 ≈ response 0.34s
     }
 
     /// 轻弹簧：按压、小控件
-    static func springLight<T>() -> Animation {
+    static func springLight() -> Animation {
         Animation.spring(response: 0.28, dampingFraction: 0.85) // stiffness 520
     }
 
     /// 软弹簧：大位移 / 整页转场
-    static func springSoft<T>() -> Animation {
+    static func springSoft() -> Animation {
         Animation.spring(response: 0.44, dampingFraction: 0.90) // stiffness 220
     }
 
     /// 低阻尼弹簧（拍立得摆动、进场弹入）
-    static func springBouncy<T>() -> Animation {
+    static func springBouncy() -> Animation {
         Animation.spring(response: 0.40, dampingFraction: 0.55) // stiffness 260
     }
 
@@ -48,9 +48,9 @@ enum GodMotion {
     /// 金色流光描边一圈（章节卡）
     static let BORDER_SWEEP_MS = 4.2
 
-    static func fast<T>() -> Animation { .easeInOut(duration: FAST_MS) }
-    static func normal<T>() -> Animation { .easeInOut(duration: NORMAL_MS) }
-    static func slow<T>() -> Animation { .easeInOut(duration: SLOW_MS) }
+    static func fast() -> Animation { .easeInOut(duration: FAST_MS) }
+    static func normal() -> Animation { .easeInOut(duration: NORMAL_MS) }
+    static func slow() -> Animation { .easeInOut(duration: SLOW_MS) }
 
     // 圆角 / 尺寸
     static let SHEET_CORNER: CGFloat = 28

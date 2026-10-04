@@ -8,7 +8,7 @@ import UIKit
 final class GodMomentRepository: ObservableObject {
     static let shared = GodMomentRepository()
 
-    private let dao: GodMomentDao
+    let dao: GodMomentDao
     /// Kotlin 引用 com.example.data.ContentMutationGate.mutex（data 代理对齐后切换过去）。
     private let mutationLock = NSLock()
 
@@ -34,7 +34,7 @@ final class GodMomentRepository: ObservableObject {
 
     /// 书籍详情页用：chapterId → 实体（章节卡片判断是否神回态）
     func observeChapterMap(bookId: String) -> AsyncStream<[String: GodMomentEntity]> {
-        dao.observeForBook(bookId: bookId).map { list in
+        dao.observeForBook(bookId: bookId).map { list -> [String: GodMomentEntity] in
             Dictionary(uniqueKeysWithValues: list.map { ($0.chapterId, $0) })
         }
     }
