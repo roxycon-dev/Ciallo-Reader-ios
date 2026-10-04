@@ -8,6 +8,12 @@
 
 | 源文件 | 行数 | iOS 对应 | 状态 |
 | --- | ---: | --- | --- |
+
+> **2026-10-04 WIP 快照**：god/（6 文件对齐）与 source/js（2 文件对齐）已完成；
+> data/favorite、source 根目录、parser/、storage/ 的同名 Swift 文件已由子代理落盘但**未逐行核对**（对齐中）；
+> data/ 主包处于拆分中间态（favorite/download/god 模型已移出聚合区，DownloadTaskEntity/DownloadState 等待补建）——CI 当前编译不过属预期，下轮先修编译。
+
+> 已对齐（逐行核对过）：god/{GodMomentModels,GodMomentDao,GodMomentRepository,GodMomentSettingsStore,GodMomentViewModel,GodCoverEngine,GodMotion,GodPull}.swift、source/js/{MxsSpacerPages,JsCookieJar}.swift
 | app/src/main/java/com/example/ui/ReaderScreen.kt | 5154 | ios/CialloReader/Sources/com/example/ui/ReaderScreen.swift | 骨架 |
 | app/src/main/java/com/example/library/LibraryScreen.kt | 3523 | ios/CialloReader/Sources/com/example/library/LibraryScreen.swift | 骨架 |
 | app/src/main/java/com/example/ui/HomeScreen.kt | 2858 | ios/CialloReader/Sources/com/example/ui/HomeScreen.swift | 骨架 |
