@@ -1,11 +1,110 @@
 import Foundation
 
-// MARK: - 章节合并器（data/ChapterMerger.kt 镜像）
-// 把入库时按 MAX_CHAPTER_LENGTH 拆出的 "标题 (续N)" 物理章节，每组最多 4 章合并；
-// 维护 physicalToLogical / physicalToLogicalOffset / logicalToPhysicalOrders 三张映射表。
-// 读者看合并后的完整章节，数据库不动。
+// 对齐 novel-reader/app/src/main/java/com/example/data/ChapterMerger.kt（91 行）
+/**
+ * Builds logical chapters from DB chapters that were split into "title (续N)" parts.
+ * The reader sees one merged chapter; the database is left untouched.
+ */
+private let CONTINUATION_TITLE = try! NSRegularExpression(pattern: #"^(.+?)\s*\((?:续|续[0-9]+)\)\s*$"#)
+
+/// 章节合并结果（Kotlin LogicalChapterBook）：三张映射表 + 逻辑章列表。
+struct LogicalChapterBook {
+    let chapters: [Chapter]
+    let physicalToLogical: [Int]
+    let physicalToLogicalOffset: [Int]
+    let logicalToPhysicalOrders: [[Int]]
+
+    func logicalIndexOf(_ physicalOrder: Int) -> Int {
+        physicalOrder >= 0 && physicalOrder < physicalToLogical.count ? physicalToLogical[physicalOrder] : physicalOrder
+    }
+
+    func logicalOffsetOf(_ physicalOrder: Int, _ physicalOffset: Int) -> Int {
+        if physicalOrder >= 0 && physicalOrder < physicalToLogicalOffset.count {
+            return physicalToLogicalOffset[physicalOrder] + physicalOffset
+        }
+        return physicalOffset
+    }
+
+    func physicalIndexFor(_ logicalIndex: Int) -> Int {
+        if logicalIndex >= 0 && logicalIndex < logicalToPhysicalOrders.count {
+            return logicalToPhysicalOrders[logicalIndex].first ?? logicalIndex
+        }
+        return logicalIndex
+    }
+}
 
 enum ChapterMerger {
+    static func cleanSplitTitle(_ title: String) -> String {
+        let ns = (title.trimmingCharacters(in: .whitespaces)) as NSString
+        let m = CONTINUATION_TITLE.firstMatch(in: title, options: [.anchored], range: NSRange(location: 0, length: ns.length))
+        if let m, m.numberOfRanges > 1 { return ns.substring(with: m.range(at: 1)) }
+        return title
+    }
+
+    static func buildLogicalChapters(_ physical: [Chapter]) -> LogicalChapterBook {
+        var byOrder: [Int: Chapter] = [:]
+        for ch in physical { byOrder[ch.chapterOrder] = ch }
+        let maxOrder = physical.map { $0.chapterOrder }.max() ?? -1
+        var physToLog = Array(0...max(maxOrder, 0)) // IntArray(maxOrder + 1) { it }
+        if maxOrder < 0 { physToLog = [] }
+        var physOffset = [Int](repeating: 0, count: max(maxOrder + 1, 0))
+        var logToPhys: [[Int]] = []
+        var logical: [Chapter] = []
+
+        var parts: [Int] = []
+        var baseTitle: String? = nil
+        var buffer = ""
+
+        func flush() {
+            if parts.isEmpty { return }
+            let first = byOrder[parts.first!]!
+            let last = byOrder[parts.last!]!
+            logical.append(Chapter(
+                bookId: first.bookId,
+                chapterOrder: logical.count,
+                title: baseTitle ?? first.title,
+                content: buffer,
+                startCharIndex: first.startCharIndex,
+                endCharIndex: last.endCharIndex
+            ))
+            logToPhys.append(parts)
+            parts = []
+            buffer = ""
+            baseTitle = nil
+        }
+
+        for ch in physical {
+            let order = ch.chapterOrder
+            let m = CONTINUATION_TITLE.firstMatch(in: ch.title.trimmingCharacters(in: .whitespaces),
+                                                  options: [.anchored],
+                                                  range: NSRange(location: 0, length: (ch.title as NSString).length))
+            var continuationTitle: String? = nil
+            if let m, m.numberOfRanges > 1 {
+                continuationTitle = (ch.title.trimmingCharacters(in: .whitespaces) as NSString).substring(with: m.range(at: 1))
+            }
+            let isContinuation = continuationTitle != nil && baseTitle == continuationTitle && !parts.isEmpty && parts.count < 4
+            if isContinuation {
+                physOffset[order] = buffer.utf16.count // Kotlin buffer.length = UTF-16 单位
+                buffer += ch.content
+                parts.append(order)
+                physToLog[order] = logical.count
+            } else {
+                flush()
+                baseTitle = cleanSplitTitle(ch.title.trimmingCharacters(in: .whitespaces))
+                buffer += ch.content
+                parts.append(order)
+                physOffset[order] = 0
+                physToLog[order] = logical.count
+            }
+        }
+        flush()
+
+        return LogicalChapterBook(chapters: logical, physicalToLogical: physToLog,
+                                  physicalToLogicalOffset: physOffset, logicalToPhysicalOrders: logToPhys)
+    }
+
+    // MARK: - iOS 侧辅助（ReaderModel.swift 依赖的合并视图；Kotlin 无对应结构）
+
     static let maxMergeCount = 4
 
     /// 物理章（chapterOrder 升序）→ 逻辑章
@@ -76,64 +175,5 @@ enum ChapterMerger {
     static func logicalToPhysicalOrder(_ logical: [LogicalChapter], logicalIndex: Int) -> Int? {
         guard logical.indices.contains(logicalIndex) else { return nil }
         return logical[logicalIndex].orders.first
-    }
-}
-
-// MARK: - 全文搜索定位（data/SearchLocator.kt 镜像）
-// 命中计数 / 跳第 N 处 / 上下文摘要。搜索前用 stripImageTokens 去掉图片路径（不产生假命中）。
-
-enum SearchLocator {
-    static let snippetRadius = 40
-
-    static func stripImageTokens(_ text: String) -> String {
-        text.replacingOccurrences(of: "\\[IMG:[^\\]]*\\]", with: "", options: .regularExpression)
-    }
-
-    static func countOccurrences(_ text: String, keyword: String) -> Int {
-        guard !keyword.isEmpty else { return 0 }
-        var count = 0
-        var searchRange = text.startIndex..<text.endIndex
-        while let found = text.range(of: keyword, options: .caseInsensitive, range: searchRange) {
-            count += 1
-            searchRange = found.upperBound..<text.endIndex
-        }
-        return count
-    }
-
-    static func buildSnippet(_ text: String, occurrence: Int, keyword: String) -> String? {
-        guard !keyword.isEmpty, occurrence >= 0 else { return nil }
-        var searchRange = text.startIndex..<text.endIndex
-        var nth = 0
-        while let found = text.range(of: keyword, options: .caseInsensitive, range: searchRange) {
-            if nth == occurrence {
-                let start = text.index(found.lowerBound, offsetBy: -snippetRadius, limitedBy: text.startIndex) ?? text.startIndex
-                let end = text.index(found.upperBound, offsetBy: snippetRadius, limitedBy: text.endIndex) ?? text.endIndex
-                let prefix = start > text.startIndex ? "…" : ""
-                let suffix = end < text.endIndex ? "…" : ""
-                return prefix + text[start..<end].replacingOccurrences(of: "\n", with: " ") + suffix
-            }
-            nth += 1
-            searchRange = found.upperBound..<text.endIndex
-        }
-        return nil
-    }
-
-    /// 全章搜索：返回每章命中数与首条摘要
-    static func buildResults(chapters: [Chapter], keyword: String) -> [SearchResultItem] {
-        var results: [SearchResultItem] = []
-        for chapter in chapters {
-            let text = stripImageTokens(chapter.content)
-            let count = countOccurrences(text, keyword: keyword)
-            guard count > 0 else { continue }
-            let snippet = buildSnippet(text, occurrence: 0, keyword: keyword) ?? ""
-            for occurrence in 0..<count {
-                results.append(SearchResultItem(chapterIndex: chapter.chapterOrder,
-                                                chapterTitle: chapter.title,
-                                                snippet: snippet,
-                                                occurrence: occurrence))
-            }
-            if results.count >= 1000 { break }
-        }
-        return Array(results.prefix(1000))
     }
 }

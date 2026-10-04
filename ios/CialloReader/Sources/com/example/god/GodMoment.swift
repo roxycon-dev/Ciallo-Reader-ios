@@ -5,53 +5,7 @@ import UIKit
 // 末页拉拽状态机（GodPull）+ 自绘标记窗口（GodMomentSheet）+ 三种陈列排行榜（GodRanking）。
 // 唯一索引 (bookId, chapterId)：同一话只有一个神回。
 
-// MARK: - 末页拉拽浮层（GodPull：阻尼公式 (1 - 1/(raw·c/span + 1))·(span/c)，c=0.55）
-
-struct GodPullOverlay: View {
-    let progress: CGFloat
-    let triggered: Bool
-    @State private var showHint = false
-
-    var body: some View {
-        Group {
-            if progress > 0.01 || triggered {
-                VStack {
-                    Spacer()
-                    VStack(spacing: 8) {
-                        // 双层光环 + 边缘刻度
-                        ZStack {
-                            Circle()
-                                .stroke(AppColor.mintGold.opacity(0.5), lineWidth: 2)
-                                .frame(width: 64 + progress * 30, height: 64 + progress * 30)
-                            Circle()
-                                .stroke(AppColor.mintGold.opacity(0.25), lineWidth: 5)
-                                .frame(width: 78 + progress * 30, height: 78 + progress * 30)
-                            Image(systemName: triggered ? "heart.fill" : "heart")
-                                .font(.system(size: 26))
-                                .foregroundStyle(AppColor.heartMid)
-                        }
-                        Text(triggered ? "松手标记神回" : "继续滑动 · 标记神回")
-                            .font(.system(size: 12, weight: .medium))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(Capsule().fill(.regularMaterial))
-                    }
-                    .padding(.bottom, 130)
-                    .opacity(Double(min(1, progress * 2)))
-                }
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: progress)
-    }
-}
-
-/// 阻尼映射（GodPullState.dampened）
-func godDampenedOffset(raw: CGFloat, span: CGFloat = 300) -> CGFloat {
-    let c: CGFloat = 0.55
-    if raw <= 0 { return 0 }
-    return (1 - 1 / (raw * c / span + 1)) * (span / c)
-}
+// 末页拉拽浮层与阻尼状态机已对齐至 GodPull.swift
 
 // MARK: - 神回标记窗口（GodMomentSheet：占屏 92%、顶圆角 28、可下拉）
 

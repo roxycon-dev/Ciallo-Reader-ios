@@ -5,10 +5,32 @@ import ZIPFoundation
 // MARK: - 小说内嵌图（ui/reader/NovelInlineImages.kt 对应物）
 // TOKEN_REGEX 解析 `[IMG:epzip:file://书文件!包内条目|宽|高]` 与 `[IMG:file://路径|宽|高]`；
 // epubImageRef 统一解码（预热/正文/全屏/保存共用）；解码失败显示明确错误。
+// （data/SearchLocator.swift 依赖下方追加的 hasImages/blankTokens 两个静态函数。）
 
 enum NovelInlineImages {
     /// `[IMG:<uri>|宽|高]`
     static let tokenRegex = try? NSRegularExpression(pattern: #"\[IMG:([^\]]+)\|(\d+)\|(\d+)\]"#)
+
+    // MARK: 追加的两个静态函数（data/SearchLocator.kt 依赖；其余内容不动）
+
+    /// Kotlin `NovelInlineImages.hasImages(text)`：正文是否含图片占位符。
+    static func hasImages(_ text: String) -> Bool {
+        text.contains("[IMG:")
+    }
+
+    /// 把每个图片 token 替换为等长空格（保持字符偏移不变，但不含图片路径）。
+    static func blankTokens(_ text: String) -> String {
+        guard let regex = tokenRegex else { return text }
+        let ns = text as NSString
+        var result = text
+        // 替换后长度不变，倒序替换保持前面的位置有效
+        for m in regex.matches(in: text, options: [], range: NSRange(location: 0, length: ns.length)).reversed() {
+            let spaces = String(repeating: " ", count: m.range.length)
+            result = (result as NSString).replacingCharacters(in: m.range, with: spaces)
+        }
+        return result
+    }
+
 
     struct ImageToken: Identifiable, Hashable {
         let uri: String

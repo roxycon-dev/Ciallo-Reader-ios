@@ -60,8 +60,8 @@ struct ComicReaderCore: View {
     @State private var chrome = true
     @State private var showChapters = false
     @State private var showSettings = false
-    @State private var godPullProgress: CGFloat = 0
     @State private var godTriggered = false
+    @StateObject private var godPull = GodPullState()
     @State private var scale: CGFloat = 1
     // 卷页驱动（CurlMesh 圆柱投影条带渲染）
     @State private var curlT: CGFloat = 0
@@ -93,8 +93,8 @@ struct ComicReaderCore: View {
                 pagedReader
             }
 
-            // 末页神回拉拽浮层
-            GodPullOverlay(progress: godPullProgress, triggered: godTriggered)
+            // 末页神回拉拽浮层（GodPull：阻尼 + 光晕 + 圆环）
+            GodPullOverlay(state: godPull, edge: config.mode == .pagedRtl ? .left : .right)
 
             if chrome {
                 ComicTopBar(title: model.title, chapter: model.chapterTitle,
@@ -183,7 +183,10 @@ struct ComicReaderCore: View {
                             withAnimation(AppMotion.springSettle) {
                                 if forward {
                                     if pageIndex + 1 >= model.images.count && canPullGod(dx: dx) {
-                                        godTriggered = true
+                                        // GodPull 状态机：阻尼累计 → 过阈松手触发
+                                        godPull.onTrigger = { godTriggered = true }
+                                        godPull.setRaw(abs(dx))
+                                        godPull.release()
                                     } else {
                                         model.nextChapter()
                                     }
