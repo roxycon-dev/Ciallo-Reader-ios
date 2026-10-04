@@ -1,12 +1,14 @@
 import Foundation
 
-// MARK: - 数据模型（data/Book.kt + data/favorite/FavoriteModels.kt + download/ + god/ 镜像）
+// MARK: - Book.kt 逐行对齐（2026-10-04）
+// 对应源：app/src/main/java/com/example/data/Book.kt（113 行），字段/默认值/常量一一对应。
+// 本文件下方"临时聚合区"持有 favorite/download/god 的模型（尚未拆到各自镜像文件，见 PORT_LEDGER）。
 
-/// 不支持阅读的格式入库时使用的占位章节标题。
-let unsupportedChapterTitle = "暂不支持阅读"
+/// 不支持阅读的格式（PDF/MOBI 等）入库时使用的占位章节标题。
+public let unsupportedChapterTitle = "暂不支持阅读"
 
-/// 章节最大长度：超过则入库时拆分为多个小章节。
-let maxChapterLength = 30_000
+/// 章节最大长度：超过则入库时拆分为多个小章节，保证打开阅读器不卡顿/不闪退。
+public let maxChapterLength = 30_000
 
 /// 第七轮第 6.1 条：默认分类名。
 let defaultCategory = "默认"
@@ -33,10 +35,13 @@ struct Book: Identifiable, Hashable {
     var addedTime: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
     var lastReadTime: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
     /// 在线下载入库的书才有；与 comicId 一起构成「我喜欢的」关联键。
+    /// 手动导入的本地文件为空 —— 这类书不能被喜欢，但阅读进度照常记录。
     var sourceId: String? = nil
     var comicId: String? = nil
 
     var isComic: Bool { contentType == ContentType.comic.rawValue }
+    /// Room @Ignore 字段：封面是否有效
+    var isCoverValid: Bool = false
 }
 
 // MARK: Chapter
