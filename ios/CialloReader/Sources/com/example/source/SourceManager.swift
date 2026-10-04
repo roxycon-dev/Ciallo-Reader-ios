@@ -167,7 +167,7 @@ final class SourceManager: ObservableObject {
     }
 
     /// Kotlin: `suspend fun removeSource(sourceId: String)`
-    func removeSource(id: String) async {
+    func removeSource(sourceId: String) async {
         await unregisterSource(sourceId)
     }
 

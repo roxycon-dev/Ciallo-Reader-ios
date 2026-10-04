@@ -35,12 +35,12 @@ enum SearchLocator {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || occurrence < 0 { return -1 }
         let visible = visibleText(text)
         let ns = visible as NSString
-        var at = firstCaseInsensitiveIndex(ns, query, from: 0) ?? -1
+        var at = firstCaseInsensitiveIndex(ns, query, from: 0)
         var i = 0
         while at >= 0 {
             if i == occurrence { return at }
             i += 1
-            at = firstCaseInsensitiveIndex(ns, query, from: at + (query as NSString).length) ?? -1
+            at = firstCaseInsensitiveIndex(ns, query, from: at + (query as NSString).length)
         }
         return -1
     }
@@ -92,7 +92,7 @@ enum SearchLocator {
             let plain = visibleText(chapter.content)
             let ns = plain as NSString
             let qn = query as NSString
-            var at = firstCaseInsensitiveIndex(ns, query, from: 0) ?? -1 ?? -1
+            var at = firstCaseInsensitiveIndex(ns, query, from: 0) ?? -1
             var occurrence = beforeCounts[logicalIndex] ?? 0
             while at >= 0 {
                 let start = max(at - 15, 0)
