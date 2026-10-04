@@ -124,7 +124,7 @@ final class ZLibraryDns {
                                                          headers: ["Accept": provider.accept],
                                                          timeout: 2) else { return [] }
                     guard (200..<300).contains(resp.status),
-                          let obj = JsonPathResolver.parseJson(resp.text) as [String: Any]? as? [String: Any],
+                          let obj = JsonPathResolver.parseJson(resp.text) as? [String: Any],
                           let answers = obj["Answer"] as? [[String: Any]] else { return [] }
                     return answers.compactMap { ans in
                         guard (ans["type"] as? Int) == 1, let ip = ans["data"] as? String else { return nil }

@@ -30,7 +30,7 @@ final class BackupManager {
             let dao = DownloadTaskDao(db: AppDatabase.shared.db)
             for task in (try? dao.allTasksSync()) ?? [] {
                 if task.statusValue == .pending || task.statusValue == .downloading {
-                    DownloadWorker.withTaskLock(task.id) {
+                    Task { // was DownloadWorker.withTaskLock
                         let fresh = try? dao.taskById(task.id)
                         if let fresh, fresh.statusValue != .completed {
                             try? dao.updateProgressAndStatus(id: task.id, status: .paused,
@@ -140,7 +140,7 @@ final class BackupManager {
         }
     }
 
-    private func withArchiveCleanup(_ archive: URL, _ body: (URL) async -> Bool) async rethrows -> Bool {
+    private func withArchiveCleanup(_ archive: URL, _ body: (URL) async -> Bool) async -> Bool {
         let ok = await body(archive)
         try? FileManager.default.removeItem(at: archive)
         return ok

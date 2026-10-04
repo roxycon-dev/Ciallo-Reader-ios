@@ -34,8 +34,13 @@ final class GodMomentRepository: ObservableObject {
 
     /// 书籍详情页用：chapterId → 实体（章节卡片判断是否神回态）
     func observeChapterMap(bookId: String) -> AsyncStream<[String: GodMomentEntity]> {
-        dao.observeForBook(bookId: bookId).map { list -> [String: GodMomentEntity] in
-            Dictionary(uniqueKeysWithValues: list.map { ($0.chapterId, $0) })
+        AsyncStream { continuation in
+            let task = Task {
+                for await list in dao.observeForBook(bookId: bookId) {
+                    continuation.yield(Dictionary(uniqueKeysWithValues: list.map { ($0.chapterId, $0) }))
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 

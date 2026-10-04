@@ -373,13 +373,13 @@ final class AppDatabase {
     func insertBook(_ b: Book, chapters: [Chapter]) throws -> Int {
         var bookId = b.id
         try db.transaction {
-            if b.id > 0, try count("SELECT COUNT(*) FROM books WHERE id=?", [.int(Int64(b.id))]) > 0 {
-                try db.exec("DELETE FROM chapters WHERE bookId=?", [.int(Int64(b.id))])
+            if b.id > 0, try count("SELECT COUNT(*) FROM books WHERE id=?", [.int(b.id)]) > 0 {
+                try db.exec("DELETE FROM chapters WHERE bookId=?", [.int(b.id)])
                 try db.exec("""
                     UPDATE books SET title=?, author=?, filePath=?, coverUri=?, category=?, currentChapterIndex=?,
                     scrollOffset=?, isFinished=?, totalChapters=?, contentType=?, lastReadTime=?, sourceId=?, comicId=?
                     WHERE id=?
-                    """, bookBinds(b) + [.int(Int64(b.id))])
+                    """, bookBinds(b) + [.int(b.id)])
                 bookId = b.id
             } else {
                 try db.exec("""
@@ -394,7 +394,7 @@ final class AppDatabase {
                     INSERT INTO chapters (bookId, chapterOrder, title, content, startCharIndex, endCharIndex)
                     VALUES (?,?,?,?,?,?)
                     """, [
-                        .int(Int64(bookId)), .int(Int64(c.chapterOrder)), .text(c.title),
+                        .int(bookId), .int(c.chapterOrder), .text(c.title),
                         .text(c.content), .int(c.startCharIndex), .int(c.endCharIndex),
                     ])
             }
@@ -407,8 +407,8 @@ final class AppDatabase {
             .text(b.title), .text(b.author), .text(b.filePath),
             b.coverUri.map { .text($0) } ?? .null,
             .text(b.category),
-            .int(Int64(b.currentChapterIndex)), .int(Int64(b.scrollOffset)),
-            .int(b.isFinished ? 1 : 0), .int(Int64(b.totalChapters)),
+            .int(b.currentChapterIndex), .int(b.scrollOffset),
+            .int(b.isFinished ? 1 : 0), .int(b.totalChapters),
             .text(b.contentType),
             .int(b.addedTime), .int(b.lastReadTime),
             b.sourceId.map { .text($0) } ?? .null,
@@ -451,25 +451,25 @@ final class AppDatabase {
     }
 
     func book(id: Int) throws -> Book? {
-        try db.query("SELECT * FROM books WHERE id=?", [.int(Int64(id))]).first.map(book(from:))
+        try db.query("SELECT * FROM books WHERE id=?", [.int(id)]).first.map(book(from:))
     }
 
     func updateProgress(bookId: Int, chapterIndex: Int, scrollOffset: Int) throws {
         try db.exec("UPDATE books SET currentChapterIndex=?, scrollOffset=?, lastReadTime=? WHERE id=?",
-                    [.int(Int64(chapterIndex)), .int(Int64(scrollOffset)),
-                     .int(Int64(Date().timeIntervalSince1970 * 1000)), .int(Int64(bookId))])
+                    [.int(chapterIndex), .int(scrollOffset),
+                     .int(Int64(Date().timeIntervalSince1970 * 1000)), .int(bookId)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
     func deleteBook(id: Int) throws {
         try db.transaction {
-            try db.exec("DELETE FROM chapters WHERE bookId=?", [.int(Int64(id))])
-            try db.exec("DELETE FROM bookmarks WHERE bookId=?", [.int(Int64(id))])
-            try db.exec("DELETE FROM highlights WHERE bookId=?", [.int(Int64(id))])
+            try db.exec("DELETE FROM chapters WHERE bookId=?", [.int(id)])
+            try db.exec("DELETE FROM bookmarks WHERE bookId=?", [.int(id)])
+            try db.exec("DELETE FROM highlights WHERE bookId=?", [.int(id)])
             // 历史会话只断开 bookId（不删记录，统计保留）
-            try db.exec("UPDATE reading_sessions SET bookId=NULL WHERE bookId=?", [.int(Int64(id))])
-            try db.exec("UPDATE reading_records SET bookId=NULL WHERE bookId=?", [.int(Int64(id))])
-            try db.exec("DELETE FROM books WHERE id=?", [.int(Int64(id))])
+            try db.exec("UPDATE reading_sessions SET bookId=NULL WHERE bookId=?", [.int(id)])
+            try db.exec("UPDATE reading_records SET bookId=NULL WHERE bookId=?", [.int(id)])
+            try db.exec("DELETE FROM books WHERE id=?", [.int(id)])
         }
     }
 
@@ -488,12 +488,12 @@ final class AppDatabase {
     }
 
     func chapters(bookId: Int) throws -> [Chapter] {
-        try db.query("SELECT * FROM chapters WHERE bookId=? ORDER BY chapterOrder", [.int(Int64(bookId))]).map(chapter(from:))
+        try db.query("SELECT * FROM chapters WHERE bookId=? ORDER BY chapterOrder", [.int(bookId)]).map(chapter(from:))
     }
 
     func chapter(bookId: Int, order: Int) throws -> Chapter? {
         try db.query("SELECT * FROM chapters WHERE bookId=? AND chapterOrder=? LIMIT 1",
-                     [.int(Int64(bookId)), .int(Int64(order))]).first.map(chapter(from:))
+                     [.int(bookId), .int(order)]).first.map(chapter(from:))
     }
 
     // MARK: - Bookmark / Highlight DAO
@@ -504,18 +504,18 @@ final class AppDatabase {
             VALUES (?,?,?,?,?,?)
             ON CONFLICT (bookId, chapterIndex) DO UPDATE SET scrollOffset=excluded.scrollOffset,
             title=excluded.title, snippet=excluded.snippet, createdTime=excluded.createdTime
-            """, [.int(Int64(bm.bookId)), .int(Int64(bm.chapterIndex)), .int(Int64(bm.scrollOffset)),
+            """, [.int(bm.bookId), .int(bm.chapterIndex), .int(bm.scrollOffset),
                   .text(bm.title), .text(bm.snippet), .int(bm.createdTime)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
     func removeBookmark(bookId: Int, chapterIndex: Int) throws {
-        try db.exec("DELETE FROM bookmarks WHERE bookId=? AND chapterIndex=?", [.int(Int64(bookId)), .int(Int64(chapterIndex))])
+        try db.exec("DELETE FROM bookmarks WHERE bookId=? AND chapterIndex=?", [.int(bookId), .int(chapterIndex)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
     func bookmarks(bookId: Int) throws -> [Bookmark] {
-        try db.query("SELECT * FROM bookmarks WHERE bookId=? ORDER BY chapterIndex", [.int(Int64(bookId))]).map { row in
+        try db.query("SELECT * FROM bookmarks WHERE bookId=? ORDER BY chapterIndex", [.int(bookId)]).map { row in
             Bookmark(id: Int(row["id"]?.intValue ?? 0),
                      bookId: Int(row["bookId"]?.intValue ?? 0),
                      chapterIndex: Int(row["chapterIndex"]?.intValue ?? 0),
@@ -530,13 +530,13 @@ final class AppDatabase {
         try db.exec("""
             INSERT INTO highlights (bookId, chapterIndex, selectedText, note, colorHex, createdTime)
             VALUES (?,?,?,?,?,?)
-            """, [.int(Int64(h.bookId)), .int(Int64(h.chapterIndex)), .text(h.selectedText),
+            """, [.int(h.bookId), .int(h.chapterIndex), .text(h.selectedText),
                   .text(h.note), .text(h.colorHex), .int(h.createdTime)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
     func highlights(bookId: Int) throws -> [Highlight] {
-        try db.query("SELECT * FROM highlights WHERE bookId=? ORDER BY id", [.int(Int64(bookId))]).map { row in
+        try db.query("SELECT * FROM highlights WHERE bookId=? ORDER BY id", [.int(bookId)]).map { row in
             Highlight(id: Int(row["id"]?.intValue ?? 0),
                       bookId: Int(row["bookId"]?.intValue ?? 0),
                       chapterIndex: Int(row["chapterIndex"]?.intValue ?? 0),
@@ -582,11 +582,11 @@ final class AppDatabase {
         try db.exec("""
             INSERT INTO reading_sessions (bookId, bookTitle, dateStr, startTimeMs, endTimeMs, durationSeconds, startHour)
             VALUES (?,?,?,?,?,?,?)
-            """, [s.bookId.map { .int(Int64($0)) } ?? .null, .text(s.bookTitle), .text(s.dateStr),
-                  .int(s.startTimeMs), .int(s.endTimeMs), .int(s.durationSeconds), .int(Int64(s.startHour))])
+            """, [s.bookId.map { .int($0) } ?? .null, .text(s.bookTitle), .text(s.dateStr),
+                  .int(s.startTimeMs), .int(s.endTimeMs), .int(s.durationSeconds), .int(s.startHour)])
         try db.exec("""
             INSERT INTO reading_records (bookId, bookTitle, dateStr, durationSeconds) VALUES (?,?,?,?)
-            """, [s.bookId.map { .int(Int64($0)) } ?? .null, .text(s.bookTitle), .text(s.dateStr), .int(s.durationSeconds)])
+            """, [s.bookId.map { .int($0) } ?? .null, .text(s.bookTitle), .text(s.dateStr), .int(s.durationSeconds)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
@@ -681,7 +681,7 @@ final class AppDatabase {
                   .int(f.latestChapterUpdateAt), .int(f.lastCheckedAt),
                   .int(f.sourceAlive ? 1 : 0),
                   f.categoryName.map { .text($0) } ?? .null,
-                  .int(f.favoritedAt), .int(Int64(f.sortOrder))])
+                  .int(f.favoritedAt), .int(f.sortOrder)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
@@ -698,7 +698,7 @@ final class AppDatabase {
                        latestChapterUpdateAt: row["latestChapterUpdateAt"]?.intValue ?? 0,
                        lastCheckedAt: row["lastCheckedAt"]?.intValue ?? 0,
                        sourceAlive: (row["sourceAlive"]?.intValue ?? 1) != 0,
-                       categoryName: row["categoryName"]?.textValue,
+                       categoryName: row["categoryName"]?.textValue ?? "",
                        favoritedAt: row["favoritedAt"]?.intValue ?? 0,
                        sortOrder: Int(row["sortOrder"]?.intValue ?? 0))
     }
@@ -737,8 +737,8 @@ final class AppDatabase {
             lastPageCount=excluded.lastPageCount, lastReadAt=excluded.lastReadAt,
             seenTopChapterId=excluded.seenTopChapterId, seenChapterCount=excluded.seenChapterCount
             """, [.text(p.sourceId), .text(p.comicId), .text(p.lastChapterId),
-                  .int(Int64(p.lastChapterIndex)), .int(Int64(p.lastPageIndex)), .int(Int64(p.lastPageCount)),
-                  .int(p.lastReadAt), p.seenTopChapterId.map { .text($0) } ?? .null, .int(Int64(p.seenChapterCount))])
+                  .int(p.lastChapterIndex), .int(p.lastPageIndex), .int(p.lastPageCount),
+                  .int(p.lastReadAt), p.seenTopChapterId.map { .text($0) } ?? .null, .int(p.seenChapterCount)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
@@ -780,8 +780,8 @@ final class AppDatabase {
             pageIndex=excluded.pageIndex, pageCount=excluded.pageCount, chapterIndex=excluded.chapterIndex,
             updatedAt=excluded.updatedAt, bookmarked=excluded.bookmarked
             """, [.text(e.sourceId), .text(e.comicId), .text(e.chapterId),
-                  .int(Int64(e.status)), .int(Int64(e.pageIndex)), .int(Int64(e.pageCount)),
-                  .int(Int64(e.chapterIndex)), .int(e.updatedAt), .int(e.bookmarked ? 1 : 0)])
+                  .int(e.status), .int(e.pageIndex), .int(e.pageCount),
+                  .int(e.chapterIndex), .int(e.updatedAt), .int(e.bookmarked ? 1 : 0)])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
@@ -812,7 +812,7 @@ final class AppDatabase {
     func addFavoriteCategory(name: String) throws {
         let order = try count("SELECT COUNT(*) FROM favorite_categories")
         try db.exec("INSERT OR IGNORE INTO favorite_categories (name, sortOrder, createdAt) VALUES (?,?,?)",
-                    [.text(name), .int(Int64(order)), .int(Int64(Date().timeIntervalSince1970 * 1000))])
+                    [.text(name), .int(order), .int(Int64(Date().timeIntervalSince1970 * 1000))])
         NotificationCenter.default.post(name: dbChangedNotification, object: nil)
     }
 
