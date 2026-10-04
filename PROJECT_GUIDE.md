@@ -2972,3 +2972,28 @@ ONNX Runtime。当前维持本地 OCR 以保证离线可用。
 
 
 
+
+***
+
+## 35. 第四十一轮执行（2026-10-04：iOS 云端构建打通，出包成功）
+
+### 已落地
+
+- 仓库 `roxycon-dev/Ciallo-Reader-ios`（main），精简入库：ios/ 工程 + CI 工作流 + Venera JS 资产 + PROJECT_GUIDE（1.9MB / 74 文件）；
+- GitHub Actions（macos-15 + Xcode 16.4）**Run #14 BUILD SUCCESS**：产物 `CialloReader-unsigned-ipa`（4.0MB），
+  包内验证：主二进制 5.97MB、venera_runtime.js(36KB) + bilimanga/pufei/vomic 三个本地 JS 漫画源、AppIcon、SwiftSoup/ZIPFoundation 动态库齐全；
+- ipa 已取回本地：`ios/build/CialloReader-unsigned.ipa`（未签名，供 Sideloadly/AltStore 自签安装）。
+
+### 迭代轨迹（14 轮 CI 修复，146 → 0 编译错误）
+
+1. Xcode 16.2 的 actool 与 runner 模拟器运行时注册表不匹配 → 改选策略；26.3 工具链破坏 SwiftSoup/ZIPFoundation 构建 → **最终钉死 Xcode 16.4**；
+2. ZIPFoundation 解析到 0.9.19 后发现真实 API 与假设不同：`Entry` 是顶层类型（非 `Archive.Entry` 嵌套）、
+   `Archive` 是 Sequence（无 `entries` 属性）、内存 `extract` 不存在（只有 `extract(_:to:)`）、`addEntry` provider 是双参闭包 → 全部适配并 `exactVersion 0.9.19` 钉死；
+3. SwiftSoup 2.13.9：`Element.attr/ownText/html` 全部 throws（逐个 try? 化）；`textNodes()` 直接返回数组（无 `.array()`）；`Attributes.asList()`；
+4. JavaScriptCore：`objectForKeyedSubscript` 键需 `as NSString`、块参数 JSValue 非可选（禁 `?` 链）、setObject 键类型 NSCopying；
+5. 其余为 memberwise 顺序/可选解包类机械错误与 3 个真 bug（runSearch 自引用未初始化、JsNetworkRequest init 缺 url、TXT 哨兵数组混型）。
+
+### 流程沉淀
+
+- 无 Mac 迭代回路：push → Actions 构建 → API 拉 job 日志 → grep `error:` 行 → 本地改 → push，单轮约 5-8 分钟；
+- 日志必须全量（曾因 `| tail -40` 掩盖真实错误两轮）。
