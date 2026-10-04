@@ -123,3 +123,10 @@ private extension String {
 extension NSRange {
     func toOptional() -> NSRange? { location == NSNotFound ? nil : self }
 }
+
+/// 导入/解压失败错误（原 data/CharsetSniffer.kt 聚合区持有，Kotlin 侧散在各 parser 的 require/IllegalStateException）。
+struct ImportError: Error, LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}
