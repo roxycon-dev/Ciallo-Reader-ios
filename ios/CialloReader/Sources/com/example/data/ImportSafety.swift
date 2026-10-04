@@ -21,7 +21,7 @@ struct ArchiveBudget {
     func copy(_ data: Data) throws {
         entries += 1
         guard entries <= maxEntries else { throw ImportError("too many") }
-        total += data.count
+        total += Int64(data.count)
         guard total <= maxTotalBytes else { throw ImportError("too big") }
     }
 

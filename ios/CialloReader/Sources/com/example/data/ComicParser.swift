@@ -71,7 +71,7 @@ enum ComicParser {
             try archive.extract(entry, to: tmp)
             let data = try Data(contentsOf: tmp)
             try? FileManager.default.removeItem(at: tmp)
-            try budget.copy(data)
+            try budget.copyEntry(data)
             let file = dir.appendingPathComponent("img_\(pages.count).\(ext)")
             try data.write(to: file)
             pages.append((name, file))

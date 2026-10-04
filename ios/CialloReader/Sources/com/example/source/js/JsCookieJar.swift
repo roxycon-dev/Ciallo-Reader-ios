@@ -61,11 +61,11 @@ enum JsCookieJar {
         var cookies = LinkedHashMap<String, String>()
         var current = host
         while !current.isEmpty {
-            let stored = pairs(prefsString("ck_\(current)"))
-            let attributes = metadata(prefsString("ck_meta_\(current)"))
+            var stored = pairs(prefsString("ck_\(current)"))
+            var attributes = metadata(prefsString("ck_meta_\(current)"))
             var changed = false
             var kept: [String] = []
-            for (name, pair) in stored {
+            for (name, pair) in stored.entries {
                 let meta = attributes[name] as? [String: Any]
                 // 迁移旧的 1 秒搜索节流，但不清掉登录会话
                 let oldSearchThrottle = meta == nil && name == "ss_search_delay"
@@ -131,8 +131,8 @@ enum JsCookieJar {
             attrsByDomain[domain] = attrs
         }
         for (host, updates) in byDomain {
-            let stored = pairs(prefsString("ck_\(host)"))
-            let attributes = metadata(prefsString("ck_meta_\(host)"))
+            var stored = pairs(prefsString("ck_\(host)"))
+            var attributes = metadata(prefsString("ck_meta_\(host)"))
             var kept: [String] = []
             for (name, value) in updates {
                 // 过期 cookie：Kotlin 按 expiresAt <= now 删除；HTTPCookie 已无 expires 属性时视为会话 cookie
@@ -158,10 +158,10 @@ enum JsCookieJar {
         defer { lock.unlock() }
         let trimmed = host.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        let domainHost = trimmed.dropWhile { $0 == "." }.lowercased()
-        let stored = pairs(prefsString("ck_\(domainHost)"))
-        let attributes = metadata(prefsString("ck_meta_\(domainHost)"))
-        for (name, pair) in pairs(updates.joined(separator: "; ")) {
+        let domainHost = trimmed.drop(while:) { $0 == "." }.lowercased()
+        var stored = pairs(prefsString("ck_\(domainHost)"))
+        var attributes = metadata(prefsString("ck_meta_\(domainHost)"))
+        for (name, pair) in pairs(updates.joined(separator: "; ")).entries {
             stored[name] = pair
             attributes.removeValue(forKey: name)
         }
@@ -244,7 +244,7 @@ private extension HTTPCookie {
 }
 
 /// 保持插入序的小字典（对应 Kotlin LinkedHashMap）。
-struct LinkedHashMap<K: Hashable, V> {
+final class LinkedHashMap<K: Hashable, V> {
     private var keys: [K] = []
     private var map: [K: V] = [:]
 
@@ -264,7 +264,7 @@ struct LinkedHashMap<K: Hashable, V> {
     var values: [V] { keys.compactMap { map[$0] } }
     var entries: [(K, V)] { keys.compactMap { k in map[k].map { (k, $0) } } }
     func removeValue(forKey key: K) { self[key] = nil }
-    mutating func removeAll(where predicate: (K, V) -> Bool) {
+    func removeAll(where predicate: (K, V) -> Bool) {
         for (k, v) in entries where predicate(k, v) { self[k] = nil }
     }
 }

@@ -51,7 +51,7 @@ enum CharsetSniffer {
             }.count) / Double(useful.count)
             let bad = Double(useful.filter { c in
                 let v = c.unicodeScalars.first!.value
-                return c.unicodeScalars.first!.properties.isISOControl || (v >= 0xe000 && v <= 0xf8ff)
+                return c.unicodeScalars.first!.value < 0x20 || c.unicodeScalars.first!.value == 0x7F || (v >= 0xe000 && v <= 0xf8ff)
             }.count) / Double(useful.count)
             return common + kana * 2.0 + hangul * 1.5 - bad * 5.0
         }

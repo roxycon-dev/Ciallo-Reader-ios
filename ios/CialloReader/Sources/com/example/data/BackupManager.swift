@@ -30,7 +30,7 @@ final class BackupManager {
             let dao = DownloadTaskDao(db: AppDatabase.shared.db)
             for task in (try? dao.allTasksSync()) ?? [] {
                 if task.statusValue == .pending || task.statusValue == .downloading {
-                    DownloadWorker.withTaskLock(task.id) {
+                    Task { // was withTaskLock
                         let fresh = try? dao.taskById(task.id)
                         if let fresh, fresh.statusValue != .completed {
                             try? dao.updateProgressAndStatus(id: task.id, status: .paused,
