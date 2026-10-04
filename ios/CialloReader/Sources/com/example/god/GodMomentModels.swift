@@ -138,7 +138,7 @@ struct CropParams: Equatable {
 
     var toTag: String {
         [scale, offsetX, offsetY, rotationDeg, cropL, cropT, cropR, cropB]
-            .map { CropParams.round3($0) }
+            .map { round3($0) }
             .joined(separator: ",")
     }
 
@@ -175,7 +175,7 @@ struct CropParams: Equatable {
     }
 }
 
-fileprivate func round3(_ v: Float) -> String {
+filefilefileprivate func round3(_ v: Float) -> String {
     let rounded = (v * 1000).rounded() / 1000
     // 与 Kotlin roundToInt/1000f 的字符串化保持一致（去掉多余 0）
     let s = String(format: "%.3f", rounded)

@@ -292,8 +292,8 @@ final class ZLEapiClient {
             let eapiId = b["id"] as? String ?? (b["id"] as? Int).map(String.init) ?? ""
             let eapiHash = b["hash"] as? String ?? ""
             guard !bookUrl.isEmpty, !eapiId.isEmpty, !eapiHash.isEmpty else { return nil }
-            let cover = (b["cover"] as? String).nilIfEmpty
-            let dl = (b["dl"] as? String).nilIfEmpty
+            let cover = (b["cover"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 }
+            let dl = (b["dl"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 }
             return SearchBook(
                 id: bookUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
                 sourceId: "zlibrary",
@@ -301,7 +301,7 @@ final class ZLEapiClient {
                 author: b["author"] as? String ?? "未知作者",
                 cover: cover,
                 format: (b["extension"] as? String ?? "epub").lowercased(),
-                language: (b["language"] as? String).nilIfEmpty,
+                language: (b["language"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 },
                 size: (b["filesize"] as? Int).map { Int64($0) }.flatMap { $0 > 0 ? $0 : nil },
                 downloadUrl: dl.map { $0.hasPrefix("http") ? $0 : "https://\(domain)\($0)" },
                 eapiId: eapiId, eapiHash: eapiHash)
@@ -312,16 +312,16 @@ final class ZLEapiClient {
         guard let json = try? await getJson("https://\(domain)/eapi/book/\(eapiId)/\(eapiHash)", domain: domain),
               (json["success"] as? Int) == 1,
               let b = json["book"] as? [String: Any] else { return nil }
-        let dl = (b["dl"] as? String).nilIfEmpty
+        let dl = (b["dl"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 }
         return SearchBook(
             id: (b["url"] as? String ?? "/book/\(eapiId)/\(eapiHash)").trimmingCharacters(in: CharacterSet(charactersIn: "/")),
             sourceId: "zlibrary",
             title: b["title"] as? String ?? "未知书名",
             author: b["author"] as? String ?? "未知作者",
-            cover: (b["cover"] as? String).nilIfEmpty,
+            cover: (b["cover"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 },
             description: (b["description"] as? String).flatMap { MobiParser.extractText(from: $0) }.nilIfEmpty,
             format: (b["extension"] as? String ?? "epub").lowercased(),
-            language: (b["language"] as? String).nilIfEmpty,
+            language: (b["language"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 },
             downloadUrl: dl.map { $0.hasPrefix("http") ? $0 : "https://\(domain)\($0)" },
             eapiId: eapiId, eapiHash: eapiHash)
     }
@@ -337,9 +337,9 @@ final class ZLEapiClient {
             seen[ext] = BookFormat(
                 format: ext,
                 size: (v["filesize"] as? Int).map { Int64($0) }.flatMap { $0 > 0 ? $0 : nil },
-                sizeText: (v["filesizeString"] as? String).nilIfEmpty,
-                eapiId: (v["id"] as? String).nilIfEmpty ?? (v["id"] as? Int).map(String.init),
-                eapiHash: (v["hash"] as? String).nilIfEmpty)
+                sizeText: (v["filesizeString"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 },
+                eapiId: (v["id"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 } ?? (v["id"] as? Int).map(String.init),
+                eapiHash: (v["hash"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 })
         }
         return Array(seen.values)
     }
@@ -356,7 +356,7 @@ final class ZLEapiClient {
             return ZLDownloadLinkResult(url: nil,
                                         limitMessage: clean.isEmpty ? "今日下载次数已达上限，请等待额度重置或提升下载额度" : clean)
         }
-        guard let raw = (file["downloadLink"] as? String).nilIfEmpty else { return ZLDownloadLinkResult(url: nil, limitMessage: nil) }
+        guard let raw = (file["downloadLink"] as? String as String?).flatMap { $0.isEmpty ? nil : $0 } else { return ZLDownloadLinkResult(url: nil, limitMessage: nil) }
         let normalized: String
         if raw.hasPrefix("//") { normalized = "https:" + raw }
         else if raw.hasPrefix("/") { normalized = "https://\(domain)\(raw)" }
