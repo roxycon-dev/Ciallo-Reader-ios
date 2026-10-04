@@ -86,7 +86,7 @@ final class ComicReaderModel: ObservableObject {
         if case .online(let source, let comicId) = origin {
             Task {
                 let reads = await FavoriteRepository.shared.chapterReads(sourceId: source.id, comicId: comicId)
-                readChapterIds = Set(reads.filter { ChapterReadState(rawValue: $0.status) == ChapterReadState.finished }.map { $0.chapterId })
+                readChapterIds = Set(reads.filter { ChapterReadState(rawValue: $0.status) == .finished }.map { $0.chapterId })
             }
         }
     }

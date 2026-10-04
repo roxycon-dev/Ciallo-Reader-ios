@@ -192,7 +192,7 @@ private struct GodPullCanvas: View {
                         lineGrad,
                         startPoint: CGPoint(x: edgeX + side * 3, y: size.height / 2 - halfSpan),
                         endPoint: CGPoint(x: edgeX + side * 3, y: size.height / 2 + halfSpan)),
-                        style: StrokeStyle(lineWidth: 2 + p * 5))
+                        style: StrokeStyle(lineWidth: 2 + p * 5, lineCap: .round))
                 }
                 for i in -3...3 {
                     let y = size.height / 2 + CGFloat(i) * 34
@@ -201,7 +201,7 @@ private struct GodPullCanvas: View {
                     tick.move(to: CGPoint(x: edgeX, y: y))
                     tick.addLine(to: CGPoint(x: edgeX + side * reach, y: y))
                     ctx.stroke(tick, with: .color(gold[0].opacity(p * (0.40 + CGFloat(3 - abs(i)) * 0.12))),
-                               lineWidth: 1))
+                               lineWidth: 1, lineCap: .round)
                 }
             }
 
@@ -223,7 +223,7 @@ private struct GodPullCanvas: View {
 
             var track = Path()
             track.addEllipse(in: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2))
-            ctx.stroke(track, with: .color(.white.opacity(0.28)), style: StrokeStyle(lineWidth: 5))
+            ctx.stroke(track, with: .color(.white.opacity(0.28)), style: StrokeStyle(lineWidth: 5, lineCap: .round))
 
             // 进度弧（sweep 渐变）
             var arc = Path()
@@ -233,7 +233,7 @@ private struct GodPullCanvas: View {
             let sweepColors = gold + [gold[0]]
             ctx.stroke(arc, with: .angularGradient(Gradient(colors: sweepColors), center: center,
                                                    startAngle: .degrees(-90), endAngle: .degrees(-90 + 360 * p)),
-                       style: StrokeStyle(lineWidth: 5))
+                       style: StrokeStyle(lineWidth: 5, lineCap: .round))
         }
     }
 }

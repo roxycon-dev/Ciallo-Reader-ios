@@ -137,7 +137,7 @@ enum BookRepository {
     static func deleteBookCascade(_ book: Book) async throws {
         let db = AppDatabase.shared
         // 神回级联：本地漫画 bookId = local_<bookId>
-        try? db.exec("DELETE FROM god_moments WHERE bookId=?", [.text( book.isComic ? "local_\(book.id)" : "\(book.id)")
+        try? db.deleteGodMoments(forBook: book.isComic ? "local_\(book.id)" : "\(book.id)")
         try db.deleteBook(id: book.id)
         // 文件清理
         try? FileManager.default.removeItem(atPath: book.filePath)

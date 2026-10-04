@@ -25,6 +25,8 @@ struct SearchBook: Identifiable, Hashable {
 
 // MARK: - 共享工具（原 SourceModels.swift 骨架遗留，zlibrary 等外部文件引用）
 
+extension String {
+}
 
 extension Optional where Wrapped == String {
     var nilIfEmpty: String? { flatMap { $0.isEmpty ? nil : $0 } }

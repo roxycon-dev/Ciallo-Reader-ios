@@ -61,8 +61,8 @@ enum JsCookieJar {
         var cookies = LinkedHashMap<String, String>()
         var current = host
         while !current.isEmpty {
-            var stored = pairs(prefsString("ck_\(current)"))
-            var attributes = metadata(prefsString("ck_meta_\(current)"))
+            let stored = pairs(prefsString("ck_\(current)"))
+            let attributes = metadata(prefsString("ck_meta_\(current)"))
             var changed = false
             var kept: [String] = []
             for (name, pair) in stored {
@@ -131,8 +131,8 @@ enum JsCookieJar {
             attrsByDomain[domain] = attrs
         }
         for (host, updates) in byDomain {
-            var stored = pairs(prefsString("ck_\(host)"))
-            var attributes = metadata(prefsString("ck_meta_\(host)"))
+            let stored = pairs(prefsString("ck_\(host)"))
+            let attributes = metadata(prefsString("ck_meta_\(host)"))
             var kept: [String] = []
             for (name, value) in updates {
                 // 过期 cookie：Kotlin 按 expiresAt <= now 删除；HTTPCookie 已无 expires 属性时视为会话 cookie
@@ -158,9 +158,9 @@ enum JsCookieJar {
         defer { lock.unlock() }
         let trimmed = host.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        let domainHost = trimmed.drop(while:) { $0 == "." }.lowercased()
-        var stored = pairs(prefsString("ck_\(domainHost)"))
-        var attributes = metadata(prefsString("ck_meta_\(domainHost)"))
+        let domainHost = trimmed.dropWhile { $0 == "." }.lowercased()
+        let stored = pairs(prefsString("ck_\(domainHost)"))
+        let attributes = metadata(prefsString("ck_meta_\(domainHost)"))
         for (name, pair) in pairs(updates.joined(separator: "; ")) {
             stored[name] = pair
             attributes.removeValue(forKey: name)
@@ -267,19 +267,4 @@ struct LinkedHashMap<K: Hashable, V> {
     mutating func removeAll(where predicate: (K, V) -> Bool) {
         for (k, v) in entries where predicate(k, v) { self[k] = nil }
     }
-}
-
-extension LinkedHashMap: Sequence {
-    struct Iterator: IteratorProtocol {
-        let entries: [(K, V)]
-        var index = 0
-        mutating func next() -> (K, V)? {
-            guard index < entries.count else { return nil }
-            defer { index += 1 }
-            return entries[index]
-        }
-    }
-    func makeIterator() -> Iterator { Iterator(entries: entries) }
-    var count: Int { keys.count }
-    mutating func removeValue(forKey key: K) { self[key] = nil }
 }
