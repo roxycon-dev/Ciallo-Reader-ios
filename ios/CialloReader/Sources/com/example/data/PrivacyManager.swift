@@ -124,7 +124,7 @@ final class PrivacyManager: ObservableObject {
     /// iOS 侧 facade 兼容旧签名：verify(pin:) async。
     func verify(pin: String) async -> Bool {
         let result = await Task.detached(priority: .userInitiated) { [weak self] in
-            await await self?.verifyPin(pin) ?? false
+            self?.verifyPin(pin) ?? false
         }.value
         if result { lockRequired = false }
         return result

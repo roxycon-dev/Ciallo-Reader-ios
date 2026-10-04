@@ -23,7 +23,22 @@ struct SearchBook: Identifiable, Hashable {
     var comicInfo: ComicInfo? = nil
 }
 
-// Kotlin style String helpers (global, defined once)
+// MARK: - 共享工具（原 SourceModels.swift 骨架遗留，zlibrary 等外部文件引用）
+
+extension String {
+}
+
+extension Optional where Wrapped == String {
+    var nilIfEmpty: String? { flatMap { $0.isEmpty ? nil : $0 } }
+}
+
+/// Kotlin `isBlank` / `isNullOrBlank` / `ifBlank` / `takeIf` 风格助手（Legado 规则/书源逐行移植共用）
+extension String {
+    func ifBlank(_ fallback: String) -> String { isBlank ? fallback : self }
+    func toLongOrNull() -> Int64? { Int64(trimmingCharacters(in: .whitespaces)) }
+    /// Kotlin `takeIf { cond }` 对应物（条件成立返回自身）
+    func takeIf(_ predicate: (String) -> Bool) -> String? { predicate(self) ? self : nil }
+}
 
 extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
@@ -31,7 +46,6 @@ extension String {
     var ifBlankNil: String? { isBlank ? nil : self }
     var isNullOrBlank: Bool { isBlank }
     func takeIf(_ predicate: (String) -> Bool) -> String? { predicate(self) ? self : nil }
-    func toLongOrNull() -> Int64? { Int64(trimmingCharacters(in: .whitespaces)) }
 }
 
 extension Optional where Wrapped == String {
