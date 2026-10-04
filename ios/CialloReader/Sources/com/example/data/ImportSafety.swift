@@ -18,6 +18,13 @@ struct ArchiveBudget {
 
     /// Kotlin `copyEntry(input, output)`：Swift 侧以“新到一块数据”推进预算；
     /// output 为 nil 时只计数不写出。
+    func copy(_ data: Data) throws {
+        entries += 1
+        guard entries <= maxEntries else { throw ImportError("too many") }
+        total += data.count
+        guard total <= maxTotalBytes else { throw ImportError("too big") }
+    }
+
     mutating func copyEntry(_ data: Data, output: OutputStream? = nil) throws {
         entries += 1
         guard entries <= maxEntries else { throw ImportError("压缩包条目过多") }

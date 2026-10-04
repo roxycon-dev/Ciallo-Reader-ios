@@ -4,8 +4,6 @@
 // SourceRegistration.swift / SourceLog.swift / ComicInfo.swift / NovelInfo.swift。
 // 本文件仅保留 iOS 辅助扩展（Kotlin 无对应）。
 
-extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
     func takeIf(_ predicate: (String) -> Bool) -> String? { predicate(self) ? self : nil }
 }
 

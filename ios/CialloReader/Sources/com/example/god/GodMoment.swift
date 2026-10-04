@@ -111,7 +111,7 @@ struct GodMomentSheet: View {
         .onAppear {
             existing = repo.moment(bookId: bookId, chapterId: chapterId)
             if let existing {
-                rating = existing.rating
+                rating = Double(existing.rating)
                 title = existing.title
                 note = existing.note
                 if let path = existing.coverPath { coverImage = UIImage(contentsOfFile: path) }
