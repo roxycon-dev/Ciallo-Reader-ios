@@ -74,9 +74,8 @@ final class AutoNovelSource: BookSource, ComicSourceProtocol {
             id: bookId, sourceId: id, title: title(data),
             author: authors.isEmpty ? "未知作者" : authors.joined(separator: "、"),
             description: "日本轻小说 Web 版，正文为中文机器翻译；缺译章节会提示等待译文。\n\n" + intro,
-            novelInfo: NovelInfo(intro: intro, kind: tags,
-                                 lastChapter: chapters.last.flatMap { title($0) },
-                                 tocUrl: nil))
+            novelInfo: NovelInfo(synopsis: intro.isEmpty ? nil : intro,
+                                 latestChapter: chapters.last.flatMap { title($0) }))
     }
 
     func search(keyword: String) async -> SourceResult<[SearchBook]> {
@@ -286,9 +285,8 @@ final class IxdzsSource: BookSource {
             cover: cover.isEmpty ? nil : cover,
             description: "中文网文，TXT 下载到书架阅读。原站下载包可能缺章或更新滞后。\n\(latest ?? "")\n\(updated ?? "")\n\n\(intro)",
             format: "txt", language: "中文",
-            novelInfo: NovelInfo(intro: intro.isEmpty ? nil : intro, kind: nil,
-                                 lastChapter: latest?.replacingOccurrences(of: "最新:", with: "").nilIfEmpty,
-                                 tocUrl: nil))
+            novelInfo: NovelInfo(synopsis: intro.isEmpty ? nil : intro,
+                                 latestChapter: latest?.replacingOccurrences(of: "最新:", with: "").nilIfEmpty))
         lock.lock()
         detailCache[bookId] = (Date(), book, downloadUrl.absoluteString)
         lock.unlock()
@@ -319,7 +317,7 @@ final class IxdzsSource: BookSource {
                     cover: cover.isEmpty ? nil : cover,
                     description: "中文网文，TXT 下载到书架阅读；原站下载包可能缺章或更新滞后。\n\(intro)",
                     format: "txt", language: "中文",
-                    novelInfo: NovelInfo(intro: intro.isEmpty ? nil : intro, kind: nil, lastChapter: nil, tocUrl: nil)))
+                    novelInfo: NovelInfo(synopsis: intro.isEmpty ? nil : intro)))
             }
             return .success(books)
         } catch {
@@ -395,8 +393,7 @@ final class Wenku8LibrarySource: BookSource {
             description: "中文轻小说文库版 EPUB，含插图，下载入书架后阅读。译本信息以书内注明为准。\n文库收录 \(volumes) 卷 · 更新 \(updated)；可能晚于原版发行。\n\n\(plainIntro)",
             format: "epub", language: "中文",
             size: (data["epubBytes"] as? Int).map { Int64($0) },
-            novelInfo: NovelInfo(intro: plainIntro.isEmpty ? nil : plainIntro, kind: tags.isEmpty ? nil : tags,
-                                 lastChapter: nil, tocUrl: nil))
+            novelInfo: NovelInfo(synopsis: plainIntro.isEmpty ? nil : plainIntro, tags: tags.isEmpty ? nil : tags))
     }
 
     private func detail(_ bookId: String, fresh: Bool = false) async throws -> [String: Any] {

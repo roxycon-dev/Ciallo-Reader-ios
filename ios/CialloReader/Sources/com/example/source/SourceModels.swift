@@ -6,6 +6,7 @@
 
 extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
+    func takeIf(_ predicate: (String) -> Bool) -> String? { predicate(self) ? self : nil }
 }
 
 extension Optional where Wrapped == String {

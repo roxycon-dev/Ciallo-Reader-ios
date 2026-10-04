@@ -64,11 +64,13 @@ struct HtmlChapterRule {
 }
 
 struct HtmlContentRule {
+    var textSelector: String? = nil
     var url: String                    // 阅读页地址，支持 {chapterUrl}
     var imageSelector: String          // 图片选择器，如 "img.page@src" 或 "img@data-src"
 }
 
 struct SourceConfig {
+    var headers: [String: String] = [:]
     var id: String
     var name: String
     var baseUrl: String = ""

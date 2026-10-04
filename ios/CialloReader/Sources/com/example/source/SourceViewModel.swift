@@ -30,11 +30,11 @@ final class SourceViewModel: ObservableObject {
     // MARK: 启用 / 激活 / 移除
 
     func enableSource(id: String) {
-        Task { await sourceManager.setSourceEnabled(id, true) }
+        Task { await sourceManager.setSourceEnabled(sourceId: id, enabled: true) }
     }
 
     func disableSource(id: String) {
-        Task { await sourceManager.setSourceEnabled(id, false) }
+        Task { await sourceManager.setSourceEnabled(sourceId: id, enabled: false) }
     }
 
     func setActiveSource(id: String) {

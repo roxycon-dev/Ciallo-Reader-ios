@@ -6,6 +6,11 @@ import Foundation
 enum RuleBudget {
 
     /// Kotlin: `fun validate(rule: String)` —— 长度 ≤ 4096，@/&/| 计数 ≤ 128
+    static func check(rule: String, json: String) throws {
+        try validate(rule)
+        if json.count > 4 * 1024 * 1024 { throw SourceException.parseError("响应过大") }
+    }
+
     static func validate(_ rule: String) throws {
         if rule.count > 4096 {
             throw SourceException.parseError("书源规则过长")

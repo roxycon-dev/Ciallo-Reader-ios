@@ -21,6 +21,13 @@ import SwiftSoup
  *（attr/ownText/html/outerHtml/text/select/getElementsByTag/getAllElements 全 throws）。
  */
 enum LegadoRule {
+    /// 兼容别名（JsonBookSource 调用点）
+    static func getString(_ el: Element, _ rule: String) -> String? {
+        getStringFromElement(el, rule)
+    }
+    static func getStringFromElement(_ el: Element, _ rule: String) -> String? {
+        extractContent(el, rule)
+    }
 
     private static let segmentTypes: Set<String> = ["class", "id", "tag", "text", "children", "all"]
     private static let contentKeywords: Set<String> = ["text", "textNodes", "ownText", "html", "all"]
@@ -147,7 +154,7 @@ enum LegadoRule {
         let atIndex = r.firstIndex(of: "@")
         let css = (atIndex.map { String(r[r.startIndex..<$0]) } ?? r).trimmingCharacters(in: .whitespaces)
         let attr = (atIndex.map { String(r[r.index(after: $0)...]) } ?? "text").trimmingCharacters(in: .whitespaces)
-        var el: Element? = css.isBlank ? root : (try? root.selectFirst(css)) ?? nil
+        var el: Element? = css.isBlank ? root : (try? root.select(css).first()) ?? nil
         // Legado 索引写法混在 CSS 里（如 ".newrap a.0"）：把 a.0 的 .N 当索引去掉重试
         if el == nil, css.range(of: #"\.\d+"#, options: .regularExpression) != nil {
             let nsCss = css as NSString
@@ -157,7 +164,7 @@ enum LegadoRule {
                                           withTemplate: "")
                 .trimmingCharacters(in: .whitespaces)
             if !normalized.isBlank && normalized != css {
-                el = (try? root.selectFirst(normalized)) ?? nil
+                el = (try? root.select(normalized).first()) ?? nil
             }
         }
         guard let target = el else { return [] }
