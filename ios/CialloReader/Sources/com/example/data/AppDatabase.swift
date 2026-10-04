@@ -830,63 +830,7 @@ final class AppDatabase {
         }
     }
 
-    // MARK: - God Moment DAO
-
-    func upsertGodMoment(_ g: GodMomentEntity) throws {
-        try db.exec("""
-            INSERT INTO god_moments (contentType, bookId, chapterId, bookTitle, chapterTitle, chapterNumber,
-            title, titleIsCustom, rating, note, coverPath, coverSource, cropParams, createdAt, updatedAt)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            ON CONFLICT (bookId, chapterId) DO UPDATE SET bookTitle=excluded.bookTitle,
-            chapterTitle=excluded.chapterTitle, chapterNumber=excluded.chapterNumber, title=excluded.title,
-            titleIsCustom=excluded.titleIsCustom, rating=excluded.rating, note=excluded.note,
-            coverPath=excluded.coverPath, coverSource=excluded.coverSource, cropParams=excluded.cropParams,
-            updatedAt=excluded.updatedAt
-            """, [.text(g.contentType), .text(g.bookId), .text(g.chapterId), .text(g.bookTitle),
-                  .text(g.chapterTitle), .int(Int64(g.chapterNumber)), .text(g.title),
-                  .int(g.titleIsCustom ? 1 : 0), .real(g.rating), .text(g.note),
-                  g.coverPath.map { .text($0) } ?? .null,
-                  g.coverSource.map { .text($0) } ?? .null,
-                  g.cropParams.map { .text($0) } ?? .null,
-                  .int(g.createdAt), .int(Int64(Date().timeIntervalSince1970 * 1000))])
-        NotificationCenter.default.post(name: dbChangedNotification, object: nil)
-    }
-
-    private func godMoment(from row: [String: SQLiteValue]) -> GodMomentEntity {
-        GodMomentEntity(id: Int(row["id"]?.intValue ?? 0),
-                        contentType: row["contentType"]?.textValue ?? "COMIC",
-                        bookId: row["bookId"]?.textValue ?? "",
-                        chapterId: row["chapterId"]?.textValue ?? "",
-                        bookTitle: row["bookTitle"]?.textValue ?? "",
-                        chapterTitle: row["chapterTitle"]?.textValue ?? "",
-                        chapterNumber: Int(row["chapterNumber"]?.intValue ?? 0),
-                        title: row["title"]?.textValue ?? "",
-                        titleIsCustom: (row["titleIsCustom"]?.intValue ?? 0) != 0,
-                        rating: row["rating"]?.doubleValue ?? 0,
-                        note: row["note"]?.textValue ?? "",
-                        coverPath: row["coverPath"]?.textValue,
-                        coverSource: row["coverSource"]?.textValue,
-                        cropParams: row["cropParams"]?.textValue,
-                        createdAt: row["createdAt"]?.intValue ?? 0,
-                        updatedAt: row["updatedAt"]?.intValue ?? 0)
-    }
-
-    func godMoments() throws -> [GodMomentEntity] {
-        try db.query("SELECT * FROM god_moments ORDER BY rating DESC, updatedAt DESC").map(godMoment(from:))
-    }
-
-    func godMoment(bookId: String, chapterId: String) throws -> GodMomentEntity? {
-        try db.query("SELECT * FROM god_moments WHERE bookId=? AND chapterId=?", [.text(bookId), .text(chapterId)]).first.map(godMoment(from:))
-    }
-
-    func deleteGodMoment(id: Int) throws {
-        try db.exec("DELETE FROM god_moments WHERE id=?", [.int(Int64(id))])
-        NotificationCenter.default.post(name: dbChangedNotification, object: nil)
-    }
-
-    func deleteGodMoments(forBook bookId: String) throws {
-        try db.exec("DELETE FROM god_moments WHERE bookId=?", [.text(bookId)])
-    }
+    // god CRUD 已对齐至 god/GodMomentDao.swift（god 包）
 
     // MARK: - AniList 标题索引（跨语言标题匹配）
 

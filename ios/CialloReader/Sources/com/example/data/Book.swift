@@ -115,28 +115,5 @@ struct SearchResultItem: Hashable {
     var occurrence: Int = 0
 }
 
-// MARK: - 神回（god/GodMomentModels.kt 聚合区，god 包归别的代理——不要动）
-
-enum GodContentType: String {
-    case comic = "COMIC"
-    case novel = "NOVEL"
-}
-
-struct GodMomentEntity: Identifiable, Hashable {
-    var id: Int = 0
-    var contentType: String = GodContentType.comic.rawValue
-    var bookId: String
-    var chapterId: String
-    var bookTitle: String
-    var chapterTitle: String
-    var chapterNumber: Int = 0
-    var title: String = ""
-    var titleIsCustom: Bool = false
-    var rating: Double = 0
-    var note: String = ""
-    var coverPath: String?
-    var coverSource: String?
-    var cropParams: String?
-    var createdAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
-    var updatedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
-}
+// 神回模型已对齐至 god/GodMomentModels.swift（god 包）
+// 收藏/下载模型已对齐至 data/favorite/FavoriteModels.swift 与 download/
