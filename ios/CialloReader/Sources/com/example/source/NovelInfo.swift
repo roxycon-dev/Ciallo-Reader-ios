@@ -26,7 +26,7 @@ struct NovelInfo: Hashable {
     var hasRevision: Bool {
         (updatedAt?.takeIf { !$0.isBlank }) != nil ||
             (latestChapter?.takeIf { !$0.isBlank }) != nil ||
-            chapterCount != nil || volumeCount != nil
+            (chapterCount != nil) || (volumeCount != nil)
     }
 }
 

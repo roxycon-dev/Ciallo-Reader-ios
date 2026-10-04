@@ -247,13 +247,13 @@ final class JsonBookSource: BookSource, ComicSourceProtocol {
                 throw Http.statusError(resp.status, body: resp.data, host: URL(string: url)?.host)
             }
             let doc = try SwiftSoup.parse(resp.text, absolute(url) ?? url)
-            if let imgSel = content.imageSelector.nilIfEmpty {
+            if let imgSel = content.(imageSelector as String?).flatMap { $0.isEmpty ? nil : $0 } {
                 let imgs = try doc.select(imgSel.contains("@") ? String(imgSel.split(separator: "@")[0]) : imgSel).array()
                 let urls = Self.extractImageUrls(from: imgs)
                 guard !urls.isEmpty else { return .error(.parseError("未解析到图片")) }
                 return .success(urls.map { absolute($0) ?? $0 })
             }
-            if let textSel = content.textSelector.nilIfEmpty {
+            if let textSel = content.(textSelector as String?).flatMap { $0.isEmpty ? nil : $0 } {
                 let text = ruleValueElement(doc, textSel) ?? ""
                 guard !text.isEmpty else { return .error(.parseError("未解析到正文")) }
                 return .success([text])
@@ -265,7 +265,7 @@ final class JsonBookSource: BookSource, ComicSourceProtocol {
     }
 
     func getChapterText(chapterId: String) async -> SourceResult<String> {
-        guard let content = config.htmlContent, let textSel = content.textSelector.nilIfEmpty else {
+        guard let content = config.htmlContent, let textSel = content.(textSelector as String?).flatMap { $0.isEmpty ? nil : $0 } else {
             return .error(.parseError("该书源不支持文字章节"))
         }
         let url = content.url.replacingOccurrences(of: "{chapterUrl}", with: chapterId)

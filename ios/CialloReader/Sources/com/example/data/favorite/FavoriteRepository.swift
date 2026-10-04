@@ -464,7 +464,7 @@ final class FavoriteRepository: ObservableObject {
         defer { checking = false }
         let now = Date().timeIntervalSince1970 * 1000
         let targets = ((try? dao.allFavoritesSync()) ?? []).filter {
-            force || now - $0.lastCheckedAt > updateCheckIntervalMs
+            force || (Int64(Date().timeIntervalSince1970 * 1000) - $0.lastCheckedAt) > updateCheckIntervalMs
         }
         await updateGate.withLockAsync {
             for fav in targets {

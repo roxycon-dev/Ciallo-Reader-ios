@@ -50,7 +50,7 @@ final class SourceViewModel: ObservableObject {
     }
 
     func removeSource(id: String) {
-        Task { await sourceManager.unregisterSource(id) }
+        Task { await sourceManager.removeSource(id: id) }
     }
 
     // MARK: 导入

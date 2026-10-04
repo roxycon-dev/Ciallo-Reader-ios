@@ -50,8 +50,8 @@ final class TtsManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         }
         chunks = result
         chunkIndex = 0
-        rateValue = speed.isFinite ? min(max(speed, 0.25), 4) : 1
-        pitchValue = pitch.isFinite ? min(max(pitch, 0.25), 4) : 1
+        rateValue = speed.isFinite ? Float(min(max(speed, 0.25), 4)) : 1
+        pitchValue = pitch.isFinite ? Float(min(max(pitch, 0.25), 4)) : 1
         if !chunks.isEmpty { begin() } else { pause() }
     }
 

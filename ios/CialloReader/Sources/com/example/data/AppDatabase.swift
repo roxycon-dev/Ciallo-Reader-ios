@@ -698,7 +698,7 @@ final class AppDatabase {
                        latestChapterUpdateAt: row["latestChapterUpdateAt"]?.intValue ?? 0,
                        lastCheckedAt: row["lastCheckedAt"]?.intValue ?? 0,
                        sourceAlive: (row["sourceAlive"]?.intValue ?? 1) != 0,
-                       categoryName: row["categoryName"]?.textValue,
+                       categoryName: row["categoryName"]?.textValue ?? "",
                        favoritedAt: row["favoritedAt"]?.intValue ?? 0,
                        sortOrder: Int(row["sortOrder"]?.intValue ?? 0))
     }
