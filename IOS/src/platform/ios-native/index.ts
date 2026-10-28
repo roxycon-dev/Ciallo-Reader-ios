@@ -42,6 +42,7 @@ import type {
 } from '@platform/interfaces';
 import { CapacitorHttpClient } from './capacitorHttpClient';
 import { CapacitorSqliteDatabase } from './capacitorDb';
+import { withExclusiveDatabase } from '@platform/exclusiveDatabase';
 import { CapacitorTtsEngine } from './ttsPlugin';
 import { KeychainSecureStore } from './secureStore';
 import { createNativeDocumentPort } from './documentPort';
@@ -150,7 +151,7 @@ export function createIosNativePlatform(): IosNativePlatform {
     keyValue: createKeyValueStorePort(),
     offscreenBitmap: createOffscreenBitmapPort(),
     http: new CapacitorHttpClient(),
-    db: new CapacitorSqliteDatabase(),
+    db: withExclusiveDatabase(new CapacitorSqliteDatabase()),
     secure: new KeychainSecureStore(),
     fs: new FilesystemApiAdapter(),
     tts: new CapacitorTtsEngine(),

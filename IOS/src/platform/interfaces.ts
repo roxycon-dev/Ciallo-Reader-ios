@@ -236,7 +236,9 @@ export interface SQLiteDatabase {
   execute(sql: string, params?: SqlValue[]): Promise<{ rowsAffected: number; lastInsertRowId?: number }>;
   query<T>(sql: string, params?: SqlValue[]): Promise<T[]>;
   close(): Promise<void>;
+  transaction?<T>(operation: (database: SqliteExecutor) => Promise<T>): Promise<T>;
 }
+export type SqliteExecutor = Pick<SQLiteDatabase, 'execute' | 'query'>;
 
 /* ══════════════ 软键盘 / 屏幕方向 / 外部浏览器 / 设备信息 ══════════════ */
 

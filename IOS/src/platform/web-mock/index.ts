@@ -47,6 +47,7 @@ import type {
 } from '@platform/interfaces';
 import { FetchHttpClient } from './fetchHttpClient';
 import { InMemorySqliteDatabase } from './inMemoryDb';
+import { withExclusiveDatabase } from '@platform/exclusiveDatabase';
 import { MemoryFileSystem } from './memoryFileSystem';
 import { MemorySecureStore } from './memorySecureStore';
 import { MockTtsEngine } from './mockTts';
@@ -93,7 +94,7 @@ export function createWebMockPlatform(): WebMockPlatform {
     keyValue: createKeyValueStorePort(),
     offscreenBitmap: createOffscreenBitmapPort(),
     http: new FetchHttpClient(),
-    db: new InMemorySqliteDatabase(),
+    db: withExclusiveDatabase(new InMemorySqliteDatabase()),
     secure: new MemorySecureStore(),
     fs: new MemoryFileSystem(),
     tts: new MockTtsEngine(),
