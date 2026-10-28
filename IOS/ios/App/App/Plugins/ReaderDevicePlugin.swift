@@ -9,8 +9,24 @@ public class ReaderDevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setScreenAwake", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "writeClipboard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareText", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "volumeStats", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "volumeStats", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reportStartup", returnType: CAPPluginReturnPromise)
     ]
+
+    @objc func reportStartup(_ call: CAPPluginCall) {
+        #if DEBUG
+        do {
+            let result: [String: Any] = ["phase": call.getString("phase") ?? "unknown",
+                "detail": call.getString("detail") ?? "", "timestamp": Date().timeIntervalSince1970]
+            let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: result).write(to: root.appendingPathComponent("reader-startup.json"), options: .atomic)
+            call.resolve()
+        } catch { call.reject(error.localizedDescription) }
+        #else
+        call.resolve()
+        #endif
+    }
 
     @objc func setScreenAwake(_ call: CAPPluginCall) {
         guard let enabled = call.getBool("enabled") else {

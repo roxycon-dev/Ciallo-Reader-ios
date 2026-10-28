@@ -591,10 +591,14 @@ let libraryBootstrap: Promise<void> | null = null;
 export function bootstrapLibrary(): Promise<void> {
   if (!libraryBootstrap) {
     libraryBootstrap = (async () => {
+      performance.mark('app-bootstrap-start');
+      const { reportStartup } = await import('@platform/ios-native/startupDiagnostics');
+      await reportStartup('starting');
       const { getPlatform } = await import('@platform/index');
       const { openAppDatabase } = await import('@core/db/openDatabase');
       const platform = getPlatform();
       await openAppDatabase({ db: platform.db });
+      performance.mark('app-database-ready');
       setBookRepository(new BookRepository(platform.db));
       await useAppStore.getState().loadLibrary();
       await useAppStore.getState().restoreDownloads();
@@ -680,10 +684,13 @@ export function bootstrapLibrary(): Promise<void> {
           platform.http,
         );
         await registerAppBuiltinSources(sourceManager, platform.http);
+        performance.mark('app-builtin-sources-ready');
         const { installAppJsSources } = await import('@platform/jsSourceAssembly');
         await installAppJsSources(sourceManager, platform);
+        performance.mark('app-js-sources-ready');
         const { installAppZLibrary } = await import('@platform/zLibraryAssembly');
         const zlibrary = await installAppZLibrary(sourceManager, platform);
+        performance.mark('app-zlibrary-ready');
         const { showSourceLogin } = await import('@ui/sourceDialogs');
 
         // E60：keyword 子系统装配。
@@ -723,7 +730,7 @@ export function bootstrapLibrary(): Promise<void> {
             secureStore.set(`keyword_dictionary.${key}`, value),
         };
 
-        installLibraryRuntime({
+        const runtime = installLibraryRuntime({
           zlibraryNodeDomain: zlibrary.domain,
           openSourceLogin: showSourceLogin,
           isZLibrarySource: (source) => source.id === zlibrary.source.id,
@@ -768,10 +775,14 @@ export function bootstrapLibrary(): Promise<void> {
             console.warn('[library]', message);
           },
         });
+        const { installLibraryContentServices } = await import('@platform/libraryContentServices');
+        await installLibraryContentServices(platform, runtime, bookRepository!, () => useAppStore.getState().loadLibrary());
+        await reportStartup('ready');
       } catch (error) {
         throw new Error('书库初始化失败，请重试。', { cause: error });
       }
     })().catch((error: unknown) => {
+      void import('@platform/ios-native/startupDiagnostics').then(({ reportStartup }) => reportStartup('error', error));
       libraryBootstrap = null;
       setBookRepository(null);
       useAppStore.setState({ libraryReady: false });

@@ -81,6 +81,7 @@ import type { SearchBook } from '@core/source/searchBook';
 import type { ComicChapter } from '@core/source/comicChapter';
 import type { ComicSource } from '@core/source/comicSource';
 import { AsyncMutex } from './contentMutationGate';
+import { abortable, throwIfAborted } from '@core/download/abortable';
 import { importComicChapter, type ComicChapterImportDeps, type ComicImportedBook } from './libraryComicLocalImporter';
 
 /** Android `enum class ComicDownloadStatus { DOWNLOADING, PAUSED, FAILED, SUCCESS }`. */
@@ -179,7 +180,7 @@ class AsyncSemaphore {
 }
 
 let wallClock: () => number = Date.now;
-let monotonic: () => number = () => 0;
+let monotonic: () => number = () => performance.now();
 
 /** Test seam for `System.currentTimeMillis()` / `SystemClock.elapsedRealtime()`. */
 export function setComicDownloadClocks(now: () => number, monotonicNow: () => number): void {
@@ -246,6 +247,7 @@ export class ComicDownloadManager {
   private readonly workerSlots = new AsyncSemaphore(WORKER_SLOTS);
 
   private loaded = false;
+  private writes: Promise<void> = Promise.resolve();
   private loading: Promise<void> | null = null;
   private state: Map<string, ComicDownloadTask> = new Map();
   private message: string | null = null;
@@ -355,7 +357,6 @@ export class ComicDownloadManager {
   }
 
   private async loadOnce(): Promise<void> {
-    this.loaded = true;
     let restored: Map<string, ComicDownloadTask>;
     try {
       restored = await this.readTasks();
@@ -364,6 +365,7 @@ export class ComicDownloadManager {
       restored = new Map();
     }
     this.state = restored;
+    this.loaded = true;
     this.notifyTasks();
 
     void this.launch(async () => {
@@ -471,8 +473,12 @@ export class ComicDownloadManager {
       progress: t.progress,
       error: t.error ?? '',
     }));
-    void this.fs.writeFile(TASK_FILE, new TextEncoder().encode(JSON.stringify(a)));
+    const bytes = new TextEncoder().encode(JSON.stringify(a));
+    this.writes = this.writes.catch(() => {}).then(() => this.fs.writeFile(TASK_FILE, bytes));
+    void this.writes.catch(() => this.onFatalError('下载任务保存失败，请检查存储空间'));
   }
+
+  async flush(): Promise<void> { await this.writes; }
 
   /* ───────────── Task access ───────────── */
 
@@ -552,7 +558,7 @@ export class ComicDownloadManager {
    * Kotlin `ComicDownloadWorker.doWork(): Result` — the callback the injected task
    * runner invokes once it decides to actually run the queued chapter download.
    */
-  async runWorkerForTask(key: string): Promise<'success' | 'failure' | 'skipped'> {
+  async runWorkerForTask(key: string, signal?: AbortSignal): Promise<'success' | 'failure' | 'skipped'> {
     return this.taskLock(key, async () => {
       // Kotlin ComicDownloadWorker.kt:29 goes through `ComicDownloadManager.task(ctx, key)`,
       // which itself calls `load(context)` first. Kept so a runner that starts a queued task
@@ -563,20 +569,22 @@ export class ComicDownloadManager {
       if (task.status !== ComicDownloadStatus.DOWNLOADING) return 'skipped';
       try {
         await this.workerSlots.withPermit(async () => {
+          throwIfAborted(signal);
           const dir = await this.directory(key);
           if ((await this.bookDao.getBookByFilePath(dir)) === null) {
             const source = await this.source(task.book.sourceId);
             if (source === null) throw new Error('书源未安装，请重新启用该书源后重试');
-            const images = await source.getChapterImages(task.chapter.id);
+            const images = await abortable(source.getChapterImages(task.chapter.id), signal);
             if (images.kind === 'error') throw images.exception;
             const inserted = await importComicChapter({
               ...this.importerDeps,
+              ...(signal ? { signal } : {}),
               fs: this.fs,
               bookDao: this.bookDao,
               book: task.book,
               chapter: task.chapter,
               imageUrls: images.data,
-              headers: await source.getChapterImageHeaders(task.chapter.id, images.data),
+              headers: await abortable(source.getChapterImageHeaders(task.chapter.id, images.data), signal),
               targetDir: dir,
               resolveImage: (url: string) => source.resolveChapterImage(url),
               resolveHeaders: (url: string) => source.getResolvedHeaders(url),
@@ -589,6 +597,7 @@ export class ComicDownloadManager {
             if (!inserted.ok) throw new Error(inserted.error);
           }
         });
+        throwIfAborted(signal);
         // Kotlin `withContext(NonCancellable) { update(key) { … SUCCESS … } }`.
         this.updateNow(key, (it) => ({
           ...it,

@@ -127,6 +127,7 @@ export interface BookShareTarget {
 
 /** Web Share API / clipboard port for the Android `Intent.ACTION_SEND` chooser. */
 export interface BookSharePort {
+  shareMany?(targets: Array<{ objectUrl: string; fileName: string; mime: string }>, title: string): Promise<boolean>;
   /** Returns true when the share sheet was raised; false ⇒ 没有找到可分享的应用. */
   share(target: {
     title: string;
@@ -266,6 +267,20 @@ export class BookShareHelper {
       (this.deps.logWarn ?? (() => {}))(BOOK_SHARE_TAG, `shareBook failed: ${book.title}`, e);
       return e instanceof Error ? (e.message ?? '分享失败') : '分享失败';
     }
+  }
+
+  async shareBooks(books: LibraryLocalBook[]): Promise<string | null> {
+    if (books.length === 0) return '请先选择图书';
+    if (books.length === 1) return this.shareBook(books[0]!);
+    try {
+      await this.cleanupTempShareDir();
+      const targets: BookShareTarget[] = [];
+      for (const book of books) targets.push(await this.resolveShareTarget(book));
+      if (!this.deps.share.shareMany || !(await this.deps.share.shareMany(targets, `分享 ${books.length} 本图书`)))
+        return '没有找到可分享的应用';
+      this.scheduleTempDeletion(targets.flatMap((target) => target.tempFiles));
+      return null;
+    } catch (error) { return error instanceof Error ? error.message : '分享失败'; }
   }
 
   /** Android `scope.launch { delay(SHARE_TEMP_RETENTION_MS); tempFiles.forEach { delete } }`. */

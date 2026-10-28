@@ -945,6 +945,8 @@ function decodeXmlText(raw: string): string {
 // ---------------------------------------------------------------------------
 
 export interface EpubParseOptions {
+  /** Persist the validated cover while the archive index is already open. */
+  writeCover?: (entryPath: string, bytes: Uint8Array) => void;
   /**
    * Kotlin L799 `bookUri.startsWith("file:")` gate for the zero-copy
    * `epzip:<uri>!<entry>` token reference. Omit for a pure in-memory parse.
@@ -978,6 +980,7 @@ export function parseEpubFromZip(zipBytes: Uint8Array, options: EpubParseOptions
     now,
     seenSources: createImageSourceSet(),
   });
+  let chapterTokenOptions = tokenOptions();
 
   // Kotlin L53-59 — DRM check runs *before* container.xml is even looked for.
   const encBytes = zipLookup(index, 'META-INF/encryption.xml');
@@ -1065,7 +1068,7 @@ export function parseEpubFromZip(zipBytes: Uint8Array, options: EpubParseOptions
         mime: probeImageMime(bytes),
       };
     }
-    return buildImageToken(src, source, tokenOptions());
+    return buildImageToken(src, source, chapterTokenOptions);
   };
 
   const chapters: Array<{ title: string; content: string }> = [];
@@ -1075,6 +1078,7 @@ export function parseEpubFromZip(zipBytes: Uint8Array, options: EpubParseOptions
     const chapterPath = joinZipPath(opfDir, href);
     const raw = readEntryText(index, chapterPath);
     if (raw === null || raw.trim().length === 0) continue;
+    chapterTokenOptions = tokenOptions();
     const withImages = embedImageTokens(raw, (src) => resolveImage(src, chapterPath));
     const content = extractCleanTextFromHtmlLocal(withImages);
     if (content.trim().length === 0) continue;
@@ -1101,6 +1105,10 @@ export function parseEpubFromZip(zipBytes: Uint8Array, options: EpubParseOptions
   }
 
   const coverHref = resolveCoverHref(index, opfDir, opf, opf.spine);
+  if (coverHref && options.writeCover) {
+    const cover = zipLookup(index, coverHref);
+    if (cover && probeImageSize(cover)) options.writeCover(coverHref, cover);
+  }
   return { title, author, coverHref, chapters: splitChapters };
 }
 

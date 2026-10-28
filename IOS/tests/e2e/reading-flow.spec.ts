@@ -83,6 +83,7 @@ test('local CBZ opens its real stored pages in the complete comic reader', async
   await (await chooser).setFiles({ name: '漫画验收.cbz', mimeType: 'application/vnd.comicbook+zip',
     buffer: Buffer.from(zipSync({ '01.png': png, '02.png': png })) });
   await expect(page.getByText('漫画验收', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('.hp-book-card__cover-img').first()).toHaveAttribute('src', /^blob:/);
   await page.getByRole('button', { name: '继续阅读', exact: true }).click();
   await expect(page.locator('.comic-core')).toBeVisible();
   const image = page.locator('.comic-engine-layer img').first();

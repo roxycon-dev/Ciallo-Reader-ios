@@ -10,10 +10,58 @@ public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPicke
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "pickFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "saveFile", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "renderPdf", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "renderPdf", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "shareFile", returnType: CAPPluginReturnPromise)
     ]
     private var pending: CAPPluginCall?
     private var exportDirectory: URL?
+
+    @objc func shareFile(_ call: CAPPluginCall) {
+        let paths = call.getArray("paths", String.self) ?? []
+        let names = call.getArray("fileNames", String.self) ?? []
+        guard !paths.isEmpty, paths.count <= 100, paths.count == names.count else { call.reject("请选择 1 至 100 本图书"); return }
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL.resolvingSymlinksInPath()
+        var urls: [URL] = []
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("reader-share-" + UUID().uuidString, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            for (index, path) in paths.enumerated() {
+                let name = names[index]
+                guard !path.hasPrefix("/"), !path.split(separator: "/").contains(".."), !path.contains("\\"),
+                      !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.contains("\\") else {
+                    throw NSError(domain: "ReaderShare", code: 1, userInfo: [NSLocalizedDescriptionKey: "无效的分享文件路径"])
+                }
+                let source = root.appendingPathComponent(path).standardizedFileURL.resolvingSymlinksInPath()
+                guard source.path.hasPrefix(root.path + "/"), FileManager.default.isReadableFile(atPath: source.path) else {
+                    throw NSError(domain: "ReaderShare", code: 2, userInfo: [NSLocalizedDescriptionKey: "分享文件不存在"])
+                }
+                let child = directory.appendingPathComponent(String(index), isDirectory: true)
+                try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+                let copy = child.appendingPathComponent(name)
+                // APFS uses a copy-on-write clone where available; recipient sees the book's title.
+                try FileManager.default.copyItem(at: source, to: copy)
+                urls.append(copy)
+            }
+        } catch { try? FileManager.default.removeItem(at: directory); call.reject(error.localizedDescription); return }
+        DispatchQueue.main.async {
+            guard let host = self.bridge?.viewController, host.presentedViewController == nil else {
+                try? FileManager.default.removeItem(at: directory)
+                call.reject("请先关闭当前弹窗"); return
+            }
+            let activity = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+            activity.setValue(call.getString("title") ?? "分享图书", forKey: "subject")
+            if let popover = activity.popoverPresentationController {
+                popover.sourceView = host.view
+                popover.sourceRect = CGRect(x: host.view.bounds.midX, y: host.view.bounds.midY, width: 1, height: 1)
+            }
+            activity.completionWithItemsHandler = { _, completed, _, error in
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 86400) { try? FileManager.default.removeItem(at: directory) }
+                if let error = error { call.reject(error.localizedDescription) }
+                else { call.resolve(["presented": true, "completed": completed]) }
+            }
+            host.present(activity, animated: true)
+        }
+    }
 
     @objc func renderPdf(_ call: CAPPluginCall) {
         guard let path = call.getString("path"), !path.hasPrefix("/"),

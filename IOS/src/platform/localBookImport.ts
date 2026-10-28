@@ -90,12 +90,20 @@ export async function importLocalBook(
         return updated;
       }
       const writes: Promise<void>[] = [];
+      let illustration = 0;
+      let coverUri: string | null = null;
       const parsed = parseEpubFromZip(file.bytes, {
         writeImage(imageName, bytes) {
-          const imagePath = `${directory}/images/${imageName.replace(/[/\\]/g, '_')}`;
+          const imagePath = `${directory}/images/${++illustration}_${imageName.replace(/[/\\]/g, '_')}`;
           assets.push(imagePath);
           writes.push(fs.writeFile(imagePath, bytes));
           return imagePath;
+        },
+        writeCover(entryPath, bytes) {
+          const extension = /\.(png|jpe?g|webp|gif)$/i.exec(entryPath)?.[1] ?? 'jpg';
+          coverUri = `${directory}/cover.${extension}`;
+          assets.push(coverUri);
+          writes.push(fs.writeFile(coverUri, bytes));
         },
       });
       await Promise.all(writes);
@@ -112,7 +120,7 @@ export async function importLocalBook(
           title: parsed.title ?? name.replace(/\.[^.]+$/, ''),
           author: parsed.author ?? '未知作者',
           filePath: path,
-          coverUri: null,
+          coverUri,
           category: '默认',
           currentChapterIndex: 0,
           scrollOffset: 0,

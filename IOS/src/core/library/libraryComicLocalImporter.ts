@@ -103,6 +103,7 @@ import type { AsyncCryptoPort, FileSystemApi, HttpClient, HttpRequest } from '@p
 import type { SearchBook } from '@core/source/searchBook';
 import type { ComicChapter } from '@core/source/comicChapter';
 import { probeImageSize } from '@core/parser/imageBytes';
+import { abortable, drainAll, throwIfAborted } from '@core/download/abortable';
 import {
   MhttuImageDecryptor,
   decodeOk,
@@ -234,6 +235,7 @@ export interface ComicChapterImportDeps {
 }
 
 export interface ComicChapterImportRequest {
+  signal?: AbortSignal;
   book: SearchBook;
   chapter: ComicChapter;
   imageUrls: string[];
@@ -293,7 +295,7 @@ export async function importComicChapter(
   deps: ComicChapterImportDeps & ComicChapterImportRequest,
 ): Promise<ComicChapterImportResult> {
   const {
-    http,
+    http: transport,
     fs,
     bookDao,
     cookieHeader,
@@ -308,6 +310,10 @@ export async function importComicChapter(
     logError,
     contentGate,
   } = deps;
+  const http: HttpClient = { async request(request) {
+    throwIfAborted(deps.signal);
+    return abortable(transport.request(request), deps.signal);
+  } };
   const book = deps.book;
   const chapter = deps.chapter;
   const imageUrls = deps.imageUrls;
@@ -352,6 +358,7 @@ export async function importComicChapter(
     };
 
     const downloadPage = async (index: number): Promise<string> => {
+      throwIfAborted(deps.signal);
       const url = imageUrls[index] as string;
       const stamp = `${chapterDir}/page_${String(index + 1)}.url`;
       const identity = await sha256HexOf(url);
@@ -376,12 +383,12 @@ export async function importComicChapter(
       let fetchUrl = url;
       let fetchHeaders: Record<string, string> = headers[url] ?? {};
       if (deps.resolveImage !== undefined) {
-        const resolved = await deps.resolveImage(url);
+        const resolved = await abortable(deps.resolveImage(url), deps.signal);
         if (resolved !== null && resolved.trim() !== '' && resolved !== url) {
           fetchUrl = resolved;
           fetchHeaders = {
             ...fetchHeaders,
-            ...((await deps.resolveHeaders?.(resolved)) ?? {}),
+            ...((await abortable(Promise.resolve(deps.resolveHeaders?.(resolved)), deps.signal)) ?? {}),
           };
         }
       }
@@ -444,7 +451,8 @@ export async function importComicChapter(
       // 跨章节全局页并发上限：总网络压力 ≤4
       await globalPageSemaphore.acquire();
       try {
-        const response = await fetchWithRetry(http, request);
+        const response = await abortable(fetchWithRetry(http, request), deps.signal);
+        throwIfAborted(deps.signal);
         if (response.status < 200 || response.status >= 300) {
           throw new Error(`图片下载失败 HTTP ${String(response.status)} (${url.slice(0, 80)})`);
         }
@@ -487,13 +495,16 @@ export async function importComicChapter(
           throw new Error(`图片不是可解码的图像 (${fetchUrl.slice(0, 80)})`);
         }
         const part = `${pageFile}.part`;
+        throwIfAborted(deps.signal);
         if (freeSpaceBytes !== undefined) {
           const free = await freeSpaceBytes(chapterDir);
           if (free <= bytes.length + MIN_FREE_SPACE_SLACK) throw new Error('磁盘空间不足');
         }
         await fs.writeFile(part, bytes);
+        throwIfAborted(deps.signal);
         if (moveFile !== undefined) await moveFile(part, pageFile);
         else await fs.writeFile(pageFile, bytes);
+        throwIfAborted(deps.signal);
         await fs.writeFile(stamp, new TextEncoder().encode(identity));
       } finally {
         globalPageSemaphore.release();
@@ -513,7 +524,7 @@ export async function importComicChapter(
           return null;
         }
       };
-      let results: Array<string | null> = await Promise.all(
+      let results: Array<string | null> = await drainAll(
         imageUrls.map((_, index) => semaphore.withPermit(() => attempt(index))),
       );
       const firstFail = results
@@ -524,7 +535,7 @@ export async function importComicChapter(
           COMIC_DOWNLOAD_TAG,
           `second pass for ${String(firstFail.length)}/${String(imageUrls.length)} failed pages`,
         );
-        const retried = await Promise.all(
+        const retried = await drainAll(
           firstFail.map((index) => semaphore.withPermit(() => attempt(index))),
         );
         results = results.slice();
@@ -546,6 +557,7 @@ export async function importComicChapter(
       };
     }
     const pageFiles = pageFileResults.map((it) => it as string);
+    throwIfAborted(deps.signal);
 
     const coverDir = 'comic_covers';
     // `crypto.randomUUID` is a WebIDL operation on `Crypto`, so it must keep `crypto` as
@@ -577,6 +589,7 @@ export async function importComicChapter(
     await contentGate?.lock();
     let inserted: ComicImportedBook;
     try {
+      throwIfAborted(deps.signal);
       const existing = await bookDao.getBookByFilePath(chapterDir);
       inserted =
         existing ??

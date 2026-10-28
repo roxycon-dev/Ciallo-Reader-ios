@@ -267,6 +267,7 @@ import { dateStrOf } from '@ui/lib/readingStats';
 import { showToast } from '@ui/toast';
 import { bootstrapLibrary, getBookRepository, useAppStore } from '@ui/state/appStore';
 import { getLibraryRuntime } from '@core/library/libraryRuntime';
+import { usePrivateImageSrc } from '@ui/hooks/usePrivateImageSrc';
 import { COLORS } from '@ui/theme/tokens';
 import '../../styles/homePage.css';
 
@@ -444,6 +445,7 @@ function ShelfDragCover(props: { key: string; books: HomeBook[]; favSorted: Favo
     const book = props.books.find((b) => String(b.id) === props.key);
     src = book === undefined ? null : resolveCoverSrc(book.coverUri, book.isCoverValid);
   }
+  src = usePrivateImageSrc(src);
   if (src !== null) {
     return <img className="hp-drag-ghost__cover" src={src} alt="" />;
   }
@@ -1045,7 +1047,7 @@ function BookActionSheet(props: {
   onDelete: () => void;
   onDismiss: () => void;
 }) {
-  const coverSrc = resolveCoverSrc(props.book.coverUri, props.book.isCoverValid);
+  const coverSrc = usePrivateImageSrc(resolveCoverSrc(props.book.coverUri, props.book.isCoverValid));
   return (
     <div className="hp-sheet-scrim" role="presentation" onClick={props.onDismiss}>
       <div
@@ -1141,7 +1143,7 @@ function FavoritesLockedRow(props: { onVerify: () => void }) {
 
 function HeroCover(props: { book: HomeBook }) {
   const [failed, setFailed] = useState(false);
-  const src = failed ? null : resolveCoverSrc(props.book.coverUri, props.book.isCoverValid);
+  const src = usePrivateImageSrc(failed ? null : resolveCoverSrc(props.book.coverUri, props.book.isCoverValid));
   if (src === null) {
     return (
       <div className="home-hero__cover">
@@ -1214,7 +1216,7 @@ function HeroSection(props: { book: HomeBook; onOpen: (book: HomeBook) => void }
 function BookCoverInner(props: { book: HomeBook }) {
   const book = props.book;
   const [failed, setFailed] = useState(false);
-  const src = failed ? null : resolveCoverSrc(book.coverUri, book.isCoverValid);
+  const src = usePrivateImageSrc(failed ? null : resolveCoverSrc(book.coverUri, book.isCoverValid));
   const isComic = book.contentType === 'COMIC';
   if (src === null) {
     return (
@@ -1377,7 +1379,7 @@ function FavoriteGridCard(props: {
   const meta = favCardMeta(item);
   const [failed, setFailed] = useState(false);
   const raw = favoriteCoverSrc(item);
-  const src = failed ? null : raw;
+  const src = usePrivateImageSrc(failed ? null : raw);
   const classes = [
     'hp-fav-card',
     props.dimmed ? 'hp-fav-card--dimmed' : '',
@@ -1724,7 +1726,7 @@ export function HomePage() {
           map.set(id, false);
           continue;
         }
-        map.set(id, await platform.fs.exists(coverFilePath(row.coverUri)));
+        map.set(id, /^(https?:|data:|blob:|capacitor:)/i.test(row.coverUri) || await platform.fs.exists(coverFilePath(row.coverUri)));
       }
       return map;
     },
@@ -2074,6 +2076,12 @@ export function HomePage() {
     void import('@platform/index').then(({ getPlatform }) =>
       getPlatform().shareText.shareText({ title: 'Ciallo阅读', text }),
     ).catch(() => showToast('分享已取消或暂不可用'));
+  }, []);
+
+  const shareBooks = useCallback((books: readonly HomeBook[]): void => {
+    const helper = getLibraryRuntime()?.shareHelper;
+    if (!helper) { showToast('文件分享服务尚未准备好，请重试'); return; }
+    void helper.shareBooks([...books]).then((error) => { if (error) showToast(error); });
   }, []);
 
   /** 1277–1297 */
@@ -2874,11 +2882,8 @@ export function HomePage() {
                   return;
                 }
                 if (label === '分享') {
-                  shareTitles(
-                    scope === 'FAV'
-                      ? selectedFavs.map((it) => it.favorite.title)
-                      : selectedBooks.map((b) => b.title),
-                  );
+                  if (scope === 'FAV') shareTitles(selectedFavs.map((it) => it.favorite.title));
+                  else shareBooks(selectedBooks);
                   return;
                 }
                 if (label === '取消喜欢') {
@@ -3182,7 +3187,7 @@ export function HomePage() {
             setLongPressBook(null);
           }}
           onShare={() => {
-            shareTitles([longPressBook.title]);
+            shareBooks([longPressBook]);
             setLongPressBook(null);
           }}
           onDelete={() => {

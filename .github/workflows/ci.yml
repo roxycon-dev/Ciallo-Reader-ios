@@ -346,7 +346,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ios-synced
-          path: .
+          path: IOS
 
       - name: Restore capacitor.config.json (cap sync 生成的是 .gitignore 产物)
         run: |
@@ -496,7 +496,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ios-synced
-          path: .
+          path: IOS
 
       - name: Detect signing credentials
         id: creds

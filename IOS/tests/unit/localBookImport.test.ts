@@ -6,6 +6,7 @@ import { openAppDatabase } from '@core/db/openDatabase';
 import { BookRepository } from '@core/library/bookRepository';
 import { seedAniListTitles } from '@core/data/anilistSeeding';
 import { createSearchBook } from '@core/source/searchBook';
+import { encode } from 'fast-png';
 
 async function fixture() {
   const db = new InMemorySqliteDatabase();
@@ -14,6 +15,24 @@ async function fixture() {
 }
 
 describe('actual local book import', () => {
+  it('keeps distinct EPUB illustrations across chapters and persists the declared cover', async () => {
+    const { repo, fs } = await fixture();
+    const first = encode({ width: 2, height: 2, data: new Uint8Array(16).fill(120), channels: 4, depth: 8 });
+    const second = encode({ width: 2, height: 2, data: new Uint8Array(16).fill(230), channels: 4, depth: 8 });
+    const bytes = zipSync({
+      'META-INF/container.xml': strToU8('<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>'),
+      'OPS/book.opf': strToU8('<package><metadata><dc:title>插图验收</dc:title></metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/><item id="cover" href="a.png" media-type="image/png" properties="cover-image"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>'),
+      'OPS/one.xhtml': strToU8('<html><body><h1>第一章</h1><p>图片一</p><img src="a.png"/></body></html>'),
+      'OPS/two.xhtml': strToU8('<html><body><h1>第二章</h1><p>图片二</p><img src="b.png"/></body></html>'),
+      'OPS/a.png': first, 'OPS/b.png': second,
+    });
+    const book = await importLocalBook({ name: 'illustrated.epub', mime: '', bytes }, repo, fs);
+    const chapters = await repo.listChapters(book.id!);
+    const paths = chapters.map((chapter) => /\[IMG:([^|]+)\|/.exec(chapter.content)?.[1]);
+    expect(paths[0]).toBeTruthy(); expect(paths[0]).not.toBe(paths[1]);
+    expect(await fs.readFile(paths[0]!)).toEqual(first); expect(await fs.readFile(paths[1]!)).toEqual(second);
+    expect(await fs.readFile(book.coverUri!)).toEqual(first);
+  });
   it('imports TXT chapters and original content rather than a placeholder book', async () => {
     const { repo, fs } = await fixture();
     const book = await importLocalBook(
