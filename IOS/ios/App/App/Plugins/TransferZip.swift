@@ -89,7 +89,7 @@ enum TransferZip {
         guard position == start + length else { throw TransferNativeError.invalid("归档目录包含未识别数据") }
         return (result, start)
     }
-    static func extract(_ archive: URL, to destination: URL, cancelled: () -> Bool = { false }) throws -> [TransferZipEntry] {
+    static func extract(_ archive: URL, to destination: URL, cancelled: @escaping () -> Bool = { false }) throws -> [TransferZipEntry] {
         let input = try FileHandle(forReadingFrom: archive); defer { try? input.close() }
         let size = try input.seekToEnd(), (entries, directoryOffset) = try directory(input, size: size)
         let root = destination.standardizedFileURL.resolvingSymlinksInPath()
