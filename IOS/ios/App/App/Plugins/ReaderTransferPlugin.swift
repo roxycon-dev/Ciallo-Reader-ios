@@ -216,7 +216,7 @@ public class ReaderTransferPlugin: CAPPlugin, CAPBridgedPlugin {
                 case "stat":
                     let attributes = try? manager.attributesOfItem(atPath: url.path)
                     let documents = manager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                    let capacity = try documents.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
+                    let capacity = try documents.resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity ?? 0
                     call.resolve(["size": (attributes?[.size] as? NSNumber)?.uint64Value ?? 0, "exists": attributes != nil, "availableBytes": capacity])
                 case "hash":
                     let handle = try FileHandle(forReadingFrom: url); defer { try? handle.close() }

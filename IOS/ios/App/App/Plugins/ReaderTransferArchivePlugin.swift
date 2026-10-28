@@ -172,26 +172,37 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
               let bytes = Data(base64Encoded: encoded), bytes.count > 100 else { call.reject("Simulator ZIP tests are disabled or fixture is invalid"); return }
         queue.async {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent("transfer-zip-test-" + UUID().uuidString, isDirectory: true)
+            let trace: (String) -> Void = { phase in
+                let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("reader-transfer-zip-state.json")
+                try? JSONSerialization.data(withJSONObject: ["phase": phase, "timestamp": Date().timeIntervalSince1970]).write(to: url, options: .atomic)
+                NSLog("Ciallo transfer ZIP self-test: %@", phase)
+            }
             defer { try? FileManager.default.removeItem(at: root) }
             do {
+                trace("fixture.write")
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
                 let input = root.appendingPathComponent("android.zip"); try bytes.write(to: input)
+                trace("android.extract")
                 let extracted = root.appendingPathComponent("extracted"), first = try TransferZip.extract(input, to: extracted)
                 guard first.count == 5, first.contains(where: { $0.path == "files/插图.bin" && $0.size == 1048613 }),
                       first.contains(where: { $0.path == "files/empty" && $0.size == 0 }) else { throw TransferNativeError.invalid("Android ZIP fixture entries mismatch") }
                 let output = root.appendingPathComponent("ios.zip")
+                trace("ios.pack")
                 try TransferZip.pack(first.map { ($0.path, extracted.appendingPathComponent($0.path)) }, to: output)
+                trace("ios.extract")
                 let second = try TransferZip.extract(output, to: root.appendingPathComponent("roundtrip"))
                 guard first.map({ $0.path + ":" + $0.sha256 }) == second.map({ $0.path + ":" + $0.sha256 }) else { throw TransferNativeError.invalid("Streamed ZIP roundtrip changed data") }
                 var corrupt = bytes; corrupt[64] ^= 1; let damaged = root.appendingPathComponent("damaged.zip"); try corrupt.write(to: damaged)
                 var rejected = false
+                trace("damaged.extract")
                 do { _ = try TransferZip.extract(damaged, to: root.appendingPathComponent("bad")) } catch { rejected = true }
                 guard rejected else { throw TransferNativeError.invalid("Corrupted ZIP was accepted") }
                 let exported = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("reader-transfer-stored.zip")
                 if FileManager.default.fileExists(atPath: exported.path) { try FileManager.default.removeItem(at: exported) }
                 try FileManager.default.copyItem(at: output, to: exported)
+                trace("passed")
                 call.resolve(["detail": "Android DEFLATE/data descriptors, Unicode filenames, zero-byte entry, CRC rejection and bounded native ZIP roundtrip verified"])
-            } catch { call.reject(error.localizedDescription) }
+            } catch { trace("failed: " + error.localizedDescription); call.reject(error.localizedDescription) }
         }
         #else
         call.reject("Simulator tests are disabled")

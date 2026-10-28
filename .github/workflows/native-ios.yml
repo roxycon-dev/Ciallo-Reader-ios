@@ -35,6 +35,10 @@ jobs:
           set -euo pipefail
           device_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for k,vs in d["devices"].items() if "iOS" in k for v in vs if "iPhone" in v["name"]))')
           capture_diagnostics() {
+            if test -n "${container:-}"; then
+              cp "$container/Library/Caches/reader-capabilities.json" native-capabilities.json 2>/dev/null || true
+              cp "$container/Library/Caches/reader-transfer-zip-state.json" native-transfer-zip-state.json 2>/dev/null || true
+            fi
             python3 scripts/run-bounded.py 30 xcrun simctl io "$device_id" screenshot native-startup.png 2>/dev/null || true
             python3 scripts/run-bounded.py 45 xcrun simctl spawn "$device_id" log show --last 10m --style compact --predicate 'process == "App" OR (process == "SpringBoard" AND eventMessage CONTAINS "com.aistudio.ciallo.reader") OR process == "amfid"' > native-runtime.log 2>&1 || true
           }
@@ -69,4 +73,5 @@ jobs:
             IOS/native-launch.log
             IOS/native-capabilities.json
               IOS/native-transfer-stored.zip
+              IOS/native-transfer-zip-state.json
           retention-days: 7

@@ -125,7 +125,7 @@ enum TransferZip {
                 written += UInt64(bytes.count); expanded += UInt64(bytes.count)
                 guard written <= entry.expanded, written <= entryMaximum, expanded <= maximum else { throw TransferNativeError.invalid("归档展开数据超出声明容量") }
                 if expanded >= nextSpaceCheck {
-                    let available = try root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage ?? 0
+                    let available = try root.resourceValues(forKeys: [.volumeAvailableCapacityKey]).volumeAvailableCapacity ?? 0
                     guard available > 16 * 1024 * 1024 else { throw TransferNativeError.invalid("存储空间不足") }
                     nextSpaceCheck = expanded + 8 * 1024 * 1024
                 }
