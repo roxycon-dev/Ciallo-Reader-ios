@@ -783,7 +783,7 @@ function PrivacyToggleRow(props: {
         <p className="privacy-windows-manage-row__label">{props.label}</p>
         <p className="privacy-windows-manage-row__hint">{props.hint}</p>
       </div>
-      <AppSwitch checked={props.checked} onCheckedChange={props.onToggle} />
+      <AppSwitch checked={props.checked} onCheckedChange={props.onToggle} aria-label={props.label} />
     </div>
   );
 }
@@ -813,7 +813,7 @@ function PrivacyCategoryRow(props: {
           <p className="privacy-windows-manage-row__hint">{PRIVACY_MANAGE_CATEGORY_HINT}</p>
         ) : null}
       </div>
-      <AppSwitch checked={cat.isProtected} onCheckedChange={props.onToggle} />
+      <AppSwitch checked={cat.isProtected} onCheckedChange={props.onToggle} aria-label={`保护分类 ${cat.name}`} />
     </div>
   );
 }

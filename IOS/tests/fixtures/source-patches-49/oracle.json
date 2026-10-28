@@ -1,0 +1,98 @@
+{
+  "androidPatchVersion": 49,
+  "androidFunctionSha256": "481d0a24ca20c94ce355feb8783945e3343742d8e6e66452bc2266e2a6a9000e",
+  "upstreamCommit": "a04e05591f7832f7166d6660546613c114d6738a",
+  "oracle": "Original Android patch functions compiled unchanged with kotlinc-jvm 2.2.21 and JDK 21.0.10; Kotlin source private function visibility retained and exposed by a test-only apply wrapper.",
+  "sources": [
+    {
+      "key": "comick",
+      "fileName": "comick.js",
+      "inputSha256": "8e775b2381419d6cc8f912abb11158ee8ab5fb216b68441c6ea18e7bab135562",
+      "androidPatchedSha256": "8103ae890b7476f6aaf8bddab165889f048f79c39b2f3d3b3d8e691f1e8b69ca"
+    },
+    {
+      "key": "copy_manga",
+      "fileName": "copy_manga.js",
+      "inputSha256": "5012ce0782dc0410a1dbef7be84e17652875b3b82bdd46c0099097f076364ac5",
+      "androidPatchedSha256": "e075e0511fd67d5c94c5bcc42724a7e8fc96a5a607f74471f2ac471fefd22228"
+    },
+    {
+      "key": "copy_manga_multi_accounts",
+      "fileName": "copy_manga_multi_accounts.js",
+      "inputSha256": "1d8d8f855fed67ab34b6b349001731795abeae8c41ef008a2557fc8aadaf4859",
+      "androidPatchedSha256": "0cf7052a3a9e7f199a8779e66ed41f82d49c82a9ba7e2f86f8c23793f690d85d"
+    },
+    {
+      "key": "ehentai",
+      "fileName": "ehentai.js",
+      "inputSha256": "ef15f80d8090cb9ec1fcb18b502017a47694484e81d51c85e6b06ea162c58e4a",
+      "androidPatchedSha256": "104ce0b4b840e3596c3ee0ea320761e10413338d19431acdd8a5f55d262f8e97"
+    },
+    {
+      "key": "hcomic",
+      "fileName": "hcomic.js",
+      "inputSha256": "0490859b636ca796a8a16b044724fed556bcfcfcdefae02e6b1e81fd6d8393d2",
+      "androidPatchedSha256": "57d8fdb6169c23b581034206de756d9b6b7e94fdef3538497c52355d6f5c52c3"
+    },
+    {
+      "key": "hitomi",
+      "fileName": "hitomi.js",
+      "inputSha256": "af174079e017718268c1e55b4c955228aab80e97813fe5da15798050840c5d92",
+      "androidPatchedSha256": "58df3e1e2d0da6b405088261c8b47054b6cd0a56211fcc9a627b33c6c33f3363"
+    },
+    {
+      "key": "ikmmh",
+      "fileName": "ikmmh.js",
+      "inputSha256": "a5382a807db16123c5dec210552ab3abde1f842fb4ac2027813773d62c53dd7a",
+      "androidPatchedSha256": "12ca19f0077003c70d8b00f93a29f6837fc0be0c40db025d9b34ddcfba4f45a8"
+    },
+    {
+      "key": "jm",
+      "fileName": "jm.js",
+      "inputSha256": "a91bc8cc8b1a69eda20cdf2a04deea3fe0522baf2de84caa0c851211cb5f78ad",
+      "androidPatchedSha256": "5a28b2201c2d78b00ed5ecfdbc78029e8645cb918ae7f4be2e3110176b25886a"
+    },
+    {
+      "key": "manhuaren",
+      "fileName": "manhuaren.js",
+      "inputSha256": "6ec9b7ca3f843698625fed1291b25708638a506be486f6f113af71dcd71b3bf8",
+      "androidPatchedSha256": "89eb30f561df665820da1e1099dc0f815c250a5965baa461f3cf2f8b45913067"
+    },
+    {
+      "key": "manwaba",
+      "fileName": "manwaba.js",
+      "inputSha256": "6d85a9a18d2f44fb8b71ef598e6a74fb9de4b0ddd0260b3a6cb57fc05753f481",
+      "androidPatchedSha256": "24bc3277e63e696f59d594878bb30c9009f1d95fc4fb96034d015e7fd4655952"
+    },
+    {
+      "key": "mxs",
+      "fileName": "mxs.js",
+      "inputSha256": "da2c222eda825b77eb3b67ac09ec33b70bc2512cd5fc867fbe9b958df55037f8",
+      "androidPatchedSha256": "961fbf18b95719f05a8a4e34ddd46b530129b3583ac8a1915f4df0135510c8ee"
+    },
+    {
+      "key": "mycomic",
+      "fileName": "mycomic.js",
+      "inputSha256": "85432d15a15e71a03192a27e73ee61b09cd68878561c9f5543ecb5dcb2933c67",
+      "androidPatchedSha256": "369c18cd76633fe475285888595f1ff4631be4f86eea38842fe5a59a5daeaf87"
+    },
+    {
+      "key": "nhentai",
+      "fileName": "nhentai.js",
+      "inputSha256": "0f68757f89d493926cbf4c039c256d34365d0639aaa6996acbcde7c162257982",
+      "androidPatchedSha256": "a1c854cae56aaefea1231df3526888ef4cb51fef2c13679ed438b065820e80f5"
+    },
+    {
+      "key": "picacg",
+      "fileName": "picacg.js",
+      "inputSha256": "a404719b7f3f338911dd0a8a77a73fc50c6aa22048cf6458413f7b5a5a9d152b",
+      "androidPatchedSha256": "4eae70a3b62f95b48e1323c73607020d8abcba318ef5ba880c808f83772a202c"
+    },
+    {
+      "key": "wnacg",
+      "fileName": "wnacg.js",
+      "inputSha256": "545a6d818d012c1e5799d6aaf7ecd09798969acb840166ee7c56de6d02201df0",
+      "androidPatchedSha256": "c24abcb23f336b2ef9d980f046bab6156a77e78c11a0fff209cd5a5b6b4301fa"
+    }
+  ]
+}

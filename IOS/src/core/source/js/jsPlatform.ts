@@ -90,6 +90,8 @@ export interface FileStoragePort {
   /** Kotlin `context.assets.open(path)` — bundled JS runtime / source assets. */
   readAsset(path: string): string | null;
   listFiles(dir: string): string[];
+  /** Await asynchronous native persistence before publishing an updated index. */
+  flush?(): Promise<void>;
 }
 
 export interface HttpRequestSpec {

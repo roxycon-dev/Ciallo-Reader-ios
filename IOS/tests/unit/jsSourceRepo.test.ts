@@ -1145,7 +1145,7 @@ describe('JsSourceRepo.kt', () => {
     expect(statuses).toEqual(['正在获取源仓库列表…', '已安装 1 个漫画源']);
     expect(files.readText('/data/js_sources/demo.js')).toBe(JsSourceRepo.RAW_CACHE_PREFIX + script);
     expect(files.readText('/data/js_sources/index.json')).toContain('"key":"demo"');
-    expect(metaPrefs.getInt('patch_version', 0)).toBe(40);
+    expect(metaPrefs.getInt('patch_version', 0)).toBe(49);
     expect(installed).toHaveLength(1);
   });
 
@@ -1185,7 +1185,7 @@ describe('JsSourceRepo.kt', () => {
     expect(loaded).toHaveLength(1);
     // patch version is stale → repair needed
     expect(JsSourceRepo.needsRepair(deps, true)).toBe(true);
-    metaPrefs.putInt('patch_version', 40);
+    metaPrefs.putInt('patch_version', 49);
     expect(JsSourceRepo.needsRepair(deps, true)).toBe(false);
     // a script without the raw prefix also needs repair
     files.writeText('/data/js_sources/demo.js', script);
@@ -1199,7 +1199,7 @@ describe('JsSourceRepo.kt', () => {
       JSON.stringify([{ key: 'gone', fileName: 'gone.js' }]),
     );
     const metaPrefs = createMemoryKeyValueStorage();
-    metaPrefs.putInt('patch_version', 40);
+    metaPrefs.putInt('patch_version', 49);
     expect(
       JsSourceRepo.needsRepair(
         {
@@ -1213,6 +1213,15 @@ describe('JsSourceRepo.kt', () => {
         true,
       ),
     ).toBe(true);
+  });
+
+  it('keeps the remaining cached sources when one source fails to construct', async () => {
+    const files = createFileStorage(), body = `class Demo extends ComicSource {}\n/*${'x'.repeat(1100)}*/`;
+    files.writeText('/data/js_sources/index.json', JSON.stringify([{ key: 'bad', fileName: 'bad.js' }, { key: 'good', fileName: 'good.js' }]));
+    for (const key of ['bad', 'good']) files.writeText(`/data/js_sources/${key}.js`, JsSourceRepo.RAW_CACHE_PREFIX + body);
+    const loaded = await JsSourceRepo.loadCached({ files, http: createHttpStub(() => null), metaPrefs: createMemoryKeyValueStorage(), proxy: {} as never,
+      createSource: (params) => { if (params.sourceKey === 'bad') throw new Error('damaged definition'); return { key: params.sourceKey } as never; }, systemDns: { lookup: async () => [] } }, true);
+    expect(loaded).toEqual([{ key: 'good' }]);
   });
 
   it('falls back to the local extras when the index is missing or invalid', async () => {

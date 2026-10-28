@@ -18,6 +18,7 @@ export class PrivacyService {
   constructor(private readonly secure: SecureStore, private readonly now: () => number = Date.now) {}
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   getSnapshot = (): PrivacyState => this.state;
+  canAccessCategory(category: { id: number; isProtected: boolean }): boolean { return this.state.loaded && (!this.state.enabled || !category.isProtected || this.state.unlockedCategoryIds.includes(category.id)); }
   private publish(record: PinRecord): void {
     this.record = record;
     if (!record.enabled) { this.favoritesUnlocked = false; this.unlockedCategories.clear(); }

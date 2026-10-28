@@ -1649,6 +1649,12 @@ export function HomePage() {
    * 因此 BookActionSheet 在 Kotlin 里其实是不可达 UI。这里逐字保留该语义。
    */
   const [longPressBook, setLongPressBook] = useState<HomeBook | null>(null);
+  useEffect(() => platform.appLifecycle.subscribe((foreground) => {
+    if (foreground) return;
+    setCategorySheetFor(null); setCategoryToDelete(null); setBookToMove(null); setBookToDelete(null); setLongPressBook(null);
+    setFavCategorySheetFor(null); setFavCategoryRenameFor(null); setFavCategoryDeleteFor(null); setShowMoreSheet(false);
+    setSelection(createShelfSelection());
+  }), [platform]);
 
   const aliveRef = useRef(true);
   const undoTimerRef = useRef<number | null>(null);
@@ -2521,6 +2527,8 @@ export function HomePage() {
     void (async () => {
       const repo = getBookRepository();
       if (repo === null) return;
+      const stored = await repo.getCategoryByName(target.name);
+      if (!getPrivacyService().canAccessCategory({ id: target.id, isProtected: stored?.isProtected === 1 })) { setPinVerifyFor(target); return; }
       const deleted = await repo.deleteCategory({
         id: target.id,
         name: target.name,
@@ -2540,6 +2548,8 @@ export function HomePage() {
       void (async () => {
         const repo = getBookRepository();
         if (repo === null) return;
+        const stored = await repo.getCategoryByName(cat.name);
+        if (!getPrivacyService().canAccessCategory({ id: cat.id, isProtected: stored?.isProtected === 1 })) { setCategorySheetFor(null); setPinVerifyFor(cat); return; }
         await repo.setCategoryProtectedFlag(cat.id, next);
         await reloadShelf();
       })();
@@ -2659,7 +2669,7 @@ export function HomePage() {
                     dropHighlight={dropId !== null && hoverTarget === dropId}
                     registerTarget={registerTarget}
                     onClick={() => onCategoryClick(cat)}
-                    onLongClick={() => setCategorySheetFor(cat)}
+                    onLongClick={() => { if (getPrivacyService().canAccessCategory(cat)) setCategorySheetFor(cat); else setPinVerifyFor(cat); }}
                   />
                 );
               })}

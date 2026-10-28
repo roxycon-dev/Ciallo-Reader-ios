@@ -40,6 +40,7 @@ export interface AppSwitchProps {
   disabled?: boolean;
   /** Test id passthrough (Android testTag). */
   'data-testid'?: string;
+  'aria-label'?: string;
 }
 
 /** 全局唯一开关组件（第十一轮第 3 条：开关统一）。 */
@@ -58,6 +59,7 @@ export function AppSwitch(props: AppSwitchProps) {
       type="button"
       role="switch"
       aria-checked={props.checked}
+      aria-label={props['aria-label']}
       disabled={props.disabled === true}
       className={[
         'app-switch',

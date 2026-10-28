@@ -600,7 +600,9 @@ export function bootstrapLibrary(): Promise<void> {
       await openAppDatabase({ db: platform.db });
       performance.mark('app-database-ready');
       await reportStartup('starting', new Error('database: schema ready'));
-      setBookRepository(new BookRepository(platform.db));
+      const repository = new BookRepository(platform.db);
+      await repository.ensureDefaultCategory();
+      setBookRepository(repository);
       await useAppStore.getState().loadLibrary();
       await useAppStore.getState().restoreDownloads();
       await reportStartup('starting', new Error('library: local records restored'));

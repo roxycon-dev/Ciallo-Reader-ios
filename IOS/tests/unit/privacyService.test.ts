@@ -42,9 +42,13 @@ describe('persisted privacy authorization', () => {
   });
   it('authorizes only the selected scope and clears authorization on lock and restart', async () => {
     const secure = new MemorySecureStore(), service = new PrivacyService(secure); await service.enable('123456');
+    expect(service.canAccessCategory({ id: 7, isProtected: true })).toBe(false);
     expect(await service.unlockCategory(7, '123456')).toBe(true); expect(service.getSnapshot()).toMatchObject({ unlockedCategoryIds: [7], favoritesUnlocked: false });
+    expect(service.canAccessCategory({ id: 7, isProtected: true })).toBe(true);
+    expect(service.canAccessCategory({ id: 8, isProtected: true })).toBe(false);
     expect(await service.unlockFavorites('654321')).toBe(false); expect(await service.unlockFavorites('123456')).toBe(true);
     service.lock(); expect(service.getSnapshot()).toMatchObject({ unlockedCategoryIds: [], favoritesUnlocked: false });
+    expect(service.canAccessCategory({ id: 7, isProtected: true })).toBe(false);
     expect((await new PrivacyService(secure).ready()).favoritesUnlocked).toBe(false);
   });
   it('publishes no successful setup if secure persistence fails and permits a retry', async () => {

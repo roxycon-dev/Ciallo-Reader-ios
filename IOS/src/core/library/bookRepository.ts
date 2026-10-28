@@ -1161,6 +1161,7 @@ export class BookRepository {
   /** 第七轮第 6.1/6.2 条：删除分类。返回 true = 已删除；false = 被拒绝（默认分类）。 */
   async deleteCategory(category: CategoryRow): Promise<boolean> {
     if (category.name === DEFAULT_CATEGORY) return false
+    return contentMutationGate.mutex.withLock(async () => {
     await this.db.execute('BEGIN')
     try {
       await this.migrateBooksCategory(category.name, DEFAULT_CATEGORY)
@@ -1171,6 +1172,7 @@ export class BookRepository {
       throw err
     }
     return true
+    });
   }
 
   /** 第七轮第 6.3 条：设置分类的密码保护标记。 */

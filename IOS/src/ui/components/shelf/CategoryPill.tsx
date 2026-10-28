@@ -68,6 +68,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
@@ -78,6 +79,26 @@ const MINT_PRIMARY = '#059669';
 const ACCENT_0_06 = 'rgba(24, 25, 28, 0.06)';
 const ACCENT_0_10 = 'rgba(24, 25, 28, 0.1)';
 const ON_SURFACE_RGB = { r: 24, g: 25, b: 28 };
+
+/** Real touch/mouse hold; contextmenu alone does not implement iOS long press. */
+function useHoldGesture(onHold: (() => void) | null | undefined) {
+  const callback = useRef(onHold), timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const origin = useRef<{ x: number; y: number } | null>(null), fired = useRef(false);
+  useEffect(() => { callback.current = onHold; }, [onHold]);
+  const end = useCallback(() => { if (timer.current !== null) clearTimeout(timer.current); timer.current = null; origin.current = null; }, []);
+  useEffect(() => () => end(), [end]);
+  return {
+    start(event?: { clientX: number; clientY: number; button?: number }) {
+      end(); fired.current = false; if (event?.button && event.button !== 0 || !callback.current) return;
+      origin.current = { x: event?.clientX ?? 0, y: event?.clientY ?? 0 };
+      timer.current = setTimeout(() => { fired.current = true; timer.current = null; callback.current?.(); }, 550);
+    },
+    move(event: { clientX: number; clientY: number }) { const point = origin.current; if (point && Math.hypot(event.clientX - point.x, event.clientY - point.y) > 8) end(); },
+    end,
+    consumeClick() { const result = fired.current; fired.current = false; return result; },
+    contextMenu(event: { preventDefault(): void }) { if (!callback.current) return; event.preventDefault(); end(); if (!fired.current) { fired.current = true; callback.current(); } },
+  };
+}
 
 /** `LocalReduceMotion` — Motion.kt L88 (`ANIMATOR_DURATION_SCALE ≤ 0.01` ⇒ reduce). */
 function useReduceMotion(): boolean {
@@ -178,6 +199,7 @@ export function CategoryPill(props: {
   const hapticsEnabled = useHapticsEnabled();
   const reduceMotion = useReduceMotion();
   const [pressed, setPressed] = useState(false);
+  const hold = useHoldGesture(props.onLongClick);
   const dropHighlight = props.dropHighlight === true;
   const selected = props.selected;
   const locked = props.locked === true;
@@ -223,17 +245,18 @@ export function CategoryPill(props: {
       // Kotlin L141–142: `semantics { contentDescription = … }`
       aria-label={selected ? `分类 ${props.name}，已选中` : `分类 ${props.name}`}
       aria-pressed={selected}
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={() => setPressed(false)}
-      onPointerLeave={() => setPressed(false)}
+      onPointerDown={(event) => { setPressed(true); hold.start(event); }}
+      onPointerMove={hold.move}
+      onPointerUp={() => { setPressed(false); hold.end(); }}
+      onPointerCancel={() => { setPressed(false); hold.end(); }}
+      onPointerLeave={() => { setPressed(false); hold.end(); }}
       onClick={() => {
+        if (hold.consumeClick()) return;
         hapticSelection(hapticsEnabled);
         props.onClick();
       }}
       onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => {
-        if (props.onLongClick == null) return;
-        event.preventDefault();
-        props.onLongClick();
+        hold.contextMenu(event);
       }}
     >
       {props.name}
@@ -265,34 +288,31 @@ export function usePressScale(options?: {
   const enabled = options?.enabled !== false;
   const onTap = options?.onTap;
   const onLongTap = options?.onLongTap ?? null;
+  const hold = useHoldGesture(enabled ? onLongTap : null);
   const hapticsEnabled = useHapticsEnabled();
   const reduceMotion = useReduceMotion();
   const [pressed, setPressed] = useState(false);
 
-  const onPointerDown = useCallback((): void => {
+  const onPointerDown = (event?: { clientX: number; clientY: number; button?: number }): void => {
     if (!enabled) return;
     setPressed(true);
-  }, [enabled]);
+    hold.start(event);
+  };
 
-  const onPointerUp = useCallback((): void => {
+  const onPointerUp = (): void => {
     setPressed(false);
-  }, []);
+    hold.end();
+  };
 
-  const handleClick = useCallback((): void => {
+  const handleClick = (): void => {
     // Kotlin L221–225: `if (!enabled) return@pointerInput` guards the whole handler.
     if (!enabled) return;
+    if (hold.consumeClick()) return;
     hapticSelection(hapticsEnabled);
     onTap?.();
-  }, [enabled, hapticsEnabled, onTap]);
+  };
 
-  const handleContextMenu = useCallback(
-    (event: { preventDefault: () => void }): void => {
-      if (onLongTap == null) return;
-      event.preventDefault();
-      onLongTap();
-    },
-    [onLongTap],
-  );
+  const handleContextMenu = hold.contextMenu;
 
   const style: CSSProperties = {
     transform: `scale(${String(pressed ? scale : 1)})`,
@@ -303,7 +323,9 @@ export function usePressScale(options?: {
     pressed,
     style,
     onPointerDown,
+    onPointerMove: hold.move,
     onPointerUp,
+    onPointerCancel: onPointerUp,
     onPointerLeave: onPointerUp,
     onClick: handleClick,
     onContextMenu: handleContextMenu,

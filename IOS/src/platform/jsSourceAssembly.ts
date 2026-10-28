@@ -1,11 +1,12 @@
 import { JsComicSource } from '@core/source/js/jsComicSource';
-import { JsSourceRepo, type JsSourceRepoDeps } from '@core/source/js/jsSourceRepo';
+import { JsSourceRepo, mapWithConcurrency, type JsSourceRepoDeps, type PortableJsSource } from '@core/source/js/jsSourceRepo';
 import { JsCookieJar } from '@core/source/js/jsCookieJar';
 import type { HttpClient as SourceHttp } from '@core/source/js/jsPlatform';
 import type { DialogHostPort } from '@core/source/js/jsUiDialogs';
 import type { SourceManager } from '@core/source/sourceManager';
 import { checkSourceUrl } from '@core/source/networkCalls';
 import type { PlatformBundle } from '@platform/index';
+import { getPlatformKind } from '@platform/index';
 import { EnginePreferences, SourceWorkerEngine, decodeImage } from './sourceWorker/engine';
 import { preferencePort, sourceFileStorage } from './sourceWorker/storage';
 import { createWorkerDomParser } from './sourceWorker/dom';
@@ -17,7 +18,11 @@ const ASSETS = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera
   'venera/comic_metadata.js', 'venera/discover_bridge.js', ...['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'].map((key) => `js_extra/${key}.js`)];
 const REPOSITORY = 'https://raw.githubusercontent.com/venera-app/venera-configs/main/index.json';
 
-export interface AppJsSources { refresh(onStatus?: (status: string) => void): Promise<void> }
+export interface AppJsSources {
+  refresh(onStatus?: (status: string) => void): Promise<void>;
+  exportPortable(warnings: string[]): Promise<PortableJsSource[]>;
+  importPortable(scripts: unknown, replace: boolean): Promise<void>;
+}
 const services = new WeakMap<SourceManager, AppJsSources>();
 export function getAppJsSources(manager: SourceManager): AppJsSources | undefined { return services.get(manager); }
 
@@ -35,7 +40,6 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
   const verification = new EnginePreferences(platform.secure, 'js_source_website_verification');
   await Promise.all([meta.load(), verification.load()]);
   const stores = new Map<string, EnginePreferences>();
-  const pendingLoads: Promise<void>[] = [];
   const http: SourceHttp = { async execute(request) {
     checkSourceUrl(request.url);
     if (request.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -64,7 +68,7 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
       cookieHeader: () => '', isCancelled: () => false, closeResponse() {} },
     createSource(params) {
       let store = stores.get(params.sourceKey);
-      if (!store) { store = new EnginePreferences(platform.secure, `js_source_data.${params.sourceKey}`); stores.set(params.sourceKey, store); pendingLoads.push(store.load()); }
+      if (!store) { store = new EnginePreferences(platform.secure, `js_source_data.${params.sourceKey}`); stores.set(params.sourceKey, store); }
       const sourcePrefs = store;
       const cookies = JsCookieJar.open(preferencePort(sourcePrefs));
       const verify = async (url: string, userAgent: string): Promise<boolean> => {
@@ -97,22 +101,35 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
     },
   };
   const register = async (sources: JsComicSource[]): Promise<void> => {
-    await Promise.all(pendingLoads.splice(0));
-    for (const source of sources) await manager.registerSource(source);
+    const loaded = await mapWithConcurrency(4, sources, async (source) => {
+      try { await stores.get(source.sourceKey)?.load(); return source; }
+      catch { console.warn('[sources] 单个书源的私有状态无法读取，已保留其他书源', source.sourceKey); return null; }
+    });
+    for (const source of loaded) if (source) await manager.registerSource(source);
     await Promise.all([files.flush(), meta.flush(), verification.flush()]);
   };
   await register(await JsSourceRepo.loadCached(deps, true));
   let refreshing: Promise<void> | null = null;
+  let sourceWrites: Promise<unknown> = Promise.resolve();
+  const serial = <T>(operation: () => Promise<T>): Promise<T> => {
+    const task = sourceWrites.catch(() => {}).then(operation); sourceWrites = task.catch(() => {}); return task;
+  };
   const service: AppJsSources = { refresh(onStatus) {
     if (refreshing) return refreshing;
-    refreshing = (async () => {
+    refreshing = serial(async () => {
       const sources = await JsSourceRepo.install(deps, REPOSITORY, true, onStatus);
       if (!sources.some((source) => !['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'].includes(source.sourceKey)))
         throw new Error('源仓库更新失败，已保留现有书源，请检查网络后重试。');
       await register(sources);
-    })().finally(() => { refreshing = null; });
+    }).finally(() => { refreshing = null; });
     return refreshing;
-  } };
+  },
+  exportPortable: (warnings) => serial(async () => { await files.flush(); return JsSourceRepo.exportPortable(deps, warnings); }),
+  importPortable: (scripts, replace) => serial(async () => { await JsSourceRepo.importPortable(deps, scripts, replace); await register(await JsSourceRepo.loadCached(deps, true)); }),
+  };
   services.set(manager, service);
+  // Keep cached/bundled sources immediately usable while repairing stale or
+  // incomplete repositories. Failure preserves the installed sources for retry.
+  if (getPlatformKind() === 'ios-native' && JsSourceRepo.needsRepair(deps, true)) void service.refresh().catch((error: unknown) => console.warn('[sources] 书源后台修复失败，已保留现有书源', error instanceof Error ? error.message : error));
   return service;
 }
