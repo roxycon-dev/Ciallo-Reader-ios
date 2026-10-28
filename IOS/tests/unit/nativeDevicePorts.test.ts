@@ -22,7 +22,7 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: (name: string) => {
     if (name !== 'ReaderDevice' && name !== 'ReaderDocuments')
       throw new Error(`unexpected plugin ${name}`);
-    return native;
+    return new Proxy(native, { get: (target, property) => property in target ? Reflect.get(target, property) : () => new Promise(() => {}) });
   },
 }));
 vi.mock('@capacitor/app', () => ({ App: { getInfo: async () => ({ version: '1.0.2' }) } }));

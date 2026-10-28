@@ -1,4 +1,5 @@
 import type { DocumentPort } from '@platform/interfaces';
+import { nonThenablePlugin } from './pluginProxy';
 import { base64ToBytes, bytesToBase64 } from './capacitorHttpClient';
 
 interface ReaderDocumentsPlugin {
@@ -12,7 +13,7 @@ export function createNativeDocumentPort(): DocumentPort {
   let plugin: Promise<ReaderDocumentsPlugin> | null = null;
   const getPlugin = (): Promise<ReaderDocumentsPlugin> => {
     plugin ??= import('@capacitor/core').then(({ registerPlugin }) =>
-      registerPlugin<ReaderDocumentsPlugin>('ReaderDocuments'),
+      nonThenablePlugin(registerPlugin<ReaderDocumentsPlugin>('ReaderDocuments')),
     );
     return plugin;
   };

@@ -1,6 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
-const device = registerPlugin<{ reportStartup(value: { phase: string; detail: string }): Promise<void> }>('ReaderDevice');
+interface StartupDevice { reportStartup(value: { phase: string; detail: string }): Promise<void> }
+let device: StartupDevice | null = null;
 
 /** Debug builds expose a bounded, local startup result to the simulator CI job. */
 export async function reportStartup(phase: 'starting' | 'ready' | 'error', error?: unknown): Promise<void> {
@@ -10,6 +11,9 @@ export async function reportStartup(phase: 'starting' | 'ready' | 'error', error
   for (let depth = 0; depth < 5 && cause instanceof Error; depth++) {
     details.push(cause.message); cause = cause.cause;
   }
-  try { await device.reportStartup({ phase, detail: details.join(' / ').slice(0, 2000) }); }
+  try {
+    device ??= registerPlugin<StartupDevice>('ReaderDevice');
+    await device.reportStartup({ phase, detail: details.join(' / ').slice(0, 2000) });
+  }
   catch (reason) { console.warn('[startup] 原生诊断记录不可用', reason); }
 }

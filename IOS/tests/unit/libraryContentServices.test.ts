@@ -55,7 +55,7 @@ describe('production comic downloads and file sharing', () => {
     expect(stored.contentType).toBe('COMIC'); expect(stored.sourceId).toBe(source.id);
     const pages = await repository.listChapters(stored.id!); expect(pages).toHaveLength(2);
     expect(await platform.fs.readFile(pages[0]!.content)).toEqual(image);
-    expect(network.mock.calls[0]?.[0].headers?.['Referer']).toBe('https://source.example/');
+    expect(network.mock.calls.find(([request]) => request.url.endsWith('/1.png'))?.[0].headers?.['Referer']).toBe('https://source.example/');
     expect(reload).toHaveBeenCalled();
     expect(JSON.parse(new TextDecoder().decode(await platform.fs.readFile('comic_download_tasks.json')))[0].status).toBe('SUCCESS');
   });

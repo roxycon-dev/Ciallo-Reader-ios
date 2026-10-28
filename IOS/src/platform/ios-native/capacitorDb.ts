@@ -1,5 +1,6 @@
 import type { SQLiteDatabase, SqlValue } from '@platform/interfaces';
 import { reportStartup } from './startupDiagnostics';
+import { nonThenablePlugin } from './pluginProxy';
 
 interface SqlitePluginLike {
   createConnection(options: { database: string; version?: number; readonly?: boolean }): Promise<void>;
@@ -26,7 +27,7 @@ async function loadSqlitePlugin(): Promise<SqlitePluginLike> {
     if (!plugin) {
       throw new Error('missing CapacitorSQLite export');
     }
-    return plugin;
+    return nonThenablePlugin(plugin);
   } catch {
     throw new Error(SQLITE_PLUGIN_ERROR);
   }

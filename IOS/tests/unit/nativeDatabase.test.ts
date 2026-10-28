@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
   releases: 0,
 }));
 vi.mock('@capacitor-community/sqlite', () => ({
-  CapacitorSQLite: {
+  CapacitorSQLite: new Proxy({
     createConnection: async () => {
       state.creates += 1;
     },
@@ -48,7 +48,7 @@ vi.mock('@capacitor-community/sqlite', () => ({
       const rows = state.sqlite!.prepare(statement).all(...values);
       return { values: rows.length ? [{ ios_columns: Object.keys(rows[0]!) }, ...rows] : [] };
     },
-  },
+  }, { get: (target, property) => property in target ? Reflect.get(target, property) : () => new Promise(() => {}) }),
 }));
 
 describe('iOS database bridge', () => {

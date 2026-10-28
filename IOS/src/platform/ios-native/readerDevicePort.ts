@@ -1,4 +1,5 @@
 import { App } from '@capacitor/app';
+import { nonThenablePlugin } from './pluginProxy';
 import type {
   AppInfoPort,
   ClipboardPort,
@@ -17,7 +18,7 @@ interface ReaderDevicePlugin {
 let plugin: Promise<ReaderDevicePlugin> | null = null;
 function readerDevice(): Promise<ReaderDevicePlugin> {
   plugin ??= import('@capacitor/core').then(({ registerPlugin }) =>
-    registerPlugin<ReaderDevicePlugin>('ReaderDevice'),
+    nonThenablePlugin(registerPlugin<ReaderDevicePlugin>('ReaderDevice')),
   );
   return plugin;
 }

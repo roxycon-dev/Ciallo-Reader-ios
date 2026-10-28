@@ -1,4 +1,5 @@
 import type { TtsEngine, TtsSpeakOptions, TtsVoice } from '@platform/interfaces';
+import { nonThenablePlugin } from './pluginProxy';
 
 interface TtsPluginLike {
   speak(options: { text: string } & TtsSpeakOptions): Promise<void>;
@@ -19,7 +20,7 @@ async function loadTtsPlugin(): Promise<TtsPluginLike> {
     if (!register) {
       throw new Error('missing registerPlugin export');
     }
-    return register<TtsPluginLike>('Tts');
+    return nonThenablePlugin(register<TtsPluginLike>('Tts'));
   } catch {
     throw new Error(TTS_PLUGIN_ERROR);
   }

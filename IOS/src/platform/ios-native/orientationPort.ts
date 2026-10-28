@@ -22,6 +22,7 @@
  * 见 Swift 插件里的说明。
  */
 import type { OrientationLockPort } from '@platform/interfaces';
+import { nonThenablePlugin } from './pluginProxy';
 
 interface OrientationPluginLike {
   lock(options: { mode: number }): Promise<void>;
@@ -39,7 +40,7 @@ async function loadOrientationPlugin(): Promise<OrientationPluginLike> {
     if (!register) {
       throw new Error('missing registerPlugin export');
     }
-    return register<OrientationPluginLike>('Orientation');
+    return nonThenablePlugin(register<OrientationPluginLike>('Orientation'));
   } catch {
     throw new Error(ORIENTATION_PLUGIN_ERROR);
   }

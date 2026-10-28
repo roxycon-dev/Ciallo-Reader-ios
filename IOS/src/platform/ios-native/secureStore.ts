@@ -1,4 +1,5 @@
 import { Preferences } from '@capacitor/preferences';
+import { nonThenablePlugin } from './pluginProxy';
 import type { SecureStore } from '@platform/interfaces';
 
 interface KeychainPlugin {
@@ -14,7 +15,7 @@ export class KeychainSecureStore implements SecureStore {
 
   private getPlugin(): Promise<KeychainPlugin> {
     this.plugin ??= import('@capacitor/core').then(({ registerPlugin }) =>
-      registerPlugin<KeychainPlugin>('ReaderKeychain'),
+      nonThenablePlugin(registerPlugin<KeychainPlugin>('ReaderKeychain')),
     );
     return this.plugin;
   }
