@@ -4,6 +4,13 @@
 
 ## 已修改和验证
 
+### 20:39 增量
+
+- `8580a7b` 主 CI 与 Native iOS verification 均成功，启动快照改为同一进程读取/判定/复制后通过，源补丁 49、隐私/统计与完整浏览器流程的检查点已保存。
+- 设备互传正在实现：已按当前 Android `TransferWire` / `TransferTls.code` / `TransferManager.runSocket` 移植大端 UTF-8 控制帧、双向证书/随机数绑定六位码、双方确认前无载荷、证书与口令绑定续传、1MiB 校验分块、落盘并保存检查点后 ACK、整包校验、导入回执持久化及重放。31 项协议/原生端口装配测试、类型和定向 Lint 通过。
+- 新增 Network.framework 原生插件与 JS 生产端口：Keychain 设备独享 RSA-2048 身份，自签名/有效期/强度校验，双向 TLS 1.2/1.3、兼容 `_ciallo-xfer._tcp` Bonjour/TXT、原生连接取消、64KiB 按需读取、1MiB 有界写入、4GiB 范围文件流式 SHA-256/追加/fsync、原子续传记录、本地网络用途声明。尚待云端 Swift 编译及真实模拟器校验，不能计为原生通过。
+- 原生 CI 新增第 12 项：两个独立且可恢复的 Keychain 身份、篡改/过期证书拒绝、实际 TLS 回环传输 1MiB+37 并校验回执。设备互传的完整便携归档、数据库合并/替换、预览/选择界面、文件分享入口及 Android 跨设备联调仍待完成。
+
 ### 20:18 增量
 
 - `6865280` 云端主 CI（含 Release）和 Native iOS verification 均成功。原生 11/11 能力真实通过，包含 Keychain/PIN、二进制追加、PDFKit、TTS 朗读/暂停/继续/停止、设备能力与六个原始源 Worker；模拟器截图已检查为完整引导页。导出状态文件发现“先复制后读取”竞态（附件仍为 starting，实际判定已 ready），下一版改成在单一 Python 进程内校验并导出同一份快照，采用真实墙钟截止时间。

@@ -66,6 +66,10 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
     try { await platform.screenAwake.setEnabled(true); } finally { await platform.screenAwake.setEnabled(false); }
     assert((await platform.appInfo.versionName()).length > 0, 'Missing app version');
   });
+  await check('Native mutual TLS device-transfer identities and streamed loopback', async () => {
+    const transfer = registerPlugin<{ selfTest(): Promise<{ detail: string }> }>('ReaderTransfer');
+    const result = await transfer.selfTest(); assert(result.detail.includes('streamed bytes verified'), result.detail);
+  }, 40_000);
   const keys = ['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'];
   const paths = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera_.js', 'venera/comic_metadata.js', 'venera/discover_bridge.js', ...keys.map((key) => `js_extra/${key}.js`)];
   const assets = Object.fromEntries(await Promise.all(paths.map(async (path) => { const response = await platform.http.request({ url: `/${path}`, method: 'GET' }); assert(response.status === 200, `Missing asset ${path}`); return [path, new TextDecoder().decode(response.body)]; })));

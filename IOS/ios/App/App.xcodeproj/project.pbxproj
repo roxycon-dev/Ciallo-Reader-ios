@@ -24,6 +24,8 @@
 		A10000000000000000000008 /* ReaderDocumentsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000007 /* ReaderDocumentsPlugin.swift */; };
 		A1000000000000000000000A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000009 /* PrivacyInfo.xcprivacy */; };
 		A1000000000000000000000C /* ReaderWebsitePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000B /* ReaderWebsitePlugin.swift */; };
+		A1000000000000000000000E /* TransferIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000D /* TransferIdentity.swift */; };
+		A10000000000000000000010 /* ReaderTransferPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000F /* ReaderTransferPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +48,8 @@
 		A10000000000000000000007 /* ReaderDocumentsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderDocumentsPlugin.swift; sourceTree = "<group>"; };
 		A10000000000000000000009 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A1000000000000000000000B /* ReaderWebsitePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderWebsitePlugin.swift; sourceTree = "<group>"; };
+		A1000000000000000000000D /* TransferIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferIdentity.swift; sourceTree = "<group>"; };
+		A1000000000000000000000F /* ReaderTransferPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderTransferPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +105,8 @@
 			children = (
 				7A1B2C3D4E5F60718293A4B5 /* TtsPlugin.swift */,
 				A1000000000000000000000B /* ReaderWebsitePlugin.swift */,
+				A1000000000000000000000D /* TransferIdentity.swift */,
+				A1000000000000000000000F /* ReaderTransferPlugin.swift */,
 				A10000000000000000000007 /* ReaderDocumentsPlugin.swift */,
 				A10000000000000000000005 /* ReaderDevicePlugin.swift */,
 				A10000000000000000000003 /* ReaderKeychainPlugin.swift */,
@@ -198,6 +204,8 @@
 				A10000000000000000000002 /* ReaderBridgeViewController.swift in Sources */,
 				7A1B2C3D4E5F60718293A4B6 /* TtsPlugin.swift in Sources */,
 				A1000000000000000000000C /* ReaderWebsitePlugin.swift in Sources */,
+				A1000000000000000000000E /* TransferIdentity.swift in Sources */,
+				A10000000000000000000010 /* ReaderTransferPlugin.swift in Sources */,
 				7A1B2C3D4E5F60718293A4C4 /* OrientationPlugin.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);

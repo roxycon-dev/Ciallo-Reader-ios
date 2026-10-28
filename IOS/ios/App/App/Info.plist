@@ -131,6 +131,12 @@
 	     （这不是权限弹窗，是让 Files.app 能看到 Documents 目录） -->
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>用于发现同一 Wi-Fi 或热点中的设备，经双方核对校验码后加密传输书籍与阅读数据。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ciallo-xfer._tcp</string>
+	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 
