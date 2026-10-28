@@ -77,6 +77,20 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
     const archive = registerPlugin<{ selfTest(options: { data: string }): Promise<{ detail: string }> }>('ReaderTransferArchive');
     const result = await archive.selfTest({ data: bytesToBase64(fixture.body) }); assert(result.detail.includes('roundtrip verified'), result.detail);
   }, 40_000);
+  await check('Native import journal snapshots and isolated SQLite rollback', async () => {
+    const archive = registerPlugin<{ journalSelfTest(): Promise<{ detail: string }> }>('ReaderTransferArchive');
+    const result = await archive.journalSelfTest(); assert(result.detail.includes('symlink rejection verified'), result.detail);
+    const transaction = platform.db.transaction; assert(transaction, 'Managed SQLite transaction not installed');
+    const table = `ci_tx_${nonce}`;
+    try {
+      await transaction(async (tx) => { await tx.execute(`CREATE TEMP TABLE "${table}" (id INTEGER PRIMARY KEY,value TEXT NOT NULL)`); await tx.execute(`INSERT INTO "${table}" VALUES (1,?)`, ['committed']); });
+      let rolledBack = false;
+      try { await transaction(async (tx) => { await tx.execute(`INSERT INTO "${table}" VALUES (2,?)`, ['must roll back']); throw new Error('intentional rollback'); }); }
+      catch (error) { assert(error instanceof Error && error.message === 'intentional rollback', String(error)); rolledBack = true; }
+      const rows = await platform.db.query<{ id: number; value: string }>(`SELECT id,value FROM "${table}" ORDER BY id`);
+      assert(rolledBack && rows.length === 1 && rows[0]!.value === 'committed', 'Native SQLite rollback exposed uncommitted data');
+    } finally { await platform.db.execute(`DROP TABLE IF EXISTS "${table}"`); }
+  }, 40_000);
   const keys = ['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'];
   const paths = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera_.js', 'venera/comic_metadata.js', 'venera/discover_bridge.js', ...keys.map((key) => `js_extra/${key}.js`)];
   const assets = Object.fromEntries(await Promise.all(paths.map(async (path) => { const response = await platform.http.request({ url: `/${path}`, method: 'GET' }); assert(response.status === 200, `Missing asset ${path}`); return [path, new TextDecoder().decode(response.body)]; })));

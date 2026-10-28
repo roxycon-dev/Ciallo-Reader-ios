@@ -28,6 +28,7 @@
 		A10000000000000000000010 /* ReaderTransferPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000F /* ReaderTransferPlugin.swift */; };
 		A10000000000000000000012 /* TransferZip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* TransferZip.swift */; };
 		A10000000000000000000014 /* ReaderTransferArchivePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* ReaderTransferArchivePlugin.swift */; };
+		A10000000000000000000016 /* TransferImportJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* TransferImportJournal.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +55,7 @@
 		A1000000000000000000000F /* ReaderTransferPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderTransferPlugin.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* TransferZip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferZip.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 /* ReaderTransferArchivePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderTransferArchivePlugin.swift; sourceTree = "<group>"; };
+		A10000000000000000000015 /* TransferImportJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferImportJournal.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +115,7 @@
 				A1000000000000000000000F /* ReaderTransferPlugin.swift */,
 				A10000000000000000000011 /* TransferZip.swift */,
 				A10000000000000000000013 /* ReaderTransferArchivePlugin.swift */,
+				A10000000000000000000015 /* TransferImportJournal.swift */,
 				A10000000000000000000007 /* ReaderDocumentsPlugin.swift */,
 				A10000000000000000000005 /* ReaderDevicePlugin.swift */,
 				A10000000000000000000003 /* ReaderKeychainPlugin.swift */,
@@ -214,6 +217,7 @@
 				A10000000000000000000010 /* ReaderTransferPlugin.swift in Sources */,
 				A10000000000000000000012 /* TransferZip.swift in Sources */,
 				A10000000000000000000014 /* ReaderTransferArchivePlugin.swift in Sources */,
+				A10000000000000000000016 /* TransferImportJournal.swift in Sources */,
 				7A1B2C3D4E5F60718293A4C4 /* OrientationPlugin.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);

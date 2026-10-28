@@ -13,6 +13,9 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "rows", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "journal", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "promote", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "journalSelfTest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selfTest", returnType: CAPPluginReturnPromise)
     ]
     private let queue = DispatchQueue(label: "ciallo.transfer.archive", qos: .utility)
@@ -166,6 +169,43 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
     @objc func cancel(_ call: CAPPluginCall) { lock.lock(); generation += 1; lock.unlock(); call.resolve() }
+    @objc func promote(_ call: CAPPluginCall) {
+        guard let id = call.getString("stageId") else { call.reject("暂存身份缺失"); return }
+        queue.async {
+            do {
+                let source = try self.stage(id), destination = try self.documentURL("restored_transfer_" + id)
+                guard !FileManager.default.fileExists(atPath: destination.path) else { throw TransferNativeError.invalid("导入资源目录已存在") }
+                try FileManager.default.moveItem(at: source, to: destination); call.resolve(["filesRoot": "restored_transfer_\(id)/files"])
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
+    @objc func journal(_ call: CAPPluginCall) {
+        guard let action = call.getString("action") else { call.reject("导入日志操作无效"); return }
+        queue.async {
+            do {
+                let journal = TransferImportJournal(documents: self.documents)
+                if action == "pending" {
+                    let record = try journal.pending()
+                    if let record = record { call.resolve(["record": try JSONSerialization.jsonObject(with: JSONEncoder().encode(record))]) }
+                    else { call.resolve(["record": NSNull()]) }; return
+                }
+                if action == "prepare" {
+                    guard let object = call.getObject("record") else { throw TransferNativeError.invalid("导入日志内容缺失") }
+                    let bytes = try JSONSerialization.data(withJSONObject: object)
+                    guard bytes.count <= 8 * 1024 * 1024 else { throw TransferNativeError.invalid("本机恢复设置快照过大") }
+                    try journal.prepare(JSONDecoder().decode(TransferJournalRecord.self, from: bytes)); call.resolve(); return
+                }
+                guard let id = call.getString("id") else { throw TransferNativeError.invalid("导入日志身份缺失") }
+                switch action {
+                case "restore": try journal.restore(id)
+                case "discard": try journal.discard(id)
+                case "finish": try journal.finish(id)
+                default: throw TransferNativeError.invalid("未知导入日志操作")
+                }
+                call.resolve()
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
     @objc func selfTest(_ call: CAPPluginCall) {
         #if DEBUG && targetEnvironment(simulator)
         guard ProcessInfo.processInfo.environment["CIALLO_NATIVE_TESTS"] == "1", let encoded = call.getString("data"), encoded.utf8.count <= 65536,
@@ -203,6 +243,46 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
                 trace("passed")
                 call.resolve(["detail": "Android DEFLATE/data descriptors, Unicode filenames, zero-byte entry, CRC rejection and bounded native ZIP roundtrip verified"])
             } catch { trace("failed: " + error.localizedDescription); call.reject(error.localizedDescription) }
+        }
+        #else
+        call.reject("Simulator tests are disabled")
+        #endif
+    }
+    @objc func journalSelfTest(_ call: CAPPluginCall) {
+        #if DEBUG && targetEnvironment(simulator)
+        guard ProcessInfo.processInfo.environment["CIALLO_NATIVE_TESTS"] == "1" else { call.reject("Simulator tests are disabled"); return }
+        queue.async {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent("transfer-journal-test-" + UUID().uuidString, isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            do {
+                let manager = FileManager.default, configs = root.appendingPathComponent("source_configs"), scripts = root.appendingPathComponent("js_sources")
+                try manager.createDirectory(at: configs, withIntermediateDirectories: true); try manager.createDirectory(at: scripts, withIntermediateDirectories: true)
+                let config = configs.appendingPathComponent("private.json"), index = scripts.appendingPathComponent("index.json")
+                try Data("old-definition".utf8).write(to: config); try Data("old-index".utf8).write(to: index)
+                let journal = TransferImportJournal(documents: root), id = UUID().uuidString.lowercased()
+                let record = TransferJournalRecord(version: 1, id: id, stageId: id, keepUndo: false, createdAt: 1, settings: ["comic_reader_store:global_config": "old", "comic_reader_store:book_state_1": nil])
+                try journal.prepare(record)
+                guard try journal.pending()?.settings.keys.contains("comic_reader_store:book_state_1") == true else { throw TransferNativeError.invalid("Nullable private preference did not persist") }
+                try Data("new-definition".utf8).write(to: config); try Data("new-index".utf8).write(to: index)
+                let assets = root.appendingPathComponent("restored_transfer_" + id); try manager.createDirectory(at: assets, withIntermediateDirectories: true)
+                try journal.restore(id)
+                guard try String(contentsOf: config, encoding: .utf8) == "old-definition",
+                      try String(contentsOf: index, encoding: .utf8) == "old-index", !manager.fileExists(atPath: assets.path) else { throw TransferNativeError.invalid("Private source snapshot restoration failed") }
+                try journal.discard(id); guard try journal.pending() == nil else { throw TransferNativeError.invalid("Discarded journal remained active") }
+                let next = UUID().uuidString.lowercased(), second = TransferJournalRecord(version: 1, id: next, stageId: next, keepUndo: true, createdAt: 2, settings: [:])
+                try journal.prepare(second)
+                // Simulate interruption after directory rotation but before the
+                // pending marker is removed; finish must safely replay.
+                let undo = root.appendingPathComponent("transfer/undo")
+                try manager.moveItem(at: root.appendingPathComponent("transfer/journal/" + next), to: undo)
+                try journal.finish(next)
+                guard try journal.pending() == nil, manager.fileExists(atPath: undo.appendingPathComponent("source_configs/private.json").path) else { throw TransferNativeError.invalid("Interrupted undo rotation was not recovered") }
+                try manager.createSymbolicLink(at: configs.appendingPathComponent("link"), withDestinationURL: config)
+                var refused = false
+                do { try journal.prepare(TransferJournalRecord(version: 1, id: id, stageId: id, keepUndo: false, createdAt: 3, settings: [:])) } catch { refused = true }
+                guard refused, try journal.pending() == nil, try String(contentsOf: config, encoding: .utf8) == "old-definition" else { throw TransferNativeError.invalid("Unsafe source snapshot was accepted or changed the original") }
+                call.resolve(["detail": "Private source snapshot restore, nullable preferences, interrupted undo rotation and symlink rejection verified"])
+            } catch { call.reject(error.localizedDescription) }
         }
         #else
         call.reject("Simulator tests are disabled")
