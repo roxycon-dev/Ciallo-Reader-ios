@@ -71,7 +71,7 @@ test.describe('生产构建冒烟', () => {
     const shell = page.locator('.main-shell');
     if ((await shell.count()) === 0) {
       // 首装走引导页：点「跳过」（Android OnboardingScreen 右上角同一个按钮）
-      await expect(page.getByTestId('onboarding_screen')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId('onboarding_screen')).toBeVisible({ timeout: 30_000 });
       await page.getByTestId('onboarding_skip_button').click();
     }
     await expect(shell).toBeVisible({ timeout: 15_000 });

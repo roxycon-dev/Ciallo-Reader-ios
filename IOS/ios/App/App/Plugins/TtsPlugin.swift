@@ -18,6 +18,8 @@ public class TtsPlugin: CAPPlugin, CAPBridgedPlugin {
     private var pendingSpeakCall: CAPPluginCall?
     private var currentUtteranceId: String?
     private var utteranceIds: [ObjectIdentifier: String] = [:]
+    private var requestGeneration = 0
+    private let voiceQueue = DispatchQueue(label: "ciallo.speech.voices", qos: .userInitiated)
 
     private func identifier(of utterance: AVSpeechUtterance) -> String {
         utteranceIds[ObjectIdentifier(utterance)] ?? ""
@@ -26,15 +28,42 @@ public class TtsPlugin: CAPPlugin, CAPBridgedPlugin {
     public override func load() {
         super.load()
         synthesizer.delegate = self
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-        try? AVAudioSession.sharedInstance().setActive(true)
     }
 
     @objc func speak(_ call: CAPPluginCall) {
-        DispatchQueue.main.async { self.performSpeak(call) }
+        guard let text = call.getString("text"), !text.isEmpty else { call.reject("text is required"); return }
+        DispatchQueue.main.async {
+            self.requestGeneration += 1
+            let generation = self.requestGeneration
+            self.synthesizer.stopSpeaking(at: .immediate)
+            self.finishPendingSpeak(rejectMessage: nil)
+            self.pendingSpeakCall = call
+            self.voiceQueue.async {
+                // A cold system voice database can block on XPC for a minute.
+                // Resolve voices and activate audio without blocking UIKit.
+                let voiceId = call.getString("voice") ?? ""
+                let language = call.getString("lang") ?? ""
+                let voice = !voiceId.isEmpty ? AVSpeechSynthesisVoice(identifier: voiceId)
+                    : !language.isEmpty ? AVSpeechSynthesisVoice(language: language) : nil
+                var preparationError: String?
+                if !voiceId.isEmpty && voice == nil { preparationError = "unknown voice identifier" }
+                if preparationError == nil {
+                    do {
+                        try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+                        try AVAudioSession.sharedInstance().setActive(true)
+                    } catch { preparationError = error.localizedDescription }
+                }
+                let resolvedError = preparationError
+                DispatchQueue.main.async {
+                    guard generation == self.requestGeneration else { return }
+                    if let message = resolvedError { self.finishPendingSpeak(rejectMessage: message); return }
+                    self.performSpeak(call, voice: voice)
+                }
+            }
+        }
     }
 
-    private func performSpeak(_ call: CAPPluginCall) {
+    private func performSpeak(_ call: CAPPluginCall, voice: AVSpeechSynthesisVoice?) {
         guard let text = call.getString("text"), !text.isEmpty else {
             call.reject("text is required")
             return
@@ -51,22 +80,7 @@ public class TtsPlugin: CAPPlugin, CAPBridgedPlugin {
         let clampedPitch = min(max(pitch, 0.25), 4.0)
         utterance.pitchMultiplier = Float(min(max(clampedPitch, 0.5), 2.0))
 
-        if let voiceId = call.getString("voice"), !voiceId.isEmpty {
-            guard let voice = AVSpeechSynthesisVoice(identifier: voiceId) else {
-                call.reject("unknown voice identifier")
-                return
-            }
-            utterance.voice = voice
-        } else if let lang = call.getString("lang"), !lang.isEmpty {
-            utterance.voice = AVSpeechSynthesisVoice(language: lang)
-        }
-
-        if synthesizer.isSpeaking || synthesizer.isPaused {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
-        // Settle the previous call before replacing it; the old delegate callback
-        // may arrive after the new utterance has already started.
-        finishPendingSpeak(rejectMessage: nil)
+        utterance.voice = voice
 
         let utteranceId = UUID().uuidString
         currentUtteranceId = utteranceId
@@ -80,6 +94,7 @@ public class TtsPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func performStop(_ call: CAPPluginCall) {
+        requestGeneration += 1
         synthesizer.stopSpeaking(at: .immediate)
         finishPendingSpeak(rejectMessage: nil)
         call.resolve()
@@ -108,7 +123,7 @@ public class TtsPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getVoices(_ call: CAPPluginCall) {
-        DispatchQueue.main.async { self.performGetVoices(call) }
+        voiceQueue.async { self.performGetVoices(call) }
     }
 
     private func performGetVoices(_ call: CAPPluginCall) {
@@ -128,6 +143,7 @@ public class TtsPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         pendingSpeakCall = nil
         currentUtteranceId = nil
+        voiceQueue.async { try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation]) }
         if let message = rejectMessage {
             pending.reject(message)
         } else {

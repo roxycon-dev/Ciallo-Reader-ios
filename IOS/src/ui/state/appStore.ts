@@ -787,8 +787,11 @@ export function bootstrapLibrary(): Promise<void> {
         });
         const { installLibraryContentServices } = await import('@platform/libraryContentServices');
         await installLibraryContentServices(platform, runtime, bookRepository!, () => useAppStore.getState().loadLibrary());
-        const { runNativeSelfTests } = await import('@platform/ios-native/nativeSelfTest');
-        await runNativeSelfTests(platform);
+        const { getPlatformKind } = await import('@platform/index');
+        if (getPlatformKind() === 'ios-native') {
+          const { runNativeSelfTests } = await import('@platform/ios-native/nativeSelfTest');
+          await runNativeSelfTests(platform);
+        }
         await reportStartup('ready');
       } catch (error) {
         throw new Error('书库初始化失败，请重试。', { cause: error });

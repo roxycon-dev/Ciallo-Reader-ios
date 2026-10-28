@@ -25,9 +25,9 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
   if (!(await diagnostics.testConfiguration()).enabled) return;
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(8)), (byte) => byte.toString(16).padStart(2, '0')).join('');
   const checks: Check[] = [], prefix = `ci-selftest-${nonce}`;
-  const check = async (name: string, operation: () => Promise<void>): Promise<void> => {
+  const check = async (name: string, operation: () => Promise<void>, timeoutMs = 20_000): Promise<void> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    try { await Promise.race([operation(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('20 second timeout')), 20_000); })]); checks.push({ name, passed: true, detail: '' }); }
+    try { await Promise.race([operation(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${timeoutMs / 1000} second timeout`)), timeoutMs); })]); checks.push({ name, passed: true, detail: '' }); }
     catch (error) { checks.push({ name, passed: false, detail: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000) }); }
     finally { clearTimeout(timer); await diagnostics.reportCapabilities({ checks }); }
   };
@@ -60,7 +60,7 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
     const speaking = platform.tts.speak('Ciallo native speech acceptance test.', { lang: 'en-US' });
     try { await new Promise((resolve) => setTimeout(resolve, 300)); await platform.tts.pause(); await platform.tts.resume(); } finally { await platform.tts.stop(); }
     await speaking;
-  });
+  }, 120_000); // A fresh simulator may need to initialize the system voice database.
   await check('Native storage and screen-awake bridge', async () => {
     const stats = await platform.storageStats.volumeStats(); assert(stats.totalBytes > 0 && stats.freeBytes >= 0, 'Invalid native volume capacity');
     try { await platform.screenAwake.setEnabled(true); } finally { await platform.screenAwake.setEnabled(false); }

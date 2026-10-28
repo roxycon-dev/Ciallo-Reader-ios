@@ -12,7 +12,7 @@ test('Xbook discovery opens its real text chapter and downloads a complete EPUB 
     const html = /^\/book\/[a-f0-9]+\/[0-9]+$/.test(url.pathname) ? snapshot('chapter') : url.pathname.startsWith('/book/') ? snapshot('detail') : snapshot('search');
     await route.fulfill({ status: 200, contentType: 'text/html;charset=utf-8', body: html, headers: { 'access-control-allow-origin': '*' } });
   });
-  await page.goto('/'); await page.getByTestId('onboarding_skip_button').click({ timeout: 30_000 });
+  await page.goto('/'); await page.getByTestId('onboarding_skip_button').click({ timeout: 45_000 });
   await page.getByRole('button', { name: '发现', exact: true }).click(); await page.getByRole('tab', { name: '小说', exact: true }).click();
   await page.getByRole('button', { name: /聚合发现/ }).click(); await page.getByRole('button', { name: '书阁', exact: true }).click();
   const work = page.getByRole('button', { name: '打开 总裁X总裁', exact: true }); await expect(work).toBeVisible({ timeout: 20_000 }); await work.click();

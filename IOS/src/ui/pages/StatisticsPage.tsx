@@ -140,6 +140,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushReadingStatistics } from '@platform/readingStatisticsRuntime';
 import { GlassCard } from '@ui/components/GlassCard';
 import { SegmentedPillSelector } from '@ui/components/SegmentedPillSelector';
 import { TabScreenHeader } from '@ui/components/TabScreenHeader';
@@ -1560,6 +1561,7 @@ function useStatisticsData(props: StatisticsPageProps): {
     }
     if (!aliveRef.current) return;
     try {
+      await flushReadingStatistics(repo);
       const [shelf, records, sessions, total, goal] = await Promise.all([
         repo === null ? Promise.resolve([]) : repo.getBookshelf(),
         repo === null ? Promise.resolve([]) : repo.getAllReadingRecordsFlow(),
@@ -1695,7 +1697,7 @@ export function StatisticsPage(props: StatisticsPageProps = {}) {
   // Weekly detail: today index + week dates + minutes/books/records per day
   const todayCal = useTodayCalendar();
   const todayIdx = useMemo(
-    () => (todayCal.getDay() + 5) % 7, // Calendar.DAY_OF_WEEK Mon-based
+    () => (todayCal.getDay() + 6) % 7, // JavaScript Sunday=0; Monday-based chart starts at 0.
     [todayCal],
   );
   const weekDates = useMemo(

@@ -1,5 +1,6 @@
 import { PrivacyPinOverlay as ActualPinOverlay } from '@ui/components/privacy/PrivacyWindows';
 import { getPrivacyService } from '@platform/privacyRuntime';
+import { flushReadingStatistics } from '@platform/readingStatisticsRuntime';
 /**
  * HomePage.tsx — line-by-line port of Android
  * `app/src/main/java/com/example/ui/HomeScreen.kt` (2858 lines).
@@ -1725,6 +1726,7 @@ export function HomePage() {
   }, [favorites, books]);
 
   const reloadStats = useCallback(async (): Promise<void> => {
+    await flushReadingStatistics(getBookRepository());
     const [today, streak, privacy, favProt, hint] = await Promise.all([
       prefs.getDailyReadTime(dateStrOf(new Date())),
       prefs.calculateStreak(),

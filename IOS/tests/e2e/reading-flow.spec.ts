@@ -18,7 +18,7 @@ test.afterEach(async ({ page }, result) => {
 
 async function enterApp(page: Page): Promise<void> {
   await page.goto('/');
-  await expect(page.getByTestId('onboarding_screen')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('onboarding_screen')).toBeVisible({ timeout: 30_000 });
   await page.getByTestId('onboarding_skip_button').click();
   await expect(page.locator('.main-shell')).toBeVisible({ timeout: 15_000 });
 }

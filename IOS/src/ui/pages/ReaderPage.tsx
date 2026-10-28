@@ -4022,7 +4022,10 @@ const disposeProgress = useRef<{ chapterIndex: number; input: ReaderProgressInpu
           type="button"
           className="rd-scrim"
           aria-label="关闭菜单"
-          onClick={() => setShowBars(false)}
+          onPointerDown={() => setShowBars(false)}
+          // The center pointerup mounts this scrim before the browser dispatches
+          // its click. Only keyboard clicks may dismiss it without a new press.
+          onClick={(event) => { if (event.detail === 0) setShowBars(false); }}
         />
       ) : null}
 

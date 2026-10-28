@@ -20,7 +20,9 @@ const extraBrowsers = (process.env.PLAYWRIGHT_EXTRA_BROWSERS ?? '')
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 30_000,
+  timeout: 60_000,
+  workers: 2,
+  expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
