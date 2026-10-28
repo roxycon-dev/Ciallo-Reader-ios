@@ -101,6 +101,7 @@ import { getPlatform } from '@platform/index';
 import { currentComicDownloads, subscribeComicDownloads, startComicDownload, controlComicDownload } from '@ui/lib/comicDownloadActions';
 import { getLibraryRuntime } from '@core/library/libraryRuntime';
 import { NovelDownloadAction } from '@ui/components/NovelDownloadAction';
+import { useFavoriteVisibility } from '@ui/hooks/useFavoriteVisibility';
 import { createSearchBook as createFullSearchBook } from '@core/source/searchBook';
 import { bootstrapLibrary } from '@ui/state/appStore';
 import { ChapterCatalog } from '@core/library/chapterCatalog';
@@ -1566,8 +1567,11 @@ export function ComicChaptersPage() {
   const primary = COLORS.primaryPalette[primaryIndex] ?? '#059669';
   const secondary = COLORS.secondaryPalette[secondaryIndex] ?? '#10B981';
 
-  const { book, chapters, chapterStates, progress, textMode, favorite, favoriteEnabled } =
+  const favoritesVisible = useFavoriteVisibility();
+  const { book, chapters, chapterStates: privateStates, progress: privateProgress, textMode, favorite, favoriteEnabled } =
     snapshot;
+  const chapterStates = useMemo(() => favoritesVisible ? privateStates : new Map(), [favoritesVisible, privateStates]);
+  const progress = favoritesVisible ? privateProgress : null;
   const bookId = snapshot.target === null ? null : `${snapshot.target.sourceId}::${snapshot.target.comicId}`;
 
   /* ── 神回（chapterId → 实体）：与 GodRankingPage 同样的读法 ── */
@@ -1810,8 +1814,9 @@ export function ComicChaptersPage() {
   )
 
   const onToggleFavorite = useCallback((next: boolean): void => {
+    if (!favoritesVisible) { showToast('请先在书架验证「我喜欢的」隐私密码'); return; }
     void comicChaptersStore.toggleFavorite(next)
-  }, [])
+  }, [favoritesVisible])
 
   const rootStyle = {
     '--cc-bg': LIGHT_SCHEME.background,
@@ -2131,14 +2136,14 @@ export function ComicChaptersPage() {
         selectedCount={selectedChapterIds.size}
         estimatedChapterSizeMb={DEFAULT_ESTIMATED_CHAPTER_SIZE_MB}
         continueLabel={continueLabel}
-        favorite={favorite}
+        favorite={favoritesVisible && favorite}
         favoriteEnabled={favoriteEnabled}
         primary={primary}
         onDownloadSelected={onDownloadSelected}
         onContinue={onContinue}
         onToggleFavorite={onToggleFavorite}
         onFavoriteLongPress={() => {
-          showToast('放入「我喜欢的」哪个分类？')
+          showToast(favoritesVisible ? '放入「我喜欢的」哪个分类？' : '请先在书架验证「我喜欢的」隐私密码')
         }}
         onFavoriteDisabledClick={() => {
           showToast(FAV_DISABLED_HINT)

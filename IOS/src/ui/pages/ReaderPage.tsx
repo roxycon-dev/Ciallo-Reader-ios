@@ -1,3 +1,4 @@
+import { useReadingStatistics } from '@ui/hooks/useReadingStatistics';
 /**
  * ReaderPage.tsx — line-by-line port of Android `ui/ReaderScreen.kt` (5154 lines)
  * plus the helpers it leans on (`ReaderPagination.kt`, `ui/reader/*`).
@@ -82,10 +83,8 @@
  *      普通翻页无声。串珠遮罩改用 `PageScrubberOverlay` 的 `pageFlipSoundUrl` 端口后，
  *      翻纸声回到它应在的位置。
  *
- *   未修（已登记为 E58，见报告）：ReaderScreen.kt:740 `onRecordTime(seconds)` 在本文件里
- *   是空实现（`onFlush: (seconds) => { void seconds; }`）—— 30 秒计时没有落库。
- *   修复需要实例化 `core/app/mainViewModel.ts` 的 `MainViewModel`，而该类当前没有任何
- *   地方 `new`，属于 app/statistics 模块的接线范围，超出本模块授权。
+ *   2026-10-28：计时已接入 useReadingStatistics → ReadingStatisticsWriter，
+ *   实际保存日记录及前台会话，原生后台停止，按本地午夜分日并过滤无痕阅读。
  *
  *   等价说明（未改）：
  *   - Kotlin 滚动档也把 `PageTurnContainer` 套在滚动内容外层（其 pointerInput 对 SCROLL
@@ -191,7 +190,6 @@ import {
   PAGE_TURN_TYPES,
   PAGE_TEXT_BOTTOM_PADDING_DP,
   PAGE_VERTICAL_PADDING_DP,
-  READING_FLUSH_SECONDS,
   READING_FONT_FAMILIES,
   READER_THEME_PREVIEWS,
   READER_TITLE_FONT_SIZE_PX,
@@ -246,7 +244,6 @@ import {
   type ReaderPrefs,
   type ReaderProgressInput,
   type ReaderTtsController,
-  type ReadingSessionLike,
 } from '@core/reader/readerScreenLogic';
 import { UNSUPPORTED_CHAPTER_TITLE, type Bookmark, type ChapterRow } from '@core/library/bookTypes';
 import { SearchLocator, type SearchResultItem } from '@core/data/searchLocator';
@@ -862,125 +859,6 @@ function useDeferredEffect(
     // deps 由调用方显式传入（数组展开无法被静态分析）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [delayMs, ...deps]);
-}
-
-/** ReadingTimerEffect.kt:36-127 —— 前台 + 屏幕亮着才累计，每 30 秒 flush. */
-function useReadingTimer(args: {
-  bookId: number | null;
-  bookTitle: string;
-  onFlush: (seconds: number) => void;
-  onSessionEnd: (session: ReadingSessionLike) => void;
-  onRestTick: (elapsedSeconds: number) => void;
-}): void {
-  const argsRef = useRef(args);
-  useEffect(() => {
-    argsRef.current = args;
-  });
-  useEffect(() => {
-    let active = true;
-    let elapsed = 0;
-    let lastFlush = 0;
-    let sessionStartMs = 0;
-    let sessionStartHour = -1;
-
-    const endCurrentSession = (): void => {
-      const remaining = elapsed - lastFlush;
-      if (remaining > 0) argsRef.current.onFlush(remaining);
-      if (sessionStartMs > 0) {
-        const start = new Date(sessionStartMs);
-        argsRef.current.onSessionEnd({
-          bookId: argsRef.current.bookId,
-          bookTitle: argsRef.current.bookTitle,
-          dateStr: formatDateOnly(start),
-          startTimeMs: sessionStartMs,
-          endTimeMs: Date.now(),
-          durationSeconds: Math.max(elapsed, 1),
-          startHour:
-            sessionStartHour >= 0 && sessionStartHour <= 23
-              ? sessionStartHour
-              : new Date().getHours(),
-        });
-        sessionStartMs = 0;
-        sessionStartHour = -1;
-      }
-      elapsed = 0;
-      lastFlush = 0;
-    };
-
-    const tick = (): void => {
-      if (!active) return;
-      if (sessionStartMs === 0) {
-        sessionStartMs = Date.now();
-        sessionStartHour = new Date().getHours();
-      }
-      elapsed += 1;
-      if (elapsed - lastFlush >= READING_FLUSH_SECONDS) {
-        argsRef.current.onFlush(elapsed - lastFlush);
-        lastFlush = elapsed;
-      }
-      argsRef.current.onRestTick(elapsed);
-    };
-
-    // Kotlin ReadingTimerEffect.kt:91-107 —— `LifecycleEventObserver` 的
-    // ON_START → active = true；ON_STOP → active = false + endCurrentSession()。
-    // 原先这里直读 `document.visibilityState`，在 WKWebView 里覆盖不到
-    // 「控制中心下拉 / 来电 / 锁屏 / 切走再回来」这类原生前后台切换；
-    // 改走 `platform.appLifecycle`（iOS 由 @capacitor/app 的 appStateChange 提供，
-    // 接 UIApplication 的 willResignActive / didBecomeActive）——E67。
-    let unsubscribe: (() => void) | null = null;
-    let disposed = false;
-    void (async () => {
-      try {
-        const { getPlatform } = await import('@platform/index');
-        if (disposed) return;
-        // 挂载时若已在后台，不能沿用 Kotlin 的 `active = true` 初值（L47）——
-        // 那初值的前提是组件在 ON_START 之后才组合。直接对齐当前状态。
-        if (!getPlatform().appLifecycle.isForeground()) {
-          active = false;
-          return;
-        }
-        unsubscribe = getPlatform().appLifecycle.subscribe((foreground) => {
-          if (foreground) {
-            active = true;
-            return;
-          }
-          active = false;
-          endCurrentSession();
-        });
-      } catch (error) {
-        // 端口不可用：退回标签页可见性（弱等价，浏览器语境够用）。
-        console.warn('[reader] appLifecycle 未生效，回退 visibilityState：', describeError(error));
-        if (disposed) return;
-        const onVisibility = (): void => {
-          if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-            active = true;
-            return;
-          }
-          active = false;
-          endCurrentSession();
-        };
-        document.addEventListener('visibilitychange', onVisibility);
-        unsubscribe = () => document.removeEventListener('visibilitychange', onVisibility);
-      }
-    })();
-
-    const timer = window.setInterval(tick, 1000);
-    return () => {
-      disposed = true;
-      unsubscribe?.();
-      window.clearInterval(timer);
-      active = false;
-      endCurrentSession();
-    };
-  }, []);
-}
-
-/** ReadingTimerEffect.kt:67 — `SimpleDateFormat("yyyy-MM-dd")`. */
-function formatDateOnly(date: Date): string {
-  const year = String(date.getFullYear()).padStart(4, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 /** ReaderScreen.kt:500-520 `LaunchedEffect(isAutoScrolling, autoScrollSpeed, isScrollMode)`. */
@@ -3786,25 +3664,14 @@ const disposeProgress = useRef<{ chapterIndex: number; input: ReaderProgressInpu
   }, []);
 
   // ── 阅读计时 + 休息提醒（ReaderScreen.kt:734-756）─────────────────────
-  const readingTimerArgs = useMemo(
-    () => ({
-      bookId,
-      bookTitle: currentChapter?.title ?? book?.title ?? '',
-      onFlush: (seconds: number) => {
-        void seconds;
-      },
-      onSessionEnd: (session: ReadingSessionLike) => {
-        void session;
-      },
-      onRestTick: (elapsedSeconds: number) => {
-        if (shouldShowRestReminder(prefs.restReminderMinutes, elapsedSeconds)) {
-          setShowRestDialog(true);
-        }
-      },
-    }),
-    [bookId, currentChapter, book, prefs.restReminderMinutes],
-  );
-  useReadingTimer(readingTimerArgs);
+  useReadingStatistics({
+    bookId,
+    title: book?.title ?? '',
+    enabled: currentChapter !== null && currentChapter !== undefined,
+    onRestTick: (elapsedSeconds) => {
+      if (shouldShowRestReminder(prefs.restReminderMinutes, elapsedSeconds)) setShowRestDialog(true);
+    },
+  });
 
   useAutoScroll({
     enabled: isAutoScrolling,

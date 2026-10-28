@@ -795,6 +795,9 @@ function useGestureHandlers(cfg: GestureConfig) {
       let longPressFired = false;
       let tapConsumedByChild = false;
       const pointerId = e.pointerId;
+      // React clears currentTarget after this dispatch. The release handler runs
+      // later on window and must retain the element rather than the synthetic event.
+      const gestureElement = e.currentTarget;
 
       // `accum.x` / `accum.y` accumulate across the whole gesture and are read by
       // `finish()` after the pointer lifts, so they live in a ref (mutated from
@@ -858,7 +861,7 @@ function useGestureHandlers(cfg: GestureConfig) {
         if (cfg.menuVisible || longPressFired) return;
 
         // 插图命中优先（按屏幕矩形注册表）：命中即打开全屏
-        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const rect = gestureElement.getBoundingClientRect();
         const screenPoint = {
           x: e.clientX - rect.left + cfg.containerOffsetInWindow.current.x,
           y: e.clientY - rect.top + cfg.containerOffsetInWindow.current.y,

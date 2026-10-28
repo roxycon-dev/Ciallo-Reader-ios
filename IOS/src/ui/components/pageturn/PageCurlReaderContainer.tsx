@@ -147,6 +147,7 @@ export function PageCurlReaderContainer(props: PageCurlReaderContainerProps) {
       if (screenWidth === 0) return;
       const startX = e.clientX;
       const startY = e.clientY;
+      const gestureElement = e.currentTarget;
       touchYRef.current = e.clientY;
       setTouchY(e.clientY);
       let totalX = 0;
@@ -247,7 +248,7 @@ export function PageCurlReaderContainer(props: PageCurlReaderContainerProps) {
         }
 
         // 纯点按：命中插图已在 up 时几何命中，命中则不分派翻页
-        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const rect = gestureElement.getBoundingClientRect();
         tapOnImage =
           props.onImageTapAt?.({
             x: e.clientX - rect.left + containerOffsetInWindow.current.x,

@@ -178,6 +178,13 @@ export class InMemorySqliteDatabase implements SQLiteDatabase {
       return [{ [selectCount[1] ?? 'count']: n }];
     }
 
+    const selectSum = /^SELECT\s+COALESCE\s*\(\s*SUM\s*\(\s*("[^"]+"|\w+)\s*\)\s*,\s*0\s*\)\s+AS\s+(\w+)\s+FROM\s+([\s\S]+)$/i.exec(statement);
+    if (selectSum) {
+      const column = unquoteIdent(selectSum[1]!);
+      const total = this.applySelect(selectSum[3]!, params).reduce((sum, row) => sum + Number(row[column] ?? 0), 0);
+      return [{ [selectSum[2]!]: total }];
+    }
+
     const selectStar = /^SELECT\s+\*\s+FROM\s+([\s\S]+)$/i.exec(statement);
     if (selectStar) {
       const rows = this.applySelect((selectStar[1] ?? '').trim(), params);

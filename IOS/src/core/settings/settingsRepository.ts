@@ -133,7 +133,7 @@ export class SettingsRepository {
    *                     to / from disk (e.g. unit tests, in-app reads).
    */
   constructor(
-    private readonly db: SQLiteDatabase,
+    private readonly db: Pick<SQLiteDatabase, 'execute' | 'query'>,
     private readonly filesRoot = '',
   ) {}
 

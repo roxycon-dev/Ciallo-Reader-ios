@@ -15,6 +15,8 @@ import { shareFavorites } from '@ui/lib/shareFavorites';
 import { useAppStore } from '@ui/state/appStore';
 import { openOnlineBook } from '@ui/lib/openOnlineBook';
 import { showToast } from '@ui/toast';
+import { useFavoriteVisibility } from '@ui/hooks/useFavoriteVisibility';
+import { getPrivacyService } from '@platform/privacyRuntime';
 import { GlassCard } from '@ui/components/GlassCard';
 import { SourceCover } from '@ui/components/discover/SourceCover';
 import { DiscoverNovelDetails } from '@ui/components/discover/DiscoverNovelDetails';
@@ -76,6 +78,7 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition, refresh
   const [choice, setChoice] = useState<DiscoverWork | null>(null);
   const [novel, setNovel] = useState<SearchBook | null>(null);
   const [favorites, setFavorites] = useState<FavoriteEntity[]>([]);
+  const favoritesVisible = useFavoriteVisibility();
   const [scan, setScan] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const sentinel = useRef<HTMLDivElement | null>(null), scroll = useRef<HTMLElement | null>(null);
@@ -87,6 +90,9 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition, refresh
   const effectiveStatus = scope.effectiveStatus(status);
   const queryKey = JSON.stringify([actualSourceId, dimension, range, feed, category, selected, effectiveStatus]);
   const readingBooks = useAppStore((state) => state.books);
+  const categories = useAppStore((state) => state.categories);
+  const privacyService = getPrivacyService();
+  const privacy = useSyncExternalStore(privacyService.subscribe, privacyService.getSnapshot, privacyService.getSnapshot);
   const preferences = useMemo(() => ({ revision, blocked: store.selection('blocked'), personalization: store.flag('personalization') }), [store, revision]);
   const layout = store.string('layout', 'GRID');
   const setRoute = useAppStore((state) => state.setRoute);
@@ -104,11 +110,12 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition, refresh
     const blocked = preferences.blocked;
     const works = filterWorkStatus(mergeDiscoverEntries(state.entries, dimension, actualSourceId === 'aggregate'), effectiveStatus).filter((work) =>
       !blocked.has(work.key) && !work.variants.some((entry) => blocked.has(discoverIdentity(entry))) && matchesCategories(work.variants.flatMap((entry) => discoverTags(entry.book)), new Set(selected)));
-    const authors = new Set(favorites.filter((item) => isKnownComicAuthor(item.author)).map((item) => item.author));
-    const reading = new Set(readingBooks.filter((book) => book.lastReadTime > 0).map((book) => normalizeIdentity(book.title)));
+    const authors = new Set((favoritesVisible ? favorites : []).filter((item) => isKnownComicAuthor(item.author)).map((item) => item.author));
+    const protectedNames = new Set(categories.filter((item) => item.isProtected).map((item) => item.name));
+    const reading = new Set(readingBooks.filter((book) => privacy.loaded && book.lastReadTime > 0 && !(privacy.enabled && protectedNames.has(book.category))).map((book) => normalizeIdentity(book.title)));
     return preferences.personalization && feed === null && category === null ? personalizeWorks(works, dimension, (work) =>
       (work.variants.some((entry) => authors.has(entry.book.author)) ? 1 : 0) - (work.variants.some((entry) => reading.has(normalizeIdentity(entry.book.title))) ? 1 : 0)) : works;
-  }, [state.entries, actualSourceId, dimension, effectiveStatus, selected, preferences, favorites, readingBooks, feed, category]);
+  }, [state.entries, actualSourceId, dimension, effectiveStatus, selected, preferences, favorites, favoritesVisible, readingBooks, privacy, categories, feed, category]);
   useEffect(() => {
     const root = scroll.current;
     if (!root) return;
@@ -132,6 +139,7 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition, refresh
     if (!source?.capabilities.supportComic && !source?.capabilities.supportOnlineText) setNovel(book); else openOnlineBook(book);
   };
   const follow = (work: DiscoverWork): void => {
+    if (!favoritesVisible) { showToast('请先在书架验证「我喜欢的」隐私密码'); return; }
     const repository = runtime.favorites; if (!repository) return;
     const followed = work.variants.filter((entry) => favorites.some((favorite) => favorite.sourceId === entry.book.sourceId && favorite.comicId === entry.book.id));
     void (async () => {
@@ -184,7 +192,7 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition, refresh
     {rows.length === 0 && !state.loading && sources.length > 0 && <GlassCard><h2>暂时没有符合条件的作品</h2>{Object.entries(state.notices).map(([id, text]) => <p key={id}>{manager.getSource(id)?.name ?? id}：{text}</p>)}<button onClick={() => { setSelected([]); setStatus('全部'); refresh(); }}>刷新</button></GlassCard>}
     <section className={`discover-results discover-results--${layout.toLowerCase()}`} aria-label="发现作品">{rows.map((work) => {
       const first = work.variants[0]!, book = first.book;
-      const followed = work.variants.some((entry) => favorites.some((favorite) => favorite.sourceId === entry.book.sourceId && favorite.comicId === entry.book.id));
+      const followed = favoritesVisible && work.variants.some((entry) => favorites.some((favorite) => favorite.sourceId === entry.book.sourceId && favorite.comicId === entry.book.id));
       const tags = categoryLabels(work.variants.flatMap((entry) => discoverTags(entry.book))).slice(0, 4);
       const time = work.variants.reduce<number | null>((latest, entry) => entry.updatedAt === null ? latest : Math.max(latest ?? 0, entry.updatedAt), null);
       const label = serialLabel(book.novelInfo?.status ?? book.comicInfo?.status);

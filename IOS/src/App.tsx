@@ -43,6 +43,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SourceDialogs } from '@ui/sourceDialogs';
 import { SharedNovelTarget } from '@ui/sharedNovelTarget';
+import { getPrivacyService } from '@platform/privacyRuntime';
+import { ReaderPrivacyGate } from '@ui/components/privacy/ReaderPrivacyGate';
 import { createSourceManagementIo } from '@ui/sourceManagementRuntime';
 import { AppBottomTabBar } from '@ui/components/AppBottomTabBar';
 import { CacheManagementPage } from '@ui/pages/CacheManagementPage';
@@ -222,6 +224,10 @@ export function App() {
     void bootstrapLibrary().then(() => useAppStore.getState().ensureAniListSeeded());
   }, []);
 
+  useEffect(() => getPlatform().appLifecycle.subscribe((foreground) => {
+    if (!foreground) getPrivacyService().lock();
+  }), []);
+
   useEffect(() => {
     let disposed = false;
     let listener: { remove(): Promise<void> } | undefined;
@@ -380,8 +386,8 @@ export function App() {
         {route === 'splash' ? <SplashPage /> : null}
         {route === 'onboarding' ? <OnboardingPage /> : null}
         {route === 'main' ? <MainShell /> : null}
-        {route === 'reader' ? <ReaderPage /> : null}
-        {route === 'comicReader' ? <LocalComicReaderRoute /> : null}
+        {route === 'reader' ? <ReaderPrivacyGate><ReaderPage /></ReaderPrivacyGate> : null}
+        {route === 'comicReader' ? <ReaderPrivacyGate><LocalComicReaderRoute /></ReaderPrivacyGate> : null}
         {route === 'comicChapters' ? <ComicChaptersPage /> : null}
         {route === 'sourceManagement' ? <SourceManagementPage io={sourceManagementIo} /> : null}
         {route === 'novelReaderOnline' ? <OnlineReaderRoute textMode /> : null}

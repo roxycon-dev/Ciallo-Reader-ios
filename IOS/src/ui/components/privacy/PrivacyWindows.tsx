@@ -391,14 +391,16 @@ export function PrivacyPinOverlay(props: PrivacyPinOverlayProps) {
     if (action.type === 'set') {
       // Kotlin L221 `if (entered == firstSetup) onPinSet(entered)`
       submitting.current = true;
-      void Promise.resolve(handlers.onPinSet(action.pin)).finally(() => {
+      void Promise.resolve().then(() => handlers.onPinSet(action.pin)).catch((error: unknown) => {
+        setState((state) => ({ ...state, entered: '', error: error instanceof Error ? error.message : '安全存储暂时不可用，请重试' }));
+      }).finally(() => {
         submitting.current = false;
       });
       return;
     }
     // Kotlin L236-244：`VERIFY` / `CHANGE_OLD`
     submitting.current = true;
-    void Promise.resolve(handlers.onPinVerified(action.pin)).then((ok) => {
+    void Promise.resolve().then(() => handlers.onPinVerified(action.pin)).then((ok) => {
       if (ok) {
         if (action.dismissOnSuccess) {
           // Kotlin L237 `if (onPinVerified(entered)) onDismiss()`
@@ -411,8 +413,9 @@ export function PrivacyPinOverlay(props: PrivacyPinOverlayProps) {
         // Kotlin L237 / L243 失败 → reset("密码错误，请重试")
         setState(action.nextOnFailure);
       }
-      submitting.current = false;
-    });
+    }).catch((error: unknown) => {
+      setState((state) => ({ ...state, entered: '', error: error instanceof Error ? error.message : '安全存储暂时不可用，请重试' }));
+    }).finally(() => { submitting.current = false; });
   }, [flow]);
 
   // Kotlin L280-283 `BoxWithConstraints { val compact = maxHeight < 560.dp … }`

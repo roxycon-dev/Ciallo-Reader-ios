@@ -10,8 +10,32 @@ public class ReaderDevicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "writeClipboard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareText", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "volumeStats", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "reportStartup", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "reportStartup", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "testConfiguration", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reportCapabilities", returnType: CAPPluginReturnPromise)
     ]
+
+    @objc func testConfiguration(_ call: CAPPluginCall) {
+        #if DEBUG && targetEnvironment(simulator)
+        call.resolve(["enabled": ProcessInfo.processInfo.environment["CIALLO_NATIVE_TESTS"] == "1"])
+        #else
+        call.resolve(["enabled": false])
+        #endif
+    }
+
+    @objc func reportCapabilities(_ call: CAPPluginCall) {
+        #if DEBUG && targetEnvironment(simulator)
+        guard ProcessInfo.processInfo.environment["CIALLO_NATIVE_TESTS"] == "1" else { call.reject("Simulator tests are disabled"); return }
+        do {
+            let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            let result: [String: Any] = ["checks": call.getArray("checks") ?? [], "timestamp": Date().timeIntervalSince1970]
+            try JSONSerialization.data(withJSONObject: result).write(to: root.appendingPathComponent("reader-capabilities.json"), options: .atomic)
+            call.resolve()
+        } catch { call.reject(error.localizedDescription) }
+        #else
+        call.reject("Simulator tests are disabled")
+        #endif
+    }
 
     @objc func reportStartup(_ call: CAPPluginCall) {
         #if DEBUG

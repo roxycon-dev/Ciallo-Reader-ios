@@ -157,6 +157,7 @@ import { getLibraryRuntime } from '@core/library/libraryRuntime';
 import type { ComicDownloadTask } from '@core/library/libraryComicDownload';
 import { ReadingRecordMetadata } from '@core/library/libraryReadingRecords';
 import { useAppStore } from '@ui/state/appStore';
+import { useFavoriteVisibility } from '@ui/hooks/useFavoriteVisibility';
 // E50：shared-element 转场的 key 工厂（对应 Kotlin `rememberSharedContentState`）。
 import { bookCoverKey } from '@ui/shared/viewTransitions';
 import { showToast } from '@ui/toast';
@@ -3025,6 +3026,7 @@ export function LibraryPage() {
   );
   /** L187-191 favoriteKeys: "sourceId::comicId" set from the favorites table. */
   const [favoriteKeys, setFavoriteKeys] = useState<string[]>(runtime?.favoriteKeys ?? []);
+  const favoritesVisible = useFavoriteVisibility();
   useEffect(() => {
     let cancelled = false;
     void runtime?.favorites?.favoriteKeys().then((keys) => { if (!cancelled) setFavoriteKeys([...keys]); });
@@ -3033,6 +3035,7 @@ export function LibraryPage() {
   /** L799 / L1161 the favourite toggle entry point on a result card. */
   const onToggleFavorite = useCallback(
     (book: SearchBook, next: boolean) => {
+      if (!favoritesVisible) { showToast('请先在书架验证「我喜欢的」隐私密码'); return; }
       if (runtime?.onToggleFavorite) { runtime.onToggleFavorite(book, next); return; }
       const favorites = runtime?.favorites;
       if (!favorites) { showToast('收藏服务尚未准备好，请重试'); return; }
@@ -3040,7 +3043,7 @@ export function LibraryPage() {
         .then(() => favorites.favoriteKeys()).then((keys) => setFavoriteKeys([...keys]))
         .catch((error: unknown) => showToast(error instanceof Error ? error.message : '收藏保存失败'));
     },
-    [runtime],
+    [runtime, favoritesVisible],
   );
 
   /* ── L463-477 only follow the first aggregate hit while at the top ── */
@@ -3086,8 +3089,8 @@ export function LibraryPage() {
     [vm, downloadedNovelKeys],
   );
   const isFavorite = useCallback(
-    (book: SearchBook) => favoriteKeys.includes(`${book.sourceId}::${book.id}`),
-    [favoriteKeys],
+    (book: SearchBook) => favoritesVisible && favoriteKeys.includes(`${book.sourceId}::${book.id}`),
+    [favoriteKeys, favoritesVisible],
   );
   const latestDownloadState = useMemo(
     () => (activeDownloadBook === null ? null : downloadStateOf(activeDownloadBook)),

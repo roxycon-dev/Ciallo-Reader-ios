@@ -641,6 +641,11 @@ export function bootstrapLibrary(): Promise<void> {
         screenOrientationLock: await settings.getInt('screen_orientation_lock', 0),
       });
 
+      const { getPrivacyService } = await import('@platform/privacyRuntime');
+      const privacy = getPrivacyService();
+      useAppStore.getState().setPrivacyEnabled((await privacy.ready()).enabled);
+      privacy.subscribe(() => useAppStore.getState().setPrivacyEnabled(privacy.getSnapshot().enabled));
+
       // E94：装配 `LibraryViewModel` 并注册到 `libraryRuntime`。
       // Android 侧这一切发生在 `LibraryViewModel(application)` 被 Hilt 构造时
       // （`LibraryViewModel.kt:57-73`）；iOS 侧没有 DI 容器，由这里显式建一次。
@@ -782,6 +787,8 @@ export function bootstrapLibrary(): Promise<void> {
         });
         const { installLibraryContentServices } = await import('@platform/libraryContentServices');
         await installLibraryContentServices(platform, runtime, bookRepository!, () => useAppStore.getState().loadLibrary());
+        const { runNativeSelfTests } = await import('@platform/ios-native/nativeSelfTest');
+        await runNativeSelfTests(platform);
         await reportStartup('ready');
       } catch (error) {
         throw new Error('书库初始化失败，请重试。', { cause: error });

@@ -24,6 +24,8 @@ async function enterApp(page: Page): Promise<void> {
 }
 
 test('local TXT picker imports actual chapters and opens the reader', async ({ page }) => {
+  test.setTimeout(60_000);
+  const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
   await enterApp(page);
   const chooser = page.waitForEvent('filechooser');
   await page.getByTestId('empty_bookshelf_import_button').click();
@@ -41,6 +43,14 @@ test('local TXT picker imports actual chapters and opens the reader', async ({ p
   await expect(page.locator('#root')).toContainText('真正从本地 TXT', { timeout: 15_000 });
   await expect(page.locator('.rd-stage')).toBeVisible();
   await page.screenshot({ path: '.tmp/takeover-local-reader.png' });
+  // Exercise actual timer ticks and its unmount flush, then read the persisted result through the statistics UI.
+  await page.waitForTimeout(3100);
+  await page.locator('.rd-stage').tap();
+  await page.getByRole('button', { name: '返回', exact: true }).click();
+  await page.getByRole('button', { name: '统计', exact: true }).click();
+  await expect(page.locator('.stats-weekly-detail-label')).toBeVisible();
+  await expect(page.locator('.stats-cover-title')).toContainText('接力验收');
+  expect(errors).toEqual([]);
 });
 
 test('source management shows real builtins and accepts custom JSON', async ({ page }) => {

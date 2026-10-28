@@ -152,6 +152,7 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
     return typeof result === 'string' ? result : null;
   }
   isLoggedIn(): boolean { return this.logged; }
+  dispose(): void { this.reset(); }
   setLoggedIn(logged: boolean): void {
     this.logged = logged;
     this.preferences.update({ ...this.preferences.values, [`logged_${this.boot.sourceKey}`]: String(logged) });

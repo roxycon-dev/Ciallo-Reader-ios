@@ -586,6 +586,11 @@ export class BookRepository {
   }
 
   async insertReadingRecord(record: ReadingRecordRow): Promise<void> {
+    if (record.id !== undefined && record.id > 0) {
+      await this.db.execute('UPDATE reading_records SET "bookId" = ?, "bookTitle" = ?, "dateStr" = ?, "durationSeconds" = ? WHERE id = ?',
+        [record.bookId, record.bookTitle, record.dateStr, record.durationSeconds, record.id]);
+      return;
+    }
     await this.db.execute(
       'INSERT OR REPLACE INTO reading_records ("bookId", "bookTitle", "dateStr", "durationSeconds") VALUES (?,?,?,?)',
       [record.bookId, record.bookTitle, record.dateStr, record.durationSeconds],
@@ -1060,7 +1065,9 @@ export class BookRepository {
   }
 
   /** Android addReadingSession. */
-  async addReadingSession(session: ReadingSessionRow): Promise<void> {
+  async addReadingSession(session: ReadingSessionRow, expectedEpoch: number = contentMutationGate.epoch): Promise<void> {
+    return contentMutationGate.mutex.withLock(async () => {
+    if (expectedEpoch !== contentMutationGate.epoch) return;
     await this.db.execute('BEGIN')
     try {
       for (const part of splitReadingTimeSlices(session.startTimeMs, session.endTimeMs, session.durationSeconds)) {
@@ -1081,6 +1088,7 @@ export class BookRepository {
       await this.db.execute('ROLLBACK')
       throw err
     }
+    });
   }
 
   async deleteReadingRecordById(id: number): Promise<void> {

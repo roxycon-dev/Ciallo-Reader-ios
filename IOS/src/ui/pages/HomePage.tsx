@@ -1,3 +1,5 @@
+import { PrivacyPinOverlay as ActualPinOverlay } from '@ui/components/privacy/PrivacyWindows';
+import { getPrivacyService } from '@platform/privacyRuntime';
 /**
  * HomePage.tsx — line-by-line port of Android
  * `app/src/main/java/com/example/ui/HomeScreen.kt` (2858 lines).
@@ -909,57 +911,8 @@ function DeleteFavCategoryDialog(props: { onConfirm: () => void; onDismiss: () =
    661–675 / 2190–2204 PrivacyPinOverlay (VERIFY)
    ═══════════════════════════════════════════════════════════════════ */
 
-function PrivacyPinOverlay(props: {
-  onPinVerified: (pin: string) => boolean;
-  onDismiss: () => void;
-}) {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  return (
-    <div className="hp-dialog-scrim" role="presentation" onClick={props.onDismiss}>
-      <div
-        className="hp-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="验证隐私密码"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="hp-dialog__title">输入密码</h3>
-        <input
-          className="hp-pin__input"
-          type="password"
-          inputMode="numeric"
-          maxLength={6}
-          value={pin}
-          onChange={(e) => {
-            setPin(e.target.value.replace(/\D/g, '').slice(0, 6));
-            setError('');
-          }}
-          placeholder="6 位数字密码"
-          aria-label="密码"
-        />
-        {error !== '' ? <p className="hp-pin__error">{error}</p> : null}
-        <div className="hp-dialog__actions">
-          <button type="button" className="hp-dialog__btn" onClick={props.onDismiss}>
-            取消
-          </button>
-          <button
-            type="button"
-            className="hp-dialog__btn hp-dialog__btn--primary"
-            onClick={() => {
-              if (pin.length !== 6) {
-                setError('请输入 6 位密码');
-                return;
-              }
-              if (!props.onPinVerified(pin)) setError('密码不正确');
-            }}
-          >
-            验证
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+function PrivacyPinOverlay(props: { onPinVerified(pin: string): Promise<boolean> | boolean; onDismiss(): void }) {
+  return <ActualPinOverlay mode="VERIFY" onPinSet={() => {}} onPinVerified={props.onPinVerified} onDismiss={props.onDismiss} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1643,8 +1596,8 @@ export function HomePage() {
   const [todayReadSeconds, setTodayReadSeconds] = useState(0);
   const [streakDays, setStreakDays] = useState(0);
   /* ── Android: 143 privacyModeEnabled / 176 favoritesProtected ── */
-  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(false);
-  const [favoritesProtected, setFavoritesProtected] = useState(false);
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => getPrivacyService().getSnapshot().enabled);
+  const [favoritesProtected, setFavoritesProtected] = useState(true);
   const [unlockedCategoryIds, setUnlockedCategoryIds] = useState<ReadonlySet<number>>(
     new Set<number>(),
   );
@@ -1672,6 +1625,16 @@ export function HomePage() {
   const [favCategoryDeleteFor, setFavCategoryDeleteFor] = useState<string | null>(null);
   const [favoritesPinFor, setFavoritesPinFor] = useState(false);
   const [favoritesUnlocked, setFavoritesUnlocked] = useState(false);
+  useEffect(() => {
+    const service = getPrivacyService();
+    const update = (): void => {
+      const state = service.getSnapshot(); if (!state.loaded) return;
+      setPrivacyModeEnabled(state.enabled); setFavoritesUnlocked(state.favoritesUnlocked); setUnlockedCategoryIds(new Set(state.unlockedCategoryIds));
+    };
+    const unsubscribe = service.subscribe(update);
+    void service.ready().then(update).catch((error: unknown) => showToast(error instanceof Error ? error.message : '无法读取隐私保护状态'));
+    return unsubscribe;
+  }, []);
   const [pendingNewCategoryKeys, setPendingNewCategoryKeys] = useState<readonly string[]>([]);
   const [favoriteCategory, setFavoriteCategory] = useState(ALL_FAV_CATEGORY);
   const [favoriteSort] = useState(FavoriteSort.RECENT_FAVORITE);
@@ -1765,7 +1728,7 @@ export function HomePage() {
     const [today, streak, privacy, favProt, hint] = await Promise.all([
       prefs.getDailyReadTime(dateStrOf(new Date())),
       prefs.calculateStreak(),
-      prefs.incognitoBrowsingEnabled(),
+      getPrivacyService().ready().then((state) => state.enabled),
       prefs.favoritesProtected(),
       prefs.shelfDragHintShown(),
     ]);
@@ -2529,11 +2492,8 @@ export function HomePage() {
   }, [bookToDelete, reloadShelf]);
 
   /* ═══════════════ 2197–2200 unlock category ═══════════════ */
-  const onVerifyCategoryPin = useCallback((cat: HomeCategory, pin: string): boolean => {
-    // Android routes through MainViewModel.unlockCategory → PrivacyManager.verifyPin.
-    // The TS build has no PinStore wired yet (SettingsPage uses the same
-    // 6-digit stand-in), so keep parity with that stand-in.
-    const ok = pin.length === 6;
+  const onVerifyCategoryPin = useCallback(async (cat: HomeCategory, pin: string): Promise<boolean> => {
+    const ok = await getPrivacyService().unlockCategory(cat.id, pin);
     if (ok) {
       setUnlockedCategoryIds((prev) => new Set([...prev, cat.id]));
       setShelfCategory(cat.name);
@@ -2542,8 +2502,8 @@ export function HomePage() {
   }, []);
 
   /* ═══════════════ 665–672 favorites PIN ═══════════════ */
-  const onVerifyFavoritesPin = useCallback((pin: string): boolean => {
-    const ok = pin.length === 6;
+  const onVerifyFavoritesPin = useCallback(async (pin: string): Promise<boolean> => {
+    const ok = await getPrivacyService().unlockFavorites(pin);
     if (ok) {
       setFavoritesUnlocked(true);
       setFavoritesPinFor(false);

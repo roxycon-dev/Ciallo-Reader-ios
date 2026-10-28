@@ -11,6 +11,7 @@ import { JsImageProcessor } from '@core/source/js/jsImageProcessor';
 import { ProductionComicSurface } from './ProductionComicSurface';
 import { normalizeImage, MhttuImageDecryptor } from '@core/library/libraryImageBytes';
 import { createWebCrypto } from '@platform/web/webCrypto';
+import { useReadingStatistics } from '@ui/hooks/useReadingStatistics';
 
 /** Production route: source methods supply actual chapters; no demo data. */
 export function OnlineReaderRoute({ textMode = false }: { textMode?: boolean }) {
@@ -36,6 +37,7 @@ export function OnlineReaderRoute({ textMode = false }: { textMode?: boolean }) 
       : (getLibraryRuntime()?.sourceManager?.getSource(request.target.sourceId) ?? null);
   const title = request?.target.book?.title ?? '在线阅读';
   const loadingCurrent = loading || (chapter !== null && loadedId !== chapter.id);
+  useReadingStatistics({ bookId: null, title, enabled: request !== null && !loadingCurrent && error === null });
 
   useEffect(() => {
     const token = ++loadToken.current;

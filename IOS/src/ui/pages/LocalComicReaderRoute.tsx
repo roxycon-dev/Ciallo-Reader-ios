@@ -5,6 +5,7 @@ import { getPlatform } from '@platform/index';
 import { createAppComicLoader } from '@platform/raster/comicLoader';
 import type { BookRow } from '@core/library/bookTypes';
 import type { ComicPageLoaderPort, ComicPageRef } from '@core/comic/comicReaderCore';
+import { useReadingStatistics } from '@ui/hooks/useReadingStatistics';
 
 /** Local CBZ/PDF downloads use their stored page paths and the full reader engine. */
 export function LocalComicReaderRoute() {
@@ -13,6 +14,7 @@ export function LocalComicReaderRoute() {
   const [retry, setRetry] = useState(0);
   const [content, setContent] = useState<{ book: BookRow; pages: ComicPageRef[]; loader: ComicPageLoaderPort } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  useReadingStatistics({ bookId, title: content?.book.title ?? '', enabled: content !== null && error === null });
   useEffect(() => {
     let cancelled = false;
     let loader: ComicPageLoaderPort | null = null;

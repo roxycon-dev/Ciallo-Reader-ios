@@ -1,3 +1,6 @@
+import { PrivacyManageOverlay as ActualManageOverlay } from '@ui/components/privacy/PrivacyWindows';
+import { PrivacyPinOverlay as ActualPinOverlay } from '@ui/components/privacy/PrivacyWindows';
+import { getPrivacyService } from '@platform/privacyRuntime';
 /**
  * Settings page — EXTEND pass over Android `ui/SettingsTabScreen.kt`
  * (1691 lines total / 1615 non-blank / 1528 code).
@@ -661,7 +664,8 @@ function AppSwitch(props: {
       type="button"
       className={props.checked ? 'app-switch app-switch--on' : 'app-switch'}
       onClick={() => props.onCheckedChange(!props.checked)}
-      aria-pressed={props.checked}
+      role="switch"
+      aria-checked={props.checked}
       aria-label={props.ariaLabel ?? 'switch'}
     >
       <span className="app-switch__thumb" />
@@ -973,58 +977,11 @@ function PrivacyManageOverlay(props: {
   onDisablePrivacy: () => void;
   onDismiss: () => void;
 }) {
-  return (
-    <div className="settings-dialog-scrim" role="presentation" onClick={props.onDismiss}>
-      <div
-        className="settings-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="隐私管理"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h3 className="settings-dialog__title">隐私管理</h3>
-        <div className="settings-dialog__body">
-          <div className="privacy-manage-row">
-            <span className="privacy-manage-row__name">无痕浏览</span>
-            <AppSwitch
-              checked={props.incognitoEnabled}
-              onCheckedChange={props.onToggleIncognito}
-              ariaLabel="无痕浏览"
-            />
-          </div>
-          <div className="privacy-manage-row">
-            <span className="privacy-manage-row__name">「我喜欢的」密码保护</span>
-            <AppSwitch
-              checked={props.favoritesProtected}
-              onCheckedChange={props.onToggleFavoritesProtected}
-              ariaLabel="我喜欢的密码保护"
-            />
-          </div>
-          {props.categories.map((category) => (
-            <div key={category.id} className="privacy-manage-row">
-              <span className="privacy-manage-row__name">{category.name}</span>
-              <AppSwitch
-                checked={category.isProtected}
-                onCheckedChange={(flag) => props.onToggleCategoryProtected(category.id, flag)}
-                ariaLabel={`${category.name} 密码保护`}
-              />
-            </div>
-          ))}
-        </div>
-        <div className="settings-dialog__actions">
-          <button type="button" className="settings-link-btn" onClick={props.onChangePin}>
-            修改密码
-          </button>
-          <button type="button" className="settings-link-btn" onClick={props.onDisablePrivacy}>
-            关闭隐私模式
-          </button>
-          <AppButton size="sm" variant="secondary" onClick={props.onDismiss}>
-            完成
-          </AppButton>
-        </div>
-      </div>
-    </div>
-  );
+  return <ActualManageOverlay categories={props.categories} privacyModeEnabled pinVerified
+    onToggleProtected={(category, flag) => props.onToggleCategoryProtected(category.id, flag)}
+    incognitoBrowsingEnabled={props.incognitoEnabled} onToggleIncognito={props.onToggleIncognito}
+    favoritesProtected={props.favoritesProtected} onToggleFavoritesProtected={props.onToggleFavoritesProtected}
+    onChangePin={props.onChangePin} onDisablePrivacy={props.onDisablePrivacy} onDismiss={props.onDismiss} />;
 }
 
 /* ── Restore-backup confirm — Kotlin SettingsTabScreen.kt:163–198 ──
@@ -1110,94 +1067,9 @@ function AddCategoryDialog(props: {
 }
 
 /* ── PIN setup overlay stand-in ── */
-function PrivacyPinOverlay(props: {
-  mode: 'setup' | 'verify';
-  onPinSet?: (pin: string) => void;
-  onPinVerified?: (pin: string) => boolean;
-  onDismiss: () => void;
-}) {
-  const [pin, setPin] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState('');
-
-  return (
-    <div className="settings-dialog-scrim" role="presentation" onClick={props.onDismiss}>
-      <div
-        className="settings-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={props.mode === 'setup' ? '设置隐私密码' : '验证隐私密码'}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h3 className="settings-dialog__title">
-          {props.mode === 'setup' ? '设置 6 位密码' : '输入密码'}
-        </h3>
-        <div className="settings-dialog__body">
-          <input
-            className="minutes-input"
-            inputMode="numeric"
-            type="password"
-            maxLength={6}
-            value={pin}
-            placeholder="6 位数字密码"
-            onChange={(event) => {
-              setPin(event.target.value.replace(/\D/g, '').slice(0, 6));
-              setError('');
-            }}
-            aria-label="密码"
-          />
-          {props.mode === 'setup' ? (
-            <>
-              <div className="settings-spacer-10" />
-              <input
-                className="minutes-input"
-                inputMode="numeric"
-                type="password"
-                maxLength={6}
-                value={confirm}
-                placeholder="再次输入确认"
-                onChange={(event) => {
-                  setConfirm(event.target.value.replace(/\D/g, '').slice(0, 6));
-                  setError('');
-                }}
-                aria-label="确认密码"
-              />
-            </>
-          ) : null}
-          {error ? (
-            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#dc2626' }}>{error}</p>
-          ) : null}
-        </div>
-        <div className="settings-dialog__actions">
-          <button type="button" className="settings-link-btn" onClick={props.onDismiss}>
-            取消
-          </button>
-          <AppButton
-            size="sm"
-            variant="primary"
-            onClick={() => {
-              if (pin.length !== 6) {
-                setError('请输入 6 位数字密码');
-                return;
-              }
-              if (props.mode === 'setup') {
-                if (pin !== confirm) {
-                  setError('两次输入不一致');
-                  return;
-                }
-                props.onPinSet?.(pin);
-                return;
-              }
-              const ok = props.onPinVerified?.(pin) ?? false;
-              if (!ok) setError('密码不正确');
-            }}
-          >
-            {props.mode === 'setup' ? '确认' : '验证'}
-          </AppButton>
-        </div>
-      </div>
-    </div>
-  );
+function PrivacyPinOverlay(props: { mode: 'setup' | 'verify' | 'change-new' | 'change-old'; onPinSet?(pin: string): Promise<void> | void; onPinVerified?(pin: string): Promise<boolean> | boolean; onDismiss(): void }) {
+  const accepted = useRef(false);
+  return <ActualPinOverlay mode={props.mode === 'setup' ? 'SETUP' : props.mode === 'change-new' ? 'CHANGE_NEW' : props.mode === 'change-old' ? 'CHANGE_OLD' : 'VERIFY'} onPinSet={props.onPinSet ?? (() => {})} onPinVerified={async (pin) => { const ok = await props.onPinVerified?.(pin) ?? false; accepted.current = ok; return ok; }} onDismiss={() => { if (!accepted.current) props.onDismiss(); }} />;
 }
 
 export function SettingsPage(props: SettingsPageProps = {}) {
@@ -1240,9 +1112,23 @@ export function SettingsPage(props: SettingsPageProps = {}) {
   // **改密** 流程（CHANGE_OLD），而非首次开启隐私模式。用 ref 而非 state —— 它只在
   // 事件回调里读写，不参与渲染（React 19 的 `react-hooks/refs` 不允许渲染期读 ref）。
   const changingPinRef = useRef(false);
+  const changingPinOld = useRef<string | null>(null);
+  const [newPinMode, setNewPinMode] = useState<'setup' | 'change-new'>('setup');
   const [showDisableVerify, setShowDisableVerify] = useState(false);
-  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(false);
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => getPrivacyService().getSnapshot().enabled);
+  useEffect(() => {
+    const service = getPrivacyService();
+    const update = (): void => { const state = service.getSnapshot(); if (state.loaded) { setPrivacyModeEnabled(state.enabled); useAppStore.getState().setPrivacyEnabled(state.enabled); } };
+    const unsubscribe = service.subscribe(update);
+    void service.ready().then(update).catch((error: unknown) => showToast(error instanceof Error ? error.message : '无法读取隐私保护状态'));
+    return unsubscribe;
+  }, []);
   const [privacySwitchPending, setPrivacySwitchPending] = useState(false);
+  useEffect(() => getPlatform().appLifecycle.subscribe((foreground) => {
+    if (foreground) return;
+    setShowManageWindow(false); setShowManageVerify(false); setShowChangePin(false); setShowPinSetup(false); setShowDisableVerify(false); setPrivacySwitchPending(false);
+    changingPinOld.current = null; changingPinRef.current = false;
+  }), []);
   const [incognitoBrowsingEnabled, setIncognitoBrowsingEnabled] = useState(false);
   const [favoritesProtected, setFavoritesProtected] = useState(false);
   // Kotlin L222 `showCacheManager` — the flag is GONE: 缓存管理 now pushes the
@@ -1364,7 +1250,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
           settings.getBoolean('blue_light_filter', false),
           settings.getFloat('blue_light_alpha', 0.15),
           settings.getBoolean('preload_wifi_only', false),
-          settings.getBoolean('incognito_browsing_enabled', state.privacyEnabled),
+          settings.getBoolean('incognito_browsing_enabled', false),
           settings.getBoolean('favorites_protected', false),
           settings.getFloat('card_blur_dp', DEFAULT_CARD_TWEAKS.blurRadiusDp),
           settings.getFloat('card_corner_dp', DEFAULT_CARD_TWEAKS.cornerRadiusDp),
@@ -2244,6 +2130,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
                 checked={privacySwitchPending}
                 onCheckedChange={(wantOn) => {
                   if (wantOn) {
+                    setNewPinMode('setup');
                     setPrivacySwitchPending(true);
                     setShowPinSetup(true);
                   } else {
@@ -2562,25 +2449,29 @@ export function SettingsPage(props: SettingsPageProps = {}) {
 
       {showPinSetup ? (
         <PrivacyPinOverlay
-          mode="setup"
-          onPinSet={(pin) => {
-            if (pin.length === 6) {
+          mode={newPinMode}
+          onPinSet={async (pin) => {
+            const changed = changingPinRef.current;
+            const ok = changed && changingPinOld.current !== null ? await getPrivacyService().change(changingPinOld.current, pin) : await getPrivacyService().enable(pin);
+            if (ok) {
               setPrivacyModeEnabled(true);
               setPrivacySwitchPending(false);
               setShowPinSetup(false);
-              setShowManageWindow(true);
+              setShowManageWindow(getPlatform().appLifecycle.isForeground());
               // Kotlin L1551-1555：只有「改密」这条路径在设置新 PIN 成功后弹
               // `AppToast.makeText(context, "密码已更新", LENGTH_SHORT)`。
               // 首次开启隐私模式（Kotlin 的 SETUP 模式）没有这句 toast。
               if (changingPinRef.current) showToast('密码已更新');
               changingPinRef.current = false;
+              changingPinOld.current = null;
             } else {
-              setPrivacySwitchPending(false);
+              throw new Error('密码设置失败，请重新验证原密码');
             }
           }}
           onDismiss={() => {
             // 同上：放弃这次「设置新 PIN」⇒ 改密流程未完成，清标记。
             changingPinRef.current = false;
+            changingPinOld.current = null;
             setShowPinSetup(false);
             setPrivacySwitchPending(false);
           }}
@@ -2590,8 +2481,8 @@ export function SettingsPage(props: SettingsPageProps = {}) {
       {showManageVerify ? (
         <PrivacyPinOverlay
           mode="verify"
-          onPinVerified={(pin) => {
-            if (pin.length === 6) {
+          onPinVerified={async (pin) => {
+            if (await getPrivacyService().verify(pin)) {
               setShowManageVerify(false);
               setShowManageWindow(true);
               return true;
@@ -2604,11 +2495,14 @@ export function SettingsPage(props: SettingsPageProps = {}) {
 
       {showChangePin ? (
         <PrivacyPinOverlay
-          mode="verify"
-          onPinVerified={() => {
+          mode="change-old"
+          onPinVerified={async (pin) => {
+            if (!(await getPrivacyService().verify(pin))) return false;
+            changingPinOld.current = pin;
             setShowChangePin(false);
             // 接下来的「设置新 PIN」属于改密流程（Kotlin L1551-1556 的 `onPinSet`）。
             changingPinRef.current = true;
+            setNewPinMode('change-new');
             setShowPinSetup(true);
             return true;
           }}
@@ -2616,6 +2510,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
             // 取消改密的**验证**步 ⇒ 后面的「设置新 PIN」不会发生，清掉标记，
             // 否则下次首次开启隐私模式会误弹「密码已更新」。
             changingPinRef.current = false;
+            changingPinOld.current = null;
             setShowChangePin(false);
           }}
         />
@@ -2624,8 +2519,8 @@ export function SettingsPage(props: SettingsPageProps = {}) {
       {showDisableVerify ? (
         <PrivacyPinOverlay
           mode="verify"
-          onPinVerified={(pin) => {
-            if (pin.length === 6) {
+          onPinVerified={async (pin) => {
+            if (await getPrivacyService().disable(pin)) {
               setPrivacyModeEnabled(false);
               setShowDisableVerify(false);
               setShowManageWindow(false);
@@ -2644,26 +2539,31 @@ export function SettingsPage(props: SettingsPageProps = {}) {
           incognitoEnabled={incognitoBrowsingEnabled}
           favoritesProtected={favoritesProtected}
           onToggleIncognito={(enabled) => {
-            setIncognitoBrowsingEnabled(enabled);
-            void persist((settings) =>
-              settings.setBoolean('incognito_browsing_enabled', enabled),
-            );
+            void getServices().settings.setBoolean('incognito_browsing_enabled', enabled).then(() => setIncognitoBrowsingEnabled(enabled))
+              .catch(() => showToast('无痕设置保存失败，请重试'));
           }}
           onToggleFavoritesProtected={(enabled) => {
-            setFavoritesProtected(enabled);
-            void persist((settings) => settings.setBoolean('favorites_protected', enabled));
+            void getServices().settings.setBoolean('favorites_protected', enabled).then(() => setFavoritesProtected(enabled))
+              .catch(() => showToast('收藏保护设置保存失败，请重试'));
           }}
           onToggleCategoryProtected={(id, protectedFlag) => {
-            useAppStore.setState((state) => ({
+            void (async () => {
+              const { getBookRepository } = await import('@ui/state/appStore');
+              const repository = getBookRepository(); if (!repository) throw new Error('分类尚未准备好，请重试');
+              await repository.setCategoryProtectedFlag(id, protectedFlag);
+              useAppStore.setState((state) => ({
               categories: state.categories.map((category) =>
                 category.id === id ? { ...category, isProtected: protectedFlag } : category,
               ),
-            }));
+              }));
+            })().catch((error: unknown) => showToast(error instanceof Error ? error.message : '分类保护保存失败'));
           }}
           onChangePin={() => {
+            setShowManageWindow(false);
             setShowChangePin(true);
           }}
           onDisablePrivacy={() => {
+            setShowManageWindow(false);
             setShowDisableVerify(true);
           }}
           onDismiss={() => setShowManageWindow(false)}

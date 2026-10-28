@@ -65,6 +65,7 @@ export async function hashPinLegacy(pin: string, saltHex: string): Promise<strin
   const data = new Uint8Array(salt.length + pinBytes.length);
   data.set(salt, 0);
   data.set(pinBytes, salt.length);
+  if (!crypto.subtle) { const { sha256 } = await import('@noble/hashes/sha2.js'); return bytesToHex(sha256(data)); }
   const digest = await crypto.subtle.digest('SHA-256', data);
   return bytesToHex(new Uint8Array(digest));
 }
@@ -76,6 +77,10 @@ export async function hashPinLegacy(pin: string, saltHex: string): Promise<strin
 export async function derivePin(pin: string, saltHex: string): Promise<string> {
   const salt = hexToBytes(saltHex);
   const pinBytes = new TextEncoder().encode(pin);
+  if (!crypto.subtle) {
+    const [{ pbkdf2Async }, { sha1 }] = await Promise.all([import('@noble/hashes/pbkdf2.js'), import('@noble/hashes/legacy.js')]);
+    return bytesToHex(await pbkdf2Async(sha1, pinBytes, salt, { c: PIN_KDF_ITERATIONS, dkLen: PIN_KDF_BITS / 8, asyncTick: 10 }));
+  }
   const baseKey = await crypto.subtle.importKey(
     'raw',
     pinBytes as unknown as BufferSource,
@@ -194,8 +199,9 @@ export async function changePin(
   oldPin: string,
   newPin: string,
   store: PinStore,
+  now: () => number = Date.now,
 ): Promise<boolean> {
-  if (!(await verifyPin(oldPin, { store })) || !isValidPin(newPin)) {
+  if (!(await verifyPin(oldPin, { store, now })) || !isValidPin(newPin)) {
     return false;
   }
   const salt = newSaltHex();
@@ -208,8 +214,8 @@ export async function changePin(
  * Android `PrivacyManager.disable(pin)` — 关闭隐私模式（需先验证 PIN；
  * 分类保护标记保留在 DB，开关关闭期间不生效）。
  */
-export async function disable(pin: string, store: PinStore): Promise<boolean> {
-  if (!(await verifyPin(pin, { store }))) {
+export async function disable(pin: string, store: PinStore, now: () => number = Date.now): Promise<boolean> {
+  if (!(await verifyPin(pin, { store, now }))) {
     return false;
   }
   store.setEnabled(false);
