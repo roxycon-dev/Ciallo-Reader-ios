@@ -6,7 +6,7 @@ import Capacitor
 public class ReaderWebsitePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "ReaderWebsitePlugin"
     public let jsName = "ReaderWebsite"
-    public let pluginMethods = [CAPPluginMethod(name: "verify", returnType: CAPPluginReturnPromise)]
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "verify", returnType: CAPPluginReturnPromise)]
     private var active: SourceWebsiteController?
 
     @objc func verify(_ call: CAPPluginCall) {

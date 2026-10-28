@@ -148,10 +148,10 @@ function isExistenceProbe(code: string, at: number): boolean {
  * 同样按标识符匹配，串内文本对它不可见）—— 届时再移出名单即可。
  */
 const EXEMPT_FILES = new Set([
-  'src\\core\\source\\js\\jsSourceRepo.ts',
-  'src\\core\\source\\js\\cfWebViewSolver.ts',
-  'src\\core\\source\\zlibrary\\zLibraryWebViewHelper.ts',
-  'src\\core\\library\\zLibraryNativeSession.ts',
+  join('src', 'core', 'source', 'js', 'jsSourceRepo.ts'),
+  join('src', 'core', 'source', 'js', 'cfWebViewSolver.ts'),
+  join('src', 'core', 'source', 'zlibrary', 'zLibraryWebViewHelper.ts'),
+  join('src', 'core', 'library', 'zLibraryNativeSession.ts'),
 ]);
 
 describe('E61：src/core/** 架构断言', () => {

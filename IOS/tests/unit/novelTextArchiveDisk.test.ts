@@ -53,8 +53,12 @@ describe('NovelTextArchive against a real ZIP on disk', () => {
       // (1) The node-written ZIP opens with the OS unzip tool. Windows ships bsdtar at
       // the fixed System32 location, which parses drive-letter paths; the GNU tar on
       // the PATH in Git Bash reads `C:\...` as a remote host ("Cannot connect to C:").
-      const tar = process.platform === 'win32' ? 'C:\\Windows\\System32\\tar.exe' : 'tar';
-      execFileSync(tar, ['-xf', join(dir, 'in.tmp'), '-C', extracted]);
+      if (process.platform === 'linux') {
+        execFileSync('unzip', ['-q', join(dir, 'in.tmp'), '-d', extracted]);
+      } else {
+        const tar = process.platform === 'win32' ? 'C:\\Windows\\System32\\tar.exe' : 'tar';
+        execFileSync(tar, ['-xf', join(dir, 'in.tmp'), '-C', extracted]);
+      }
       expect(readdirSync(extracted)).toEqual(['novel.txt']);
       expect(readFileSync(join(extracted, 'novel.txt'), 'utf8')).toBe(body);
 

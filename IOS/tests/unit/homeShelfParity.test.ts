@@ -728,7 +728,7 @@ describe('Kotlin String.compareTo 排序（非 localeCompare）— HomeScreen.kt
   it('与 localeCompare 的结果不同（这正是原 BUG 的成因）', () => {
     const t = ['甲', '乙', '丙'];
     const codeUnit = [...t].sort((a, b) => compareKotlinLowercase(a, b));
-    const locale = [...t].sort((a, b) => a.localeCompare(b));
+    const locale = [...t].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
     expect(codeUnit).not.toEqual(locale);
   });
 });
