@@ -9,7 +9,7 @@ const PRIVATE_FILE = 'reader-private:';
 
 export function createBookSharePort(fs: FileSystemApi): BookSharePort {
   const port: BookSharePort = {
-    async fileObjectUrl(path) { return PRIVATE_FILE + encodeURIComponent(path); },
+    async fileObjectUrl(path) { return PRIVATE_FILE + encodeURIComponent(path.replace(/^\/+/, '')); },
     async share(target) {
       if (!target.objectUrl.startsWith(PRIVATE_FILE)) throw new Error('分享文件引用无效');
       const path = decodeURIComponent(target.objectUrl.slice(PRIVATE_FILE.length));

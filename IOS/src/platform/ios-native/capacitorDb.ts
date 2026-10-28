@@ -1,4 +1,5 @@
 import type { SQLiteDatabase, SqlValue } from '@platform/interfaces';
+import { reportStartup } from './startupDiagnostics';
 
 interface SqlitePluginLike {
   createConnection(options: { database: string; version?: number; readonly?: boolean }): Promise<void>;
@@ -71,8 +72,11 @@ export class CapacitorSqliteDatabase implements SQLiteDatabase {
       throw new Error('Close the current database before opening another database');
     }
     const opening = (async () => {
+      await reportStartup('starting', new Error('database: loading plugin'));
       const plugin = await loadSqlitePlugin();
+      await reportStartup('starting', new Error('database: creating connection'));
       await plugin.createConnection({ database: options.name, version: 1, readonly: false });
+      await reportStartup('starting', new Error('database: opening connection'));
       try {
         await plugin.open({ database: options.name });
       } catch (error) {
@@ -81,6 +85,7 @@ export class CapacitorSqliteDatabase implements SQLiteDatabase {
       }
       this.databaseName = options.name;
       this.plugin = plugin;
+      await reportStartup('starting', new Error('database: connection ready'));
     })();
     this.opening = opening;
     try { await opening; }

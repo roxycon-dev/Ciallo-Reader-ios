@@ -73,8 +73,9 @@ export async function installLibraryContentServices(platform: PlatformBundle, ru
         const path = decodeURIComponent(url.replace(/^file:\/\//, ''));
         if (Capacitor.isNativePlatform()) {
           const root = await Filesystem.getUri({ path: '', directory: Directory.Data });
-          if (!url.startsWith(root.uri.replace(/\/$/, '') + '/')) throw new Error('缓存文件超出应用目录');
-          await Filesystem.copy({ from: url, to, toDirectory: Directory.Data });
+          if (url.startsWith(root.uri.replace(/\/$/, '') + '/')) await Filesystem.copy({ from: url, to, toDirectory: Directory.Data });
+          else if (path.startsWith('cache/') && !path.split('/').includes('..')) await fs.writeFile(to, await fs.readFile(path));
+          else throw new Error('缓存文件超出应用目录');
         } else await fs.writeFile(to, await fs.readFile(path));
       },
       ...(Capacitor.isNativePlatform() ? { freeSpaceBytes: async () => (await platform.storageStats.volumeStats()).freeBytes } : {}),
@@ -89,7 +90,7 @@ export async function installLibraryContentServices(platform: PlatformBundle, ru
     downloadTasks: () => tasks.getAllTasks(), originalBookId,
     async fileExists(path) {
       if (Capacitor.isNativePlatform()) {
-        try { return (await Filesystem.stat({ path, directory: Directory.Data })).type === 'file'; } catch { return false; }
+        try { return (await Filesystem.stat({ path: path.replace(/^\/+/, ''), directory: Directory.Data })).type === 'file'; } catch { return false; }
       }
       try { await fs.readFile(path); return true; } catch { return false; }
     },

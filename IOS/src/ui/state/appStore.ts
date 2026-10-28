@@ -86,7 +86,7 @@ export function takeGodCropResult(): CropParams | null {
   return value;
 }
 
-export type TabKey = 'library' | 'bookshelf' | 'stats' | 'settings';
+export type TabKey = 'library' | 'discover' | 'bookshelf' | 'stats' | 'settings';
 
 export interface Book {
   id: number;
@@ -599,9 +599,11 @@ export function bootstrapLibrary(): Promise<void> {
       const platform = getPlatform();
       await openAppDatabase({ db: platform.db });
       performance.mark('app-database-ready');
+      await reportStartup('starting', new Error('database: schema ready'));
       setBookRepository(new BookRepository(platform.db));
       await useAppStore.getState().loadLibrary();
       await useAppStore.getState().restoreDownloads();
+      await reportStartup('starting', new Error('library: local records restored'));
       // 夜间模式必须在首帧前就位，否则会闪一下白底（MainActivity 在
       // setContent 之前就把 MyApplicationTheme 包好了）。
       const { SettingsRepository } = await import('@core/settings/settingsRepository');
@@ -684,12 +686,15 @@ export function bootstrapLibrary(): Promise<void> {
           platform.http,
         );
         await registerAppBuiltinSources(sourceManager, platform.http);
+        await reportStartup('starting', new Error('sources: builtins registered'));
         performance.mark('app-builtin-sources-ready');
         const { installAppJsSources } = await import('@platform/jsSourceAssembly');
         await installAppJsSources(sourceManager, platform);
+        await reportStartup('starting', new Error('sources: scripts registered'));
         performance.mark('app-js-sources-ready');
         const { installAppZLibrary } = await import('@platform/zLibraryAssembly');
         const zlibrary = await installAppZLibrary(sourceManager, platform);
+        await reportStartup('starting', new Error('sources: Z-Library registered'));
         performance.mark('app-zlibrary-ready');
         const { showSourceLogin } = await import('@ui/sourceDialogs');
 

@@ -74,7 +74,7 @@ export async function importLocalBook(
   };
   try {
     return await contentMutationGate.mutex.withLock(async () => {
-      const deps = { fs: trackedFs, filesDir: '', bookDao: repo };
+      const deps = { fs: trackedFs, filesDir: directory, bookDao: repo };
       if (extension === '.pdf') return importPdfBook(path, name, repo, (pages) => assets.push(...pages));
       if (extension === '.cbz' || extension === '.zip') return importComic(file.bytes, name, deps);
       if (extension === '.fb2') return importFb2(file.bytes, name, path, deps);

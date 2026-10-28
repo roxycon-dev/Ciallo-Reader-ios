@@ -50,7 +50,7 @@ jobs:
           done
           sleep 2
           xcrun simctl io "$device_id" screenshot native-startup.png
-          xcrun simctl spawn "$device_id" log show --last 1m --style compact --predicate 'process == "App"' > native-runtime.log
+          xcrun simctl spawn "$device_id" log show --last 10m --style compact --predicate 'process == "App"' > native-runtime.log
           test "$ready" = 1 || { cat native-startup-state.json 2>/dev/null || true; echo 'App did not hydrate persistent data and register services'; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
