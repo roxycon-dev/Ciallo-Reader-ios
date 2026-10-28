@@ -45,7 +45,7 @@ describe('production source wiring', () => {
     const { storage, http } = fixture();
     const manager = createAppSourceManager(storage, http);
     await registerAppBuiltinSources(manager, http);
-    expect(manager.allSources.value).toHaveLength(4);
+    expect(manager.allSources.value.map((source) => source.id)).toEqual(expect.arrayContaining(['auto_novel', 'wenku8_library', 'ixdzs8', 'xbookcn', 'quanben', 'ihuaben', 'sfacg', 'mangadex']));
     expect(manager.activeSource.value?.id).toBe('mangadex');
     expect(http.request).not.toHaveBeenCalled();
     expect(await resolveComicSource('mangadex')).not.toBeNull();

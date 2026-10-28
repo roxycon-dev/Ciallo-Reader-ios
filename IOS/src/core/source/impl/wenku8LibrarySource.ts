@@ -71,6 +71,9 @@ import {
   resolveHttpClient,
 } from './sourceHttp';
 import type { FailoverClientFactory, HttpClient } from './sourceHttp';
+import { Wenku8Discovery } from './wenku8Discovery';
+import type { DiscoverQuery } from '@core/discover/models';
+import type { FileSystemApi } from '@platform/interfaces';
 
 /** Kotlin `private data class Cached(val at: Long, val json: JSONObject)`. */
 interface Wenku8Cached {
@@ -81,7 +84,7 @@ interface Wenku8Cached {
 /** Public Chinese EPUB catalogue. Resolve temporary storage links only when the worker downloads. */
 export class Wenku8LibrarySource extends BookSource {
   readonly id = 'wenku8_library';
-  readonly name = '轻小说中文文库';
+  readonly name = 'Wenku8 Library';
   readonly capabilities: SourceCapabilities = createSourceCapabilities({ supportEbook: true });
 
   private readonly baseUrl: string;
@@ -89,18 +92,21 @@ export class Wenku8LibrarySource extends BookSource {
   /** Kotlin `private data class Cached(val at: Long, val json: JSONObject)`. */
   private readonly cache: LruCache<string, Wenku8Cached>;
   private readonly mutex = new AsyncMutex();
+  private readonly discovery: Wenku8Discovery;
 
   constructor(
     options: {
       baseUrl?: string;
       client?: HttpClient | null;
       failover?: FailoverClientFactory;
+      fs?: FileSystemApi;
     } = {},
   ) {
     super();
     this.baseUrl = options.baseUrl ?? 'https://wenku8.ywy.moe/';
     this.http = resolveHttpClient(options.client ?? null, options.failover);
     this.cache = new LruCache<string, Wenku8Cached>(16);
+    this.discovery = new Wenku8Discovery(this.baseUrl, (url) => this.json(url), (row) => this.book(row), options.fs);
   }
 
   private bookUrl(bookId: string): string {
@@ -266,6 +272,11 @@ export class Wenku8LibrarySource extends BookSource {
   async getDetail(bookId: string): Promise<SourceResultType<SearchBook>> {
     return this.result(async () => this.book(await this.detail(bookId)));
   }
+
+  override async discoverCatalog() { return this.result(() => this.discovery.catalog()); }
+  override async discover(query: DiscoverQuery) { return this.result(() => this.discovery.discover(query)); }
+  override async getShareUrl(bookId: string) { this.bookUrl(bookId); return new URL(`books/${bookId}`, this.baseUrl).toString(); }
+  override async getCoverHeaders() { return { Referer: this.baseUrl }; }
 
   async refreshNovelDetail(bookId: string): Promise<SourceResultType<SearchBook>> {
     return this.result(async () => this.book(await this.detail(bookId, true)));

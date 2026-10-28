@@ -100,7 +100,9 @@ import {
 import { getPlatform } from '@platform/index';
 import { currentComicDownloads, subscribeComicDownloads, startComicDownload, controlComicDownload } from '@ui/lib/comicDownloadActions';
 import { getLibraryRuntime } from '@core/library/libraryRuntime';
-import { openAppDatabase } from '@core/db/openDatabase';
+import { NovelDownloadAction } from '@ui/components/NovelDownloadAction';
+import { createSearchBook as createFullSearchBook } from '@core/source/searchBook';
+import { bootstrapLibrary } from '@ui/state/appStore';
 import { ChapterCatalog } from '@core/library/chapterCatalog';
 import { FavoriteDao } from '@core/library/favoriteDao';
 import { createFavoriteRepository, type FavoriteRepository } from '@core/library/favoriteRepository';
@@ -126,7 +128,7 @@ import { AppButton } from '@ui/components/AppButton';
 import { FavoriteHeartIcon } from '@ui/components/favorite/FavoriteHeart';
 import { SourceUnavailableBanner } from '@ui/components/favorite/ComicDetailActions';
 import { SourceMigrateSheet, type SourceCandidate } from '@ui/components/favorite/SourceMigration';
-import { findSourceCandidates, type SearchableComicSource } from '@core/favorite/favoriteUi';
+import { findSourceCandidates } from '@core/favorite/favoriteUi';
 import { showToast } from '@ui/toast';
 import { useAppStore } from '@ui/state/appStore';
 import { COLORS } from '@ui/theme/tokens';
@@ -1559,8 +1561,7 @@ export function ComicChaptersPage() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pendingFocusRef = useRef<string | null>(null);
-  // 换源候选需要「全部可用书源」；书源注册表由 SourceManager 拥有，此处暂无接线。
-  const searchSourcesRef = useRef<ReadonlyArray<SearchableComicSource>>([]);
+  const migrationRequest = useRef(0);
 
   const primary = COLORS.primaryPalette[primaryIndex] ?? '#059669';
   const secondary = COLORS.secondaryPalette[secondaryIndex] ?? '#10B981';
@@ -1667,7 +1668,7 @@ export function ComicChaptersPage() {
     void (async () => {
       try {
         const platform = getPlatform();
-        await openAppDatabase({ db: platform.db });
+        await bootstrapLibrary();
         attachGodMomentRepository(new GodMomentRepository(platform.db));
         await hydrateGodMomentsFromDb();
         if (cancelled) return;
@@ -1756,15 +1757,19 @@ export function ComicChaptersPage() {
     setMigrateOpen(true)
     setMigrateLoading(true)
     setMigrateCandidates([])
+    const request = ++migrationRequest.current;
+    const sources = getLibraryRuntime()?.sourceManager?.availableSources.value.filter((source) =>
+      source.capabilities.supportSearch && (textMode ? source.capabilities.supportOnlineText : source.capabilities.supportComic)) ?? [];
     void findSourceCandidates(
       current.book?.title ?? '',
       current.sourceId,
-      searchSourcesRef.current,
+      sources,
     ).then((candidates) => {
+      if (request !== migrationRequest.current) return;
       setMigrateCandidates(candidates)
       setMigrateLoading(false)
     })
-  }, [snapshot.target])
+  }, [snapshot.target, textMode])
 
   /* ── L406–444 底部「继续阅读」 ── */
   const openReader = useCallback((chapter: ComicChapter, page = 0): void => {
@@ -1933,23 +1938,7 @@ export function ComicChaptersPage() {
                     跳到最新章
                   </button>
                   <span className="cc-toolbar__spacer" />
-                  {textMode ? (
-                    <button
-                      type="button"
-                      className="cc-toolbar__chip"
-                      onClick={() => showToast('已请求整本下载，可在下载管理查看进度')}
-                    >
-                      <span style={{ color: LIGHT_SCHEME.onSurfaceVariant }}>
-                        <Icon name="download" size={16} />
-                      </span>
-                      <span
-                        className="cc-toolbar__chip-text"
-                        style={{ color: LIGHT_SCHEME.onSurfaceVariant }}
-                      >
-                        整本下载
-                      </span>
-                    </button>
-                  ) : null}
+                  {textMode && book ? <NovelDownloadAction book={createFullSearchBook({ ...book, novelInfo: null })} /> : null}
                   {textMode ? null : (
                     <button
                       type="button"
@@ -2162,6 +2151,7 @@ export function ComicChaptersPage() {
           candidates={migrateCandidates}
           loading={migrateLoading}
           onDismiss={() => {
+            migrationRequest.current++;
             setMigrateOpen(false)
           }}
           onPick={(candidate) => {
@@ -2171,8 +2161,16 @@ export function ComicChaptersPage() {
               candidate.book,
             )
             if (next === null) return
-            void comicChaptersStore.open(next)
-            showToast(`已换到「${candidate.sourceName}」，进度已迁移`)
+            void (async () => {
+              const current = snapshot.target, runtime = getLibraryRuntime(), repo = runtime?.favorites;
+              const source = await resolveComicSource(next.sourceId);
+              if (!source || !repo || !current) throw new Error('书源或阅读记录尚未准备好，请重试');
+              const chapters = await source.getChapters(next.comicId);
+              if (!chapters.length) throw new Error('新书源未返回可用目录，尚未迁移阅读记录');
+              const count = await repo.migrateByOrder({ sourceId: current.sourceId, comicId: current.comicId }, { sourceId: next.sourceId, comicId: next.comicId }, chapters);
+              await comicChaptersStore.open(next);
+              showToast(`已换到「${candidate.sourceName}」，迁移 ${count} 条阅读记录`);
+            })().catch((error: unknown) => showToast(error instanceof Error ? error.message : '换源失败，请重试'));
           }}
         />
       ) : null}

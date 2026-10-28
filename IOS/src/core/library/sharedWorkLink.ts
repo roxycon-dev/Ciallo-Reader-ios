@@ -100,7 +100,7 @@ export function sharedWorkLinkParse(raw: string | null | undefined): SharedWorkT
     }
     if (url.protocol !== `${SCHEME}:`) return null;
     if (url.hostname !== AUTHORITY) return null;
-    if (url.pathname !== '' && url.pathname !== '/') return null;
+    if (url.pathname !== '') return null;
     if (url.hash !== '') return null;
     if (url.username !== '' || url.password !== '') return null;
     if (url.port !== '') return null;

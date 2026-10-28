@@ -1504,9 +1504,8 @@ export class LibraryViewModel {
   /** LibraryViewModel.kt:1083-1125 `fun startDownload(book)`. */
   startDownload(book: SearchBook): void {
     const source =
-      this.deps.sources.availableSources().find((it) => it.id === book.sourceId) ??
-      this.deps.sources.activeSource();
-    if (source === null) return;
+      this.deps.sources.availableSources().find((it) => it.id === book.sourceId);
+    if (!source) { this.errorMessageState.value = '此作品的书源已停用，请启用相同书源后重试'; return; }
     // Z-Library 支持多格式：先取格式列表，多个格式时弹选择框
     if (this.deps.isZLibrarySource?.(source) === true) {
       this.launch(async () => {
@@ -1553,9 +1552,8 @@ export class LibraryViewModel {
     this.formatPickerBookState.value = null;
     this.pendingFormatsState.value = [];
     const source =
-      this.deps.sources.availableSources().find((it) => it.id === book.sourceId) ??
-      this.deps.sources.activeSource();
-    if (source === null) return;
+      this.deps.sources.availableSources().find((it) => it.id === book.sourceId);
+    if (!source) { this.errorMessageState.value = '此作品的书源已停用，请启用相同书源后重试'; return; }
     // 默认格式走软件自研 /dl/ + Cookie 方案，非默认格式走 eapi 多格式；
     // 具体路由由 getDownloadInfo 内部按 preferredFormat 决定，这里统一交给下载器。
     this.launch(async () => {

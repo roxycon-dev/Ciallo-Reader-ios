@@ -5,6 +5,7 @@
  */
 
 import type { DatabaseLike } from './bookRepository'
+import { contentMutationGate } from './contentMutationGate'
 import {
   type ChapterReadEntity,
   type ChapterReadRow,
@@ -206,28 +207,32 @@ export class FavoriteDao {
 
   /** 重命名分类：分类表与收藏记录一起改。 */
   async renameFavoriteCategoryCascade(oldName: string, newName: string): Promise<void> {
-    await this.db.execute('BEGIN')
-    try {
-      await this.renameFavoriteCategory(oldName, newName)
-      await this.retagFavorites(oldName, newName)
-      await this.db.execute('COMMIT')
-    } catch (err) {
-      await this.db.execute('ROLLBACK')
-      throw err
-    }
+    return contentMutationGate.mutex.withLock(async () => {
+      await this.db.execute('BEGIN')
+      try {
+        await this.renameFavoriteCategory(oldName, newName)
+        await this.retagFavorites(oldName, newName)
+        await this.db.execute('COMMIT')
+      } catch (err) {
+        await this.db.execute('ROLLBACK')
+        throw err
+      }
+    })
   }
 
   /** 删除分类：收藏退回默认分类，绝不连带删除收藏。 */
   async deleteFavoriteCategoryAndRetag(name: string, fallback: string): Promise<void> {
-    await this.db.execute('BEGIN')
-    try {
-      await this.retagFavorites(name, fallback)
-      await this.deleteFavoriteCategory(name)
-      await this.db.execute('COMMIT')
-    } catch (err) {
-      await this.db.execute('ROLLBACK')
-      throw err
-    }
+    return contentMutationGate.mutex.withLock(async () => {
+      await this.db.execute('BEGIN')
+      try {
+        await this.retagFavorites(name, fallback)
+        await this.deleteFavoriteCategory(name)
+        await this.db.execute('COMMIT')
+      } catch (err) {
+        await this.db.execute('ROLLBACK')
+        throw err
+      }
+    })
   }
 
   /* ─────────────── 漫画级进度 ─────────────── */
@@ -351,30 +356,32 @@ export class FavoriteDao {
     toSourceId: string,
     toComicId: string,
   ): Promise<void> {
-    await this.db.execute('BEGIN')
-    try {
-      const fav = await this.favorite(fromSourceId, fromComicId)
-      if (fav != null) {
-        await this.deleteFavorite(fromSourceId, fromComicId)
-        await this.insertFavorite({ ...fav, sourceId: toSourceId, comicId: toComicId })
+    return contentMutationGate.mutex.withLock(async () => {
+      await this.db.execute('BEGIN')
+      try {
+        const fav = await this.favorite(fromSourceId, fromComicId)
+        if (fav != null) {
+          await this.deleteFavorite(fromSourceId, fromComicId)
+          await this.insertFavorite({ ...fav, sourceId: toSourceId, comicId: toComicId })
+        }
+        const prog = await this.progress(fromSourceId, fromComicId)
+        if (prog != null) {
+          await this.deleteProgress(fromSourceId, fromComicId)
+          await this.upsertProgress({ ...prog, sourceId: toSourceId, comicId: toComicId })
+        }
+        const states = await this.chapterStatesSync(fromSourceId, fromComicId)
+        if (states.length > 0) {
+          await this.clearChapterStates(fromSourceId, fromComicId)
+          await this.upsertChapterStates(
+            states.map((s) => ({ ...s, sourceId: toSourceId, comicId: toComicId })),
+          )
+        }
+        await this.db.execute('COMMIT')
+      } catch (err) {
+        await this.db.execute('ROLLBACK')
+        throw err
       }
-      const prog = await this.progress(fromSourceId, fromComicId)
-      if (prog != null) {
-        await this.deleteProgress(fromSourceId, fromComicId)
-        await this.upsertProgress({ ...prog, sourceId: toSourceId, comicId: toComicId })
-      }
-      const states = await this.chapterStatesSync(fromSourceId, fromComicId)
-      if (states.length > 0) {
-        await this.clearChapterStates(fromSourceId, fromComicId)
-        await this.upsertChapterStates(
-          states.map((s) => ({ ...s, sourceId: toSourceId, comicId: toComicId })),
-        )
-      }
-      await this.db.execute('COMMIT')
-    } catch (err) {
-      await this.db.execute('ROLLBACK')
-      throw err
-    }
+    })
   }
 
   async deleteChapterIds(source: string, comic: string, ids: string[]): Promise<void> {
@@ -393,16 +400,18 @@ export class FavoriteDao {
     progress: ComicProgressEntity | null,
     oldIds: string[],
   ): Promise<void> {
-    await this.db.execute('BEGIN')
-    try {
-      if (oldIds.length > 0) await this.deleteChapterIds(source, comic, oldIds)
-      if (states.length > 0) await this.upsertChapterStates(states)
-      if (progress != null) await this.upsertProgress(progress)
-      await this.db.execute('COMMIT')
-    } catch (err) {
-      await this.db.execute('ROLLBACK')
-      throw err
-    }
+    return contentMutationGate.mutex.withLock(async () => {
+      await this.db.execute('BEGIN')
+      try {
+        if (oldIds.length > 0) await this.deleteChapterIds(source, comic, oldIds)
+        if (states.length > 0) await this.upsertChapterStates(states)
+        if (progress != null) await this.upsertProgress(progress)
+        await this.db.execute('COMMIT')
+      } catch (err) {
+        await this.db.execute('ROLLBACK')
+        throw err
+      }
+    })
   }
 
   async migrateResolved(
@@ -413,21 +422,23 @@ export class FavoriteDao {
     favorite: FavoriteEntity | null,
     clearOld: boolean,
   ): Promise<void> {
-    await this.db.execute('BEGIN')
-    try {
-      if (states.length > 0) await this.upsertChapterStates(states)
-      if (progress != null) await this.upsertProgress(progress)
-      if (favorite != null) await this.insertFavorite(favorite)
-      if (clearOld) {
-        await this.clearChapterStates(from.sourceId, from.comicId)
-        await this.deleteProgress(from.sourceId, from.comicId)
-        await this.deleteFavorite(from.sourceId, from.comicId)
+    return contentMutationGate.mutex.withLock(async () => {
+      await this.db.execute('BEGIN')
+      try {
+        if (states.length > 0) await this.upsertChapterStates(states)
+        if (progress != null) await this.upsertProgress(progress)
+        if (favorite != null) await this.insertFavorite(favorite)
+        if (clearOld) {
+          await this.clearChapterStates(from.sourceId, from.comicId)
+          await this.deleteProgress(from.sourceId, from.comicId)
+          await this.deleteFavorite(from.sourceId, from.comicId)
+        }
+        await this.db.execute('COMMIT')
+      } catch (err) {
+        await this.db.execute('ROLLBACK')
+        throw err
       }
-      await this.db.execute('COMMIT')
-    } catch (err) {
-      await this.db.execute('ROLLBACK')
-      throw err
-    }
+    })
   }
 
   /** Replace the favorite atomically. Keep old reading records as a fallback. */
@@ -438,92 +449,94 @@ export class FavoriteDao {
     chapterOrders: Map<string, number>,
     latestId: string | null,
   ): Promise<FavoriteMigrationReport> {
-    await this.db.execute('BEGIN')
-    try {
-      const oldFavorite = await this.favorite(from.sourceId, from.comicId)
-      if (oldFavorite == null) {
-        throw new Error('旧收藏已移除，请重新选择')
-      }
-      const targetStates = new Map(
-        (await this.chapterStatesSync(replacement.sourceId, replacement.comicId)).map((s) => [
-          s.chapterId,
-          s,
-        ]),
-      )
-      const oldStates = (
-        await this.chapterStatesSync(from.sourceId, from.comicId)
-      ).filter((s) => s.status !== ChapterReadState.UNREAD || s.bookmarked)
-
-      const mapped: ChapterReadEntity[] = []
-      for (const state of oldStates) {
-        const chapterId = mapping.get(state.chapterId)
-        if (chapterId === undefined) continue
-        const existing = targetStates.get(chapterId)
-        const transferred: ChapterReadEntity = {
-          ...state,
-          sourceId: replacement.sourceId,
-          comicId: replacement.comicId,
-          chapterId,
-          chapterIndex: chapterOrders.get(chapterId) ?? -1,
-          pageIndex: 0,
-          pageCount: 0,
-          bookmarked: state.bookmarked || existing?.bookmarked === true,
+    return contentMutationGate.mutex.withLock(async () => {
+      await this.db.execute('BEGIN')
+      try {
+        const oldFavorite = await this.favorite(from.sourceId, from.comicId)
+        if (oldFavorite == null) {
+          throw new Error('旧收藏已移除，请重新选择')
         }
+        const targetStates = new Map(
+          (await this.chapterStatesSync(replacement.sourceId, replacement.comicId)).map((s) => [
+            s.chapterId,
+            s,
+          ]),
+        )
+        const oldStates = (
+          await this.chapterStatesSync(from.sourceId, from.comicId)
+        ).filter((s) => s.status !== ChapterReadState.UNREAD || s.bookmarked)
+
+        const mapped: ChapterReadEntity[] = []
+        for (const state of oldStates) {
+          const chapterId = mapping.get(state.chapterId)
+          if (chapterId === undefined) continue
+          const existing = targetStates.get(chapterId)
+          const transferred: ChapterReadEntity = {
+            ...state,
+            sourceId: replacement.sourceId,
+            comicId: replacement.comicId,
+            chapterId,
+            chapterIndex: chapterOrders.get(chapterId) ?? -1,
+            pageIndex: 0,
+            pageCount: 0,
+            bookmarked: state.bookmarked || existing?.bookmarked === true,
+          }
+          if (
+            existing != null &&
+            (existing.status > state.status ||
+              (existing.status === state.status && existing.updatedAt >= state.updatedAt))
+          ) {
+            mapped.push({ ...existing, bookmarked: transferred.bookmarked })
+          } else {
+            mapped.push(transferred)
+          }
+        }
+
+        const oldProgress = await this.progress(from.sourceId, from.comicId)
+        const resumeId =
+          oldProgress != null && oldProgress.lastChapterId != null
+            ? mapping.get(oldProgress.lastChapterId) ?? null
+            : null
+        const targetProgress = await this.progress(replacement.sourceId, replacement.comicId)
         if (
-          existing != null &&
-          (existing.status > state.status ||
-            (existing.status === state.status && existing.updatedAt >= state.updatedAt))
+          resumeId != null &&
+          oldProgress != null &&
+          (targetProgress?.lastChapterId == null || targetProgress.lastReadAt < oldProgress.lastReadAt)
         ) {
-          mapped.push({ ...existing, bookmarked: transferred.bookmarked })
-        } else {
-          mapped.push(transferred)
+          await this.upsertProgress({
+            ...oldProgress,
+            sourceId: replacement.sourceId,
+            comicId: replacement.comicId,
+            lastChapterId: resumeId,
+            lastChapterIndex: chapterOrders.get(resumeId) ?? -1,
+            lastPageIndex: 0,
+            lastPageCount: 0,
+            seenTopChapterId: latestId,
+            seenChapterCount: chapterOrders.size,
+          })
         }
-      }
+        if (mapped.length > 0) await this.upsertChapterStates(mapped)
 
-      const oldProgress = await this.progress(from.sourceId, from.comicId)
-      const resumeId =
-        oldProgress != null && oldProgress.lastChapterId != null
-          ? mapping.get(oldProgress.lastChapterId) ?? null
-          : null
-      const targetProgress = await this.progress(replacement.sourceId, replacement.comicId)
-      if (
-        resumeId != null &&
-        oldProgress != null &&
-        (targetProgress?.lastChapterId == null || targetProgress.lastReadAt < oldProgress.lastReadAt)
-      ) {
-        await this.upsertProgress({
-          ...oldProgress,
-          sourceId: replacement.sourceId,
-          comicId: replacement.comicId,
-          lastChapterId: resumeId,
-          lastChapterIndex: chapterOrders.get(resumeId) ?? -1,
-          lastPageIndex: 0,
-          lastPageCount: 0,
-          seenTopChapterId: latestId,
-          seenChapterCount: chapterOrders.size,
+        const targetFavorite = await this.favorite(replacement.sourceId, replacement.comicId)
+        await this.insertFavorite({
+          ...replacement,
+          categoryName: targetFavorite?.categoryName ?? oldFavorite.categoryName,
+          favoritedAt: targetFavorite?.favoritedAt ?? oldFavorite.favoritedAt,
+          sortOrder: targetFavorite?.sortOrder ?? oldFavorite.sortOrder,
         })
-      }
-      if (mapped.length > 0) await this.upsertChapterStates(mapped)
+        await this.deleteFavorite(from.sourceId, from.comicId)
+        await this.db.execute('COMMIT')
 
-      const targetFavorite = await this.favorite(replacement.sourceId, replacement.comicId)
-      await this.insertFavorite({
-        ...replacement,
-        categoryName: targetFavorite?.categoryName ?? oldFavorite.categoryName,
-        favoritedAt: targetFavorite?.favoritedAt ?? oldFavorite.favoritedAt,
-        sortOrder: targetFavorite?.sortOrder ?? oldFavorite.sortOrder,
-      })
-      await this.deleteFavorite(from.sourceId, from.comicId)
-      await this.db.execute('COMMIT')
-
-      return {
-        migrated: mapped.length,
-        unmatched: oldStates.length - mapped.length,
-        resumeMatched: oldProgress?.lastChapterId == null || resumeId != null,
+        return {
+          migrated: mapped.length,
+          unmatched: oldStates.length - mapped.length,
+          resumeMatched: oldProgress?.lastChapterId == null || resumeId != null,
+        }
+      } catch (err) {
+        await this.db.execute('ROLLBACK')
+        throw err
       }
-    } catch (err) {
-      await this.db.execute('ROLLBACK')
-      throw err
-    }
+    })
   }
 
   /** Convenience: business key string. */

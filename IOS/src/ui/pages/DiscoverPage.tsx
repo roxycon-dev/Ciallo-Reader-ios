@@ -9,10 +9,9 @@ import { DISCOVER_CATEGORIES, DISCOVER_ALL_CATEGORIES, categoryLabels, matchesCa
 import { discoverStatusScope, filterWorkStatus, serialLabel } from '@core/discover/status';
 import type { FavoriteEntity } from '@core/library/favoriteTypes';
 import type { SearchBook } from '@core/source/searchBook';
-import { ComicSource } from '@core/source/comicSource';
 import { isKnownComicAuthor } from '@core/source/comicInfo';
 import { getDiscoverRuntime } from '@platform/discoverRuntime';
-import { getPlatform } from '@platform/index';
+import { shareFavorites } from '@ui/lib/shareFavorites';
 import { useAppStore } from '@ui/state/appStore';
 import { openOnlineBook } from '@ui/lib/openOnlineBook';
 import { showToast } from '@ui/toast';
@@ -42,7 +41,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose(): void; c
     <header><h2>{title}</h2><button onClick={onClose} aria-label="关闭">×</button></header><div className="discover-sheet-content">{children}</div><button className="discover-primary" onClick={onClose}>完成</button></div></div>, document.body);
 }
 
-export function DiscoverPage() {
+export function DiscoverPage({ refreshRequest = 0 }: { refreshRequest?: number }) {
   const [partition, setPartition] = useState<DiscoverPartition>('COMIC');
   const [loaded, setLoaded] = useState<{ partition: DiscoverPartition; controller: DiscoverController } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,10 +54,10 @@ export function DiscoverPage() {
     return () => { cancelled = true; };
   }, [runtime, partition]);
   if (!runtime || loaded?.partition !== partition) return <main className="discover-page"><p role={error ? 'alert' : 'status'}>{error ?? '正在准备发现…'}</p></main>;
-  return <DiscoverPartitionPage key={partition} runtime={runtime} model={loaded.controller} partition={partition} onPartition={setPartition} />;
+  return <DiscoverPartitionPage key={partition} runtime={runtime} model={loaded.controller} partition={partition} onPartition={setPartition} refreshRequest={refreshRequest} />;
 }
 
-function DiscoverPartitionPage({ runtime, model, partition, onPartition }: { runtime: LibraryRuntime; model: DiscoverController; partition: DiscoverPartition; onPartition(partition: DiscoverPartition): void }) {
+function DiscoverPartitionPage({ runtime, model, partition, onPartition, refreshRequest }: { runtime: LibraryRuntime; model: DiscoverController; partition: DiscoverPartition; onPartition(partition: DiscoverPartition): void; refreshRequest: number }) {
   const store = model.store, manager = model.manager;
   const state = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
   const revision = useSyncExternalStore(store.subscribe, store.getRevision, store.getRevision);
@@ -78,6 +77,7 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition }: { run
   const [novel, setNovel] = useState<SearchBook | null>(null);
   const [favorites, setFavorites] = useState<FavoriteEntity[]>([]);
   const [scan, setScan] = useState(0);
+  const [pullDistance, setPullDistance] = useState(0);
   const sentinel = useRef<HTMLDivElement | null>(null), scroll = useRef<HTMLElement | null>(null);
   const sources = available.filter((source) => acceptsDiscoverSource(partition, source));
   const signature = sources.map((source) => source.id).join('|');
@@ -129,7 +129,7 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition }: { run
   const chooseDimension = (next: DiscoverDimension): void => { setFeed(null); setCategory(null); setDimension(next); setRange(store.string(`range_${next}`, DISCOVER_DIMENSIONS[next].ranges[0])); setStatus('全部'); setScan(0); };
   const open = (book: SearchBook): void => {
     const source = manager.getSource(book.sourceId);
-    if (!(source instanceof ComicSource)) setNovel(book); else openOnlineBook(book);
+    if (!source?.capabilities.supportComic && !source?.capabilities.supportOnlineText) setNovel(book); else openOnlineBook(book);
   };
   const follow = (work: DiscoverWork): void => {
     const repository = runtime.favorites; if (!repository) return;
@@ -142,8 +142,31 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition }: { run
   };
   const activeCatalogs = sources.filter((source) => actualSourceId === 'aggregate' || source.id === actualSourceId).flatMap((source) => state.catalogs[source.id] ? [state.catalogs[source.id]!] : []);
   const ranges = [...DISCOVER_DIMENSIONS[dimension].ranges].filter((range) => !activeCatalogs.length || activeCatalogs.some((catalog) => catalogRanges(catalog, dimension).includes(range)));
-  const refresh = (): void => { scroll.current?.scrollTo({ top: 0 }); void model.refresh(); setScan(0); };
+  const refresh = useCallback((): void => { scroll.current?.scrollTo({ top: 0 }); void model.refresh(); setScan(0); }, [model]);
+  const consumedRefresh = useRef(refreshRequest);
+  useEffect(() => { if (consumedRefresh.current !== refreshRequest) { consumedRefresh.current = refreshRequest; refresh(); } }, [refreshRequest, refresh]);
+  useEffect(() => {
+    const root = scroll.current; if (!root) return;
+    let start: { x: number; y: number } | null = null, distance = 0;
+    const reset = (): void => { start = null; distance = 0; setPullDistance(0); };
+    const begin = (event: TouchEvent): void => {
+      const touch = event.touches[0];
+      if (!state.loading && root.scrollTop <= 0 && event.touches.length === 1 && touch) start = { x: touch.clientX, y: touch.clientY };
+    };
+    const move = (event: TouchEvent): void => {
+      const touch = event.touches[0]; if (!start || !touch) return;
+      const dy = touch.clientY - start.y;
+      if (event.touches.length !== 1 || dy < 0 || Math.abs(touch.clientX - start.x) > Math.max(16, dy)) { reset(); return; }
+      if (dy > 12 && event.cancelable) event.preventDefault();
+      distance = Math.min(120, Math.max(0, dy - 12) * 0.55); setPullDistance(distance);
+    };
+    const end = (): void => { const shouldRefresh = distance >= 64; reset(); if (shouldRefresh) refresh(); };
+    root.addEventListener('touchstart', begin, { passive: true }); root.addEventListener('touchmove', move, { passive: false });
+    root.addEventListener('touchend', end); root.addEventListener('touchcancel', reset);
+    return () => { root.removeEventListener('touchstart', begin); root.removeEventListener('touchmove', move); root.removeEventListener('touchend', end); root.removeEventListener('touchcancel', reset); };
+  }, [refresh, state.loading]);
   return <main className="discover-page" ref={scroll} data-testid="discover-page">
+    {pullDistance > 0 && <p className="discover-pull" role="status" style={{ height: pullDistance }}>{pullDistance >= 64 ? '松开刷新' : '下拉刷新'}</p>}
     <header className="discover-header"><div><h1>发现</h1><p>DISCOVER YOUR NEXT STORY</p></div><button aria-label="发现设置" onClick={() => setSheet('settings')}>⚙</button></header>
     <div className="discover-partitions" role="tablist" aria-label="发现内容"><button role="tab" aria-selected={partition === 'COMIC'} onClick={() => onPartition('COMIC')}>漫画</button><button role="tab" aria-selected={partition === 'NOVEL'} onClick={() => onPartition('NOVEL')}>小说</button></div>
     <GlassCard className="discover-filters" padding={12}>
@@ -168,9 +191,10 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition }: { run
       return <GlassCard key={work.key} className="discover-work" padding={0}><button className="discover-work-open" onClick={() => { if (work.variants.length > 1) setChoice(work); else open(book); }} aria-label={`打开 ${book.title}`}>
         <SourceCover url={book.cover} title={book.title} source={manager.getSource(book.sourceId)} /><div className="discover-work-copy"><h2>{book.title}</h2><p>{isKnownComicAuthor(book.author) ? book.author : '作者未提供'}</p><p className="discover-muted">{manager.getSource(book.sourceId)?.name ?? book.sourceId}{work.variants.length > 1 ? ` · ${work.variants.length} 个来源` : ''} · {label}</p>
         {tags.length > 0 && <div className="discover-tags">{tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
-        {feed || category ? <p>{first.origin ?? first.subtitle ?? first.latestChapter ?? '原站推荐'}</p> : dimension === 'UPDATES' ? <p>{time === null ? '更新时间未提供' : new Date(time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}{first.latestChapter ? ` · ${first.latestChapter}` : ''}</p> : <p>{first.rank === null ? '名次未提供' : `原站第 ${first.rank} 名`}{first.rankChange === null ? '' : ` · ${first.rankChange >= 0 ? '↑' : '↓'} ${Math.abs(first.rankChange)}`}</p>}
+        {feed || category ? <p>{first.origin ?? first.subtitle ?? first.latestChapter ?? '原站推荐'}</p> : dimension === 'UPDATES' ? <p>{time === null ? '更新时间未提供' : new Date(time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}{first.latestChapter ? ` · ${first.latestChapter}` : ''}</p> : <p>{first.rank === null ? '名次未提供' : `原站第 ${first.rank} 名`}</p>}
+        {(first.newEntry || first.rankChange !== null || first.growth !== null) && <p className={`discover-trend ${first.newEntry ? 'discover-trend-new' : (dimension === 'RANKING' ? first.rankChange ?? 0 : first.growth ?? 0) === 0 ? '' : ((dimension === 'RANKING' ? first.rankChange ?? 0 : first.growth ?? 0) > 0) !== store.flag('green_rise', false) ? 'discover-trend-rise' : 'discover-trend-fall'}`}>{first.newEntry && dimension === 'RANKING' ? 'NEW' : dimension === 'RANKING' ? first.rankChange === null || first.rankChange === 0 ? '—' : `${first.rankChange > 0 ? '↑' : '↓'}${Math.abs(first.rankChange)}` : first.growth === null || first.growth === 0 ? '—' : `${first.growth > 0 ? '▲' : '▼'}${Math.abs(first.growth).toFixed(1)}%`}</p>}
         {first.statistic && <p>{first.statistic}</p>}{dimension === 'DISCUSSION' && <p>讨论 {compactMetric(first.discussions)}</p>}{dimension === 'CLICKS' && <p>阅读 {compactMetric(first.clicks)}</p>}</div></button>
-        <div className="discover-card-actions"><button aria-label={`${followed ? '取消喜欢' : '喜欢'} ${book.title}`} aria-pressed={followed} onClick={() => follow(work)}>{followed ? '♥ 已喜欢' : '♡ 喜欢'}</button><button onClick={() => store.block(work)}>屏蔽</button><button onClick={() => { void getPlatform().shareText.shareText({ title: book.title, text: `${book.title}\n${book.author}\n${manager.getSource(book.sourceId)?.name ?? ''}` }).catch(() => {}); }}>分享</button></div></GlassCard>;
+        <div className="discover-card-actions"><button aria-label={`${followed ? '取消喜欢' : '喜欢'} ${book.title}`} aria-pressed={followed} onClick={() => follow(work)}>{followed ? '♥ 已喜欢' : '♡ 喜欢'}</button><button onClick={() => store.block(work)}>屏蔽</button><button onClick={() => { void shareFavorites([{ sourceId: book.sourceId, comicId: book.id, title: book.title }]).catch((error: unknown) => showToast(error instanceof Error ? error.message : '分享失败，请重试')); }}>分享</button></div></GlassCard>;
     })}</section>
     <div ref={sentinel} className="discover-load-more">{state.loading ? <p role="status">正在加载原站作品…</p> : state.more.length > 0 ? <button onClick={() => { void model.more(); }}>加载更多</button> : rows.length > 0 ? <p>已显示当前可用作品</p> : null}</div>
     {sheet === 'sources' && <Sheet title="选择发现书源" onClose={closeSheet}><button className="discover-option" onClick={() => chooseSource('aggregate')}>聚合发现{actualSourceId === 'aggregate' ? ' ✓' : ''}</button>{sources.map((source) => <button className="discover-option" key={source.id} onClick={() => chooseSource(source.id)}>{source.name}{source.id === actualSourceId ? ' ✓' : ''}</button>)}<button className="discover-option" onClick={() => setRoute('sourceManagement')}>书源管理</button></Sheet>}

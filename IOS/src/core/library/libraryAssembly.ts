@@ -33,6 +33,7 @@ import type { SourceStorage } from '@core/source/sourceManager';
 import { SharedPreferencesSourceStorage } from '@core/source/storage/sharedPreferencesSourceStorage';
 import type { SourceConfigFilePort, SourcePrefsPort } from '@core/source/storage/sourceStorage';
 import { DownloadManager } from '@core/download/downloadManager';
+import { generatedNovelSource, writeSourceNovelEpub } from '@core/download/sourceNovelEpub';
 import type { DownloadTaskStore } from '@core/download/downloadTaskRepository';
 import { DownloadProgressBroadcaster } from '@core/download/downloadProgressBroadcaster';
 import { createDownloadTaskRepository } from '@core/download/downloadTaskRepository';
@@ -180,7 +181,15 @@ export function createLibraryAssembly(ports: LibraryAssemblyPorts): LibraryAssem
     dao: downloadTasks,
     books: bookshelf,
     broadcaster,
-    ...(ports.novelImporter === undefined ? {} : { worker: { importer: ports.novelImporter } }),
+    worker: {
+      ...(ports.novelImporter === undefined ? {} : { importer: ports.novelImporter }),
+      async generateBook(task, temp, progress, signal) {
+        const source = sourceManager.getSource(task.sourceId);
+        if (!generatedNovelSource(source)) return false;
+        await writeSourceNovelEpub(source, task.downloadUrl, temp, { fs: ports.fs, http: ports.http, progress, ...(signal ? { signal } : {}) });
+        return true;
+      },
+    },
     ...(ports.log === undefined ? {} : { log: ports.log }),
   });
 

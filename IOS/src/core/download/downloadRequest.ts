@@ -50,6 +50,11 @@ export const WHOLE_BOOK_NOVEL_SOURCE_IDS: ReadonlySet<string> = new Set([
   'auto_novel',
   'wenku8_library',
   'ixdzs8',
+  'xbookcn',
+  'quanben',
+  'ihuaben',
+  'sfacg',
+  'fanqie',
 ]);
 
 export function isWholeBookNovelSource(id: string | null | undefined): boolean {

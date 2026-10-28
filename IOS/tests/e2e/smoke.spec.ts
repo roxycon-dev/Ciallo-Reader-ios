@@ -66,7 +66,7 @@ test.describe('生产构建冒烟', () => {
     await expect(page.locator('.splash-page')).toHaveCount(0);
   });
 
-  test('走完引导页后主壳 tab 栏含四个中文标签', async ({ page }) => {
+  test('走完引导页后主壳 tab 栏含五个中文标签', async ({ page }) => {
     await page.goto('/');
     const shell = page.locator('.main-shell');
     if ((await shell.count()) === 0) {
@@ -80,7 +80,7 @@ test.describe('生产构建冒烟', () => {
       .locator('nav[aria-label], [class*="tabbar"], [class*="tab-bar"]')
       .first()
       .innerText();
-    for (const label of ['书库', '书架', '统计', '设置']) {
+    for (const label of ['书库', '发现', '书架', '统计', '设置']) {
       expect(labels, `Tab 栏缺少「${label}」，实际：${labels}`).toContain(label);
     }
   });

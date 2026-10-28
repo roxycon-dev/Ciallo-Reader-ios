@@ -62,14 +62,16 @@ import { LoginRequired, NetworkError, ParseError, SourceException } from '../sou
 import { SourceResult } from '../sourceResult';
 import type { SourceResult as SourceResultType } from '../sourceResult';
 import { parseHtmlDocument } from './jsoup';
-import type { HtmlElement } from './jsoup';
+import type { HtmlDocument } from './jsoup';
+import { HtmlNovelDiscovery } from './htmlNovelDiscovery';
+import { sourceResponseText, sourceResponseProblem } from './guestNovelTransport';
+import type { DiscoverQuery } from '@core/discover/models';
 import {
   AsyncMutex,
   LruCache,
   MAX_SOURCE_BODY_BYTES,
   SourceNetworkError,
   buildUrl,
-  decodeUtf8,
   elapsedRealtime,
   executeSourceRequest,
   isSuccessful,
@@ -93,6 +95,7 @@ export class IxdzsSource extends BookSource {
 
   private readonly baseUrl: string;
   private readonly http: HttpClient;
+  private readonly discovery: HtmlNovelDiscovery;
   /** Kotlin `private data class Detail(val at: Long, val book: SearchBook, val download: String)`. */
   private readonly cache: LruCache<string, IxdzsDetail>;
   private readonly mutex = new AsyncMutex();
@@ -109,6 +112,8 @@ export class IxdzsSource extends BookSource {
     this.baseUrl = options.baseUrl ?? 'https://ixdzs8.com/';
     this.http = resolveHttpClient(options.client ?? null, options.failover);
     this.cache = new LruCache<string, IxdzsDetail>(16);
+    this.discovery = new HtmlNovelDiscovery(this.id, this.baseUrl, async (url) => (await this.page(url)).doc,
+      (raw) => { const url = new URL(raw); return url.origin === new URL(this.baseUrl).origin ? /^\/read\/([1-9][0-9]{0,8})\/$/.exec(url.pathname)?.[1] ?? null : null; }, 'txt');
   }
 
   private bookUrl(bookId: string): string {
@@ -125,7 +130,7 @@ export class IxdzsSource extends BookSource {
    * not carry, so it is returned next to the parsed document for `absUrl` use
    * (jsoup resolves relative attributes against it).
    */
-  private async page(url: string): Promise<{ doc: HtmlElement; baseUrl: string }> {
+  private async page(url: string): Promise<{ doc: HtmlDocument; baseUrl: string }> {
     // Kotlin L47 `response.body?.byteStream()?.use { it.readImportBytes(2 * 1024 * 1024) }`
     // — the shared request helper applies that bound (an over-limit body throws
     // `压缩包解压体积超过安全上限`, which `result()`'s generic arm maps to
@@ -144,7 +149,9 @@ export class IxdzsSource extends BookSource {
     if (response.body.byteLength === 0) {
       throw new ParseError('网文源返回空页面');
     }
-    return { doc: parseHtmlDocument(decodeUtf8(response.body)), baseUrl: url };
+    const html = sourceResponseText(response.body, response.headers), problem = sourceResponseProblem(html);
+    if (problem) throw new ParseError(problem);
+    return { doc: parseHtmlDocument(html), baseUrl: url };
   }
 
   private async detail(bookId: string, fresh = false): Promise<IxdzsDetail> {
@@ -291,6 +298,10 @@ export class IxdzsSource extends BookSource {
   async getDetail(bookId: string): Promise<SourceResultType<SearchBook>> {
     return this.result(async () => (await this.detail(bookId)).book);
   }
+
+  override async getShareUrl(bookId: string) { return this.bookUrl(bookId); }
+  override async discoverCatalog() { return this.result(() => this.discovery.catalog()); }
+  override async discover(query: DiscoverQuery) { return this.result(() => this.discovery.discover(query)); }
 
   /** Kotlin `override suspend fun refreshNovelDetail(bookId)` (line 103). */
   async refreshNovelDetail(bookId: string): Promise<SourceResultType<SearchBook>> {

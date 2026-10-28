@@ -86,6 +86,8 @@ export interface DownloadWorkerDeps {
   signal?: AbortSignal;
   /** Platform free-space probe — Android downloads.usableSpace. */
   getUsableSpace?: () => Promise<number> | number;
+  /** Public chapter sources generate a complete EPUB into temp, without requesting the marker URL as a file. */
+  generateBook?: (task: DownloadTaskRecord, temp: string, progress: (done: number, total: number) => Promise<void>, signal?: AbortSignal) => Promise<boolean>;
   /** Pre-upgrade inputData referer/cookie fields still present on old jobs. */
   legacyHeaders?: { referer?: string; cookie?: string };
 }
@@ -460,6 +462,12 @@ export async function performDownloadTask(
         finalExists && metadata != null && metadata.url === task.downloadUrl && metadata.complete === true;
 
       if (!completedLocal) {
+        const generated = await deps.generateBook?.(task, temp, async (done, count) => {
+          ensureActive(deps.signal);
+          broadcaster.updateState(taskId, downloadingState(done, count, count > 0 ? clamp01(done / count) : 0));
+          await dao.updateProgressAndStatus(taskId, 'DOWNLOADING', done, count, null);
+        }, deps.signal) ?? false;
+        if (!generated) {
         let offset = tempLen > 0 ? tempLen : 0;
         const validator = metadata?.validator != null && metadata.validator !== '' ? metadata.validator : null;
         if (metadata?.url !== task.downloadUrl || validator == null) {
@@ -637,6 +645,8 @@ export async function performDownloadTask(
           }
         }
 
+        }
+        ensureActive(deps.signal);
         const integrity = validateFileIntegrity(await fs.readFile(temp), format);
         if (!integrity.valid) {
           throw new Error(integrity.htmlErrorHint ?? '下载文件格式校验失败');
@@ -661,7 +671,7 @@ export async function performDownloadTask(
           downloadedBytes: actualLen,
           totalBytes: actualLen,
         });
-        const completeMetadata = (await readResume(fs, resume)) ?? {};
+        const completeMetadata = { ...((await readResume(fs, resume)) ?? {}), url: task.downloadUrl };
         await writeResume(fs, resume, { ...completeMetadata, complete: true });
       }
 

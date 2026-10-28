@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getOnlineReaderTarget } from '@core/reader/onlineReaderSession';
+import { setComicDetailTarget } from '@core/comic/comicChapters';
 import { getLibraryRuntime } from '@core/library/libraryRuntime';
 import { ComicSource } from '@core/source/comicSource';
 import { getPlatform } from '@platform/index';
@@ -101,7 +102,10 @@ export function OnlineReaderRoute({ textMode = false }: { textMode?: boolean }) 
     }),
     [],
   );
-  const back = (): void => setRoute('comicChapters');
+  const back = (): void => {
+    if (request) setComicDetailTarget(request.target);
+    setRoute('comicChapters');
+  };
   const jump = (next: number): void => {
     if (request === null || next < 0 || next >= request.chapters.length) return;
     setLoading(true);

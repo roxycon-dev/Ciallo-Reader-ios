@@ -90,6 +90,8 @@ import {
   resolveHttpClient,
 } from './sourceHttp';
 import type { FailoverClientFactory, HttpClient } from './sourceHttp';
+import { AutoNovelDiscovery } from './autoNovelDiscovery';
+import type { DiscoverQuery } from '@core/discover/models';
 
 /** Guest-facing AutoNovel web-novel API, independently adapted from its public API contract. */
 /** Kotlin `private data class Metadata(val at: Long, val data: JSONObject)`. */
@@ -100,7 +102,7 @@ interface AutoNovelMetadata {
 
 export class AutoNovelSource extends ComicSource {
   readonly id = 'auto_novel';
-  readonly name = '轻小说机翻机器人';
+  readonly name = 'Novelia';
   readonly capabilities: SourceCapabilities = createSourceCapabilities({
     supportOnlineText: true,
   });
@@ -120,6 +122,7 @@ export class AutoNovelSource extends ComicSource {
   /** Kotlin `object : LruCache<String, String>(4 * 1024 * 1024) { sizeOf = length * 2 }`. */
   private readonly texts: LruCache<string, string>;
   private readonly textMutex = new AsyncMutex();
+  private readonly discovery: AutoNovelDiscovery;
 
   constructor(
     options: {
@@ -133,6 +136,7 @@ export class AutoNovelSource extends ComicSource {
     this.http = resolveHttpClient(options.client ?? null, options.failover);
     this.metadata = new LruCache<string, AutoNovelMetadata>(16);
     this.texts = new LruCache<string, string>(4 * 1024 * 1024, (_key, value) => value.length * 2);
+    this.discovery = new AutoNovelDiscovery(this.baseUrl, (url) => this.json(url), (id, data) => this.book(id, data));
   }
 
   private path(bookId: string): string {
@@ -319,6 +323,10 @@ export class AutoNovelSource extends ComicSource {
       });
     });
   }
+
+  override async discoverCatalog() { return SourceResult.Success(this.discovery.catalog); }
+  override async discover(query: DiscoverQuery) { return this.result(() => this.discovery.discover(query)); }
+  override async getShareUrl(bookId: string) { this.path(bookId); return new URL(`novel/${bookId}`, this.baseUrl).toString(); }
 
   async getDetail(bookId: string): Promise<SourceResultType<SearchBook>> {
     return this.result(async () => this.book(bookId, await this.detail(bookId)));

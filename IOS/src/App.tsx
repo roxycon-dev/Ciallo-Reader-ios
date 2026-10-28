@@ -40,8 +40,9 @@
  *   路由容器上播放**入场**那一半。出场（exit）那一半依赖返回栈，目前无法复现 ——
  *   同样登记为 E59。
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SourceDialogs } from '@ui/sourceDialogs';
+import { SharedNovelTarget } from '@ui/sharedNovelTarget';
 import { createSourceManagementIo } from '@ui/sourceManagementRuntime';
 import { AppBottomTabBar } from '@ui/components/AppBottomTabBar';
 import { CacheManagementPage } from '@ui/pages/CacheManagementPage';
@@ -80,6 +81,7 @@ import {
   type RouteKey,
 } from '@ui/state/appStore';
 import { Toast } from '@ui/toast';
+import { showToast } from '@ui/toast';
 import './styles/theme.css';
 import './styles/home.css';
 import './styles/shell.css';
@@ -135,6 +137,8 @@ function routeTransitionFor(route: AppRoute): readonly RouteTransitionPart[] | n
 function MainShell() {
   const activeTab = useAppStore((s) => s.activeTab);
   const setTab = useAppStore((s) => s.setTab);
+  const [discoverRefresh, setDiscoverRefresh] = useState(0);
+  const lastTap = useRef({ tab: activeTab, time: 0 });
 
   return (
     <div className="main-shell">
@@ -146,7 +150,7 @@ function MainShell() {
             case 'library':
               return <LibraryPage />;
             case 'discover':
-              return <DiscoverPage />;
+              return <DiscoverPage refreshRequest={discoverRefresh} />;
             case 'bookshelf':
               return <HomePage />;
             case 'stats':
@@ -156,7 +160,12 @@ function MainShell() {
           }
         }}
       </TabContent>
-      <AppBottomTabBar active={activeTab} onChange={setTab} collapsed={false} />
+      <AppBottomTabBar active={activeTab} onChange={(tab) => {
+        const now = performance.now();
+        if (tab === 'discover' && activeTab === tab && lastTap.current.tab === tab && now - lastTap.current.time < 400) { setDiscoverRefresh((value) => value + 1); lastTap.current = { tab, time: 0 }; }
+        else lastTap.current = { tab, time: now };
+        setTab(tab);
+      }} collapsed={false} />
     </div>
   );
 }
@@ -211,6 +220,28 @@ export function App() {
   useEffect(() => {
     // 启动水合单一入口（appStore 不再在 import 时自动开库）
     void bootstrapLibrary().then(() => useAppStore.getState().ensureAniListSeeded());
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let listener: { remove(): Promise<void> } | undefined;
+    let last = '', lastAt = 0;
+    const receive = (url: string): void => {
+      if (disposed || url === last && Date.now() - lastAt < 1000) return;
+      last = url; lastAt = Date.now();
+      void import('@ui/lib/openSharedWork').then(({ openSharedWork }) => disposed ? false : openSharedWork(url))
+        .catch((error: unknown) => { if (!disposed) showToast(error instanceof Error ? error.message : '无法打开分享作品'); });
+    };
+    void (async () => {
+      const { Capacitor } = await import('@capacitor/core');
+      if (disposed || !Capacitor.isNativePlatform()) return;
+      const { App: nativeApp } = await import('@capacitor/app');
+      const handle = await nativeApp.addListener('appUrlOpen', ({ url }) => receive(url));
+      if (disposed) { await handle.remove(); return; }
+      listener = handle;
+      const launch = await nativeApp.getLaunchUrl(); if (launch?.url) receive(launch.url);
+    })().catch((error: unknown) => { if (!disposed) console.warn('[links] 分享链接接收不可用', error); });
+    return () => { disposed = true; void listener?.remove(); };
   }, []);
 
   /**
@@ -362,6 +393,7 @@ export function App() {
       </div>
       <Toast />
       <SourceDialogs />
+      <SharedNovelTarget />
     </div>
   );
 }

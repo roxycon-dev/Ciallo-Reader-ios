@@ -62,6 +62,8 @@ export class InMemorySqliteDatabase implements SQLiteDatabase {
   }>();
 
   async open(options: { name: string }): Promise<void> {
+    if (this.dbName === options.name) return;
+    if (this.dbName) throw new Error('Close the current database before opening another database');
     this.dbName = options.name;
     this.tables = new Map();
     this.meta = new Map();

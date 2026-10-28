@@ -685,7 +685,7 @@ export function bootstrapLibrary(): Promise<void> {
           }),
           platform.http,
         );
-        await registerAppBuiltinSources(sourceManager, platform.http);
+        await registerAppBuiltinSources(sourceManager, platform.http, platform.fs);
         await reportStartup('starting', new Error('sources: builtins registered'));
         performance.mark('app-builtin-sources-ready');
         const { installAppJsSources } = await import('@platform/jsSourceAssembly');

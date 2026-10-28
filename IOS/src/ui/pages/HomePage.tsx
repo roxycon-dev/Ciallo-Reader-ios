@@ -243,7 +243,6 @@ import {
   selectAllKeys,
   selectedCategoryLocked,
   selectableKeys,
-  shareTitlesText,
   shelfAliveKeys,
   shelfHealLogMessage,
   sortFavoriteItems,
@@ -436,15 +435,15 @@ function SelectAllIcon() {
    2212–2277 ShelfDragCover
    ═══════════════════════════════════════════════════════════════════ */
 
-function ShelfDragCover(props: { key: string; books: HomeBook[]; favSorted: FavoriteItem[] }) {
+function ShelfDragCover(props: { itemKey: string; books: HomeBook[]; favSorted: FavoriteItem[] }) {
   let src: string | null = null;
-  if (isFavShelfKey(props.key)) {
+  if (isFavShelfKey(props.itemKey)) {
     const raw = props.favSorted.find(
-      (it) => `${SHELF_KEY_FAV_PREFIX}${it.favorite.sourceId}::${it.favorite.comicId}` === props.key,
+      (it) => `${SHELF_KEY_FAV_PREFIX}${it.favorite.sourceId}::${it.favorite.comicId}` === props.itemKey,
     );
     src = raw === undefined ? null : favoriteCoverSrc(raw);
   } else {
-    const book = props.books.find((b) => String(b.id) === props.key);
+    const book = props.books.find((b) => String(b.id) === props.itemKey);
     src = book === undefined ? null : resolveCoverSrc(book.coverUri, book.isCoverValid);
   }
   src = usePrivateImageSrc(src);
@@ -453,7 +452,7 @@ function ShelfDragCover(props: { key: string; books: HomeBook[]; favSorted: Favo
   }
   return (
     <span className="hp-drag-ghost__fallback">
-      {isFavShelfKey(props.key) ? <FavoriteIcon size={28} /> : <MenuBookIcon size={28} />}
+      {isFavShelfKey(props.itemKey) ? <FavoriteIcon size={28} /> : <MenuBookIcon size={28} />}
     </span>
   );
 }
@@ -2075,12 +2074,9 @@ export function HomePage() {
     })().catch((error: unknown) => showToast(error instanceof Error ? error.message : '导入失败，请重试'));
   }, [loadLibrary]);
 
-  const shareTitles = useCallback((titles: readonly string[]): void => {
-    const text = shareTitlesText(titles);
-    if (text === '') return;
-    void import('@platform/index').then(({ getPlatform }) =>
-      getPlatform().shareText.shareText({ title: 'Ciallo阅读', text }),
-    ).catch(() => showToast('分享已取消或暂不可用'));
+  const shareFavoriteWorks = useCallback((items: readonly FavoriteItem[]): void => {
+    void import('@ui/lib/shareFavorites').then(({ shareFavorites }) => shareFavorites(items.map((item) => item.favorite)))
+      .catch((error: unknown) => showToast(error instanceof Error ? error.message : '分享失败，请重试'));
   }, []);
 
   const shareBooks = useCallback((books: readonly HomeBook[]): void => {
@@ -2888,7 +2884,7 @@ export function HomePage() {
                   return;
                 }
                 if (label === '分享') {
-                  if (scope === 'FAV') shareTitles(selectedFavs.map((it) => it.favorite.title));
+                  if (scope === 'FAV') shareFavoriteWorks(selectedFavs);
                   else shareBooks(selectedBooks);
                   return;
                 }
@@ -2977,7 +2973,7 @@ export function HomePage() {
           className="hp-drag-ghost"
           style={{ left: selection.pointer.x, top: selection.pointer.y }}
         >
-          <ShelfDragCover key={selection.dragging[0] ?? ''} books={books} favSorted={favSorted} />
+          <ShelfDragCover itemKey={selection.dragging[0] ?? ''} books={books} favSorted={favSorted} />
         </div>
       ) : null}
 

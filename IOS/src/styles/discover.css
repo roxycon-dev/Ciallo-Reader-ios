@@ -54,5 +54,10 @@
 .discover-sheet input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--color-primary); }
 .discover-sheet .discover-option { display: block; width: 100%; text-align: left; border-bottom: 1px solid color-mix(in srgb, currentColor 7%, transparent); border-radius: 0; padding: 14px 6px; }
 .discover-sheet .discover-primary { background: var(--color-primary); color: white; font-weight: 700; }
+.discover-pull { margin: 0; display: grid; place-items: center; color: var(--color-primary); font-size: 12px; }
+.discover-trend { font-family: monospace; }
+.discover-trend-rise { color: #e74b55; }
+.discover-trend-fall { color: #259d6a; }
+.discover-trend-new { color: var(--color-primary); }
 @media (min-width: 700px) { .discover-page { padding-left: max(28px, calc((100vw - 1000px) / 2)); padding-right: max(28px, calc((100vw - 1000px) / 2)); } .discover-results--grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .discover-page *, .discover-sheet * { scroll-behavior: auto; } }

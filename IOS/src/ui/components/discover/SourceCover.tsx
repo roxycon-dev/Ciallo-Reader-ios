@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BookSource } from '@core/source/bookSource';
-import { ComicSource } from '@core/source/comicSource';
 import { checkSourceUrl } from '@core/source/networkCalls';
 import { getPlatform } from '@platform/index';
 import { createFileInlineImageDecoder } from '@platform/readerImageResolver';
@@ -18,7 +17,7 @@ export function SourceCover({ url, title, source }: { url: string | null; title:
       if (started || cancelled) return; started = true;
       if (/^https?:/i.test(url)) {
         checkSourceUrl(url);
-        const headers = source instanceof ComicSource ? await source.getCoverHeaders(url) : {};
+        const headers = await source?.getCoverHeaders(url) ?? {};
         if (cancelled) return;
         const response = await getPlatform().http.request({ url, headers, timeoutMs: 15_000 });
         if (cancelled || response.status < 200 || response.status >= 300 || response.body.length > 8 * 1024 * 1024) return;

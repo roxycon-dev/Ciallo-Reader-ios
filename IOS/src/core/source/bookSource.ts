@@ -21,6 +21,7 @@ import { validDetailLink } from './detailLink';
 import { discoverCatalog as emptyCatalog, discoverPage as emptyPage, type DiscoverCatalog, type DiscoverPage, type DiscoverQuery } from '@core/discover/models';
 
 export abstract class BookSource {
+  async getCoverHeaders(_url: string): Promise<Record<string, string>> { return {}; }
   async getShareUrl(bookId: string): Promise<string | null> { return validDetailLink(bookId); }
   get supportsDiscoverMetadata(): boolean { return false; }
   async getDiscoverMetadata(_bookId: string, _signal?: AbortSignal): Promise<SourceResultType<SearchBook>> { return SourceResult.Error(new ParseError('书源没有轻量元数据接口')); }

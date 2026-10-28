@@ -48,7 +48,7 @@ export abstract class ComicSource extends BookSource {
   /**
    * 封面图请求头（Referer/Cookie 等）。JS 源通过 onThumbnailLoad 提供。
    */
-  async getCoverHeaders(_url: string): Promise<Record<string, string>> {
+  override async getCoverHeaders(_url: string): Promise<Record<string, string>> {
     return {};
   }
 }

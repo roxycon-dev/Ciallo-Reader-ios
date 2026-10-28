@@ -65,7 +65,7 @@ export function novelInfoHasRevision(info: NovelInfo): boolean {
 
 /** Kotlin `object WholeBookNovelSources` — only these public whole-book sources opt into novel UI. */
 export const WholeBookNovelSources = {
-  ids: new Set(['auto_novel', 'wenku8_library', 'ixdzs8']),
+  ids: new Set(['auto_novel', 'wenku8_library', 'ixdzs8', 'xbookcn', 'quanben', 'ihuaben', 'sfacg', 'fanqie']),
   contains(id: string | null | undefined): boolean {
     return id != null && WholeBookNovelSources.ids.has(id);
   },

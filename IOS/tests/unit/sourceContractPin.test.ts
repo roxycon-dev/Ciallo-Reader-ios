@@ -319,11 +319,16 @@ describe('NovelInfo.kt', () => {
     expect(novelInfoHasRevision(createNovelInfo({ latestChapter: '' }))).toBe(false);
   });
 
-  it('WholeBookNovelSources lists exactly the three Kotlin ids', () => {
+  it('WholeBookNovelSources matches the current eight Kotlin ids', () => {
     expect([...WholeBookNovelSources.ids].sort()).toEqual([
       'auto_novel',
+      'fanqie',
+      'ihuaben',
       'ixdzs8',
+      'quanben',
+      'sfacg',
       'wenku8_library',
+      'xbookcn',
     ]);
     expect(WholeBookNovelSources.contains('auto_novel')).toBe(true);
     expect(WholeBookNovelSources.contains('zlibrary')).toBe(false);

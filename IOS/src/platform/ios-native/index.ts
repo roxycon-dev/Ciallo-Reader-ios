@@ -108,6 +108,10 @@ class FilesystemApiAdapter implements FileSystemApi {
     });
   }
 
+  async appendFile(path: string, data: Uint8Array): Promise<void> {
+    await Filesystem.appendFile({ path: normalizeFsPath(path), data: bytesToBase64(data), directory: Directory.Data });
+  }
+
   async exists(path: string): Promise<boolean> {
     const normalized = normalizeFsPath(path);
     try {

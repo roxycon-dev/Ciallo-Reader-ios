@@ -120,37 +120,28 @@ export async function seedAniListTitles(
   db: SQLiteDatabase,
   gzipBytes: Uint8Array,
 ): Promise<SeedAniListResult> {
-  return contentMutationGate.mutex.withLock(() => seedAniListTitlesLocked(db, gzipBytes));
-}
-
-async function seedAniListTitlesLocked(db: SQLiteDatabase, gzipBytes: Uint8Array): Promise<SeedAniListResult> {
   const rows = parseAniListTsvGzip(gzipBytes);
   const seen = new Set<string>();
+  const unique = rows.filter((row) => { const key = `${row.mediaId}\u0000${row.titleType}\u0000${row.rawTitle}`; if (seen.has(key)) return false; seen.add(key); return true; });
   let inserted = 0;
-  await db.execute('BEGIN');
-  try {
-    for (const row of rows) {
-      const key = `${row.mediaId}\u0000${row.titleType}\u0000${row.rawTitle}`;
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      const res = await db.execute(INSERT_OR_IGNORE_SQL, [
-        row.mediaId,
-        row.titleType,
-        row.rawTitle,
-        row.normalizedTitle,
-        row.compactTitle,
-      ]);
-      inserted += res.rowsAffected;
-      // An immediately resolved mock/native bridge promise can monopolize the
-      // microtask queue. Yield periodically so launch animation and input run.
-      if (seen.size % 256 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    }
-    await db.execute('COMMIT');
-  } catch (err) {
-    await db.execute('ROLLBACK');
-    throw err;
+  const epoch = contentMutationGate.epoch;
+  // Room inserts the bundled title dictionary in bounded batches. Release the
+  // content gate between batches so a user's book import need not wait for 94k rows.
+  for (let offset = 0; offset < unique.length; offset += 2000) {
+    await contentMutationGate.mutex.withLock(async () => {
+      if (epoch !== contentMutationGate.epoch) throw new Error('标题索引导入已因数据恢复而取消');
+      await db.execute('BEGIN');
+      try {
+        let batchInserted = 0;
+        for (const [index, row] of unique.slice(offset, offset + 2000).entries()) {
+          const result = await db.execute(INSERT_OR_IGNORE_SQL, [row.mediaId, row.titleType, row.rawTitle, row.normalizedTitle, row.compactTitle]);
+          batchInserted += result.rowsAffected;
+          if (index % 256 === 255) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+        await db.execute('COMMIT'); inserted += batchInserted;
+      } catch (error) { await db.execute('ROLLBACK'); throw error; }
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
   return { parsed: rows.length, inserted };
 }
