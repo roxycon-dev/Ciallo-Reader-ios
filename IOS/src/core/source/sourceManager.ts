@@ -16,7 +16,7 @@ import type { SourceResult as SourceResultType } from './sourceResult';
 /** Kotlin `storage/SourceStorage.kt` — persistence port (platform implements). */
 export interface SourceStorage {
   saveSourceState(sourceId: string, enabled: boolean): Promise<void>;
-  getSourceStates(): Promise<Record<string, boolean>>;
+  getSourceStates(knownIds?: readonly string[]): Promise<Record<string, boolean>>;
   saveActiveSourceId(sourceId: string): Promise<void>;
   getActiveSourceId(): Promise<string | null>;
   saveCustomSourceJson(sourceId: string, jsonContent: string): Promise<void>;
@@ -135,14 +135,14 @@ export class SourceManager {
   private async loadPersistedDataInternal(): Promise<void> {
     const store = this.storage;
     if (!store) return;
-    const savedStates = await store.getSourceStates();
+    const customJsons = await store.getCustomSourceJsons();
+    const savedStates = await store.getSourceStates([...this.sourcesMap.keys(), ...Object.keys(customJsons)]);
     for (const [sourceId, enabled] of Object.entries(savedStates)) {
       this.enabledStatesMap.set(sourceId, enabled);
     }
     this._enabledStates.value = new Map(this.enabledStatesMap);
 
     // Load user-imported custom sources
-    const customJsons = await store.getCustomSourceJsons();
     const importer = this.importer;
     if (importer) {
       for (const [sourceId, jsonStr] of Object.entries(customJsons)) {
@@ -177,14 +177,15 @@ export class SourceManager {
     rawJson: string | null = null,
   ): Promise<void> {
     await this.mutex.withLock(async () => {
-      this.sourcesMap.set(source.id, source);
+      if (rawJson != null) await this.storage?.saveCustomSourceJson(source.id, rawJson);
       if (!this.enabledStatesMap.has(source.id)) {
-        this.enabledStatesMap.set(source.id, defaultEnabled);
+        const stored = await this.storage?.getSourceStates([source.id]);
+        this.enabledStatesMap.set(source.id, stored && Object.hasOwn(stored, source.id) ? stored[source.id]! : defaultEnabled);
         this._enabledStates.value = new Map(this.enabledStatesMap);
       }
+      this.sourcesMap.set(source.id, source);
       if (rawJson != null) {
         this.customJsonsMap.set(source.id, rawJson);
-        await this.storage?.saveCustomSourceJson(source.id, rawJson);
       }
       this.updateFlowsInternal();
       if (this.savedActiveId === source.id && this.isSourceEnabledInternal(source.id)) {
@@ -214,11 +215,11 @@ export class SourceManager {
 
   async unregisterSource(sourceId: string): Promise<void> {
     await this.mutex.withLock(async () => {
+      await this.storage?.removeCustomSourceJson(sourceId);
       this.sourcesMap.delete(sourceId);
       this.enabledStatesMap.delete(sourceId);
       this._enabledStates.value = new Map(this.enabledStatesMap);
       this.customJsonsMap.delete(sourceId);
-      await this.storage?.removeCustomSourceJson(sourceId);
       if (this._activeSource.value?.id === sourceId) {
         this._activeSource.value =
           this._availableSources.value.find((s) => s.id !== sourceId) ?? null;
@@ -241,16 +242,16 @@ export class SourceManager {
   private async setActiveSourceInternal(sourceId: string): Promise<void> {
     const source = this.sourcesMap.get(sourceId);
     if (source != null && this.isSourceEnabledInternal(sourceId)) {
-      this._activeSource.value = source;
       await this.storage?.saveActiveSourceId(sourceId);
+      this._activeSource.value = source;
     }
   }
 
   async setSourceEnabled(sourceId: string, enabled: boolean): Promise<void> {
     await this.mutex.withLock(async () => {
+      await this.storage?.saveSourceState(sourceId, enabled);
       this.enabledStatesMap.set(sourceId, enabled);
       this._enabledStates.value = new Map(this.enabledStatesMap);
-      await this.storage?.saveSourceState(sourceId, enabled);
       this.updateFlowsInternal();
       if (!enabled && this._activeSource.value?.id === sourceId) {
         this._activeSource.value = this._availableSources.value[0] ?? null;

@@ -43,6 +43,7 @@ import type {
 import { CapacitorHttpClient } from './capacitorHttpClient';
 import { CapacitorSqliteDatabase } from './capacitorDb';
 import { withExclusiveDatabase } from '@platform/exclusiveDatabase';
+import { writeNativeFileAtomic } from './atomicFiles';
 import { CapacitorTtsEngine } from './ttsPlugin';
 import { KeychainSecureStore } from './secureStore';
 import { createNativeDocumentPort } from './documentPort';
@@ -90,6 +91,7 @@ export interface IosNativePlatform {
 }
 
 class FilesystemApiAdapter implements FileSystemApi {
+  async writeFileAtomic(path: string, data: Uint8Array): Promise<void> { await writeNativeFileAtomic(normalizeFsPath(path), data); }
   async readFile(path: string): Promise<Uint8Array> {
     const normalized = normalizeFsPath(path);
     const res = await Filesystem.readFile({ path: normalized, directory: Directory.Data });

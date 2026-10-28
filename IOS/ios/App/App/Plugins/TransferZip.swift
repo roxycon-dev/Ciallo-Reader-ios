@@ -144,7 +144,8 @@ enum TransferZip {
         }
         let sorted = ranges.sorted { $0.0 < $1.0 }
         guard sorted.first?.0 == 0 else { throw TransferNativeError.invalid("归档包含前置数据") }
-        for index in sorted.indices.dropFirst() { guard sorted[index - 1].1 <= sorted[index].0 else { throw TransferNativeError.invalid("归档分块重叠") } }
+        for index in sorted.indices.dropFirst() { guard sorted[index - 1].1 == sorted[index].0 else { throw TransferNativeError.invalid("归档分块不连续或重叠") } }
+        guard sorted.last?.1 == directoryOffset else { throw TransferNativeError.invalid("归档包含未列出的尾随条目") }
         return metadata
     }
     private static func inflateEntry(_ input: FileHandle, start: UInt64, compressed: UInt64, consume: (Data) throws -> Void) throws {

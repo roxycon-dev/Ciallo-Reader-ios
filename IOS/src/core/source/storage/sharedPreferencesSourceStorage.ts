@@ -403,8 +403,8 @@ export class SharedPreferencesSourceStorage implements SourceStorage {
     await this.prefs.commit();
   }
 
-  async getSourceStates(): Promise<Record<string, boolean>> {
-    const result: Record<string, boolean> = {};
+  async getSourceStates(knownIds?: readonly string[]): Promise<Record<string, boolean>> {
+    const result: Record<string, boolean> = Object.create(null) as Record<string, boolean>;
     const entries = await this.prefs.all();
     for (const [key, value] of Object.entries(entries)) {
       // Kotlin L19 `key.startsWith("source_enabled_") && value is Boolean`
@@ -412,6 +412,12 @@ export class SharedPreferencesSourceStorage implements SourceStorage {
         const sourceId = key.slice(SOURCE_ENABLED_PREFIX.length);
         result[sourceId] = value;
       }
+    }
+    if (this.prefs.readStoredBoolean) {
+      const ids = [...new Set(knownIds ?? [...await this.prefs.getStringSet(CUSTOM_SOURCE_IDS_KEY)])];
+      for (let offset = 0; offset < ids.length; offset += 4) await Promise.all(ids.slice(offset, offset + 4).map(async (id) => {
+        const stored = await this.prefs.readStoredBoolean!(`${SOURCE_ENABLED_PREFIX}${id}`); if (stored !== null) result[id] = stored;
+      }));
     }
     return result;
   }
@@ -448,6 +454,7 @@ export class SharedPreferencesSourceStorage implements SourceStorage {
       atomic.startWrite();
       try {
         atomic.writeAndFinish(jsonContent);
+        await this.files.flush?.();
       } catch (error) {
         atomic.failWrite();
         throw error;
@@ -468,6 +475,8 @@ export class SharedPreferencesSourceStorage implements SourceStorage {
     return storageLock.withLock(async () => {
       // Kotlin L55 `prefs.getStringSet(…).orEmpty().toMutableSet()`
       const ids = new Set(await this.prefs.getStringSet(CUSTOM_SOURCE_IDS_KEY));
+      await this.files.load?.([...ids].map((id) => this.configFilePath(id)));
+      for (const id of ids) if (!this.files.exists(this.configFilePath(id))) await this.prefs.getString(`${CUSTOM_SOURCE_JSON_PREFIX}${id}`, null);
       const entries = await this.prefs.all();
 
       for (const [key, value] of Object.entries(entries)) {
@@ -482,6 +491,7 @@ export class SharedPreferencesSourceStorage implements SourceStorage {
         atomic.startWrite();
         try {
           atomic.writeAndFinish(value);
+          await this.files.flush?.();
         } catch (error) {
           atomic.failWrite();
           throw error;
@@ -496,7 +506,7 @@ export class SharedPreferencesSourceStorage implements SourceStorage {
       this.check(await this.prefs.commit());
 
       // Kotlin L69-L72 `ids.mapNotNull { id -> … }.toMap()`
-      const result: Record<string, string> = {};
+      const result: Record<string, string> = Object.create(null) as Record<string, string>;
       for (const id of ids) {
         const path = this.configFilePath(id);
         if (!this.files.exists(path)) continue;
@@ -523,6 +533,7 @@ export class SharedPreferencesSourceStorage implements SourceStorage {
       this.check(await this.prefs.commit());
       // Kotlin L80 `AtomicFile(configFile(sourceId)).delete()`
       this.files.delete(this.configFilePath(sourceId));
+      await this.files.flush?.();
     });
   }
 

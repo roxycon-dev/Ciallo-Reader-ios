@@ -379,6 +379,8 @@ export interface SecureStore {
 export interface FileSystemApi {
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, data: Uint8Array): Promise<void>;
+  /** Atomic replacement for small, irreplaceable user configuration files. */
+  writeFileAtomic?(path: string, data: Uint8Array): Promise<void>;
   /** Append bytes without reading the existing file back into JavaScript memory. */
   appendFile?(path: string, data: Uint8Array): Promise<void>;
   exists(path: string): Promise<boolean>;

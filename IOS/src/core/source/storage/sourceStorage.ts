@@ -67,7 +67,7 @@ import type { SourceStorage as SourceManagerStoragePort } from '../sourceManager
 /** Kotlin L3 — the persistence port `SourceManager` / `SourceViewModel` inject. */
 export interface SourceStorage {
   saveSourceState(sourceId: string, enabled: boolean): Promise<void>;
-  getSourceStates(): Promise<Record<string, boolean>>;
+  getSourceStates(knownIds?: readonly string[]): Promise<Record<string, boolean>>;
   saveActiveSourceId(sourceId: string): Promise<void>;
   getActiveSourceId(): Promise<string | null>;
   saveCustomSourceJson(sourceId: string, jsonContent: string): Promise<void>;
@@ -102,6 +102,8 @@ export type SourcePrefsValue = string | number | boolean | ReadonlySet<string>;
  * maps to one concrete Android call.
  */
 export interface SourcePrefsPort {
+  /** Native string-backed stores cannot enumerate keys after a cold start. */
+  readStoredBoolean?(key: string): Promise<boolean | null>;
   /** Kotlin L18 / L57 `prefs.all` — every entry with its runtime type preserved. */
   all(): Readonly<Record<string, SourcePrefsValue>>;
   /** Kotlin L33 `prefs.getString("active_source_id", null)`. */
@@ -137,6 +139,8 @@ export interface SourcePrefsPort {
  * no counterpart there because only `AtomicFile` needs it (see below).
  */
 export interface SourceConfigFilePort {
+  load?(paths: readonly string[]): Promise<void>;
+  flush?(): Promise<void>;
   /** Kotlin L8 `context.filesDir` — the parent of `source_configs`. */
   filesDir(): string;
   /** Kotlin L8 `.apply { mkdirs() }`. */

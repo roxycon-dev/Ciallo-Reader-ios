@@ -46,6 +46,9 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
     try { await platform.fs.writeFile(path, new Uint8Array([0, 1, 127, 128, 255])); assert(platform.fs.appendFile, 'Native append not bound'); await platform.fs.appendFile(path, new Uint8Array([255, 0, 42])); assert(Array.from(await platform.fs.readFile(path)).join(',') === '0,1,127,128,255,255,0,42', 'Binary append changed data'); }
     finally { await platform.fs.delete(path); }
     assert(!(await platform.fs.exists(path)), 'Deleted binary still exists');
+    assert(platform.fs.writeFileAtomic, 'Native atomic configuration writer not installed');
+    try { await platform.fs.writeFileAtomic(path, new Uint8Array([0, 255, 128])); await platform.fs.writeFileAtomic(path, new Uint8Array([128, 0, 1, 255])); assert(Array.from(await platform.fs.readFile(path)).join(',') === '128,0,1,255', 'Native atomic replacement changed bytes'); }
+    finally { await platform.fs.delete(path); }
   });
   await check('PDFKit renders actual PDF bytes to a readable JPEG', async () => {
     const path = `${prefix}/input.pdf`; let pages: string[] = [];

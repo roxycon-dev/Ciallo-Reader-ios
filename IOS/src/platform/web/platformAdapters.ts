@@ -24,6 +24,7 @@
 import type { FileSystemApi, SecureStore } from '@platform/interfaces';
 import type { SourcePrefsPort } from '@core/source/storage/sourceStorage';
 import type { SourcePrefsValue } from '@core/source/storage/sourceStorage';
+import { SOURCE_ENABLED_PREFIX } from '@core/source/storage/sourceStorage';
 
 /** 集合类偏好的键在 SecureStore 里的实际存储键（加前缀避免与普通键冲突）。 */
 const STRING_SET_PREFIX = 'ss:';
@@ -51,6 +52,13 @@ export class SecureStoreSourcePrefs implements SourcePrefsPort {
 
   constructor(private readonly store: SecureStore) {}
 
+  async readStoredBoolean(key: string): Promise<boolean | null> {
+    const value = await this.store.get(key);
+    if (value === null) return null;
+    if (value !== 'true' && value !== 'false') throw new Error('Stored source switch is not a boolean');
+    const enabled = value === 'true'; this.mirror.set(key, enabled); this.mirrorIndex.add(key); return enabled;
+  }
+
   all(): Readonly<Record<string, SourcePrefsValue>> {
     const out: Record<string, SourcePrefsValue> = {};
     for (const key of this.mirrorIndex) {
@@ -62,6 +70,10 @@ export class SecureStoreSourcePrefs implements SourcePrefsPort {
 
   async getString(key: string, fallback: string | null): Promise<string | null> {
     const value = await this.store.get(key);
+    if (value !== null) {
+      const boolean = (typeof this.mirror.get(key) === 'boolean' || key.startsWith(SOURCE_ENABLED_PREFIX)) && (value === 'true' || value === 'false');
+      this.mirror.set(key, boolean ? value === 'true' : value); this.mirrorIndex.add(key);
+    }
     return value === null ? fallback : value;
   }
 
@@ -145,9 +157,7 @@ export class FileSystemSourceConfigFile {
   }
 
   exists(path: string): boolean {
-    // 同步语义无法保证：FileSystemApi 全异步。Android 的 `AtomicFile` 读侧
-    // 本来就要处理「文件不存在」这一分支，这里用「已缓存的写集合」近似，
-    // 真正的读取走 `readText`（返回 null 即不存在）。
+    // load() fills the synchronous view before persisted definitions are read.
     return this.written.has(path);
   }
 
@@ -156,32 +166,49 @@ export class FileSystemSourceConfigFile {
   writeText(path: string, content: string): void {
     this.pendingWrites.set(path, content);
     this.written.add(path);
+    this.pendingDeletes.delete(path);
   }
 
   private readonly pendingWrites = new Map<string, string>();
+  private readonly committed = new Map<string, string>();
+  private readonly pendingDeletes = new Set<string>();
+  private flushTail: Promise<void> = Promise.resolve();
+
+  async load(paths: readonly string[]): Promise<void> {
+    await this.flushTail;
+    for (const path of paths) {
+      if (this.pendingWrites.has(path) || this.pendingDeletes.has(path)) continue;
+      if (!(await this.fs.exists(path))) { this.pendingWrites.delete(path); this.committed.delete(path); this.written.delete(path); continue; }
+      const bytes = await this.fs.readFile(path);
+      if (bytes.length > 2 * 1024 * 1024) throw new Error('书源配置文件过大');
+      this.committed.set(path, new TextDecoder('utf-8', { fatal: true }).decode(bytes)); this.written.add(path);
+    }
+  }
 
   readText(path: string): string | null {
     const pending = this.pendingWrites.get(path);
     if (pending !== undefined) return pending;
-    // 同步读不可用 —— 返回 null 让调用方走「重新写入」路径。
-    return null;
+    return this.committed.get(path) ?? null;
   }
 
   length(path: string): number {
-    const content = this.pendingWrites.get(path);
-    return content === undefined ? 0 : content.length;
+    const content = this.readText(path);
+    return content === null ? 0 : new TextEncoder().encode(content).length;
   }
 
   delete(path: string): void {
     this.pendingWrites.delete(path);
     this.written.delete(path);
+    this.pendingDeletes.add(path);
   }
 
   /** Kotlin `AtomicFile.finishWrite(out)` —— 把暂存内容提升为正式文件。 */
   async finishWrite(path: string): Promise<void> {
     const content = this.pendingWrites.get(path);
     if (content === undefined) return;
-    await this.fs.writeFile(path, new TextEncoder().encode(content));
+    if (this.fs.writeFileAtomic) await this.fs.writeFileAtomic(path, new TextEncoder().encode(content));
+    else await this.fs.writeFile(path, new TextEncoder().encode(content));
+    this.committed.set(path, content);
   }
 
   /** `File.renameTo` —— Android 用它把 `.bak` 提升为正式文件（AtomicFile 的语义）。 */
@@ -192,13 +219,24 @@ export class FileSystemSourceConfigFile {
     this.pendingWrites.delete(from);
     this.written.delete(from);
     this.written.add(to);
+    this.pendingDeletes.add(from); this.pendingDeletes.delete(to);
   }
 
   /** 把所有暂存写落盘（Android 的 `finishWrite` 是在 `writeText` 内部调用的）。 */
-  async flush(): Promise<void> {
-    for (const path of Array.from(this.pendingWrites.keys())) {
-      await this.finishWrite(path);
-    }
+  flush(): Promise<void> {
+    const writes = new Map(this.pendingWrites), deletes = new Set(this.pendingDeletes);
+    this.pendingWrites.clear(); this.pendingDeletes.clear();
+    const operation = this.flushTail.then(async () => {
+      for (const [path, content] of writes) {
+        const bytes = new TextEncoder().encode(content);
+        if (bytes.length > 2 * 1024 * 1024) throw new Error('书源配置文件过大');
+        if (this.fs.writeFileAtomic) await this.fs.writeFileAtomic(path, bytes); else await this.fs.writeFile(path, bytes);
+        this.committed.set(path, content);
+      }
+      for (const path of deletes) { await this.fs.delete(path); this.committed.delete(path); }
+    });
+    this.flushTail = operation.catch(() => {});
+    return operation;
   }
 }
 

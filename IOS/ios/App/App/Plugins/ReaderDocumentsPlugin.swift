@@ -11,10 +11,28 @@ public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPicke
         CAPPluginMethod(name: "pickFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "saveFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "renderPdf", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "shareFile", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "shareFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "writeAtomic", returnType: CAPPluginReturnPromise)
     ]
     private var pending: CAPPluginCall?
     private var exportDirectory: URL?
+
+    @objc func writeAtomic(_ call: CAPPluginCall) {
+        guard let path = call.getString("path"), !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\"), !path.contains("\0"),
+              !path.split(separator: "/").contains(where: { $0 == ".." || $0 == "." }),
+              let encoded = call.getString("data"), encoded.utf8.count <= 22369624,
+              let data = Data(base64Encoded: encoded), data.count <= 16 * 1024 * 1024 else { call.reject("原子文件写入参数无效"); return }
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL.resolvingSymlinksInPath()
+                let target = root.appendingPathComponent(path).standardizedFileURL.resolvingSymlinksInPath()
+                guard target.path.hasPrefix(root.path + "/") else { throw NSError(domain: "ReaderFiles", code: 1, userInfo: [NSLocalizedDescriptionKey: "文件路径越界"]) }
+                try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: target, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                let handle = try FileHandle(forWritingTo: target); defer { try? handle.close() }; try handle.synchronize(); call.resolve()
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
 
     @objc func shareFile(_ call: CAPPluginCall) {
         let paths = call.getArray("paths", String.self) ?? []
