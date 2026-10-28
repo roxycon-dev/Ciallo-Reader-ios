@@ -2,6 +2,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { PlatformBundle } from '@platform/index';
 import { PrivacyService } from '@core/privacy/privacyService';
 import { EnginePreferences, SourceWorkerEngine } from '@platform/sourceWorker/engine';
+import { bytesToBase64 } from './capacitorHttpClient';
 
 interface Check { name: string; passed: boolean; detail: string }
 interface Diagnostics { testConfiguration(): Promise<{ enabled: boolean }>; reportCapabilities(value: { checks: Check[] }): Promise<void> }
@@ -69,6 +70,12 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
   await check('Native mutual TLS device-transfer identities and streamed loopback', async () => {
     const transfer = registerPlugin<{ selfTest(): Promise<{ detail: string }> }>('ReaderTransfer');
     const result = await transfer.selfTest(); assert(result.detail.includes('streamed bytes verified'), result.detail);
+  }, 40_000);
+  await check('Native streamed ZIP imports Android and preserves archive bytes', async () => {
+    const fixture = await platform.http.request({ url: '/native-fixtures/transfer-deflated.zip', method: 'GET' });
+    assert(fixture.status === 200, 'Missing actual JDK ZIP fixture');
+    const archive = registerPlugin<{ selfTest(options: { data: string }): Promise<{ detail: string }> }>('ReaderTransferArchive');
+    const result = await archive.selfTest({ data: bytesToBase64(fixture.body) }); assert(result.detail.includes('roundtrip verified'), result.detail);
   }, 40_000);
   const keys = ['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'];
   const paths = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera_.js', 'venera/comic_metadata.js', 'venera/discover_bridge.js', ...keys.map((key) => `js_extra/${key}.js`)];

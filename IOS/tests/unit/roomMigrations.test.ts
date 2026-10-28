@@ -196,7 +196,7 @@ describe('LegacyDatabaseMigration.kt', () => {
 });
 
 describe('roomMigrations.ts (AppDatabase.kt 258..481)', () => {
-  it('registers the seven incremental steps in Android order', () => {
+  it('registers the eight current incremental steps in Android order', () => {
     expect(ANDROID_MIGRATION_CHAIN.map((m) => m.name)).toEqual([
       'MIGRATION_5_6',
       'MIGRATION_6_7',
@@ -205,6 +205,7 @@ describe('roomMigrations.ts (AppDatabase.kt 258..481)', () => {
       'MIGRATION_9_10',
       'MIGRATION_10_11',
       'MIGRATION_11_12',
+      'MIGRATION_12_13',
     ]);
     expect(ANDROID_MIGRATION_CHAIN.map((m) => `${m.fromVersion}->${m.toVersion}`)).toEqual([
       '5->6',
@@ -214,6 +215,7 @@ describe('roomMigrations.ts (AppDatabase.kt 258..481)', () => {
       '9->10',
       '10->11',
       '11->12',
+      '12->13',
     ]);
   });
 

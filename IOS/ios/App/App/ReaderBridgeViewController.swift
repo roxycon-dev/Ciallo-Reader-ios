@@ -11,6 +11,7 @@ class ReaderBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(ReaderDocumentsPlugin())
         bridge?.registerPluginInstance(ReaderWebsitePlugin())
         bridge?.registerPluginInstance(ReaderTransferPlugin())
+        bridge?.registerPluginInstance(ReaderTransferArchivePlugin())
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {

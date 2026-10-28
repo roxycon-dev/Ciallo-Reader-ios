@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from '@platform/interfaces';
-import { createIndexSql, createTableSql, TABLES } from './schemaV12';
+import { createIndexSql, createTableSql, TABLES } from './schemaV13';
 
 export const APP_DATABASE_FILENAME = 'novel-reader.db';
 

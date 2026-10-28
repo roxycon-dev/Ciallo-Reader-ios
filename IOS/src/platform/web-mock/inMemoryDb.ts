@@ -1,4 +1,4 @@
-import { createIndexSql, createTableSql, TABLES } from '@core/db/schemaV12';
+import { createIndexSql, createTableSql, TABLES } from '@core/db/schemaV13';
 import type { SQLiteDatabase, SqlValue } from '@platform/interfaces';
 
 export interface ColumnMeta {

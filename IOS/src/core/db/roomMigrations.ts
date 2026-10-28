@@ -334,6 +334,15 @@ export const MIGRATION_11_12: RoomMigrationStep = {
  * The four `LegacyDatabaseMigration(n)` entries are provided by
  * `createLegacyDatabaseMigrations()` in `./legacyDatabaseMigration`.
  */
+export const MIGRATION_12_13: RoomMigrationStep = {
+  name: 'MIGRATION_12_13', fromVersion: 12, toVersion: 13,
+  async migrate(db) {
+    await db.execute('CREATE TABLE IF NOT EXISTS transfer_identities (localKey TEXT NOT NULL, stableId TEXT NOT NULL, PRIMARY KEY(localKey))');
+    await db.execute('CREATE TABLE IF NOT EXISTS transfer_receipts (packageId TEXT NOT NULL, importedAt INTEGER NOT NULL, PRIMARY KEY(packageId))');
+    await db.execute('CREATE INDEX IF NOT EXISTS index_chapters_bookId_chapterOrder ON chapters(bookId,chapterOrder)');
+  },
+};
+
 export const ANDROID_MIGRATION_CHAIN: readonly RoomMigrationStep[] = [
   MIGRATION_5_6,
   MIGRATION_6_7,
@@ -342,6 +351,7 @@ export const ANDROID_MIGRATION_CHAIN: readonly RoomMigrationStep[] = [
   MIGRATION_9_10,
   MIGRATION_10_11,
   MIGRATION_11_12,
+  MIGRATION_12_13,
 ];
 
 /** Exported for tests / UI that need the pre-seeded category names. */

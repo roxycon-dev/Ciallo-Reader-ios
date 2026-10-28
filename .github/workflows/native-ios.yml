@@ -54,7 +54,9 @@ jobs:
           python3 scripts/run-bounded.py 250 python3 scripts/wait-ios-startup.py "$state" native-startup-state.json
           sleep 2
           cp "$container/Library/Caches/reader-capabilities.json" native-capabilities.json
-          python3 -c 'import json,sys; checks=json.load(open(sys.argv[1]))["checks"]; print(json.dumps(checks,ensure_ascii=False,indent=2)); assert len(checks)==12 and all(c["passed"] for c in checks)' native-capabilities.json
+          python3 -c 'import json,sys; checks=json.load(open(sys.argv[1]))["checks"]; print(json.dumps(checks,ensure_ascii=False,indent=2)); assert len(checks)==13 and all(c["passed"] for c in checks)' native-capabilities.json
+          cp "$container/Library/Caches/reader-transfer-stored.zip" native-transfer-stored.zip
+          java scripts/VerifyTransferZip.java native-transfer-stored.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,4 +68,5 @@ jobs:
             IOS/native-startup-state.json
             IOS/native-launch.log
             IOS/native-capabilities.json
+              IOS/native-transfer-stored.zip
           retention-days: 7
