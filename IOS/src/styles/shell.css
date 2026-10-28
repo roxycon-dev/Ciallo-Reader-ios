@@ -6,7 +6,6 @@
 
 .shell-tab {
   width: 100%;
-  will-change: opacity, transform;
 }
 
 .tab-content {

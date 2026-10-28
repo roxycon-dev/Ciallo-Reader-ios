@@ -16,8 +16,16 @@ import { sourceRequiresLogin } from './sourceCapabilities';
 import type { SourceCapabilities } from './sourceCapabilities';
 import { SourceResult } from './sourceResult';
 import type { SourceResult as SourceResultType } from './sourceResult';
+import { ParseError } from './sourceException';
+import { validDetailLink } from './detailLink';
+import { discoverCatalog as emptyCatalog, discoverPage as emptyPage, type DiscoverCatalog, type DiscoverPage, type DiscoverQuery } from '@core/discover/models';
 
 export abstract class BookSource {
+  async getShareUrl(bookId: string): Promise<string | null> { return validDetailLink(bookId); }
+  get supportsDiscoverMetadata(): boolean { return false; }
+  async getDiscoverMetadata(_bookId: string, _signal?: AbortSignal): Promise<SourceResultType<SearchBook>> { return SourceResult.Error(new ParseError('书源没有轻量元数据接口')); }
+  async discoverCatalog(_resolveDynamic = false, _signal?: AbortSignal): Promise<SourceResultType<DiscoverCatalog>> { return SourceResult.Success(emptyCatalog()); }
+  async discover(_query: DiscoverQuery, _signal?: AbortSignal): Promise<SourceResultType<DiscoverPage>> { return SourceResult.Success(emptyPage({ supported: false, notice: '该书源未提供此维度数据' })); }
   abstract readonly id: string;
   abstract readonly name: string;
   abstract readonly capabilities: SourceCapabilities;

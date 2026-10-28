@@ -19,15 +19,16 @@ import {
 } from '@ui/shell/TabShell';
 
 describe('TabShell tab mapping (MainActivity L500-507 / when(selectedTab))', () => {
-  it('has four tabs in Android order', () => {
-    expect(TAB_KEYS).toEqual(['library', 'bookshelf', 'stats', 'settings']);
+  it('has five tabs in the current Android order', () => {
+    expect(TAB_KEYS).toEqual(['library', 'discover', 'bookshelf', 'stats', 'settings']);
   });
 
   it('maps selectedTab indices exactly (655/679/… → 0 书库, 1 书架, 2 统计, 3 设置)', () => {
     expect(selectedTabIndexOf('library')).toBe(0);
-    expect(selectedTabIndexOf('bookshelf')).toBe(1);
-    expect(selectedTabIndexOf('stats')).toBe(2);
-    expect(selectedTabIndexOf('settings')).toBe(3);
+    expect(selectedTabIndexOf('discover')).toBe(1);
+    expect(selectedTabIndexOf('bookshelf')).toBe(2);
+    expect(selectedTabIndexOf('stats')).toBe(3);
+    expect(selectedTabIndexOf('settings')).toBe(4);
   });
 
   it('round-trips index ↔ key', () => {
@@ -42,7 +43,7 @@ describe('TabShell tab mapping (MainActivity L500-507 / when(selectedTab))', () 
   });
 
   it('tab items carry the Chinese labels verbatim', () => {
-    expect(TAB_KEYS.map((k) => tabItemFor(k).label)).toEqual(['书库', '书架', '统计', '设置']);
+    expect(TAB_KEYS.map((k) => tabItemFor(k).label)).toEqual(['书库', '发现', '书架', '统计', '设置']);
   });
 });
 

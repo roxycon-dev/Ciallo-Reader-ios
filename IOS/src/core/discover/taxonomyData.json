@@ -1,0 +1,1861 @@
+{
+  "androidSha256": "77f1f17446670cd75c252c01dca3b874851876ec4b39c1d4ba8ab977ac8ff32d",
+  "roots": [
+    {
+      "id": "genre",
+      "label": "题材",
+      "children": [
+        {
+          "id": "action",
+          "label": "热血冒险",
+          "children": [
+            {
+              "id": "battle",
+              "label": "战斗",
+              "children": [],
+              "aliases": [
+                "战斗",
+                "格斗",
+                "fighting"
+              ],
+              "adult": false
+            },
+            {
+              "id": "adventure",
+              "label": "冒险",
+              "children": [],
+              "aliases": [
+                "冒险",
+                "adventure"
+              ],
+              "adult": false
+            },
+            {
+              "id": "sports",
+              "label": "运动",
+              "children": [],
+              "aliases": [
+                "运动",
+                "sports",
+                "竞技",
+                "体育",
+                "體育"
+              ],
+              "adult": false
+            },
+            {
+              "id": "martial",
+              "label": "武侠",
+              "children": [],
+              "aliases": [
+                "武侠",
+                "武术"
+              ],
+              "adult": false
+            },
+            {
+              "id": "survival",
+              "label": "生存",
+              "children": [],
+              "aliases": [
+                "生存",
+                "survival"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "热血冒险",
+            "action",
+            "热血",
+            "动作",
+            "動作"
+          ],
+          "adult": false
+        },
+        {
+          "id": "fantasy",
+          "label": "奇幻科幻",
+          "children": [
+            {
+              "id": "magic",
+              "label": "魔法",
+              "children": [],
+              "aliases": [
+                "魔法",
+                "magic"
+              ],
+              "adult": false
+            },
+            {
+              "id": "scifi",
+              "label": "科幻",
+              "children": [],
+              "aliases": [
+                "科幻",
+                "sci-fi",
+                "science fiction"
+              ],
+              "adult": false
+            },
+            {
+              "id": "mecha",
+              "label": "机战",
+              "children": [],
+              "aliases": [
+                "机战",
+                "机甲",
+                "mecha"
+              ],
+              "adult": false
+            },
+            {
+              "id": "cultivation",
+              "label": "修仙",
+              "children": [],
+              "aliases": [
+                "修仙",
+                "仙侠",
+                "玄幻"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "奇幻科幻",
+            "fantasy",
+            "奇幻",
+            "魔幻"
+          ],
+          "adult": false
+        },
+        {
+          "id": "life",
+          "label": "日常成长",
+          "children": [
+            {
+              "id": "daily",
+              "label": "日常",
+              "children": [],
+              "aliases": [
+                "日常",
+                "slice of life",
+                "日常生活",
+                "生活"
+              ],
+              "adult": false
+            },
+            {
+              "id": "comedy",
+              "label": "搞笑",
+              "children": [],
+              "aliases": [
+                "搞笑",
+                "comedy",
+                "喜剧",
+                "爆笑",
+                "欢乐向",
+                "歡樂向"
+              ],
+              "adult": false
+            },
+            {
+              "id": "school",
+              "label": "校园",
+              "children": [],
+              "aliases": [
+                "校园",
+                "school life",
+                "校园生活",
+                "学园"
+              ],
+              "adult": false
+            },
+            {
+              "id": "career",
+              "label": "职场",
+              "children": [],
+              "aliases": [
+                "职场",
+                "工作",
+                "上班族",
+                "office workers"
+              ],
+              "adult": false
+            },
+            {
+              "id": "food",
+              "label": "美食",
+              "children": [],
+              "aliases": [
+                "美食",
+                "cooking",
+                "烹饪"
+              ],
+              "adult": false
+            },
+            {
+              "id": "music",
+              "label": "音乐舞蹈",
+              "children": [],
+              "aliases": [
+                "音乐舞蹈",
+                "music",
+                "音乐",
+                "舞蹈",
+                "dance"
+              ],
+              "adult": false
+            },
+            {
+              "id": "social",
+              "label": "社会现实",
+              "children": [],
+              "aliases": [
+                "社会现实",
+                "社会",
+                "社會"
+              ],
+              "adult": false
+            },
+            {
+              "id": "medical",
+              "label": "医疗",
+              "children": [],
+              "aliases": [
+                "医疗",
+                "medical"
+              ],
+              "adult": false
+            },
+            {
+              "id": "youth",
+              "label": "青春成长",
+              "children": [],
+              "aliases": [
+                "青春成长",
+                "青春",
+                "成长",
+                "coming of age"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "日常成长"
+          ],
+          "adult": false
+        },
+        {
+          "id": "mystery",
+          "label": "悬疑惊险",
+          "children": [
+            {
+              "id": "detective",
+              "label": "推理",
+              "children": [],
+              "aliases": [
+                "推理",
+                "detective",
+                "侦探"
+              ],
+              "adult": false
+            },
+            {
+              "id": "suspense",
+              "label": "悬疑",
+              "children": [],
+              "aliases": [
+                "悬疑",
+                "thriller",
+                "惊悚"
+              ],
+              "adult": false
+            },
+            {
+              "id": "horror",
+              "label": "恐怖",
+              "children": [],
+              "aliases": [
+                "恐怖",
+                "horror"
+              ],
+              "adult": false
+            },
+            {
+              "id": "crime",
+              "label": "犯罪",
+              "children": [],
+              "aliases": [
+                "犯罪",
+                "crime",
+                "黑道",
+                "黑帮",
+                "gangs"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "悬疑惊险",
+            "mystery"
+          ],
+          "adult": false
+        },
+        {
+          "id": "history",
+          "label": "历史战争",
+          "children": [
+            {
+              "id": "historical",
+              "label": "历史",
+              "children": [],
+              "aliases": [
+                "历史",
+                "historical"
+              ],
+              "adult": false
+            },
+            {
+              "id": "war",
+              "label": "战争",
+              "children": [],
+              "aliases": [
+                "战争",
+                "military"
+              ],
+              "adult": false
+            },
+            {
+              "id": "palace",
+              "label": "宫廷",
+              "children": [],
+              "aliases": [
+                "宫廷",
+                "宫斗"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "历史战争"
+          ],
+          "adult": false
+        }
+      ],
+      "aliases": [
+        "题材"
+      ],
+      "adult": false
+    },
+    {
+      "id": "emotion",
+      "label": "情感",
+      "children": [
+        {
+          "id": "romance",
+          "label": "恋爱关系",
+          "children": [
+            {
+              "id": "love",
+              "label": "恋爱",
+              "children": [],
+              "aliases": [
+                "恋爱",
+                "romance",
+                "爱情",
+                "浪漫"
+              ],
+              "adult": false
+            },
+            {
+              "id": "pure",
+              "label": "纯爱",
+              "children": [],
+              "aliases": [
+                "纯爱",
+                "初恋"
+              ],
+              "adult": false
+            },
+            {
+              "id": "bl",
+              "label": "男生之间",
+              "children": [],
+              "aliases": [
+                "男生之间",
+                "bl",
+                "boys love",
+                "耽美",
+                "yaoi",
+                "shounen ai",
+                "shonen ai",
+                "少年爱"
+              ],
+              "adult": false
+            },
+            {
+              "id": "gl",
+              "label": "女生之间",
+              "children": [],
+              "aliases": [
+                "女生之间",
+                "gl",
+                "girls love",
+                "百合",
+                "yuri",
+                "shoujo ai",
+                "少女爱"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "恋爱关系"
+          ],
+          "adult": false
+        },
+        {
+          "id": "bond",
+          "label": "陪伴羁绊",
+          "children": [
+            {
+              "id": "friendship",
+              "label": "友情",
+              "children": [],
+              "aliases": [
+                "友情",
+                "伙伴"
+              ],
+              "adult": false
+            },
+            {
+              "id": "family",
+              "label": "亲情",
+              "children": [],
+              "aliases": [
+                "亲情",
+                "家庭"
+              ],
+              "adult": false
+            },
+            {
+              "id": "healing",
+              "label": "治愈",
+              "children": [],
+              "aliases": [
+                "治愈",
+                "iyashikei"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "陪伴羁绊"
+          ],
+          "adult": false
+        },
+        {
+          "id": "tone",
+          "label": "情绪口味",
+          "children": [
+            {
+              "id": "sweet",
+              "label": "甜宠",
+              "children": [],
+              "aliases": [
+                "甜宠",
+                "甜蜜"
+              ],
+              "adult": false
+            },
+            {
+              "id": "angst",
+              "label": "虐心",
+              "children": [],
+              "aliases": [
+                "虐心",
+                "悲剧",
+                "tragedy",
+                "致郁"
+              ],
+              "adult": false
+            },
+            {
+              "id": "drama",
+              "label": "剧情纠葛",
+              "children": [],
+              "aliases": [
+                "剧情纠葛",
+                "drama",
+                "剧情",
+                "情感纠葛"
+              ],
+              "adult": false
+            },
+            {
+              "id": "psychological",
+              "label": "心理",
+              "children": [],
+              "aliases": [
+                "心理",
+                "psychological"
+              ],
+              "adult": false
+            },
+            {
+              "id": "inspiring",
+              "label": "励志",
+              "children": [],
+              "aliases": [
+                "励志",
+                "勵志",
+                "inspirational"
+              ],
+              "adult": false
+            },
+            {
+              "id": "revenge",
+              "label": "复仇",
+              "children": [],
+              "aliases": [
+                "复仇",
+                "revenge"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "情绪口味"
+          ],
+          "adult": false
+        }
+      ],
+      "aliases": [
+        "情感"
+      ],
+      "adult": false
+    },
+    {
+      "id": "setting",
+      "label": "设定",
+      "children": [
+        {
+          "id": "world",
+          "label": "故事世界",
+          "children": [
+            {
+              "id": "modern",
+              "label": "现代",
+              "children": [],
+              "aliases": [
+                "现代",
+                "都市"
+              ],
+              "adult": false
+            },
+            {
+              "id": "ancient",
+              "label": "古风",
+              "children": [],
+              "aliases": [
+                "古风",
+                "古代"
+              ],
+              "adult": false
+            },
+            {
+              "id": "otherworld",
+              "label": "异世界",
+              "children": [],
+              "aliases": [
+                "异世界",
+                "isekai"
+              ],
+              "adult": false
+            },
+            {
+              "id": "apocalypse",
+              "label": "末世",
+              "children": [],
+              "aliases": [
+                "末世",
+                "丧尸",
+                "zombies",
+                "末日",
+                "后末日",
+                "post-apocalyptic",
+                "僵尸"
+              ],
+              "adult": false
+            },
+            {
+              "id": "supernatural",
+              "label": "灵异",
+              "children": [],
+              "aliases": [
+                "灵异",
+                "supernatural",
+                "神鬼",
+                "超自然",
+                "幽灵"
+              ],
+              "adult": false
+            },
+            {
+              "id": "imaginary",
+              "label": "架空",
+              "children": [],
+              "aliases": [
+                "架空",
+                "架空世界"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "故事世界"
+          ],
+          "adult": false
+        },
+        {
+          "id": "premise",
+          "label": "主角与机制",
+          "children": [
+            {
+              "id": "rebirth",
+              "label": "重生",
+              "children": [],
+              "aliases": [
+                "重生",
+                "转生"
+              ],
+              "adult": false
+            },
+            {
+              "id": "travel",
+              "label": "穿越",
+              "children": [],
+              "aliases": [
+                "穿越",
+                "time travel"
+              ],
+              "adult": false
+            },
+            {
+              "id": "system",
+              "label": "系统",
+              "children": [],
+              "aliases": [
+                "系统",
+                "升级"
+              ],
+              "adult": false
+            },
+            {
+              "id": "superpower",
+              "label": "异能",
+              "children": [],
+              "aliases": [
+                "异能",
+                "superhero",
+                "超能力"
+              ],
+              "adult": false
+            },
+            {
+              "id": "game",
+              "label": "游戏",
+              "children": [],
+              "aliases": [
+                "游戏",
+                "video games",
+                "游戏竞技"
+              ],
+              "adult": false
+            },
+            {
+              "id": "villain",
+              "label": "反派",
+              "children": [],
+              "aliases": [
+                "反派",
+                "恶役",
+                "恶役千金"
+              ],
+              "adult": false
+            },
+            {
+              "id": "rise",
+              "label": "逆袭",
+              "children": [],
+              "aliases": [
+                "逆袭"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "主角与机制"
+          ],
+          "adult": false
+        },
+        {
+          "id": "cast",
+          "label": "角色类型",
+          "children": [
+            {
+              "id": "femalelead",
+              "label": "女主视角",
+              "children": [],
+              "aliases": [
+                "女主视角",
+                "大女主"
+              ],
+              "adult": false
+            },
+            {
+              "id": "ensemble",
+              "label": "群像",
+              "children": [],
+              "aliases": [
+                "群像",
+                "群像剧"
+              ],
+              "adult": false
+            },
+            {
+              "id": "monster",
+              "label": "妖怪",
+              "children": [],
+              "aliases": [
+                "妖怪",
+                "demons",
+                "魔物",
+                "怪物",
+                "恶魔",
+                "魔物娘"
+              ],
+              "adult": false
+            },
+            {
+              "id": "animal",
+              "label": "动物",
+              "children": [],
+              "aliases": [
+                "动物",
+                "animals",
+                "萌宠"
+              ],
+              "adult": false
+            },
+            {
+              "id": "harem",
+              "label": "后宫",
+              "children": [],
+              "aliases": [
+                "后宫",
+                "harem",
+                "逆后宫"
+              ],
+              "adult": false
+            },
+            {
+              "id": "gender",
+              "label": "性转",
+              "children": [],
+              "aliases": [
+                "性转",
+                "gender bender",
+                "性别转换",
+                "性转换",
+                "性轉換"
+              ],
+              "adult": false
+            },
+            {
+              "id": "crossdress",
+              "label": "反串",
+              "children": [],
+              "aliases": [
+                "反串",
+                "伪娘",
+                "偽娘",
+                "女装",
+                "crossdressing"
+              ],
+              "adult": false
+            },
+            {
+              "id": "ceo",
+              "label": "霸总",
+              "children": [],
+              "aliases": [
+                "霸总",
+                "总裁"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "角色类型"
+          ],
+          "adult": false
+        }
+      ],
+      "aliases": [
+        "设定"
+      ],
+      "adult": false
+    },
+    {
+      "id": "audience",
+      "label": "受众",
+      "children": [
+        {
+          "id": "demographic",
+          "label": "阅读群体",
+          "children": [
+            {
+              "id": "shonen",
+              "label": "少年",
+              "children": [],
+              "aliases": [
+                "少年",
+                "shounen",
+                "shonen"
+              ],
+              "adult": false
+            },
+            {
+              "id": "shojo",
+              "label": "少女",
+              "children": [],
+              "aliases": [
+                "少女",
+                "shoujo",
+                "shojo"
+              ],
+              "adult": false
+            },
+            {
+              "id": "seinen",
+              "label": "青年",
+              "children": [],
+              "aliases": [
+                "青年",
+                "seinen"
+              ],
+              "adult": false
+            },
+            {
+              "id": "josei",
+              "label": "女性",
+              "children": [],
+              "aliases": [
+                "女性",
+                "josei"
+              ],
+              "adult": false
+            },
+            {
+              "id": "children",
+              "label": "儿童",
+              "children": [],
+              "aliases": [
+                "儿童",
+                "kids"
+              ],
+              "adult": false
+            },
+            {
+              "id": "allages",
+              "label": "全年龄",
+              "children": [],
+              "aliases": [
+                "全年龄",
+                "all ages"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "阅读群体"
+          ],
+          "adult": false
+        },
+        {
+          "id": "format",
+          "label": "阅读形式",
+          "children": [
+            {
+              "id": "webtoon",
+              "label": "条漫",
+              "children": [],
+              "aliases": [
+                "条漫",
+                "webtoon",
+                "长条"
+              ],
+              "adult": false
+            },
+            {
+              "id": "page",
+              "label": "页漫",
+              "children": [],
+              "aliases": [
+                "页漫"
+              ],
+              "adult": false
+            },
+            {
+              "id": "color",
+              "label": "全彩",
+              "children": [],
+              "aliases": [
+                "全彩",
+                "full color",
+                "彩色",
+                "官方上色",
+                "粉丝上色"
+              ],
+              "adult": false
+            },
+            {
+              "id": "short",
+              "label": "短篇",
+              "children": [],
+              "aliases": [
+                "短篇",
+                "one shot",
+                "单篇"
+              ],
+              "adult": false
+            },
+            {
+              "id": "anthology",
+              "label": "合集",
+              "children": [],
+              "aliases": [
+                "合集",
+                "anthology",
+                "选集"
+              ],
+              "adult": false
+            },
+            {
+              "id": "doujin",
+              "label": "同人",
+              "children": [],
+              "aliases": [
+                "同人",
+                "doujinshi",
+                "同人志"
+              ],
+              "adult": false
+            },
+            {
+              "id": "adaptation",
+              "label": "改编",
+              "children": [],
+              "aliases": [
+                "改编",
+                "adaptation",
+                "light novel adaptation"
+              ],
+              "adult": false
+            },
+            {
+              "id": "fourpanel",
+              "label": "四格",
+              "children": [],
+              "aliases": [
+                "四格",
+                "4-koma"
+              ],
+              "adult": false
+            },
+            {
+              "id": "magazine",
+              "label": "杂志",
+              "children": [],
+              "aliases": [
+                "杂志",
+                "雜誌"
+              ],
+              "adult": false
+            },
+            {
+              "id": "lightnovel",
+              "label": "轻小说相关",
+              "children": [],
+              "aliases": [
+                "轻小说相关",
+                "轻小说",
+                "輕小說",
+                "light novel"
+              ],
+              "adult": false
+            },
+            {
+              "id": "webcomic",
+              "label": "网络连载",
+              "children": [],
+              "aliases": [
+                "网络连载",
+                "webcomic",
+                "网络漫画"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "阅读形式"
+          ],
+          "adult": false
+        },
+        {
+          "id": "region",
+          "label": "地区风格",
+          "children": [
+            {
+              "id": "japan",
+              "label": "日漫",
+              "children": [],
+              "aliases": [
+                "日漫",
+                "日本",
+                "manga",
+                "japanese"
+              ],
+              "adult": false
+            },
+            {
+              "id": "china",
+              "label": "国漫",
+              "children": [],
+              "aliases": [
+                "国漫",
+                "内地",
+                "大陆",
+                "manhua"
+              ],
+              "adult": false
+            },
+            {
+              "id": "korea",
+              "label": "韩漫",
+              "children": [],
+              "aliases": [
+                "韩漫",
+                "韩国",
+                "manhwa"
+              ],
+              "adult": false
+            },
+            {
+              "id": "hktw",
+              "label": "港台",
+              "children": [],
+              "aliases": [
+                "港台",
+                "港台漫画"
+              ],
+              "adult": false
+            },
+            {
+              "id": "western",
+              "label": "欧美",
+              "children": [],
+              "aliases": [
+                "欧美",
+                "western"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "地区风格"
+          ],
+          "adult": false
+        },
+        {
+          "id": "taste",
+          "label": "阅读偏好",
+          "children": [
+            {
+              "id": "cute",
+              "label": "萌系",
+              "children": [],
+              "aliases": [
+                "萌系"
+              ],
+              "adult": false
+            },
+            {
+              "id": "otaku",
+              "label": "宅系",
+              "children": [],
+              "aliases": [
+                "宅系",
+                "宅男",
+                "宅向"
+              ],
+              "adult": false
+            },
+            {
+              "id": "award",
+              "label": "获奖",
+              "children": [],
+              "aliases": [
+                "获奖",
+                "award winning"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "阅读偏好"
+          ],
+          "adult": false
+        }
+      ],
+      "aliases": [
+        "受众"
+      ],
+      "adult": false
+    },
+    {
+      "id": "publication",
+      "label": "形式与来源",
+      "children": [
+        {
+          "id": "media",
+          "label": "内容形式",
+          "children": [
+            {
+              "id": "artbook",
+              "label": "画集 / CG",
+              "children": [],
+              "aliases": [
+                "画集 / CG",
+                "CG",
+                "CG畫集",
+                "CG雜圖",
+                "画师CG",
+                "游戏CG",
+                "图集",
+                "artbook",
+                "artist cg",
+                "game cg"
+              ],
+              "adult": false
+            },
+            {
+              "id": "threed",
+              "label": "3D作品",
+              "children": [],
+              "aliases": [
+                "3D作品",
+                "3D",
+                "3D漫畫",
+                "3d comic"
+              ],
+              "adult": false
+            },
+            {
+              "id": "cosplay",
+              "label": "写真 / Cosplay",
+              "children": [],
+              "aliases": [
+                "写真 / Cosplay",
+                "cosplay",
+                "寫真Cosplay",
+                "写真",
+                "photography"
+              ],
+              "adult": false
+            },
+            {
+              "id": "animation",
+              "label": "动画",
+              "children": [],
+              "aliases": [
+                "动画",
+                "anime",
+                "animation"
+              ],
+              "adult": false
+            },
+            {
+              "id": "long",
+              "label": "长篇",
+              "children": [],
+              "aliases": [
+                "长篇",
+                "長篇"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "内容形式"
+          ],
+          "adult": false
+        },
+        {
+          "id": "edition",
+          "label": "版本信息",
+          "children": [
+            {
+              "id": "translation",
+              "label": "汉化",
+              "children": [],
+              "aliases": [
+                "汉化",
+                "漢化",
+                "嗶咔漢化",
+                "禁漫漢化組",
+                "translated"
+              ],
+              "adult": false
+            },
+            {
+              "id": "uncensored",
+              "label": "无修正",
+              "children": [],
+              "aliases": [
+                "无修正",
+                "無修正",
+                "uncensored"
+              ],
+              "adult": false
+            },
+            {
+              "id": "language",
+              "label": "语言",
+              "children": [],
+              "aliases": [
+                "语言",
+                "汉语",
+                "中文",
+                "英语",
+                "日语",
+                "Chinese",
+                "English",
+                "Japanese"
+              ],
+              "adult": false
+            },
+            {
+              "id": "year",
+              "label": "出版年份",
+              "children": [],
+              "aliases": [
+                "出版年份"
+              ],
+              "adult": false
+            },
+            {
+              "id": "franchise",
+              "label": "作品系列",
+              "children": [],
+              "aliases": [
+                "作品系列"
+              ],
+              "adult": false
+            },
+            {
+              "id": "native_other",
+              "label": "其他原站分类",
+              "children": [],
+              "aliases": [
+                "其他原站分类"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "版本信息"
+          ],
+          "adult": false
+        }
+      ],
+      "aliases": [
+        "形式与来源"
+      ],
+      "adult": false
+    },
+    {
+      "id": "adult",
+      "label": "成人与偏好",
+      "children": [
+        {
+          "id": "mature",
+          "label": "内容分级",
+          "children": [
+            {
+              "id": "adultonly",
+              "label": "限制级",
+              "children": [],
+              "aliases": [
+                "限制级",
+                "adult",
+                "18+",
+                "hentai",
+                "成人",
+                "pornographic",
+                "19r",
+                "R-18",
+                "R18+",
+                "18禁",
+                "19+"
+              ],
+              "adult": false
+            },
+            {
+              "id": "explicit",
+              "label": "成人内容",
+              "children": [],
+              "aliases": [
+                "成人内容",
+                "色情",
+                "erotica",
+                "smut",
+                "情色",
+                "肉欲",
+                "性暴力"
+              ],
+              "adult": false
+            },
+            {
+              "id": "ecchi",
+              "label": "轻度成人",
+              "children": [],
+              "aliases": [
+                "轻度成人",
+                "ecchi",
+                "性感",
+                "魅惑",
+                "暧昧",
+                "TL"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "内容分级"
+          ],
+          "adult": false
+        },
+        {
+          "id": "preferences",
+          "label": "原站偏好",
+          "children": [
+            {
+              "id": "uniform",
+              "label": "制服装扮",
+              "children": [],
+              "aliases": [
+                "制服装扮",
+                "制服",
+                "女學生",
+                "女学生",
+                "女大生",
+                "女教師",
+                "护士",
+                "女僕",
+                "maid",
+                "milf",
+                "巫女",
+                "眼鏡控",
+                "眼镜",
+                "女仆",
+                "泳裝",
+                "泳装",
+                "新婚",
+                "人妻",
+                "御姐",
+                "大姐姐",
+                "空姐",
+                "上班族"
+              ],
+              "adult": false
+            },
+            {
+              "id": "relationship",
+              "label": "成人关系",
+              "children": [],
+              "aliases": [
+                "成人关系",
+                "NTR",
+                "寝取",
+                "偷情",
+                "继母",
+                "亂倫",
+                "乱伦",
+                "年上",
+                "年下",
+                "母系",
+                "母子",
+                "姐系",
+                "巨乳",
+                "貧乳",
+                "贫乳",
+                "长腿",
+                "美腿",
+                "多人",
+                "巨根",
+                "乳交",
+                "全裸",
+                "汗",
+                "眼鏡",
+                "皮裤",
+                "兽娘",
+                "精灵",
+                "萝莉",
+                "蘿莉",
+                "正太",
+                "loli",
+                "shota",
+                "胸毛",
+                "中出"
+              ],
+              "adult": false
+            },
+            {
+              "id": "play",
+              "label": "特殊偏好",
+              "children": [],
+              "aliases": [
+                "特殊偏好",
+                "SM",
+                "BDSM",
+                "束缚",
+                "束縛",
+                "女性支配",
+                "男性支配",
+                "黑絲",
+                "白襪",
+                "黑丝",
+                "白袜",
+                "足交",
+                "腳交",
+                "口交",
+                "颜射",
+                "肛交",
+                "触手",
+                "觸手",
+                "自卫",
+                "自慰",
+                "獵奇",
+                "猎奇",
+                "ryona",
+                "獣姦",
+                "兽奸",
+                "野外露出",
+                "露出",
+                "催眠",
+                "调教",
+                "調教",
+                "痴汉",
+                "痴漢",
+                "重口",
+                "重口地帶",
+                "血腥暴力",
+                "人外",
+                "妖精",
+                "肉感",
+                "骚",
+                "騷",
+                "耻辱",
+                "羞耻",
+                "淫语",
+                "淫亂"
+              ],
+              "adult": false
+            }
+          ],
+          "aliases": [
+            "原站偏好"
+          ],
+          "adult": false
+        }
+      ],
+      "aliases": [],
+      "adult": true
+    }
+  ],
+  "extraAliases": {
+    "action": [
+      "热血",
+      "冒险热血",
+      "冒險熱血",
+      "武侠格斗"
+    ],
+    "fantasy": [
+      "科幻魔幻",
+      "魔幻",
+      "魔法少女",
+      "奇幻冒险",
+      "奇幻冒險",
+      "奇异幻想",
+      "西幻",
+      "西方奇幻",
+      "玄幻奇幻",
+      "异世界幻想",
+      "现代幻想",
+      "幻想：高幻想",
+      "幻想：低幻想",
+      "玄幻言情"
+    ],
+    "detective": [
+      "侦探推理",
+      "偵探推理",
+      "文学：推理",
+      "推理"
+    ],
+    "love": [
+      "耽美爱情",
+      "耽美愛情",
+      "同志 BL",
+      "浪漫",
+      "爱情浪漫",
+      "浪漫爱情",
+      "情感",
+      "同志 BL",
+      "耽美爱情",
+      "言情",
+      "现言",
+      "古言",
+      "现言脑洞",
+      "古言脑洞",
+      "玄幻言情",
+      "古代言情",
+      "校园言情",
+      "穿越言情",
+      "灵异言情",
+      "民国言情",
+      "豪门总裁",
+      "职场婚恋",
+      "恋爱：异世界",
+      "恋爱：现实世界",
+      "浪漫喜剧",
+      "言情穿越",
+      "台言古言"
+    ],
+    "daily": [
+      "生活漫画",
+      "生活漫畫",
+      "都市日常",
+      "都市生活",
+      "乡村生活",
+      "古代世情",
+      "古风世情"
+    ],
+    "shonen": [
+      "少男"
+    ],
+    "josei": [
+      "淑女",
+      "女士",
+      "女青年"
+    ],
+    "scifi": [
+      "科学",
+      "科學",
+      "科幻未来",
+      "科学",
+      "科幻末世",
+      "科幻未来",
+      "星际机甲",
+      "科幻：VR游戏",
+      "科幻：宇宙",
+      "科幻：空想科学",
+      "科幻：惊悚",
+      "科幻灵异"
+    ],
+    "war": [
+      "战斗",
+      "戰爭",
+      "戰爭史詩",
+      "历史军事",
+      "军事战争",
+      "军事",
+      "抗战谍战",
+      "军事历史"
+    ],
+    "hktw": [
+      "台湾",
+      "港台漫画",
+      "台灣",
+      "港漫"
+    ],
+    "western": [
+      "美漫",
+      "欧美",
+      "欧漫",
+      "欧美漫画",
+      "美漫",
+      "欧漫"
+    ],
+    "short": [
+      "雜誌短篇",
+      "單行本"
+    ],
+    "harem": [
+      "逆后宫"
+    ],
+    "travel": [
+      "时间旅行",
+      "快穿",
+      "穿越言情",
+      "言情穿越"
+    ],
+    "cute": [
+      "萌系",
+      "萌"
+    ],
+    "game": [
+      "电子游戏",
+      "傳統遊戲",
+      "传统游戏",
+      "游戏体育",
+      "游戏竞技",
+      "科幻：VR游戏",
+      "网游竞技"
+    ],
+    "historical": [
+      "宗教",
+      "历史文化",
+      "历史古代",
+      "历史脑洞",
+      "古代世情",
+      "古风世情",
+      "历史军事",
+      "文学：历史",
+      "历史·时代·传奇",
+      "民国年代",
+      "民国言情",
+      "军事历史"
+    ],
+    "suspense": [
+      "黑暗",
+      "悬疑惊悚",
+      "悬疑灵异",
+      "推理悬疑",
+      "悬疑脑洞",
+      "女频悬疑",
+      "灵异悬疑",
+      "悬疑惊悚",
+      "悬疑灵异",
+      "文学：推理",
+      "科幻：惊悚"
+    ],
+    "gender": [
+      "性转变",
+      "性别变"
+    ],
+    "adventure": [
+      "奇幻冒险",
+      "动作冒险",
+      "奇幻冒險"
+    ],
+    "battle": [
+      "战斗热血",
+      "战斗 怪物",
+      "都市高武",
+      "文学：动作"
+    ],
+    "school": [
+      "校园青春",
+      "校园言情",
+      "校园青春"
+    ],
+    "career": [
+      "职场都市",
+      "职场商战",
+      "官场",
+      "职场婚恋"
+    ],
+    "modern": [
+      "职场都市",
+      "都市日常",
+      "都市高武",
+      "都市修真",
+      "都市脑洞",
+      "都市种田",
+      "都市生活",
+      "职场商战",
+      "现实世界",
+      "恋爱：现实世界",
+      "现代幻想",
+      "现代戏剧",
+      "现言",
+      "现言脑洞",
+      "豪门总裁",
+      "职场婚恋",
+      "都市青春"
+    ],
+    "healing": [
+      "治愈温馨"
+    ],
+    "survival": [
+      "末日生存",
+      "末世生存"
+    ],
+    "martial": [
+      "武侠仙侠",
+      "武侠江湖",
+      "武侠仙侠",
+      "武侠小说"
+    ],
+    "palace": [
+      "古代宫廷",
+      "欧式宫廷",
+      "后宫·宮廷",
+      "宅斗",
+      "宫廷",
+      "宫廷宅斗",
+      "宫斗宅斗"
+    ],
+    "japan": [
+      "日本漫画"
+    ],
+    "china": [
+      "国产漫画",
+      "中国"
+    ],
+    "korea": [
+      "韩国漫画",
+      "韩国",
+      "咚漫"
+    ],
+    "music": [
+      "偶像",
+      "歌舞"
+    ],
+    "inspiring": [
+      "正能量"
+    ],
+    "seinen": [
+      "成人向"
+    ],
+    "femalelead": [
+      "女性视角",
+      "女性視角"
+    ],
+    "supernatural": [
+      "奇异幻想",
+      "奇異幻想",
+      "灵异志怪",
+      "灵异悬疑",
+      "悬疑灵异",
+      "灵异言情",
+      "科幻灵异"
+    ],
+    "cultivation": [
+      "东方仙侠",
+      "都市修真",
+      "仙侠修真",
+      "传统玄幻",
+      "玄幻脑洞",
+      "修真",
+      "修真仙侠"
+    ],
+    "mecha": [
+      "星际机甲"
+    ],
+    "apocalypse": [
+      "科幻末世",
+      "末世生存"
+    ],
+    "ancient": [
+      "历史古代",
+      "古代世情",
+      "古风世情",
+      "古言",
+      "古言脑洞",
+      "古代言情",
+      "宫廷宅斗",
+      "宫斗宅斗"
+    ],
+    "horror": [
+      "文学：恐怖",
+      "恐怖"
+    ],
+    "ceo": [
+      "豪门总裁"
+    ],
+    "sweet": [
+      "青春甜宠"
+    ],
+    "youth": [
+      "青春甜宠",
+      "校园青春",
+      "都市青春"
+    ],
+    "comedy": [
+      "文学：喜剧",
+      "浪漫喜剧"
+    ],
+    "otherworld": [
+      "恋爱：异世界",
+      "异世界幻想",
+      "幻想：高幻想"
+    ],
+    "sports": [
+      "游戏体育",
+      "游戏竞技",
+      "网游竞技"
+    ],
+    "doujin": [
+      "同人衍生",
+      "动漫衍生",
+      "男频衍生",
+      "女频衍生",
+      "男频同人",
+      "明星同人",
+      "动漫同人",
+      "影视同人",
+      "游戏同人",
+      "小说同人",
+      "耽美同人"
+    ],
+    "bl": [
+      "耽美同人"
+    ],
+    "lightnovel": [
+      "轻小说"
+    ],
+    "drama": [
+      "文学：人性剧",
+      "现代戏剧"
+    ]
+  },
+  "metadataNamespaces": [
+    "author",
+    "authors",
+    "artist",
+    "artists",
+    "group",
+    "groups",
+    "character",
+    "characters",
+    "parody",
+    "作者",
+    "作家",
+    "画师",
+    "画家",
+    "绘师",
+    "繪師",
+    "藝術家",
+    "艺术家",
+    "角色",
+    "社团",
+    "社團",
+    "language",
+    "语言",
+    "語言"
+  ]
+}

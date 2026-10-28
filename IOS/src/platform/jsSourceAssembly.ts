@@ -14,7 +14,7 @@ import { verifySourceWebsite } from './ios-native/websiteVerification';
 import { showSourceInput } from '@ui/sourceDialogs';
 
 const ASSETS = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera_.js',
-  'venera/comic_metadata.js', ...['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'].map((key) => `js_extra/${key}.js`)];
+  'venera/comic_metadata.js', 'venera/discover_bridge.js', ...['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'].map((key) => `js_extra/${key}.js`)];
 const REPOSITORY = 'https://raw.githubusercontent.com/venera-app/venera-configs/main/index.json';
 
 export interface AppJsSources { refresh(onStatus?: (status: string) => void): Promise<void> }

@@ -242,6 +242,7 @@ export interface AppTabItem {
 
 export const TAB_ITEMS: readonly AppTabItem[] = [
   { label: '书库', outlinedIcon: 'search', filledIcon: 'search-filled' },
+  { label: '发现', outlinedIcon: 'explore', filledIcon: 'explore-filled' },
   { label: '书架', outlinedIcon: 'bookmark-border', filledIcon: 'bookmark' },
   { label: '统计', outlinedIcon: 'bar-chart', filledIcon: 'bar-chart-filled' },
   { label: '设置', outlinedIcon: 'settings', filledIcon: 'settings-filled' },

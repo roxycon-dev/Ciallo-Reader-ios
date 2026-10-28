@@ -20,10 +20,10 @@ export const TAB_FADE_OUT_MS = 90;
 export const TAB_FADE_IN_MS = 210;
 export const TAB_FADE_IN_DELAY_MS = 90;
 
-export type TabKey = 'library' | 'bookshelf' | 'stats' | 'settings';
+export type TabKey = 'library' | 'discover' | 'bookshelf' | 'stats' | 'settings';
 
 /** tab 顺序与 `TAB_ITEMS` 一致（书库/书架/统计/设置）。 */
-export const TAB_KEYS: readonly TabKey[] = ['library', 'bookshelf', 'stats', 'settings'];
+export const TAB_KEYS: readonly TabKey[] = ['library', 'discover', 'bookshelf', 'stats', 'settings'];
 
 export function tabItemFor(tab: TabKey): AppTabItem {
   const index = TAB_KEYS.indexOf(tab);
@@ -76,8 +76,7 @@ function ShellTab(props: ShellTabProps) {
       data-tab={props.tab}
       style={{
         opacity: entered ? 1 : 0,
-        transform: entered ? 'translateX(0)' : 'translateX(8px)',
-        transition: `opacity ${TAB_FADE_IN_MS}ms ease-out ${TAB_FADE_IN_DELAY_MS}ms, transform ${TAB_FADE_IN_MS}ms ease-out ${TAB_FADE_IN_DELAY_MS}ms`,
+        transition: `opacity ${TAB_FADE_IN_MS}ms ease-out ${TAB_FADE_IN_DELAY_MS}ms`,
       }}
     >
       {props.children}

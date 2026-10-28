@@ -53,6 +53,7 @@ import { GodEditorPage } from '@ui/pages/GodEditorPage';
 import { GodRankingPage } from '@ui/pages/GodRankingPage';
 import { HomePage } from '@ui/pages/HomePage';
 import { LibraryPage } from '@ui/pages/LibraryPage';
+import { DiscoverPage } from '@ui/pages/DiscoverPage';
 import { OnboardingPage } from '@ui/pages/OnboardingPage';
 import { ReaderPage, setInlineImageDecoder } from '@ui/pages/ReaderPage';
 import { createFileInlineImageDecoder } from '@platform/readerImageResolver';
@@ -144,6 +145,8 @@ function MainShell() {
           switch (tab) {
             case 'library':
               return <LibraryPage />;
+            case 'discover':
+              return <DiscoverPage />;
             case 'bookshelf':
               return <HomePage />;
             case 'stats':

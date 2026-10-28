@@ -268,6 +268,8 @@ import { showToast } from '@ui/toast';
 import { bootstrapLibrary, getBookRepository, useAppStore } from '@ui/state/appStore';
 import { getLibraryRuntime } from '@core/library/libraryRuntime';
 import { usePrivateImageSrc } from '@ui/hooks/usePrivateImageSrc';
+import { openOnlineBook } from '@ui/lib/openOnlineBook';
+import { createSearchBook as createSourceSearchBook } from '@core/source/searchBook';
 import { COLORS } from '@ui/theme/tokens';
 import '../../styles/homePage.css';
 
@@ -2051,7 +2053,10 @@ export function HomePage() {
     [openBook, setCurrentBookId, setRoute],
   );
 
-  const openFavorite = useCallback((): void => setRoute('comicChapters'), [setRoute]);
+  const openFavorite = useCallback((item: FavoriteItem): void => openOnlineBook(createSourceSearchBook({
+    id: item.favorite.comicId, sourceId: item.favorite.sourceId, title: item.favorite.title,
+    author: item.favorite.author, cover: item.favorite.coverUrl, format: 'comic',
+  })), []);
 
   const handleImport = useCallback((): void => {
     void (async () => {
@@ -2116,7 +2121,7 @@ export function HomePage() {
       }
       if (isFavShelfKey(key)) {
         const item = favSorted.find((it) => shelfKeyOf(it) === key);
-        if (item !== undefined) openFavorite();
+        if (item !== undefined) openFavorite(item);
         return;
       }
       const tapped = sortedBooks.find((b) => String(b.id) === key);
@@ -2873,7 +2878,8 @@ export function HomePage() {
               actions={actions}
               onPick={(label) => {
                 if (label === '打开') {
-                  openFavorite();
+                  const item = selectedFavs[0];
+                  if (item) openFavorite(item);
                   setSelection(exitSelection());
                   return;
                 }

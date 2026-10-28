@@ -118,6 +118,8 @@ import {
   resolveHttpClient,
 } from './sourceHttp';
 import type { FailoverClientFactory, HttpClient, HttpHeader } from './sourceHttp';
+import { DISCOVER_DIMENSIONS, discoverCatalog, discoverEntry, discoverPage, parseDiscoverDate, rangeStart,
+  type DiscoverCatalog, type DiscoverNativeCategory, type DiscoverPage, type DiscoverQuery } from '@core/discover/models';
 
 /** Kotlin `companion object { private const val TAG = "MangaDex" }`. */
 const TAG = 'MangaDex';
@@ -139,6 +141,102 @@ const UA =
 const MANGA_DEX_BODY_BYTES = Number.POSITIVE_INFINITY;
 
 export class MangaDexSource extends ComicSource {
+  override async getShareUrl(bookId: string): Promise<string> {
+    const uuid = officialUuid(bookId);
+    return uuid ? `https://mangadex.org/title/${encodeURIComponent(uuid)}` : `${BASE}/manga/${encodeURIComponent(bookId)}`;
+  }
+  private discoverTags: DiscoverNativeCategory[] | null = null;
+  override async discoverCatalog(_resolveDynamic = false): Promise<SourceResultType<DiscoverCatalog>> {
+    if (this.discoverTags === null) {
+      const response = await this.apiGet(`${OFFICIAL_API}/manga/tag`);
+      const rows = optJsonArray(response, 'data');
+      if (rows) this.discoverTags = rows.flatMap((row) => {
+        if (!isJsonObject(row)) return [];
+        const attrs = optJsonObject(row, 'attributes');
+        const label = this.officialText(optJsonObject(attrs, 'name'));
+        return attrs && label ? [{ id: `md:tag:${optString(row, 'id', '')}`, label, group: optString(attrs, 'group', '') ?? '' }] : [];
+      });
+    }
+    return SourceResult.Success(discoverCatalog({ declared: true, dated: true,
+      categories: this.discoverTags ?? [], dynamicCategories: this.discoverTags === null,
+      feeds: [{ id: 'md:latest', label: '最新更新', kind: 'updates' }, { id: 'md:popular', label: '热门排行', kind: 'ranking' },
+        { id: 'md:new', label: '新作排行', kind: 'ranking' }, { id: 'md:completed', label: '完结排行', kind: 'ranking' }],
+      capabilities: { updates: [...DISCOVER_DIMENSIONS.UPDATES.ranges], ranking: ['热门', '新作', '完结'] },
+    }));
+  }
+  override async discover(query: DiscoverQuery): Promise<SourceResultType<DiscoverPage>> {
+    const tags = [...new Set([...query.categoryIds, ...(query.categoryId ? [query.categoryId] : [])]
+      .filter((id) => id.startsWith('md:tag:')).map((id) => id.slice(7)).filter((id) => /^[a-f0-9-]{36}$/.test(id)))];
+    const tagBrowse = tags.length > 0;
+    if (query.feedId !== null && !tagBrowse) {
+      const ranking = { 'md:popular': '热门', 'md:new': '新作', 'md:completed': '完结' }[query.feedId];
+      const nativeQuery: DiscoverQuery = { ...query, dimension: ranking ? 'RANKING' : 'UPDATES', range: ranking ?? '最新', feedId: null };
+      const result = await this.discover(nativeQuery);
+      return result.kind === 'error' ? result : SourceResult.Success({ ...result.data, native: true,
+        entries: result.data.entries.map((entry) => ({ ...entry, native: true, origin: `MangaDex ${nativeQuery.range}` })) });
+    }
+    if (!tagBrowse && (!['UPDATES', 'RANKING'].includes(query.dimension) || query.dimension === 'RANKING' && query.range === '飙升'))
+      return SourceResult.Success(discoverPage({ supported: false, notice: 'MangaDex 未提供此维度数据' }));
+    try {
+      const limit = 30, offset = (query.page - 1) * limit;
+      const includes = '&includes%5B%5D=cover_art&includes%5B%5D=author&includes%5B%5D=artist';
+      const ratings = '&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive' + (query.includeAdult ? '&contentRating%5B%5D=erotica&contentRating%5B%5D=pornographic' : '');
+      const updates = new Map<string, { time: number; chapter: string }>();
+      let response: JsonObject | null;
+      let collection: JsonValue[];
+      if (query.dimension === 'UPDATES' && !tagBrowse) {
+        const start = rangeStart(query.range, Date.now()) ?? 0;
+        const since = new Date(start).toISOString().slice(0, 19);
+        response = await this.apiGet(`${OFFICIAL_API}/chapter?limit=${limit}&offset=${offset}&order%5BpublishAt%5D=desc&translatedLanguage%5B%5D=zh&translatedLanguage%5B%5D=zh-hk&translatedLanguage%5B%5D=en&publishAtSince=${formUrlEncode(since)}${ratings}`);
+        if (!response) return SourceResult.Error(new NetworkError('MangaDex 更新接口不可达'));
+        for (const row of optJsonArray(response, 'data') ?? []) {
+          if (!isJsonObject(row)) continue;
+          const attrs = optJsonObject(row, 'attributes'); if (!attrs) continue;
+          const manga = (optJsonArray(row, 'relationships') ?? []).find((item) => isJsonObject(item) && optString(item, 'type') === 'manga');
+          const uuid = isJsonObject(manga) ? optString(manga, 'id') : null;
+          const time = parseDiscoverDate(optString(attrs, 'publishAt'));
+          if (!uuid || time === null || time < start || time > Date.now()) continue;
+          if (!updates.has(uuid)) updates.set(uuid, { time, chapter: blankToNull(optString(attrs, 'title', '')) ?? `第${optString(attrs, 'chapter', '?')}话` });
+        }
+        if (updates.size) {
+          const metadata = await this.apiGet(`${OFFICIAL_API}/manga?limit=${limit}${includes}${ratings}&${[...updates.keys()].map((id) => `ids%5B%5D=${id}`).join('&')}`);
+          const rows = optJsonArray(metadata, 'data');
+          if (!rows) return SourceResult.Error(new NetworkError('MangaDex 作品信息加载失败'));
+          collection = rows;
+        } else collection = [];
+      } else {
+        const order = query.range === '新作' ? 'createdAt' : 'followedCount';
+        const status = query.range === '完结' ? '&status%5B%5D=completed' : '';
+        const filters = tagBrowse ? '&includedTagsMode=OR' + tags.map((tag) => `&includedTags%5B%5D=${tag}`).join('') : '';
+        response = await this.apiGet(`${OFFICIAL_API}/manga?limit=${limit}&offset=${offset}&order%5B${order}%5D=desc${includes}${ratings}${status}${filters}`);
+        if (!response) return SourceResult.Error(new NetworkError('MangaDex 榜单接口不可达'));
+        collection = optJsonArray(response, 'data') ?? [];
+      }
+      const entries = collection.flatMap((row, index) => {
+        if (!isJsonObject(row)) return [];
+        const uuid = blankToNull(optString(row, 'id', '')), attrs = optJsonObject(row, 'attributes');
+        if (!uuid || !attrs) return [];
+        const info = withArtists(this.officialInfo(attrs), this.officialCreators(row, 'artist'));
+        const cover = (optJsonArray(row, 'relationships') ?? []).find((item) => isJsonObject(item) && optString(item, 'type') === 'cover_art');
+        const fileName = isJsonObject(cover) ? optString(optJsonObject(cover, 'attributes'), 'fileName') : null;
+        const title = this.officialText(optJsonObject(attrs, 'title')); if (!title) return [];
+        this.officialTitleCache.put(uuid, title);
+        const demographic = blankToNull(optString(attrs, 'publicationDemographic', ''));
+        const rating = optString(attrs, 'contentRating', '');
+        const book = createSearchBook({ id: `mdapi:${uuid}`, sourceId: this.id, title, author: this.officialCreators(row, 'author').join('、'),
+          cover: fileName ? `https://uploads.mangadex.org/covers/${uuid}/${fileName}.512.jpg` : null, format: '漫画', comicId: `mdapi:${uuid}`,
+          comicInfo: { ...info, tags: [...info.tags, ...(demographic ? [demographic] : []), ...(['erotica', 'pornographic'].includes(rating ?? '') ? [rating!] : [])] } });
+        return [discoverEntry(book, { updatedAt: updates.get(uuid)?.time ?? null, latestChapter: updates.get(uuid)?.chapter ?? null,
+          rank: !tagBrowse && query.dimension === 'RANKING' ? offset + index + 1 : null, native: tagBrowse, origin: tagBrowse ? '分类推荐' : null,
+          nativeOrder: query.dimension === 'UPDATES' && !tagBrowse ? [...updates.keys()].indexOf(uuid) + offset + 1 : offset + index + 1 })];
+      });
+      return SourceResult.Success(discoverPage({ entries, hasMore: offset + Number(response['limit'] ?? limit) < Number(response['total'] ?? 0), native: tagBrowse,
+        notice: query.dimension === 'RANKING' ? `MangaDex 原生${query.range}排行` : null }));
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw error;
+      return SourceResult.Error(new Unknown(`MangaDex 发现加载失败：${error instanceof Error ? error.message : String(error)}`));
+    }
+  }
   readonly id: string = 'mangadex';
   readonly name: string = 'MangaDex 漫画';
   readonly capabilities: SourceCapabilities = createSourceCapabilities({
@@ -520,12 +618,12 @@ export class MangaDexSource extends ComicSource {
     // for. Read only a small range before accepting those URLs as a chapter.
     const box = await runCatchingAsync(async () => {
       const headers: HttpHeader = { 'User-Agent': UA, Range: 'bytes=0-63' };
-      // Kotlin L379 `response.peekBody(64).bytes().isNotEmpty()` caps the probe at
-      // 64 bytes, so the same ceiling applies here (and a server that ignores the
-      // `Range` header cannot balloon the response).
+      // peekBody reads a prefix even when a CDN ignores Range and returns 200.
+      // Our buffered transport must accept that valid image, while retaining the
+      // same 32 MiB ceiling used by chapter page downloads.
       const response = await executeSourceRequest(this.http, first, {
         headers,
-        maxBytes: 64,
+        maxBytes: 32 * 1024 * 1024,
       });
       return isSuccessful(response) && response.body.byteLength > 0;
     });

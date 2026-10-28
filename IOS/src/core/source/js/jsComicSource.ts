@@ -44,6 +44,9 @@ import type { DownloadInfo } from '../downloadInfo';
 import type { LoginCredential } from '../loginCredential';
 import type { SourceResult as SourceResultType } from '../sourceResult';
 import { JSONArray, JSONObject, jsonQuote } from './json';
+import type { DiscoverCatalog, DiscoverPage, DiscoverQuery } from '@core/discover/models';
+import { parseJsDiscoverCatalog, parseJsDiscoverPage } from '@core/discover/jsAdapter';
+import { validDetailLink, resolveDetailLink } from '../detailLink';
 import { JsChapterOrder } from './jsChapterOrder';
 import { JsComicMetadata } from './jsComicMetadata';
 import { JsImageProcessor } from './jsImageProcessor';
@@ -150,6 +153,50 @@ interface ImageConfig {
  * 通过 JsSourceEngine 调用源脚本的 search.load / comic.loadInfo / comic.loadEp。
  */
 export class JsComicSource extends ComicSource {
+  override async getShareUrl(bookId: string): Promise<string | null> {
+    const direct = validDetailLink(bookId); if (direct) return direct;
+    if (this.sourceKey === 'copy_manga' && /^[A-Za-z0-9_-]{1,256}$/.test(bookId)) return `https://www.copy20.com/comic/${bookId}`;
+    const key = `work_detail_share_link.${JSON.stringify([this.id, bookId])}`;
+    const previous = validDetailLink(this.deps.verificationPrefs.getString(key)); if (previous) return previous;
+    if (['jm', 'picacg'].includes(this.sourceKey)) return null;
+    return this.chapterLoadMutex.withLock(async () => {
+      const saved = validDetailLink(this.deps.verificationPrefs.getString(key)); if (saved) return saved;
+      const result = await this.callJs(`src.comic.loadInfo.call(src, ${jsonQuote(bookId)})`);
+      if (!result?.optBoolean('ok')) return null;
+      const raw = result.optJSONObject('data')?.optString('url');
+      let url = validDetailLink(raw);
+      if (!url && raw?.trim()) url = resolveDetailLink(raw, (await this.callJs('src.baseUrl || null'))?.optString('data') ?? '');
+      if (url) this.deps.verificationPrefs.putString(key, url);
+      return url;
+    });
+  }
+  override get supportsDiscoverMetadata(): boolean { return this.sourceKey !== 'hitomi'; }
+  override async getDiscoverMetadata(bookId: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook>> {
+    try {
+      const result = await this.callJsWithRetry(`typeof src.discoverMetadata === 'function' ? src.discoverMetadata(${jsonQuote(bookId)}) : src.comic?.loadInfo(${jsonQuote(bookId)})`, signal ?? null);
+      if (!result?.optBoolean('ok')) return SourceResult.Error(new ParseError('轻量元数据暂时不可用'));
+      return SourceResult.Success(JsComicMetadata.book(result.optJSONObject('data') ?? new JSONObject(), this.id, bookId, this.deps.dom));
+    } catch (error) { if (isCancellation(error)) throw error; return SourceResult.Error(new ParseError('轻量元数据加载失败')); }
+  }
+  private discoverCall(request: Record<string, unknown>, signal?: AbortSignal): Promise<JSONObject | null> {
+    const bridge = this.deps.files.readAsset('venera/discover_bridge.js');
+    if (!bridge) throw new Error('发现接口资源缺失');
+    return this.callJsWithRetry(`(() => { ${bridge}; return __cialloDiscover(src, ${JSON.stringify(request)}); })()`, signal ?? null);
+  }
+  override async discoverCatalog(resolveDynamic = false, signal?: AbortSignal): Promise<SourceResultType<DiscoverCatalog>> {
+    try {
+      const result = await this.discoverCall({ catalogOnly: true, resolveDynamic }, signal);
+      if (!result?.optBoolean('ok')) return SourceResult.Error(new ParseError(friendlyJsSourceError(result?.optString('error') ?? '书源目录无响应')));
+      return SourceResult.Success(parseJsDiscoverCatalog(result.optJSONObject('data') ?? new JSONObject()));
+    } catch (error) { if (isCancellation(error)) throw error; return SourceResult.Error(new ParseError(`书源目录加载失败：${error instanceof Error ? error.message : String(error)}`)); }
+  }
+  override async discover(query: DiscoverQuery, signal?: AbortSignal): Promise<SourceResultType<DiscoverPage>> {
+    try {
+      const result = await this.discoverCall({ ...query, dimension: query.dimension.toLowerCase() }, signal);
+      if (!result?.optBoolean('ok')) return SourceResult.Error(new ParseError(friendlyJsSourceError(result?.optString('error') ?? '书源无响应')));
+      return SourceResult.Success(parseJsDiscoverPage(result.optJSONObject('data') ?? new JSONObject(), this.id, query, this.deps.dom));
+    } catch (error) { if (isCancellation(error)) throw error; return SourceResult.Error(new ParseError(`发现加载失败：${error instanceof Error ? error.message : String(error)}`)); }
+  }
   private readonly createMutex = new JsMutex();
   private engine: JsSourceEngine | null = null;
   private engineInitialized = false;

@@ -98,7 +98,8 @@ import {
   type ReactNode,
 } from 'react';
 import { getPlatform } from '@platform/index';
-import type { FileSystemApi, HttpClient } from '@platform/interfaces';
+import { currentComicDownloads, subscribeComicDownloads, startComicDownload, controlComicDownload } from '@ui/lib/comicDownloadActions';
+import { getLibraryRuntime } from '@core/library/libraryRuntime';
 import { openAppDatabase } from '@core/db/openDatabase';
 import { ChapterCatalog } from '@core/library/chapterCatalog';
 import { FavoriteDao } from '@core/library/favoriteDao';
@@ -152,7 +153,6 @@ import {
   chaptersInSelection,
   comicChaptersStore,
   comicDetailTargetFromKey,
-  comicDownloadStore,
   comicHighlightStore,
   comicMetadataIsEmpty,
   comicMetadataModelOf,
@@ -196,7 +196,6 @@ import {
   type ComicChaptersPorts,
   type ComicChaptersSnapshot,
   type ComicDetailTarget,
-  type ComicDownloadPorts,
 } from '@core/comic/comicChapters';
 import { scrollElementTo } from '@ui/lib/scroll';
 import '../../styles/comicChapters.css';
@@ -1428,11 +1427,11 @@ function getChapters(): ComicChaptersSnapshot {
 }
 
 function subscribeDownloads(listener: () => void): () => void {
-  return comicDownloadStore.subscribe(listener);
+  return subscribeComicDownloads(listener);
 }
 
 function getDownloads() {
-  return comicDownloadStore.getSnapshot();
+  return currentComicDownloads();
 }
 
 function subscribeHighlight(listener: () => void): () => void {
@@ -1509,13 +1508,13 @@ function createChaptersPorts(
     chapterStates: (target) => repo.chapterStatesFlow(target.sourceId, target.comicId),
     progress: (target) => repo.progressFlow(target.sourceId, target.comicId),
     favorite: (target) => repo.favoriteFlow(target.sourceId, target.comicId),
-    downloadedChapterIds: () => Promise.resolve([...comicDownloadStore.getSnapshot().downloaded]),
+    downloadedChapterIds: () => Promise.resolve([...currentComicDownloads().downloaded]),
     // FavoriteRepository 未持有书源名表；为空时信息行回落到 book.sourceId（L499）
     sourceNameOf: async (sourceId) => {
       const source = await resolveComicSource(sourceId)
       return source?.name ?? null
     },
-    textModeOf: () => false,
+    textModeOf: (target) => getLibraryRuntime()?.sourceManager?.getSource(target.sourceId)?.capabilities.supportOnlineText ?? false,
     markSeen: (target, chapters) => repo.markSeen(target.sourceId, target.comicId, [...chapters]),
     setChapterBookmark: (target, chapterId, chapterIndex, bookmarked) =>
       repo
@@ -1530,29 +1529,6 @@ function createChaptersPorts(
   }
 }
 
-function createDownloadPorts(http: HttpClient, fs: FileSystemApi): ComicDownloadPorts {
-  return {
-    fetchPage: async (url, headers) => {
-      const res = await http.request({ url, headers })
-      if (res.status < 200 || res.status >= 300) {
-        throw new Error(`HTTP ${String(res.status)}`)
-      }
-      return res.body
-    },
-    writePage: (path, bytes) => fs.writeFile(path, bytes),
-    deletePage: (path) => fs.delete(path),
-    resolveImages: async (target, chapter) => {
-      const source = await resolveComicSource(target.sourceId)
-      if (source === null) throw new Error(COMIC_SOURCE_UNAVAILABLE_ERROR)
-      return source.getChapterImages(chapter.id)
-    },
-    resolveImageHeaders: async (target, chapter, urls) => {
-      const source = await resolveComicSource(target.sourceId)
-      if (source === null) return {}
-      return source.getChapterImageHeaders(chapter.id, urls)
-    },
-  }
-}
 
 /* ══════════════════════════════════════════════════════════════
  * 页面
@@ -1709,7 +1685,6 @@ export function ComicChaptersPage() {
           },
           fs: platform.fs,
         });
-        comicDownloadStore.attachPorts(createDownloadPorts(platform.http, platform.fs));
         comicChaptersStore.attachPorts(createChaptersPorts(repo, catalog));
 
         // 排行榜 → 漫画主页的信标：chapterId 反查 bookId（MainActivity L1046–1062）
@@ -1815,7 +1790,7 @@ export function ComicChaptersPage() {
     }
     const current = snapshot.target
     for (const chapter of chaptersInSelection(chapters, selectedChapterIds)) {
-      if (current !== null) void comicDownloadStore.start(current, chapter)
+      if (current !== null) startComicDownload(current, chapter)
     }
     exitSelection()
   }, [selectedChapterIds, chapters, snapshot.target, exitSelection])
@@ -2044,7 +2019,7 @@ export function ComicChaptersPage() {
                         if (target2 === undefined || target2.external || current === null) {
                           showToast('站外链接章节暂不支持下载')
                         } else {
-                          void comicDownloadStore.start(current, target2)
+                          startComicDownload(current, target2)
                         }
                       }}
                       onToggleCheck={() => {
@@ -2113,7 +2088,7 @@ export function ComicChaptersPage() {
                         if (chapter.external || current === null) {
                           showToast('站外链接章节暂不支持下载')
                         } else {
-                          void comicDownloadStore.start(current, chapter)
+                          startComicDownload(current, chapter)
                         }
                       }}
                       onToggleBookmark={() => {
@@ -2149,13 +2124,13 @@ export function ComicChaptersPage() {
             primary={primary}
             secondary={secondary}
             onPause={() => {
-              comicDownloadStore.pause(activeDownloadChapter.id)
+              controlComicDownload('pause', activeDownloadChapter)
             }}
             onResume={() => {
-              comicDownloadStore.resume(activeDownloadChapter.id)
+              controlComicDownload('resume', activeDownloadChapter)
             }}
             onCancel={() => {
-              comicDownloadStore.cancel(activeDownloadChapter.id)
+              controlComicDownload('cancel', activeDownloadChapter)
             }}
             reduceMotion={reduceMotion}
           />

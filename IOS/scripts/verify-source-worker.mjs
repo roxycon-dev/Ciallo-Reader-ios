@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
 const keys = ['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'];
-const paths = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera_.js', 'venera/comic_metadata.js'];
+const paths = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera_.js', 'venera/comic_metadata.js', 'venera/discover_bridge.js'];
 const assets = Object.fromEntries(await Promise.all(paths.map(async (path) => [path, await readFile(new URL(`public/${path}`, root), 'utf8')])));
 const scripts = Object.fromEntries(await Promise.all(keys.map(async (key) => [key, await readFile(new URL(`public/js_extra/${key}.js`, root), 'utf8')])));
 const server = await createServer({ root: fileURLToPath(root), server: { port: 0, host: '127.0.0.1' } });
@@ -39,7 +39,9 @@ try {
         if (!network.ok || network.data !== 200) throw new Error(`network: ${JSON.stringify(network)}`);
         const dynamicImport = JSON.parse(await engine.call(`import('https://example.com/forbidden.js')`));
         if (dynamicImport.ok || !dynamicImport.error.includes('外部模块')) throw new Error('dynamic import isolation failed');
-        out.push({ sourceKey, raw, stored: await secure.get(sourceKey) });
+        const catalog = JSON.parse(await engine.call(`(() => { ${assets['venera/discover_bridge.js']}; return __cialloDiscover(src, {catalogOnly:true, resolveDynamic:false}); })()`));
+        if (!catalog.ok || !Array.isArray(catalog.data?.feeds) || !Array.isArray(catalog.data?.categories)) throw new Error(`discovery: ${JSON.stringify(catalog)}`);
+        out.push({ sourceKey, raw, discovery: { feeds: catalog.data.feeds.length, categories: catalog.data.categories.length }, stored: await secure.get(sourceKey) });
       } catch (error) { out.push({ sourceKey, error: String(error) }); }
       engine.reset();
     }

@@ -161,6 +161,7 @@ import { useAppStore } from '@ui/state/appStore';
 import { bookCoverKey } from '@ui/shared/viewTransitions';
 import { showToast } from '@ui/toast';
 import { openExternalUrl } from '@ui/lib/openExternalUrl';
+import { openOnlineBook } from '@ui/lib/openOnlineBook';
 import { scrollElementIntoView } from '@ui/lib/scroll';
 import '../../styles/library.css';
 
@@ -1344,7 +1345,7 @@ function NovelDetailContent(props: {
 }
 
 /** NovelBookUi.kt:196-229 NovelDetailSheet. */
-function NovelDetailSheet(props: {
+export function NovelDetailSheet(props: {
   book: SearchBook;
   sourceName: string;
   loading: boolean;
@@ -3023,15 +3024,21 @@ export function LibraryPage() {
     [uiState],
   );
   /** L187-191 favoriteKeys: "sourceId::comicId" set from the favorites table. */
-  const favoriteKeys = useMemo(() => runtime?.favoriteKeys ?? [], [runtime]);
+  const [favoriteKeys, setFavoriteKeys] = useState<string[]>(runtime?.favoriteKeys ?? []);
+  useEffect(() => {
+    let cancelled = false;
+    void runtime?.favorites?.favoriteKeys().then((keys) => { if (!cancelled) setFavoriteKeys([...keys]); });
+    return () => { cancelled = true; };
+  }, [runtime]);
   /** L799 / L1161 the favourite toggle entry point on a result card. */
   const onToggleFavorite = useCallback(
     (book: SearchBook, next: boolean) => {
-      if (runtime?.onToggleFavorite === undefined) {
-        showToast(next ? `已加入我喜欢的：${book.title}` : `已取消喜欢：${book.title}`);
-        return;
-      }
-      runtime.onToggleFavorite(book, next);
+      if (runtime?.onToggleFavorite) { runtime.onToggleFavorite(book, next); return; }
+      const favorites = runtime?.favorites;
+      if (!favorites) { showToast('收藏服务尚未准备好，请重试'); return; }
+      void (next ? favorites.add(book) : favorites.remove(book.sourceId, book.id))
+        .then(() => favorites.favoriteKeys()).then((keys) => setFavoriteKeys([...keys]))
+        .catch((error: unknown) => showToast(error instanceof Error ? error.message : '收藏保存失败'));
     },
     [runtime],
   );
@@ -3273,7 +3280,7 @@ export function LibraryPage() {
                     setShowJumpSheet(true);
                   }}
                   onOpenComic={(book) => {
-                    vm.openComic(book);
+                    openOnlineBook(book);
                   }}
                   onOpenNovelDetail={(book) => {
                     openNovelDetail(book);
@@ -3427,7 +3434,7 @@ export function LibraryPage() {
                       currentSource?.capabilities.supportComic === true ||
                       currentSource?.capabilities.supportOnlineText === true
                     ) {
-                      vm.openComic(book);
+                      openOnlineBook(book);
                     } else if (
                       // LibraryScreen.kt:1029-1031 — a source that requires login raises the
                       // login dialog instead of enqueuing the download.

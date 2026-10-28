@@ -69,8 +69,8 @@ describe('ROUTES', () => {
 });
 
 describe('TAB_ITEMS', () => {
-  it('has the four tabs in Android order with label + outlined/filled icons', () => {
-    expect(TAB_ITEMS.map((t) => t.label)).toEqual(['书库', '书架', '统计', '设置']);
+  it('has the current five Android tabs with label + outlined/filled icons', () => {
+    expect(TAB_ITEMS.map((t) => t.label)).toEqual(['书库', '发现', '书架', '统计', '设置']);
     for (const item of TAB_ITEMS) {
       expect(item.outlinedIcon).not.toBe('');
       expect(item.filledIcon).not.toBe('');

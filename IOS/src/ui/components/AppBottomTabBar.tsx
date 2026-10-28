@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { MOTION } from '../theme/tokens';
 
-export type TabKey = 'library' | 'bookshelf' | 'stats' | 'settings';
+export type TabKey = 'library' | 'discover' | 'bookshelf' | 'stats' | 'settings';
 
 type TabDef = {
   key: TabKey;
@@ -75,6 +75,7 @@ function SettingsIcon() {
 
 const TAB_DEFS: readonly TabDef[] = [
   { key: 'library', label: '书库', icon: <LibraryIcon /> },
+  { key: 'discover', label: '发现', icon: <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm2.2 12.2L6 18l3.8-8.2L18 6l-3.8 8.2zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" /></svg> },
   { key: 'bookshelf', label: '书架', icon: <BookshelfIcon /> },
   { key: 'stats', label: '统计', icon: <StatsIcon /> },
   { key: 'settings', label: '设置', icon: <SettingsIcon /> },
