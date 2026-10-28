@@ -1,0 +1,1495 @@
+/* statistics.css — port of Android StatisticsScreen.kt + supporting components
+   Colors from Color.kt / theme.css:
+   MintPrimary=#059669 MintSecondary=#10B981 MintGold=#E8C97A
+   onSurface=#18191C onSurfaceVariant=#61666D LightBg=#FFFFFF
+   DesignTokens.SpacePage=16 LazyColumn spacedBy=16 contentPadding.top=12 */
+
+.statistics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+  padding-bottom: 96px;
+}
+
+/* Shared 36dp circle + 20dp icon (WeeklyReadingChart / Calendar / Trend headers) */
+.stats-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(5, 150, 105, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-primary, #059669);
+}
+.stats-icon-circle svg { width: 20px; height: 20px; }
+
+/* ── PeriodOverviewCard (GlassCard radius 20, padding 20) ── */
+.stats-period-card { border-radius: 20px; padding: 20px; }
+
+.stats-period-header { display: flex; align-items: center; gap: 16px; }
+
+/* Surface(56dp, radius 16, MintPrimary@0.15) + Icon(28dp) */
+.stats-timer-box {
+  width: 56px; height: 56px; border-radius: 16px;
+  background: rgba(5, 150, 105, 0.15);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--color-primary, #059669);
+}
+.stats-timer-box svg { width: 28px; height: 28px; }
+
+.stats-period-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+
+/* 12sp onSurfaceVariant */
+.stats-period-label {
+  margin: 0; font-size: 12px; line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-period-label + .stats-period-value { margin-top: 4px; }
+
+/* 26sp bold onSurface */
+.stats-period-value {
+  margin: 0; font-size: 26px; font-weight: 700; line-height: 32px;
+  color: var(--color-on-light, #18191c);
+}
+.stats-period-value + .stats-period-delta { margin-top: 2px; }
+
+/* 11sp SemiBold delta line */
+.stats-period-delta {
+  margin: 0; font-size: 11px; font-weight: 600; line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-period-delta--up { color: var(--color-primary, #059669); }
+.stats-period-delta--first { color: var(--color-mint-gold, #e8c97a); }
+
+.stats-block-gap { height: 12px; }
+
+/* ── Goal ring row: Canvas 54dp stroke 6dp ── */
+.stats-goal-row { display: flex; align-items: center; width: 100%; }
+.stats-goal-ring-wrap {
+  position: relative; width: 54px; height: 54px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.stats-goal-ring-wrap svg { width: 54px; height: 54px; display: block; }
+.stats-goal-ring-pct {
+  position: absolute; inset: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+.stats-goal-label {
+  margin-left: 16px; font-size: 11px; flex: 0 0 auto;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-goal-spacer { flex: 1 1 auto; }
+
+/* 24dp circle stepper surfaceVariant@0.5 */
+.stats-goal-step {
+  width: 24px; height: 24px; border-radius: 50%; border: 0;
+  background: rgba(227, 229, 231, 0.5);
+  color: var(--color-medium-gray, #61666d);
+  font-size: 13px; font-weight: 700; line-height: 24px; padding: 0;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-family: inherit;
+}
+.stats-goal-step:disabled { opacity: 0.4; cursor: not-allowed; }
+.stats-goal-value {
+  margin: 0 8px; font-size: 12px; font-weight: 700; white-space: nowrap;
+  color: var(--color-primary, #059669);
+}
+
+/* ── Share button: 14dp radius, MintPrimary@0.10, border@0.35, minH 48 ── */
+.stats-share-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 48px; padding: 12px 16px; border-radius: 14px;
+  border: 1px solid rgba(5, 150, 105, 0.35);
+  background: rgba(5, 150, 105, 0.10);
+  color: var(--color-primary, #059669);
+  font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.stats-share-btn:active { transform: scale(0.98); }
+.stats-share-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+.stats-period-selector { width: 100%; }
+
+/* ── MiniStatCard: GlassCard 16, padding 14, icon 34 radius 10 ── */
+.stats-mini-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;
+}
+.stats-mini-card {
+  border-radius: 16px; padding: 14px; display: flex; align-items: center;
+  gap: 10px; min-width: 0;
+}
+.stats-mini-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: rgba(227, 229, 231, 0.5);
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.stats-mini-icon svg { width: 18px; height: 18px; }
+.stats-mini-icon--book { color: var(--color-secondary, #10b981); }
+.stats-mini-icon--check { color: var(--color-mint-gold, #e8c97a); }
+.stats-mini-text { display: flex; flex-direction: column; min-width: 0; }
+.stats-mini-label {
+  margin: 0; font-size: 10px; line-height: 14px;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-mini-value {
+  margin: 0; font-size: 18px; font-weight: 700; line-height: 22px;
+  color: var(--color-on-light, #18191c);
+}
+
+/* ── Week lit dots: 16dp radius 5, gradient lit / gray unlit ── */
+.stats-week-lit { display: flex; align-items: center; min-height: 16px; }
+.stats-week-lit-label {
+  margin: 0; font-size: 11px; font-weight: 600; white-space: nowrap;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-week-lit-dots { display: inline-flex; align-items: center; margin-left: 6px; }
+.stats-week-lit-dot {
+  width: 16px; height: 16px; border-radius: 5px; margin: 0 2px; box-sizing: border-box;
+}
+.stats-week-lit-dot--lit {
+  background: linear-gradient(135deg, var(--color-primary, #059669), var(--color-secondary, #10b981));
+}
+.stats-week-lit-dot--unlit {
+  background: rgba(227, 229, 231, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+}
+.stats-week-lit-meta {
+  margin: 0; margin-left: auto; font-size: 11px; white-space: nowrap;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── Small-data mascot hint ── */
+.stats-hint-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 14px; background: rgba(5, 150, 105, 0.08);
+}
+.stats-hint-mascot {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 28px;
+}
+.stats-hint-title {
+  margin: 0; font-size: 13px; font-weight: 700; line-height: 18px;
+  color: var(--color-primary, #059669);
+}
+.stats-hint-sub {
+  margin: 0; font-size: 11px; line-height: 15px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── Card header language (Calendar / Trend / Weekly) ── */
+.stats-card-header { display: flex; align-items: center; gap: 10px; }
+.stats-card-header-text {
+  flex: 0 0 auto; display: flex; flex-direction: column; min-width: 0;
+}
+.stats-card-title {
+  margin: 0; font-size: 15px; font-weight: 700; line-height: 20px;
+  color: var(--color-on-light, #18191c);
+}
+.stats-card-subtitle {
+  margin: 0; font-size: 11px; line-height: 15px;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-card-header-spacer { flex: 1 1 auto; }
+
+/* ── ReadingCalendarCard ── */
+.stats-calendar-card { border-radius: 20px; padding: 16px; }
+.stats-calendar-selector { width: 120px; flex-shrink: 0; }
+
+.stats-cal-nav {
+  display: flex; align-items: center; gap: 4px; margin-top: 8px;
+}
+.stats-cal-nav-btn {
+  width: 36px; height: 36px; border: 0; background: transparent;
+  color: var(--color-on-light, #18191c); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; border-radius: 8px; font-family: inherit;
+}
+.stats-cal-nav-btn:active { background: rgba(227, 229, 231, 0.5); }
+.stats-cal-nav-title {
+  flex: 1 1 auto; margin: 0; text-align: center; font-size: 14px; font-weight: 700;
+  color: var(--color-on-light, #18191c); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stats-cal-today-btn {
+  border: 0; background: transparent; color: var(--color-primary, #059669);
+  font-size: 12px; font-family: inherit; cursor: pointer; padding: 4px 8px; flex-shrink: 0;
+}
+
+.stats-cal-weekdays { display: flex; width: 100%; margin-top: 8px; }
+.stats-cal-weekday {
+  flex: 1 1 0; text-align: center; font-size: 10px;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-cal-grid { display: flex; flex-direction: column; margin-top: 4px; }
+.stats-cal-row { display: flex; width: 100%; }
+
+/* DayCell: height 44 radius 8 padding 2 */
+.stats-cal-cell {
+  flex: 1 1 0; min-width: 0; height: 44px; margin: 2px; border-radius: 8px;
+  border: 0; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease-out;
+}
+.stats-cal-cell:active { transform: scale(0.96); }
+.stats-cal-cell--empty { pointer-events: none; background: transparent; }
+.stats-cal-cell--unread { background: rgba(227, 229, 231, 0.45); }
+.stats-cal-cell--heat-1 { background: rgba(5, 150, 105, 0.32); }
+.stats-cal-cell--heat-2 { background: rgba(5, 150, 105, 0.52); }
+.stats-cal-cell--heat-3 { background: rgba(5, 150, 105, 0.72); }
+.stats-cal-cell--heat-4 { background: rgba(5, 150, 105, 0.95); }
+.stats-cal-cell--today { border: 1.5px solid var(--color-primary, #059669); }
+.stats-cal-cell-day {
+  font-size: 10px; line-height: 12px; color: var(--color-medium-gray, #61666d);
+}
+.stats-cal-cell--filled .stats-cal-cell-day { color: #fff; font-weight: 700; }
+.stats-cal-cell-dur {
+  font-size: 8px; line-height: 10px; color: rgba(255, 255, 255, 0.9);
+  max-width: 100%; overflow: hidden; white-space: nowrap;
+}
+.stats-cal-cell-peak {
+  position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--color-mint-gold, #e8c97a);
+}
+
+.stats-cal-legend { display: flex; align-items: center; margin-top: 10px; }
+.stats-cal-legend-label {
+  margin: 0; font-size: 10px; color: var(--color-medium-gray, #61666d);
+}
+.stats-cal-legend-swatch {
+  width: 12px; height: 12px; border-radius: 3px; margin-left: 4px; flex-shrink: 0;
+}
+.stats-cal-legend-hint {
+  margin: 0; margin-left: auto; font-size: 10px; white-space: nowrap;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* Year heatmap */
+.stats-year-scroll {
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; margin-top: 8px;
+}
+.stats-year-inner { display: inline-flex; min-width: 100%; }
+.stats-year-labels {
+  display: flex; flex-direction: column; flex-shrink: 0; margin-right: 4px;
+}
+.stats-year-labels-head { height: 16px; }
+.stats-year-week-label {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--color-medium-gray, #61666d);
+  width: 20px; text-align: center;
+}
+.stats-year-body { display: flex; flex-direction: column; flex: 1 0 auto; }
+.stats-year-months { display: flex; height: 16px; align-items: center; }
+.stats-year-month {
+  font-size: 10px; color: var(--color-medium-gray, #61666d);
+  white-space: nowrap; overflow: hidden;
+}
+.stats-year-row { display: flex; gap: 3px; margin-bottom: 3px; }
+.stats-year-cell {
+  width: 16px; height: 16px; border-radius: 3px; border: 0; padding: 0;
+  flex-shrink: 0; cursor: pointer;
+  background: rgba(24, 25, 28, 0.10);
+  -webkit-tap-highlight-color: transparent;
+}
+.stats-year-cell--filled { background: rgba(5, 150, 105, var(--heat, 0.32)); }
+.stats-year-cell--today {
+  outline: 1.5px solid var(--color-mint-gold, #e8c97a); outline-offset: -1.5px;
+}
+
+/* ── ReadingTrendCard ── */
+.stats-trend-card { border-radius: 20px; padding: 16px; }
+.stats-trend-selector { width: auto; max-width: 150px; flex-shrink: 0; }
+.stats-trend-meta { display: flex; align-items: center; margin-top: 10px; }
+.stats-trend-meta-label {
+  margin: 0; font-size: 11px; color: var(--color-medium-gray, #61666d);
+}
+.stats-trend-meta-peak {
+  margin: 0; margin-left: auto; font-size: 11px; font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+.stats-trend-tooltip {
+  display: inline-flex; margin: 6px auto 0; padding: 5px 12px; border-radius: 10px;
+  background: rgba(5, 150, 105, 0.12); color: var(--color-primary, #059669);
+  font-size: 11px; font-weight: 700;
+}
+.stats-trend-chart-wrap {
+  position: relative; width: 100%; height: 150px; margin-top: 6px;
+}
+.stats-trend-chart-wrap svg { width: 100%; height: 100%; display: block; }
+.stats-trend-scale {
+  position: absolute; top: 2px; right: 4px; font-size: 10px;
+  color: rgba(97, 102, 109, 0.7); pointer-events: none;
+}
+.stats-trend-empty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--color-medium-gray, #61666d);
+  text-align: center; padding: 0 12px;
+}
+
+.stats-peak-header { display: flex; align-items: center; margin-top: 16px; }
+.stats-peak-title {
+  margin: 0; font-size: 14px; font-weight: 700; color: var(--color-on-light, #18191c);
+}
+.stats-peak-badge {
+  margin: 0; margin-left: auto; font-size: 11px; font-weight: 700; white-space: nowrap;
+  color: var(--color-mint-gold, #e8c97a);
+}
+.stats-peak-tooltip {
+  display: inline-flex; margin: 8px auto 0; padding: 5px 12px; border-radius: 10px;
+  background: rgba(232, 201, 122, 0.14); color: var(--color-mint-gold, #e8c97a);
+  font-size: 11px; font-weight: 700;
+}
+.stats-peak-bars {
+  display: flex; align-items: flex-end; height: 72px; margin-top: 8px; width: 100%;
+}
+.stats-peak-bar-col {
+  flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; justify-content: center;
+  border: 0; background: transparent; padding: 0; cursor: pointer; min-width: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.stats-peak-bar {
+  width: 100%; max-width: 12px; margin: 0 0.5px; border-radius: 2px 2px 0 0;
+  background: rgba(5, 150, 105, 0.55); min-height: 2px;
+  transition: height 420ms cubic-bezier(0.25, 1, 0.5, 1), background-color 260ms ease;
+}
+.stats-peak-bar--max { background: rgba(232, 201, 122, 0.65); }
+.stats-peak-bar--selected { background: rgba(232, 201, 122, 0.95); }
+.stats-peak-empty {
+  margin: 8px 0 0; font-size: 11px; padding: 8px 0;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── WeeklyReadingChart (GlassCard 20, padding 20) ── */
+.stats-weekly-card { border-radius: 20px; padding: 20px; }
+.stats-weekly-badge {
+  display: inline-flex; align-items: center; border-radius: 20px;
+  background: rgba(5, 150, 105, 0.18);
+  color: var(--color-primary, #059669);
+  font-size: 12px; font-weight: 700; padding: 6px 12px;
+  white-space: nowrap; flex-shrink: 0;
+}
+
+.stats-weekly-bars {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  width: 100%; padding: 4px 0; margin-top: 16px;
+}
+.stats-weekly-col {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center;
+  border: 0; background: transparent; padding: 0; cursor: pointer;
+  font-family: inherit; -webkit-tap-highlight-color: transparent;
+}
+
+/* Top duration label box: height 20, BottomCenter */
+.stats-weekly-mins-box {
+  width: 100%; height: 20px;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.stats-weekly-mins {
+  margin: 0; font-size: 10px; text-align: center; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: rgba(97, 102, 109, 0.7); font-weight: 400;
+  transition: color 150ms ease;
+}
+.stats-weekly-mins--today { color: var(--color-primary, #059669); font-weight: 700; }
+.stats-weekly-mins--peak { color: var(--color-mint-gold, #e8c97a); font-weight: 700; }
+.stats-weekly-mins--selected { color: var(--color-secondary, #10b981); font-weight: 700; }
+.stats-weekly-mins-box + .stats-weekly-bar-track { margin-top: 4px; }
+
+/* Bar container: width 22 height 100, BottomCenter */
+.stats-weekly-bar-track {
+  width: 22px; height: 100px; position: relative;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.stats-weekly-baseline {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: rgba(211, 211, 211, 0.4); border-radius: 2px;
+}
+.stats-weekly-bar {
+  width: 100%; border-radius: 4px 4px 0 0;
+  transform-origin: bottom center; min-height: 0;
+  transition: height 400ms cubic-bezier(0.4, 0, 0.2, 1), transform 150ms ease, box-shadow 150ms ease;
+  animation: stats-bar-grow 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes stats-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.stats-weekly-bar--today,
+.stats-weekly-bar--selected {
+  background: linear-gradient(to top, var(--color-primary, #059669), var(--color-secondary, #10b981));
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.30);
+}
+.stats-weekly-bar--peak {
+  background: linear-gradient(to top, rgba(232, 201, 122, 0.50), rgba(232, 201, 122, 0.80));
+}
+.stats-weekly-bar--normal {
+  background: linear-gradient(to top, rgba(5, 150, 105, 0.45), rgba(16, 185, 129, 0.65));
+}
+.stats-weekly-col--selected .stats-weekly-bar { transform: scaleX(1.08); }
+.stats-weekly-bar-track + .stats-weekly-day { margin-top: 8px; }
+
+/* Day label tag: radius 10, padding H4 V2, 11sp */
+.stats-weekly-day {
+  margin: 0; padding: 2px 4px; border-radius: 10px;
+  font-size: 11px; font-weight: 500; background: transparent;
+  color: var(--color-medium-gray, #61666d); white-space: nowrap; line-height: 14px;
+  transition: background 150ms ease, color 150ms ease;
+}
+.stats-weekly-day--today {
+  background: var(--color-primary, #059669); color: #fff; font-weight: 700;
+}
+.stats-weekly-day--selected {
+  background: rgba(16, 185, 129, 0.20);
+  color: var(--color-secondary, #10b981); font-weight: 700;
+}
+
+/* Detail popover: radius 12, surfaceVariant@0.5, padding H14 V10 */
+.stats-weekly-detail {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 10px 14px; border-radius: 12px;
+  background: rgba(227, 229, 231, 0.5); margin-top: 16px;
+}
+.stats-weekly-detail-left {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+}
+.stats-weekly-detail-icon {
+  width: 16px; height: 16px; color: var(--color-primary, #059669); flex-shrink: 0;
+}
+.stats-weekly-detail-label {
+  margin: 0; font-size: 12px; font-weight: 500; white-space: nowrap;
+  color: var(--color-on-light, #18191c);
+}
+.stats-weekly-detail-value {
+  margin: 0; font-size: 12px; font-weight: 700; white-space: nowrap;
+  color: var(--color-primary, #059669);
+}
+.stats-weekly-detail-value--empty { color: var(--color-medium-gray, #61666d); }
+.stats-weekly-detail-total {
+  margin: 0; font-size: 12px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+  color: var(--color-on-light, #18191c);
+}
+
+/* DayCoverCarousel: spacedBy 10, cover card width 84, thumb 84x112 radius 10 */
+.stats-cover-row {
+  display: flex; gap: 10px; margin-top: 12px;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; padding-bottom: 2px; scroll-behavior: smooth;
+}
+.stats-cover-card {
+  width: 84px; flex-shrink: 0; display: flex; flex-direction: column;
+  border: 0; background: transparent; padding: 0; cursor: pointer;
+  font-family: inherit; text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.stats-cover-thumb {
+  position: relative; width: 84px; height: 112px; border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(to bottom, rgba(16, 185, 129, 0.55), rgba(5, 150, 105, 0.65));
+  display: flex; align-items: center; justify-content: center;
+}
+.stats-cover-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.stats-cover-placeholder-icon { width: 24px; height: 24px; color: rgba(255, 255, 255, 0.85); }
+.stats-cover-dur {
+  position: absolute; right: 3px; bottom: 3px; padding: 1px 5px;
+  border-radius: 999px; background: rgba(0, 0, 0, 0.38);
+  color: #fff; font-size: 9px; line-height: 12px; white-space: nowrap;
+}
+.stats-cover-title {
+  margin: 4px 0 0; font-size: 11px; line-height: 14px; max-width: 84px;
+  color: var(--color-on-light, #18191c);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Section header 本周阅读明细 ── */
+.stats-weekly-header {
+  margin: 0; padding-top: 4px; font-size: 16px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+/* ── DayDetailSheet (AcrylicBottomOverlay) ── */
+.stats-sheet-backdrop {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(24, 25, 28, 0.40);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: stats-sheet-fade 200ms ease;
+}
+@keyframes stats-sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+.stats-sheet {
+  width: 100%; max-width: 720px; max-height: 80dvh; overflow-y: auto;
+  border-radius: 24px 24px 0 0;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 -8px 28px rgba(24, 25, 28, 0.14);
+  padding: 20px 20px 32px; box-sizing: border-box;
+  animation: stats-sheet-up 280ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+@keyframes stats-sheet-up {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.stats-sheet-title {
+  margin: 0; font-size: 18px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+.stats-sheet-total {
+  margin: 4px 0 0; font-size: 13px; font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+.stats-sheet-body { margin-top: 14px; display: flex; flex-direction: column; }
+.stats-sheet-empty {
+  margin: 0; font-size: 13px; color: var(--color-medium-gray, #61666d);
+}
+.stats-sheet-record {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 0;
+  border: 0; background: transparent; cursor: pointer; font-family: inherit;
+  text-align: left; -webkit-tap-highlight-color: transparent;
+}
+.stats-sheet-record:disabled { cursor: default; }
+.stats-sheet-record-cover {
+  width: 40px; height: 40px; border-radius: 8px; overflow: hidden; flex-shrink: 0;
+  background: rgba(5, 150, 105, 0.15);
+  display: flex; align-items: center; justify-content: center;
+}
+.stats-sheet-record-cover img { width: 100%; height: 100%; object-fit: cover; }
+.stats-sheet-record-cover svg { width: 18px; height: 18px; color: var(--color-primary, #059669); }
+.stats-sheet-record-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.stats-sheet-record-title {
+  margin: 0; font-size: 14px; font-weight: 600; max-width: 100%;
+  color: var(--color-on-light, #18191c);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stats-sheet-record-dur {
+  margin: 0; font-size: 11px; color: var(--color-medium-gray, #61666d);
+}
+.stats-sheet-record-del {
+  border: 0; background: transparent; color: var(--color-danger, #dc2626);
+  font-size: 12px; font-family: inherit; cursor: pointer; padding: 4px 8px; flex-shrink: 0;
+}
+.stats-sheet-sessions-title {
+  margin: 8px 0 0; font-size: 12px; font-weight: 700;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-sheet-session { display: flex; align-items: center; width: 100%; padding: 3px 0; }
+.stats-sheet-session-time {
+  margin: 0; font-size: 12px; color: var(--color-on-light, #18191c);
+}
+.stats-sheet-session-dur {
+  margin: 0; margin-left: auto; font-size: 12px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── AcrylicDialog (long-press menu / record detail) ── */
+.stats-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 310;
+  background: rgba(24, 25, 28, 0.40);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: stats-sheet-fade 160ms ease;
+}
+.stats-dialog {
+  width: 100%; max-width: 360px; border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 12px 36px rgba(24, 25, 28, 0.18);
+  padding: 20px; box-sizing: border-box;
+  animation: stats-sheet-up 220ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.stats-dialog-title {
+  margin: 0; font-size: 16px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.stats-dialog-body { margin-top: 12px; display: flex; flex-direction: column; }
+.stats-dialog-body p { margin: 0; font-size: 14px; color: var(--color-on-light, #18191c); }
+.stats-dialog-divider { height: 1px; background: rgba(227, 229, 231, 0.3); margin: 0; border: 0; }
+.stats-dialog-action {
+  display: flex; align-items: center; width: 100%; padding: 12px 4px;
+  border: 0; background: transparent; font-family: inherit; font-size: 14px;
+  font-weight: 500; color: var(--color-on-light, #18191c); cursor: pointer;
+  text-align: left; -webkit-tap-highlight-color: transparent;
+}
+.stats-dialog-action:disabled { color: rgba(97, 102, 109, 0.4); cursor: not-allowed; }
+.stats-dialog-action--destructive { color: var(--color-danger, #dc2626); }
+.stats-dialog-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
+.stats-dialog-footer button {
+  border: 0; background: transparent; color: var(--color-primary, #059669);
+  font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  padding: 8px 12px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Cache management surface — port of CacheManagementScreen.kt (LIGHT theme).
+   Module A: src/ui/pages/CacheManagementPage.tsx
+   Module B: src/ui/components/cache/StorageDetailDialog.tsx
+   Module C: src/ui/components/cache/TranslationCacheDetail.tsx
+   Values mirror the Kotlin: sheet fillMaxHeight(0.9f), padding h12/v8, radius 24.dp,
+   bar height 64.dp, divider alpha 0.5, row radius 14.dp, legend font 11.sp.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.cache-page { position: relative; }
+
+.cache-sheet {
+  position: absolute; inset: 0;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(24, 25, 28, 0.32);
+}
+.cache-sheet__inner {
+  width: 100%; max-width: 560px;               /* AdaptiveSpec.sheetMaxWidth */
+  height: 90%;                                 /* fillMaxHeight(0.9f) */
+  display: flex; flex-direction: column;
+  padding: 8px 12px 0;                         /* padding(horizontal 12, vertical 8) */
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 24px 24px 0 0;                /* RoundedCornerShape(24.dp) */
+  box-shadow: 0 -8px 28px rgba(24, 25, 28, 0.16);
+  animation: cache-sheet-up 280ms cubic-bezier(0.25, 1, 0.5, 1);
+  box-sizing: border-box;
+}
+@keyframes cache-sheet-up {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.cache-sheet__body { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; }
+.cache-sheet__content {
+  width: 100%; max-width: 720px;               /* AdaptiveSpec.pageContentMaxWidth */
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 0;                             /* contentPadding vertical 16 + SpacePage */
+  overflow-y: auto;
+}
+
+/* 顶部标题栏 64dp */
+.cache-sheet__bar {
+  height: 64px; border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
+}
+.cache-sheet__bar-row {
+  height: 100%; padding: 0 16px;               /* DesignTokens.SpacePage */
+  display: flex; align-items: center; justify-content: space-between;
+}
+.cache-sheet__title-group { display: flex; align-items: center; }
+.cache-sheet__title-icon { width: 24px; height: 24px; color: var(--color-primary, #059669); }
+.cache-sheet__title-icon svg { width: 24px; height: 24px; }
+.cache-sheet__spacer-8 { width: 8px; display: inline-block; }
+.cache-sheet__title {
+  margin: 0; font-size: 17px; line-height: 22px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+.cache-sheet__close {
+  border: 0; background: transparent; cursor: pointer; padding: 6px;
+  color: var(--color-medium-gray, #61666d); display: inline-flex;
+}
+.cache-sheet__close svg { width: 20px; height: 20px; }
+.cache-sheet__head-meta {
+  margin-left: auto; font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.cache-divider { height: 1px; background: rgba(227, 229, 231, 0.5); flex-shrink: 0; }
+.cache-divider--soft { background: rgba(227, 229, 231, 0.4); }
+
+/* Overview Surface(radius 20, surfaceVariant @0.5) */
+.cache-overview {
+  border-radius: 20px; padding: 20px;
+  background: rgba(240, 240, 244, 0.5);
+  display: flex; flex-direction: column; align-items: center;
+  width: 100%;
+}
+.cache-overview__total {
+  margin: 0; font-size: 32px; line-height: 38px; font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+.cache-overview__caption {
+  margin: 0; font-size: 13px; color: var(--color-medium-gray, #61666d);
+}
+
+/* 占比条：8dp 高、4dp 圆角、逐段错峰生长（每段延迟 90ms） */
+.cache-segmented {
+  width: 100%; height: 8px; border-radius: 4px; overflow: hidden;
+  display: flex;
+}
+.cache-segmented__seg {
+  display: block; height: 100%; min-width: 0.5%;
+  transition: flex-grow 520ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cache-legend { width: 100%; display: flex; flex-direction: column; gap: 4px; }
+.cache-legend__row { display: flex; align-items: center; }
+.cache-legend__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cache-legend__spacer { flex: 1 1 auto; }
+.cache-legend__label { font-size: 11px; color: var(--color-medium-gray, #61666d); }
+.cache-legend__size {
+  font-size: 11px; font-weight: 500; color: var(--color-medium-gray, #61666d);
+}
+
+.cache-device { display: flex; align-items: center; width: 100%; }
+.cache-device__icon { width: 14px; height: 14px; color: var(--color-medium-gray, #61666d); }
+.cache-device__icon svg { width: 14px; height: 14px; }
+.cache-device__text { font-size: 12px; color: var(--color-medium-gray, #61666d); }
+
+.cache-clear-busy { display: inline-flex; align-items: center; gap: 10px; }
+
+/* 分区标题 14.sp SemiBold */
+.cache-zone { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.cache-zone__title {
+  margin: 2px 0 0; padding: 0; font-size: 14px; font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+/* 行卡片：radius 14、surface@0.7、animateContentSize */
+.cache-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  width: 100%; box-sizing: border-box;
+  transition: height 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cache-row__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.cache-row__name {
+  margin: 0; font-size: 15px; font-weight: 600; color: var(--color-on-light, #18191c);
+}
+.cache-row__desc {
+  margin: 0; font-size: 12px; color: var(--color-medium-gray, #61666d);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cache-row__size {
+  font-size: 14px; font-weight: 500; color: var(--color-primary, #059669);
+  flex-shrink: 0;
+}
+.cache-row__del {
+  border: 0; background: transparent; cursor: pointer; padding: 4px;
+  color: var(--color-medium-gray, #61666d); display: inline-flex;
+  flex-shrink: 0;
+}
+.cache-row__del:disabled { opacity: 0.4; cursor: not-allowed; }
+.cache-row__del svg { width: 20px; height: 20px; }
+
+/* 骨架屏（ShimmerBox：1100ms 线性扫光） */
+.cache-skeleton { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.cache-shimmer {
+  background: linear-gradient(
+    100deg,
+    rgba(227, 229, 231, 0.55) 0%,
+    rgba(227, 229, 231, 0.95) 50%,
+    rgba(227, 229, 231, 0.55) 100%
+  );
+  background-size: 1100ms 100%;
+  animation: cache-shimmer 1100ms linear infinite;
+}
+@keyframes cache-shimmer {
+  from { background-position: -300px 0; }
+  to { background-position: 1200px 0; }
+}
+
+/* 清理成功：打勾 + 释放量，180ms fade + scale 0.6→1，退出 260ms */
+.cache-badge-overlay {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center; pointer-events: none;
+}
+.cache-badge-pop { animation: cache-badge-pop 180ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes cache-badge-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.cache-badge {
+  padding: 22px 30px; border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.16);
+  display: flex; flex-direction: column; align-items: center;
+}
+.cache-badge__circle {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: #00B894; display: flex; align-items: center; justify-content: center;
+}
+.cache-badge__title {
+  margin: 0; font-size: 15px; font-weight: 600; color: var(--color-on-light, #18191c);
+}
+.cache-badge__sub { margin: 0; font-size: 13px; color: var(--color-medium-gray, #61666d); }
+
+@keyframes cache-check { from { stroke-dashoffset: 100%; } to { stroke-dashoffset: 0; } }
+
+/* ── Dialogs (StorageDetailDialog / TranslationCacheDetail / confirm) ── */
+.cache-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 320;
+  background: rgba(24, 25, 28, 0.40);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.cache-dialog {
+  width: 100%; max-width: 360px; border-radius: 20px; padding: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 12px 36px rgba(24, 25, 28, 0.18);
+  box-sizing: border-box; animation: cache-badge-pop 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.cache-dialog__title {
+  margin: 0 0 8px; font-size: 16px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+.cache-dialog__body { display: flex; flex-direction: column; gap: 8px; }
+.cache-dialog__body p {
+  margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;
+  color: var(--color-on-light, #18191c);
+}
+.cache-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.cache-dialog__action {
+  border: 0; background: transparent; cursor: pointer; padding: 8px 12px;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  color: var(--color-primary, #059669);
+}
+.cache-dialog__action:disabled { color: rgba(97, 102, 109, 0.4); cursor: not-allowed; }
+.cache-dialog__action--danger { color: var(--color-danger, #dc2626); }
+
+/* 弹出动画：0.92→1 缩放 + 淡入（180ms） */
+.cache-detail {
+  width: 100%; max-width: 420px; padding: 16px;
+  border-radius: 20px; background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 12px 36px rgba(24, 25, 28, 0.18);
+  box-sizing: border-box;
+  animation: cache-detail-pop 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes cache-detail-pop {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.cache-detail__head { display: flex; align-items: center; gap: 8px; }
+.cache-detail__icon { width: 20px; height: 20px; color: var(--color-primary, #059669); }
+.cache-detail__icon svg { width: 20px; height: 20px; }
+.cache-detail__title {
+  margin: 0; flex: 1 1 auto; min-width: 0; font-size: 16px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cache-detail__close {
+  border: 0; background: transparent; cursor: pointer; padding: 2px;
+  color: var(--color-medium-gray, #61666d); display: inline-flex;
+}
+.cache-detail__close svg { width: 20px; height: 20px; }
+.cache-detail__meta {
+  margin: 4px 0 0; font-size: 11px; color: var(--color-medium-gray, #61666d);
+}
+.cache-detail__rule { height: 1px; background: rgba(227, 229, 231, 0.4); margin: 8px 0 6px; }
+.cache-detail__empty {
+  display: flex; align-items: center; justify-content: center; padding: 32px 0;
+}
+.cache-detail__empty p { margin: 0; font-size: 13px; color: var(--color-medium-gray, #61666d); }
+.cache-detail__list {
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 340px; overflow-y: auto;
+}
+.cache-detail__row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px; border-radius: 10px; width: 100%;
+  background: transparent; border: 0; font-family: inherit; text-align: left;
+  color: inherit; box-sizing: border-box;
+}
+.cache-detail__row--select-all { cursor: pointer; }
+.cache-detail__select-label {
+  font-size: 13px; font-weight: 600; color: var(--color-primary, #059669);
+}
+.cache-detail__select-meta { margin-left: auto; font-size: 11px; color: var(--color-medium-gray, #61666d); }
+.cache-detail__check {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(240, 240, 244, 1);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #FFFFFF;
+}
+.cache-detail__check--on { background: var(--color-primary, #059669); }
+.cache-detail__gap { width: 10px; flex-shrink: 0; }
+.cache-detail__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.cache-detail__name {
+  margin: 0; font-size: 13px; font-weight: 500; color: var(--color-on-light, #18191c);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cache-detail__sub {
+  margin: 0; font-size: 11px; color: var(--color-medium-gray, #61666d);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cache-detail__size {
+  font-size: 12px; color: var(--color-primary, #059669); flex-shrink: 0;
+}
+.cache-detail__del {
+  border: 0; background: transparent; cursor: pointer; padding: 2px;
+  color: rgba(97, 102, 109, 0.6); display: inline-flex; flex-shrink: 0;
+}
+.cache-detail__del svg { width: 18px; height: 18px; }
+.cache-detail__actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.cache-detail__spacer { flex: 1 1 auto; }
+.cache-detail__action {
+  border: 0; background: transparent; cursor: pointer; padding: 8px 12px;
+  font-family: inherit; font-size: 14px; color: var(--color-primary, #059669);
+}
+.cache-detail__action:disabled { color: rgba(97, 102, 109, 0.4); cursor: not-allowed; }
+.cache-detail__action--danger { color: var(--color-danger, #dc2626); }
+.cache-detail__action--primary { font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Online novel reader — port of NovelReaderScreen.kt (LIGHT surface: Android uses
+   `MaterialTheme.colorScheme.background` / `onSurface`, not the dark reader theme).
+   Module F: src/ui/pages/NovelReaderOnlinePage.tsx
+   Values mirror the Kotlin: padding h20/v16, spacedBy 10.dp, lineHeight 1.75,
+   font clamp 12f..26f, title = fontSizeSp + 4.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.reader-root--novel-shell { position: relative; background: #FFFFFF; color: #18191C; }
+.reader-root--novel-online {
+  background: #FFFFFF; color: #18191C;
+  min-height: 100dvh; display: flex; flex-direction: column;
+}
+.reader-root--novel-online .reader-top-bar {
+  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(227, 229, 231, 0.6);
+  color: #18191C;
+}
+.reader-online-title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.reader-online-title-main {
+  margin: 0; font-size: 14px; font-weight: 700; color: #18191C;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reader-online-title-sub {
+  margin: 0; font-size: 11px; color: #61666D;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reader-font-btn { font-size: 13px; color: #18191C; }
+.reader-font-btn--primary { font-size: 15px; color: var(--color-primary, #059669); }
+
+.reader-center {
+  flex: 1 1 auto; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 48px 32px;
+}
+.reader-center-text {
+  margin: 0; font-size: 14px; color: #61666D; text-align: center;
+}
+.reader-center-text--error { color: var(--color-danger, #dc2626); }
+.reader-loading-dots { display: inline-flex; gap: 6px; }
+.reader-loading-dots span {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--color-primary, #059669);
+  animation: reader-chasing-dots 1250ms linear infinite;
+}
+.reader-loading-dots span:nth-child(2) { animation-delay: 208ms; }
+.reader-loading-dots span:nth-child(3) { animation-delay: 416ms; }
+@keyframes reader-chasing-dots {
+  0% { opacity: 0.25; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(6px); }
+  100% { opacity: 0.25; transform: translateX(0); }
+}
+
+.reader-content--novel-online {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: 16px 20px;                    /* contentPadding(h20, v16) */
+  display: flex; flex-direction: column; gap: 10px;  /* spacedBy(10.dp) */
+  background: #FFFFFF;
+}
+.reader-novel-title-block { flex-shrink: 0; }
+.reader-novel-title {
+  margin: 0; font-weight: 700; color: #18191C;
+}
+.reader-paragraph {
+  margin: 0; color: rgba(24, 25, 28, 0.9);  /* onSurface.copy(alpha = 0.9f) */
+  word-break: break-word;
+}
+.reader-novel-nav { display: flex; gap: 10px; margin-top: 18px; }
+.reader-novel-nav-btn {
+  flex: 1 1 0; min-height: 48px; border-radius: 24px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(227, 229, 231, 0.9); background: rgba(255, 255, 255, 0.8);
+  font-family: inherit; font-size: 13px; color: #18191C;
+}
+.reader-novel-nav-btn svg { width: 18px; height: 18px; }
+.reader-novel-nav-gap { width: 4px; display: inline-block; }
+.reader-novel-nav-btn--primary {
+  background: var(--color-primary, #059669); border-color: var(--color-primary, #059669);
+  color: #FFFFFF;
+}
+
+/* Shell chrome: the web build's source picker drawer (not part of the Kotlin file). */
+.reader-shell-fab {
+  position: fixed; right: 12px;
+  bottom: calc(20px + var(--safe-bottom)); z-index: 6;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(24, 25, 28, 0.82); color: #E8C97A;
+  border: 1px solid rgba(232, 201, 122, 0.3); font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.reader-shell-drawer {
+  position: fixed; inset: auto 0 0 0; z-index: 7;
+  max-height: 70dvh; overflow-y: auto;
+  padding: 12px 12px calc(12px + var(--safe-bottom));
+  background: rgba(24, 25, 28, 0.92); color: #D4D4D4;
+  box-sizing: border-box;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Comic metadata block — port of ComicMetadataUi.kt (LIGHT surface).
+   Module F: src/ui/components/ComicMetadataUi.tsx
+   radius 14.dp surface / 8.dp tag, gap 6.dp, bodySmall 13→12px scale kept at 12px.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.comic-meta { margin-top: 12px; width: 100%; }
+.comic-meta__surface {
+  border-radius: 14px; padding: 12px;
+  background: rgba(240, 240, 244, 0.72);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.comic-meta__row {
+  margin: 0; font-size: 12px; line-height: 1.6;
+  color: var(--color-medium-gray, #61666d);
+  user-select: text; -webkit-user-select: text;
+}
+.comic-meta__aliases {
+  margin: 0; font-size: 12px; line-height: 1.6;
+  color: var(--color-on-light, #18191c);
+  user-select: text; -webkit-user-select: text;
+}
+.comic-meta__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.comic-meta__tag {
+  border: 0; cursor: pointer; font-family: inherit; font-size: 12px;
+  border-radius: 8px; padding: 8px 10px;
+  background: rgba(227, 229, 231, 0.72);
+  color: var(--color-on-light, #18191c);
+  line-height: 1.4;
+}
+.comic-meta__tag:active { background: rgba(227, 229, 231, 0.95); }
+.comic-meta__toggle {
+  border: 0; background: transparent; cursor: pointer; padding: 0;
+  font-family: inherit; font-size: 13px; font-weight: 600; align-self: flex-start;
+  color: var(--color-primary, #059669);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   App update dialog — port of AppUpdateDialog.kt.
+   Module E: src/ui/components/AppUpdateDialog.tsx
+   DesignTokens.shape(RadiusXl) = 24.dp; SpaceMd spacing; typography.titleMedium /
+   bodySmall / bodyMedium mapped to 17 / 12 / 14px.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.app-update-backdrop {
+  position: fixed; inset: 0; z-index: 340;
+  background: rgba(24, 25, 28, 0.40);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.app-update {
+  width: 100%; max-width: 400px; border-radius: 24px; padding: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 12px 36px rgba(24, 25, 28, 0.18);
+  box-sizing: border-box;
+  max-height: 84dvh; display: flex; flex-direction: column;
+}
+.app-update__title {
+  margin: 0; font-size: 18px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+.app-update__body {
+  margin-top: 12px; display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto;
+}
+.app-update__version {
+  margin: 0; font-size: 17px; font-weight: 600; color: var(--color-on-light, #18191c);
+}
+.app-update__meta { margin: 0; font-size: 12px; color: var(--color-medium-gray, #61666d); }
+.app-update__notes { margin: 0; font-size: 14px; line-height: 1.6; color: var(--color-on-light, #18191c); }
+.app-update__hint { margin: 0; font-size: 12px; line-height: 1.6; color: var(--color-medium-gray, #61666d); }
+.app-update__progress-wrap { display: flex; flex-direction: column; gap: 6px; }
+.app-update__progress {
+  height: 4px; border-radius: 2px; background: var(--color-primary, #059669);
+  transition: width 200ms linear;
+}
+.app-update__progress--indeterminate {
+  width: 100%; background: linear-gradient(
+    90deg,
+    rgba(5, 150, 105, 0.25) 0%,
+    var(--color-primary, #059669) 50%,
+    rgba(5, 150, 105, 0.25) 100%
+  );
+  background-size: 200% 100%;
+  animation: app-update-indeterminate 1200ms linear infinite;
+}
+@keyframes app-update-indeterminate {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+.app-update__progress-text {
+  margin: 0; font-size: 12px; color: var(--color-medium-gray, #61666d);
+}
+.app-update__link {
+  border: 0; background: transparent; cursor: pointer; padding: 4px 0;
+  font-family: inherit; font-size: 14px; font-weight: 600; text-align: left;
+  color: var(--color-primary, #059669);
+}
+.app-update__link:disabled { color: rgba(97, 102, 109, 0.4); cursor: not-allowed; }
+.app-update__actions {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 8px; margin-top: 16px;
+}
+.app-update__action {
+  border: 0; background: transparent; cursor: pointer; padding: 10px 14px;
+  font-family: inherit; font-size: 14px; color: var(--color-primary, #059669);
+  border-radius: 999px;
+}
+.app-update__action--primary {
+  background: var(--color-primary, #059669); color: #FFFFFF; font-weight: 600;
+}
+.app-update__action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Online comic reader — port of OnlineComicReaderScreen.kt + ComicReaderScreen.kt
+   (DARK surface: Android hardcodes Color.Black / Color.White).
+   Module F: src/ui/pages/ComicReaderOnlinePage.tsx
+   ══════════════════════════════════════════════════════════════════════════════ */
+.comic-reader-online {
+  background: #000000; color: #FFFFFF;
+  min-height: 100dvh; display: flex; flex-direction: column;
+}
+.comic-reader-online--empty { align-items: center; justify-content: center; }
+.comic-reader-online__center {
+  flex: 1 1 auto; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 0 32px;
+}
+.comic-reader-online__loading-text { margin: 0; font-size: 14px; color: #FFFFFF; }
+.comic-reader-online__error {
+  margin: 0; font-size: 14px; color: #FF8A8A; text-align: center;
+}
+.reader-loading-dots--lg span { width: 12px; height: 12px; }
+
+.comic-reader-surface {
+  flex: 1 1 auto; display: flex; flex-direction: column;
+  background: #000000; min-height: 0;
+}
+.comic-reader-surface__bar,
+.comic-reader-surface__controls,
+.comic-reader-surface__chapter-nav {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: rgba(24, 25, 28, 0.7);
+}
+.comic-reader-surface__title {
+  flex: 1 1 auto; min-width: 0; text-align: center;
+  font-size: 14px; color: #E8C97A;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.comic-reader-surface__btn {
+  border: 0; background: rgba(24, 25, 28, 0.7); color: #E8C97A; cursor: pointer;
+  min-width: 34px; height: 30px; padding: 0 8px; border-radius: 999px;
+  font-family: inherit; font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.comic-reader-surface__btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.comic-reader-surface__btn svg { width: 20px; height: 20px; }
+.comic-reader-surface__counter {
+  font-size: 13px; color: #D4D4D4; min-width: 48px; text-align: center;
+}
+.comic-reader-surface__toc {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 40dvh; overflow-y: auto; padding: 8px 12px;
+  background: rgba(24, 25, 28, 0.92);
+}
+.comic-reader-surface__toc-item {
+  border: 0; background: transparent; cursor: pointer; text-align: left;
+  font-family: inherit; font-size: 13px; color: #D4D4D4; padding: 8px;
+  border-radius: 8px;
+}
+.comic-reader-surface__toc-item--active { background: rgba(232, 201, 122, 0.12); color: #E8C97A; }
+.comic-reader-surface__page {
+  flex: 1 1 auto; min-height: 0; overflow: auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px; background: #000000;
+}
+.comic-reader-surface__img { max-width: 100%; height: auto; display: block; }
+.comic-reader-surface__loading,
+.comic-reader-surface__failed {
+  position: absolute; font-size: 13px; color: #D4D4D4; text-align: center;
+}
+.comic-reader-surface__failed { color: #FF8A8A; }
+
+.comic-reader-online-page { display: flex; flex-direction: column; min-height: 100dvh; }
+.comic-reader-online-page__shell {
+  display: flex; align-items: center; gap: 8px;
+  padding: calc(8px + var(--safe-top)) 12px 8px;
+  background: rgba(24, 25, 28, 0.9); color: #E8C97A;
+}
+.comic-reader-online-page__count { font-size: 12px; color: rgba(232, 201, 122, 0.7); }
+.comic-reader-online-page__chapters {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: rgba(24, 25, 28, 0.9);
+}
+.comic-reader-online-page__select {
+  flex: 1 1 auto; min-width: 0; border-radius: 12px;
+  border: 1px solid rgba(232, 201, 122, 0.25);
+  background: rgba(24, 25, 28, 0.4); color: inherit; padding: 10px 12px; font: inherit;
+}
+
+/* ── Mascot empty state (totalReadTimeSeconds == 0) ── */
+.stats-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 48px 16px; text-align: center;
+}
+.stats-empty-mascot { font-size: 64px; line-height: 1; }
+.stats-empty-title {
+  margin: 0; font-family: var(--font-serif, serif); font-size: 20px; font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+.stats-empty-desc {
+  margin: 0; font-size: 13px; line-height: 1.6; max-width: 280px;
+  color: var(--color-medium-gray, #61666d);
+}
+.stats-empty-action { margin-top: 8px; }
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   ──────────────────────────────────────────────────────────────
+   令牌（theme.css `[data-theme='dark']`）已在 :root 层换掉，所以凡是
+   写 `var(--color-*)` 的规则自动跟随，不在这里重复。
+   这里只补两类规则：
+     1) 硬编码的浅色表面/墨色（#fff、#E3E5E7@α、rgba(24,25,28,α)…）
+     2) 浅色投影 —— 深色底上 `rgba(0,0,0,α)` 等于没有投影
+   深色下的「灰底」一律改成同 alpha 的白色蒙版（Material 的 surfaceVariant
+   反相），并补 1px 同心描边/内阴影做分离，保证 16px 热力格这类小元素
+   不糊进 #222428 的卡片里。
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 1. 灰底小方块：surfaceVariant@0.5 → 白蒙版 + 同心发丝描边 ── */
+
+/* 24dp 圆形步进按钮：用 box-shadow 而不是 border，避免撑大 1px 命中区 */
+[data-theme='dark'] .stats-goal-step {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10);
+}
+
+/* MiniStatCard 34dp 图标底 */
+[data-theme='dark'] .stats-mini-icon {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 本周点亮圆点：#E3E5E7@0.45 在 #222428 上完全消失 */
+[data-theme='dark'] .stats-week-lit-dot--unlit {
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+/* 月份导航按钮按压态 */
+[data-theme='dark'] .stats-cal-nav-btn:active {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+/* 44dp 周历空格（= surfaceVariant@0.45，Android 侧同 rgba(241,243,244,.45)） */
+[data-theme='dark'] .stats-cal-cell--unread {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* 本周明细弹层底（surfaceVariant@0.5） */
+[data-theme='dark'] .stats-weekly-detail {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── 2. 热力图色阶 ──
+   原 ramp = rgba(5,150,105, .32/.52/.72/.95)。#059669 在 #18191C 上算出的
+   亮度只有 ~0.23，低档 (.32) 几乎贴背景，整张年视图读作「全空白」。
+   换成同族的亮 mint #10B981（= --color-secondary）并整体抬高 alpha：
+   阶梯间距不变，只把最暗两档拉出可辨差别；最亮档保持 .95 以免过曝。 */
+[data-theme='dark'] .stats-cal-cell--heat-1 { background: rgba(16, 185, 129, 0.40); }
+[data-theme='dark'] .stats-cal-cell--heat-2 { background: rgba(16, 185, 129, 0.58); }
+[data-theme='dark'] .stats-cal-cell--heat-3 { background: rgba(16, 185, 129, 0.76); }
+[data-theme='dark'] .stats-cal-cell--heat-4 { background: rgba(16, 185, 129, 0.95); }
+
+/* 年视图空格：原来是 onSurface@0.10（rgba(24,25,28,.10) 的墨色晕），
+   深色底下墨色=没有颜色。改白蒙版 + 内描边。排除 --filled，否则会把
+   有记录的格子一起刷掉（同特异度下类名顺序不决定胜负）。 */
+[data-theme='dark'] .stats-year-cell:not(.stats-year-cell--filled) {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ── 3. 硬编码的 MediumGray 墨色 ── */
+
+/* 图表右上角满刻度标注 / 柱顶分钟数（rgba(97,102,109,α) → #9AA0A6） */
+[data-theme='dark'] .stats-trend-scale { color: rgba(154, 160, 166, 0.75); }
+[data-theme='dark'] .stats-weekly-mins:not(.stats-weekly-mins--today):not(.stats-weekly-mins--peak):not(.stats-weekly-mins--selected) {
+  color: rgba(154, 160, 166, 0.75);
+}
+
+/* 柱状图基线：rgba(211,211,211,0.4) 在深色上只剩一条隐约的线 */
+[data-theme='dark'] .stats-weekly-baseline {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ── 4. 弹层：白卡 → surface(#222428) + 更深的投影 + 顶部发丝线 ──
+   浅色主题的 `0 -8px 28px rgba(24,25,28,.14)` 在深色底下投影到的是黑色，
+   等于看不见；所以改用 rgba(0,0,0,.55) 的实心深阴影撑起层级，
+   另加 1px 白色发丝边，否则 sheet 会和背后的 #18191C 糊成一片。 */
+[data-theme='dark'] .stats-sheet {
+  background: rgba(34, 36, 40, 0.94);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .stats-dialog {
+  background: rgba(34, 36, 40, 0.94);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+[data-theme='dark'] .stats-dialog-divider {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+[data-theme='dark'] .stats-dialog-action:disabled { color: rgba(154, 160, 166, 0.45); }
+
+/* ── 5. 缓存管理面板（CacheManagementScreen.kt 的浅色 surface 走跟随主题）── */
+
+[data-theme='dark'] .cache-sheet__inner {
+  background: rgba(34, 36, 40, 0.94);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 顶栏原本是白卡上的 rgba(255,255,255,.8)（靠更白区分层级），
+   深色下必须反过来做成「比 sheet 略亮」的一点点白。 */
+[data-theme='dark'] .cache-sheet__bar {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 分隔线：#E3E5E7@0.5 → 白 10%；--soft 档保持更弱。
+   排除 --soft，否则下面那条更弱的规则会被通用规则盖掉。 */
+[data-theme='dark'] .cache-divider:not(.cache-divider--soft) {
+  background: rgba(255, 255, 255, 0.10);
+}
+[data-theme='dark'] .cache-divider--soft { background: rgba(255, 255, 255, 0.07); }
+
+/* 概览块 surfaceVariant@0.5 */
+[data-theme='dark'] .cache-overview {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 行卡片：白卡 → 白 5% + 1px 发丝边（深色底上靠边而不是靠投影分层） */
+[data-theme='dark'] .cache-row {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 骨架屏扫光：#E3E5E7 的渐变在深色上会变成「白条闪」，反相成低对比白 */
+[data-theme='dark'] .cache-shimmer {
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+}
+
+[data-theme='dark'] .cache-badge {
+  background: rgba(34, 36, 40, 0.96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+[data-theme='dark'] .cache-dialog {
+  background: rgba(34, 36, 40, 0.96);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+[data-theme='dark'] .cache-detail {
+  background: rgba(34, 36, 40, 0.96);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+[data-theme='dark'] .cache-detail__rule {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+/* 未勾选圆：#F0F0F4 实心 + 白色对勾在深色下会整个糊掉，
+   改成半透明白底 + --color-on-light 的对勾。--on 态仍是实心绿，
+   所以补一条把对勾钉回白（否则通用规则会把绿底上的白勾也改成浅灰）。 */
+[data-theme='dark'] .cache-detail__check:not(.cache-detail__check--on) {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-on-light, #d4d4d4);
+}
+[data-theme='dark'] .cache-detail__check--on { color: #ffffff; }
+
+[data-theme='dark'] .cache-detail__del { color: rgba(154, 160, 166, 0.70); }
+
+[data-theme='dark'] .cache-dialog__action:disabled { color: rgba(154, 160, 166, 0.45); }
+[data-theme='dark'] .cache-detail__action:disabled { color: rgba(154, 160, 166, 0.45); }
+
+/* ── 6. 在线小说阅读页 ──
+   Kotlin 侧用的是 MaterialTheme.colorScheme.background / onSurface
+   （不是下面那套 reader-theme-0/1），所以它跟随应用的夜间模式：
+   背景取 background(#18191C)，正文区取 surface(#222428)，与 Android 一致。 */
+[data-theme='dark'] .reader-root--novel-shell {
+  background: var(--color-surface, #222428);
+  color: var(--color-on-light, #d4d4d4);
+}
+[data-theme='dark'] .reader-root--novel-online {
+  background: var(--color-light-bg, #18191c);
+  color: var(--color-on-light, #d4d4d4);
+}
+
+[data-theme='dark'] .reader-root--novel-online .reader-top-bar {
+  background: rgba(34, 36, 40, 0.92);
+  border-bottom-color: rgba(255, 255, 255, 0.10);
+  color: var(--color-on-light, #d4d4d4);
+}
+
+[data-theme='dark'] .reader-online-title-main { color: var(--color-on-light, #d4d4d4); }
+[data-theme='dark'] .reader-online-title-sub { color: var(--color-medium-gray, #9aa0a6); }
+
+/* --primary 态自带主题绿，排除掉以免被通用墨色规则盖掉 */
+[data-theme='dark'] .reader-font-btn:not(.reader-font-btn--primary) {
+  color: var(--color-on-light, #d4d4d4);
+}
+
+[data-theme='dark'] .reader-center-text:not(.reader-center-text--error) {
+  color: var(--color-medium-gray, #9aa0a6);
+}
+
+[data-theme='dark'] .reader-content--novel-online {
+  background: var(--color-surface, #222428);
+}
+
+[data-theme='dark'] .reader-novel-title { color: var(--color-on-light, #d4d4d4); }
+
+/* onSurface.copy(alpha = 0.9f) 的深色版 */
+[data-theme='dark'] .reader-paragraph { color: rgba(212, 212, 212, 0.9); }
+
+[data-theme='dark'] .reader-novel-nav-btn:not(.reader-novel-nav-btn--primary) {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-on-light, #d4d4d4);
+}
+
+/* ── 7. 漫画元信息 / 应用更新弹窗 ── */
+
+[data-theme='dark'] .comic-meta__surface {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .comic-meta__tag { background: rgba(255, 255, 255, 0.10); }
+[data-theme='dark'] .comic-meta__tag:active { background: rgba(255, 255, 255, 0.20); }
+
+[data-theme='dark'] .app-update {
+  background: rgba(34, 36, 40, 0.96);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+[data-theme='dark'] .app-update__link:disabled { color: rgba(154, 160, 166, 0.45); }
+
+/* ── 8. 本文件已按主题跟随、无需变体的部分（留档以免重复加）──
+   · 所有 `var(--color-*)` 文本/图标色（含 --color-medium-gray、--color-on-light）
+   · 主题绿/金/危险红的数据条与强调文字
+   · 纯黑底的开屏漫画阅读器（Android 侧本就硬编码 Color.Black/White）
+   · .reader-shell-fab / .reader-shell-drawer（本来就是深色抽屉）
+   · rgba(24,25,28,α) 的遮罩层：作用是压暗背景，深色下压不压都一样，
+     保持原值才不会在浅色主题里变浓。
+
+   ⚠️ 已知限制（CSS-only 改不动的，需要改 TSX，超出本次范围）：
+   · 热力图「有记录」格与图例色块的颜色是 StatisticsPage.tsx L696/L825/L850
+     的内联 background，内联样式优先级高于本文件，故 heat-* 规则只在
+     未来改成 class 驱动后生效。
+   · 趋势图网格线 rgba(148,163,184,0.35)（StatisticsPage L1089、ReadingTrendCard L249）
+     写在 SVG 属性上，只能靠改 TSX 常量切换。 */

@@ -1,0 +1,1662 @@
+/* Ciallo阅读 iOS web — light theme ported line-by-line from Android DesignTokens.kt / Theme.kt / Color.kt
+   Android: LightBg=#FFFFFF, DarkCharcoal=#18191C, MediumGray=#61666D, DividerGray=#E3E5E7
+   Primary default: #059669 (green, index 2). Secondary: #10B981. Gold: #E8C97A (accents only). */
+
+@font-face {
+  font-family: 'Noto Sans SC';
+  src: url('/fonts/noto_sans_sc_regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Serif SC';
+  src: url('/fonts/noto_serif_sc_regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ── Color tokens from Android Color.kt ── */
+  --color-primary: #059669;
+  --color-primary-start: #2563eb;
+  --color-secondary: #10b981;
+  --color-mint-gold: #e8c97a;
+  --color-dark-charcoal: #18191c;
+  --color-medium-gray: #61666d;
+  --color-divider-gray: #e3e5e7;
+  --color-pure-white: #ffffff;
+  --color-light-bg: #ffffff;
+  --color-on-light: #18191c;
+  --color-on-dark: #d4d4d4;
+  --color-danger: #dc2626;
+  --color-surface: #ffffff;
+  --gradient-primary: linear-gradient(135deg, #2563eb 0%, #059669 100%);
+  --gradient-danger: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+
+  /* ── Radius from DesignTokens.kt ── */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-xxl: 24px;
+
+  /* ── Spacing from DesignTokens.kt ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-page: 16px;
+
+  /* ── Glass tokens (AppBottomTabBar.kt + GlassCard.kt) ── */
+  --glass-blur-float: 8px;
+  --glass-blur-content: 22px;
+  --glass-surface-alpha: 0.78;
+  --glass-surface: rgba(255, 255, 255, 0.78);
+  --glass-tab-surface: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.45);
+  --glass-card-bg: rgba(255, 255, 255, 0.82);
+
+  /* ── Typography ── */
+  --font-sans: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  --font-serif: 'Noto Serif SC', 'Songti SC', Georgia, serif;
+
+  /* ── Motion (iOSMotion.kt) ── */
+  --motion-fast: 150ms;
+  --motion-normal: 250ms;
+  --motion-transition: 350ms;
+  --motion-header-collapse: 220ms;
+  --ease-out: cubic-bezier(0, 0, 0.58, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+
+  /* ── Tab bar ── */
+  --tab-indicator-width: 40%;
+  --tab-indicator-height: 3px;
+  --tab-bar-height: 68px;
+  --tab-bar-collapsed-height: 52px;
+
+  /* ── Safe areas ── */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+
+  /* ── App 底部避让（AppInsets.kt L20-21 / MainActivity L340）──
+     = 系统导航栏 + 悬浮 Tab 栏总高 92px（12 + 68 + 12）+ 8px 视觉间隙。
+     运行时由 src/core/ui-theme/appInsets.ts 的 resolveAppInsets() 覆写。 */
+  --app-bottom-inset: 100px;
+  --app-bottom-inset-no-tab-bar: 8px;
+
+  /* ── Theme colour transition (Theme.kt L42/L49: tween(600ms, EaseOut)) ── */
+  --motion-color-transition: 600ms;
+
+  /* ── Adaptive max widths — res/values/dimens.xml (verbatim) ──
+     Android's resourceised width table. `values/dimens.xml`,
+     `values-sw600dp/dimens.xml` and `values-sw840dp/dimens.xml` currently hold the
+     **same four numbers** (the dimens.xml header comment says so explicitly: the sw
+     folders exist as override entry points, not as different values), so no @media
+     override is emitted here — only the breakpoint constants below would matter.
+       <dimen name="adaptive_dialog_max_width">560dp</dimen>
+       <dimen name="adaptive_sheet_max_width">560dp</dimen>
+       <dimen name="adaptive_sheet_max_width_landscape">840dp</dimen>
+       <dimen name="adaptive_page_max_width">720dp</dimen>
+     The dp numbers equal the `AdaptiveSpec` compile-time fallbacks
+     (`ui/adaptive/AdaptiveSpec.kt` L65-77, mirrored in
+     `src/core/glass/adaptiveSpec.ts`), and dimens.xml's header states the two-path sync
+     contract: change one, change the other.
+     Breakpoints are the `WindowWidthClass` ones (AdaptiveSpec.kt L54-63):
+       COMPACT < 600dp · MEDIUM 600-839dp · EXPANDED ≥ 840dp
+     dp → CSS px is a 1:1 map on the web (no density scaling) — the same convention
+     `adaptiveWidthCss()` in src/core/glass/adaptiveSpec.ts already uses. */
+  --adaptive-dialog-max-width: 560px;
+  --adaptive-sheet-max-width: 560px;
+  --adaptive-sheet-max-width-landscape: 840px;
+  --adaptive-page-max-width: 720px;
+  --adaptive-breakpoint-md: 600px;
+  --adaptive-breakpoint-lg: 840px;
+
+  /* ⚠️ `res/values/themes.xml` sets `android:forceDarkAllowed=false` on BOTH
+     `Theme.MyApplication` and `Theme.MyApplication.Splash`. That is the Android-side
+     statement of the same decision documented above the `[data-theme='dark']` block: the
+     OS must not re-darken an app that already has its own night-mode switch (MIUI /
+     HyperOS force-dark is called out in themes.xml as the reason). The web equivalent is
+     to never introduce an `@media (prefers-color-scheme: dark)` rule — night mode is
+     driven exclusively by the `auto_night_mode` setting, which writes `data-theme="dark"`
+     onto <html>. A prefers-color-scheme block would be a second, contradicting source of
+     truth for the same decision. */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   夜间模式 —— 逐行对照 Android `Theme.kt` L68-76 的 darkColorScheme
+   触发方式：`MainActivity.kt` L213 `MyApplicationTheme(darkTheme = autoNightMode)`，
+   而 `autoNightMode` 是设置项 `auto_night_mode`（默认 false），
+   **不是** `isSystemInDarkTheme()`（那只是 L35 的参数默认值，被 MainActivity 覆盖）。
+   所以宿主写 `data-theme="dark"`，**不能**用 `@media (prefers-color-scheme: dark)`。
+
+   已落地的槽位（Theme.kt L69-75 全部 5 个 + 2 个共用 token）。
+   ⚠️ 各组件的深色变体尚未逐个移植 —— 见 docs/PARITY_EXCEPTIONS.md E55。
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-theme='dark'] {
+  /* L72 `background = DarkCharcoal` = Color(0xFF18191C) */
+  --color-light-bg: #18191c;
+  --color-dark-charcoal: #18191c;
+  /* L73 `surface = Color(0xFF222428)` */
+  --color-surface: #222428;
+  --color-pure-white: #222428;
+  /* L74-75 `onBackground = onSurface = NightText` = Color(0xFFD4D4D4) */
+  --color-on-light: #d4d4d4;
+  --color-on-dark: #d4d4d4;
+  --color-medium-gray: #9aa0a6;
+  --color-divider-gray: #2f3238;
+  /* 玻璃层在深色底上要抬一点，否则完全糊掉 */
+  --glass-surface: rgba(34, 36, 40, 0.82);
+  --glass-tab-surface: rgba(34, 36, 40, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-card-bg: rgba(34, 36, 40, 0.86);
+  color-scheme: dark;
+}
+
+/* 换主题色是「全界面换肤」，600ms 渐变过去（Theme.kt L40-54）。 */
+body,
+.app-shell,
+.page,
+.main-shell {
+  transition:
+    background-color var(--motion-color-transition) var(--ease-out),
+    color var(--motion-color-transition) var(--ease-out);
+}
+
+/* ── Reset & base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-light-bg);
+  color: var(--color-on-light);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── App shell ── */
+.app-shell {
+  min-height: 100dvh;
+  background: var(--color-light-bg);
+  color: var(--color-on-light);
+  font-family: var(--font-sans);
+}
+
+.main-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: calc(var(--tab-bar-height) + 32px + var(--safe-bottom));
+}
+
+.page {
+  padding: var(--space-page);
+  padding-top: calc(var(--safe-top) + var(--space-page));
+  min-height: calc(100dvh - var(--tab-bar-height) - var(--safe-bottom));
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.page-header-space {
+  padding-top: var(--safe-top);
+  margin-bottom: 12px;
+}
+
+.page-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-on-light);
+  letter-spacing: 0.5px;
+}
+
+.page-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--color-medium-gray);
+  letter-spacing: 1px;
+}
+
+.page-header-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── GlassCard (GlassCard.kt: surface 0.82, blur 22, radius 16) ── */
+.glass-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-card-bg);
+  backdrop-filter: blur(var(--glass-blur-content));
+  -webkit-backdrop-filter: blur(var(--glass-blur-content));
+  color: var(--color-on-light);
+  padding: var(--space-4);
+  box-shadow: 0 2px 8px rgba(24, 25, 28, 0.06);
+  font: inherit;
+}
+
+button.glass-card {
+  cursor: pointer;
+}
+
+/* ── AppButton (AppButton.kt: pill shape, primary gradient) ── */
+.app-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.app-button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.app-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.app-button--sm {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.app-button--md,
+.app-button {
+  height: 44px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+
+.app-button--lg {
+  height: 52px;
+  padding: 0 24px;
+  font-size: 16px;
+}
+
+.app-button--full {
+  width: 100%;
+}
+
+.app-button--primary {
+  background: var(--gradient-primary);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.28);
+}
+
+.app-button--secondary,
+.app-button--outline {
+  background: var(--glass-surface);
+  color: var(--color-on-light);
+  border: 1px solid var(--color-divider-gray);
+  box-shadow: 0 2px 8px rgba(24, 25, 28, 0.06);
+}
+
+.app-button--tertiary {
+  background: transparent;
+  color: var(--color-medium-gray);
+}
+
+.app-button--destructive {
+  background: var(--gradient-danger);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(220, 38, 38, 0.28);
+}
+
+.app-button-primary {
+  background: var(--gradient-primary);
+  color: #fff;
+}
+
+.app-button-outline {
+  background: var(--glass-surface);
+  color: var(--color-on-light);
+  border: 1px solid var(--color-divider-gray);
+}
+
+.app-button-ghost {
+  background: transparent;
+  color: var(--color-on-light);
+  border: 1px solid var(--color-divider-gray);
+}
+
+/* Legacy aliases used by pages */
+.app-button-full { width: 100%; }
+
+.app-button__spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: app-button-spin 0.7s linear infinite;
+  flex: 0 0 auto;
+}
+
+@keyframes app-button-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Chips (ShelfChips.kt / CategoryChip) ── */
+.chip,
+.category-chip,
+.action-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--color-on-light);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+  white-space: nowrap;
+}
+
+.chip:active:not(:disabled),
+.action-chip:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.chip--selected {
+  background: var(--gradient-primary);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.chip--locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action-chip--emphasized {
+  background: var(--color-primary);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* ── Segmented pill ── */
+.segmented-pill {
+  position: relative;
+  display: flex;
+  height: 48px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--color-divider-gray);
+  overflow: hidden;
+}
+
+.segmented-pill__indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--gradient-primary);
+  border-radius: 999px;
+  transition: transform var(--motion-transition) var(--ease-out-quart);
+  pointer-events: none;
+}
+
+.segmented-pill__option {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-on-light);
+  cursor: pointer;
+  transition: color var(--motion-normal) var(--ease-out);
+}
+
+.segmented-pill__option--active {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Book grid & cards ── */
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .book-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.book-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(24, 25, 28, 0.05);
+  cursor: pointer;
+  color: var(--color-on-light);
+  font: inherit;
+  text-align: left;
+}
+
+.book-cover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.book-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-light);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-author {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-medium-gray);
+}
+
+.book-progress {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-primary);
+}
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 40px;
+  color: var(--color-divider-gray);
+}
+
+.empty-state-title,
+.empty-state__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-on-light);
+}
+
+.empty-state-subtitle,
+.empty-state__subtitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-medium-gray);
+  line-height: 1.6;
+  max-width: 280px;
+}
+
+.empty-state__action {
+  margin-top: 8px;
+}
+
+/* ── Search field ── */
+.search-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 10px 12px;
+}
+
+.search-field input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-on-light);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.search-field input::placeholder {
+  color: var(--color-medium-gray);
+}
+
+.search-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.search-source-label {
+  border: 0;
+  background: rgba(5, 150, 105, 0.1);
+  color: var(--color-primary);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.download-icon-btn {
+  border: 0;
+  background: transparent;
+  color: var(--color-on-light);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+}
+
+/* ── History panel ── */
+.history-panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 12px;
+}
+
+.history-panel-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--color-medium-gray);
+}
+
+.history-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.history-chip {
+  border-radius: 999px;
+  border: 1px solid var(--color-divider-gray);
+  background: transparent;
+  color: var(--color-on-light);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* ── Stat cards ── */
+.stat-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  padding: 14px;
+}
+
+.stat-card-label {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-medium-gray);
+}
+
+.stat-card-value {
+  margin: 8px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* ── Chart ── */
+.chart-card {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-light);
+}
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  height: 140px;
+}
+
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 6px;
+}
+
+.bar {
+  width: 100%;
+  max-width: 28px;
+  border-radius: 6px 6px 2px 2px;
+  min-height: 8px;
+}
+
+.bar-label {
+  font-size: 11px;
+  color: var(--color-medium-gray);
+}
+
+/* ── Record list ── */
+.record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.record-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.record-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-light);
+}
+
+.record-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-medium-gray);
+}
+
+.record-duration {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+/* ── Settings ── */
+.settings-section {
+  margin-bottom: 18px;
+}
+
+.settings-section-title,
+.settings-section__title {
+  margin: 0 0 8px 4px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--color-medium-gray);
+}
+
+.settings-section__caption {
+  margin: 0 0 8px 4px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-medium-gray);
+  line-height: 1.5;
+}
+
+.settings-section-body,
+.settings-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--color-divider-gray);
+  background: transparent;
+  color: var(--color-on-light);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-row--static {
+  cursor: default;
+}
+
+.settings-row--danger .settings-row__label,
+.settings-row--danger .settings-row-label {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.settings-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-row-label,
+.settings-row__label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-on-light);
+}
+
+.settings-row__description {
+  font-size: 12px;
+  color: var(--color-medium-gray);
+  line-height: 1.45;
+}
+
+.settings-row-trailing,
+.settings-row__value,
+.settings-row__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--color-medium-gray);
+}
+
+.settings-control {
+  flex: 1;
+  max-width: 280px;
+}
+
+.font-slider {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
+/* ── Page turn selector ── */
+.page-turn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.72);
+  font-family: var(--font-sans);
+  color: var(--color-on-light);
+  text-align: left;
+  cursor: pointer;
+}
+
+.page-turn-row:last-child {
+  border-bottom: 1px solid var(--color-divider-gray);
+}
+
+.page-turn-row--selected,
+.page-turn-row-selected {
+  border: 2px solid transparent;
+  background: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92))
+      padding-box,
+    var(--gradient-primary) border-box;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.12);
+}
+
+.page-turn-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.page-turn-row__label,
+.page-turn-label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.page-turn-row__description {
+  font-size: 12px;
+  color: var(--color-medium-gray);
+  line-height: 1.4;
+}
+
+.page-turn-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--color-divider-gray);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.page-turn-row-selected .page-turn-radio,
+.page-turn-row--selected .page-turn-radio {
+  border-color: var(--color-primary);
+  background: radial-gradient(circle, var(--color-primary) 0 45%, transparent 50%);
+}
+
+.page-turn-row-selected .page-turn-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.check-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+/* ── Switch (AppSwitch.kt) ── */
+.switch {
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(227, 229, 231, 0.6);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out);
+}
+
+.switch-on {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.switch-on .switch-thumb {
+  transform: translateX(20px);
+  background: #fff;
+}
+
+/* ── Settings button row ── */
+.settings-button-row {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.settings-button-row .app-button {
+  flex: 1;
+}
+
+.about-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--color-divider-gray);
+}
+
+.about-row:last-child {
+  border-bottom: 0;
+}
+
+.about-row span:first-child {
+  color: var(--color-on-light);
+}
+
+.about-row span:last-child {
+  color: var(--color-medium-gray);
+  font-size: 13px;
+}
+
+/* ── Source list ── */
+.source-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.source-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--color-divider-gray);
+}
+
+.source-item:last-child {
+  border-bottom: 0;
+}
+
+.source-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-on-light);
+}
+
+.source-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-medium-gray);
+}
+
+/* ── Subpage header ── */
+.subpage-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-top: var(--safe-top);
+}
+
+.page-back-btn {
+  border: 0;
+  background: rgba(227, 229, 231, 0.5);
+  color: var(--color-on-light);
+  border-radius: var(--radius-xs);
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 18px;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.subpage-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-on-light);
+}
+
+/* ── TabScreenHeader ── */
+.tab-screen-header__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.tab-screen-header__leading,
+.tab-screen-header__trailing {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tab-screen-header__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.tab-screen-header__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-on-light);
+}
+
+.tab-screen-header__subtitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: 1.5px;
+  color: var(--color-medium-gray);
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity var(--motion-header-collapse) var(--ease-out),
+    height var(--motion-header-collapse) var(--ease-out),
+    margin var(--motion-header-collapse) var(--ease-out);
+}
+
+.tab-screen-header__subtitle--hidden {
+  opacity: 0;
+  height: 0;
+  margin-top: 0;
+}
+
+/* ── Reader ── */
+.reader-root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.reader-bg {
+  transition: background-color var(--motion-transition) var(--ease-out),
+    color var(--motion-transition) var(--ease-out);
+}
+
+.reader-theme-0,
+.reader-theme-1 {
+  background-color: #ffffff;
+  color: #18191c;
+}
+
+.reader-theme-2 {
+  background-color: #fbf0d9;
+  color: #5f4b32;
+}
+
+.reader-theme-3 {
+  background-color: #18191c;
+  color: #d4d4d4;
+}
+
+.reader-theme-4 {
+  background-color: #e8f5e9;
+  color: #1b5e20;
+}
+
+.reader-theme-5 {
+  background-color: #000000;
+  color: #e0e0e0;
+}
+
+.reader-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  padding-top: calc(10px + var(--safe-top));
+  border-bottom: 1px solid var(--color-divider-gray);
+  background: inherit;
+}
+
+.reader-chapter-title {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-icon-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 6px 8px;
+  color: inherit;
+  font-family: inherit;
+  min-width: 36px;
+}
+
+.reader-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px 24px;
+}
+
+.reader-paragraph {
+  margin: 0 0 14px;
+  line-height: 1.85;
+  font-size: inherit;
+  text-indent: 2em;
+}
+
+.reader-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  padding-bottom: calc(10px + var(--safe-bottom));
+  border-top: 1px solid var(--color-divider-gray);
+  background: inherit;
+}
+
+.reader-progress {
+  flex: 1;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* ── Bottom Tab Bar (AppBottomTabBar.kt: floating pill, glass) ── */
+.app-tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  padding: 12px 16px;
+  padding-bottom: calc(12px + var(--safe-bottom));
+}
+
+.glass-tabbar {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  height: var(--tab-bar-height);
+  border-radius: 999px;
+  background: var(--glass-tab-surface);
+  -webkit-backdrop-filter: blur(var(--glass-blur-float));
+  backdrop-filter: blur(var(--glass-blur-float));
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 28px rgba(24, 25, 28, 0.14);
+  overflow: hidden;
+  color: var(--color-on-light);
+  pointer-events: auto;
+}
+
+.app-tabbar-item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  position: relative;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  min-width: 0;
+  padding: 6px 4px 8px;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--motion-normal) var(--ease-out);
+}
+
+.app-tabbar-item--selected {
+  opacity: 1;
+}
+
+.app-tabbar-item--unselected {
+  opacity: 0.48;
+}
+
+.app-tabbar-icon {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Android AppBottomTabBar.kt L511-516:
+     Text(text = item.label, fontSize = 10.sp, color = iconColor, padding(top = 2.dp))
+   —— 没有 fontWeight、没有 letterSpacing、没有 lineHeight，都走 Compose 默认
+   （Weight = Normal、spacing = 0、lineHeight = Unspecified → 平台默认行高）。
+   旧的 0.4px 字距 / 500 字重是凭空加的。 */
+.app-tabbar-label {
+  font-size: 10px;
+  line-height: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+  transition: opacity var(--motion-header-collapse) var(--ease-out),
+    height var(--motion-header-collapse) var(--ease-out),
+    margin var(--motion-header-collapse) var(--ease-out);
+}
+
+.app-tabbar-label--hidden {
+  opacity: 0;
+  height: 0;
+  margin-top: 0;
+}
+
+.app-tabbar-indicator {
+  position: absolute;
+  top: 6px;
+  height: var(--tab-indicator-height);
+  border-radius: 999px;
+  background: var(--color-on-light);
+  transition: left var(--motion-normal) var(--ease-out-quart),
+    width var(--motion-normal) var(--ease-out-quart);
+  pointer-events: none;
+}
+
+.app-tabbar-badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 22px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* ── Chapter list ── */
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chapter-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-divider-gray);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-on-light);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chapter-item-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-on-light);
+}
+
+.chapter-item-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-medium-gray);
+}
+
+/* ── Comic pager ── */
+.comic-pager {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+}
+
+.comic-page-placeholder {
+  width: min(320px, 86vw);
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.comic-pager-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.comic-pager-label {
+  font-size: 13px;
+  color: var(--color-medium-gray);
+  min-width: 72px;
+  text-align: center;
+}
+
+.library-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+/* ── Splash ── */
+.splash-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #0f141c;
+  color: #e8c97a;
+}
+
+.splash-logo {
+  margin: 0;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #e8c97a;
+  animation: splash-pulse 2s ease-in-out infinite;
+}
+
+.splash-subtitle {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: rgba(232, 201, 122, 0.6);
+}
+
+@keyframes splash-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+/* ── Onboarding ── */
+.onboarding-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px calc(24px + var(--safe-bottom));
+  background: var(--color-light-bg);
+}
+
+.onboarding-track {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.onboarding-slide {
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 4px;
+}
+
+.onboarding-slide h2 {
+  margin: 0;
+  font-size: 26px;
+  color: var(--color-on-light);
+}
+
+.onboarding-slide p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-medium-gray);
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.onboarding-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-divider-gray);
+}
+
+.onboarding-dot-active {
+  background: var(--color-primary);
+  width: 20px;
+  border-radius: 999px;
+}
+
+/* ── Toast ──
+   底部避让用 `--app-bottom-inset`（= AppInsets.kt L20-21 `LocalAppBottomInset`，
+   由 MainActivity L340 组装成 `navBarBottom + 92.dp + 8.dp`，见
+   src/core/ui-theme/appInsets.ts）。旧值硬编码 96px —— 96 正是 AppInsets.kt
+   L11-13 点名要消灭的四个魔数之一。 */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--app-bottom-inset, 100px) + var(--safe-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 2000;
+  max-width: min(86vw, 360px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(24, 25, 28, 0.88);
+  color: #f5f5f7;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 28px rgba(24, 25, 28, 0.14);
+  animation: toast-in var(--motion-normal) var(--ease-out-quart);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   夜间模式 — 组件级深色变体（E55：theme.css 基座组件这批）
+   ──────────────────────────────────────────────────────────────────────────
+   触发：`<html data-theme="dark">`（设置 → 护眼与提醒 → 夜间模式，
+   Android `auto_night_mode` → MainActivity.kt L213
+   `MyApplicationTheme(darkTheme = autoNightMode)`）；绝不用
+   `@media (prefers-color-scheme: dark)`（本文件 L121-129 已留档）。
+
+   基座 token 翻转见上方 L142-160 的 `[data-theme='dark']` 块 —— 凡 var()
+   自动跟随。这里只补「浅色档字面量写死在规则里」的表面/文字槽位。
+   深色取值（Theme.kt L72-75 darkColorScheme）：
+     background #18191C ｜ surface #222428 ｜ onBackground/onSurface #D4D4D4
+   本块只追加，既有规则一行未改、未删（浅色态零回归）。
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 通用白纱表面 → surface 深色档（同 α 换底）──
+   这批 rgba(255,255,255,α) 是「浅色 surface 自身的半透明档」的直译，
+   与 GlassCard.kt L271 `tint = colorScheme.surface.copy(alpha = 0.82f)` 同族；
+   深色 surface = #222428，α 关系原样保留。
+   ⚠️ .chip / .category-chip / .action-chip 三个类名当前 TSX 已不再使用
+   （通用胶囊迁移成了 home.css 的 .home-action-chip 一族，那边已有深色块）；
+   这里仍补上，防止将来复用时把白纱带回深色页。 */
+[data-theme='dark'] .chip,
+[data-theme='dark'] .category-chip,
+[data-theme='dark'] .action-chip {
+  background: rgba(34, 36, 40, 0.72);
+}
+
+/* .segmented-pill（SegmentedPillSelector.tsx）——
+   Kotlin ui/components/SettingsControls.kt L105
+   `background(colorScheme.surface.copy(alpha = 0.55f))`（端口取 0.6）。
+   描边在 Kotlin 里是 primary@0.30（两套主题同值），端口写成了
+   --color-divider-gray，深色档随 token 自动翻到 #2F3238，不另覆盖。 */
+[data-theme='dark'] .segmented-pill {
+  background: rgba(34, 36, 40, 0.6);
+}
+
+/* surface 系白纱卡（85% 档）：书卡 / 搜索框 / 搜索历史 / 阅读记录 /
+   设置分组体 / 章节行。.history-panel 的直源是 ui/library/LibraryScreen.kt
+   L3374 `background(colorScheme.surface.copy(alpha = 0.8f))`（端口取 0.85），
+   其余同族。1px --color-divider-gray 描边随 token 翻转（#2F3238，
+   「比 surface 亮一点」的分层读法保得住）；rgba(24,25,28,α) 投影落在
+   #18191C 上等于没有，属无害退化，不另造阴影。 */
+[data-theme='dark'] .book-card,
+[data-theme='dark'] .search-field,
+[data-theme='dark'] .history-panel,
+[data-theme='dark'] .record-item,
+[data-theme='dark'] .settings-section-body,
+[data-theme='dark'] .chapter-item {
+  background: rgba(34, 36, 40, 0.85);
+}
+
+/* .page-turn-row（PageTurnSelectorRow.tsx）——
+   Kotlin SettingsControls.kt L262-271：未选中 = 透明底 +
+   outlineVariant@0.35 描边；选中 = primary/secondary 渐变底 +
+   primary@0.55 描边。端口给未选中补了 rgba(255,255,255,0.72) 白纱、
+   选中补了 rgba(255,255,255,0.92) 的 padding-box 填充——深色档按
+   surface 同 α 换底（border-box 的 --gradient-primary 不随主题变）。 */
+[data-theme='dark'] .page-turn-row {
+  background: rgba(34, 36, 40, 0.72);
+}
+[data-theme='dark'] .page-turn-row--selected {
+  background:
+    linear-gradient(rgba(34, 36, 40, 0.92), rgba(34, 36, 40, 0.92)) padding-box,
+    var(--gradient-primary) border-box;
+}
+
+/* .switch（AppSwitch 的旧全局别名；当前 TSX 用的是 components.css 的
+   .app-switch，那边深色由 --color-* token 自理）。浅色轨道 =
+   DividerGray#E3E5E7@0.6，深色 #2F3238@0.6 贴在 #18191C 上等于没画 ——
+   依 settings.css L1230 同款处理：M3 关闭轨道取 surfaceVariant
+   （深色基线 #49454F，Theme.kt 未覆写该角色）的 0.32 emphasis。 */
+[data-theme='dark'] .switch {
+  background: rgba(73, 69, 79, 0.32);
+}
+
+/* .page-back-btn（子页返回钮）：浅色 = DividerGray@0.5 圆角片，
+   深色同源同 α 不可见 → 白发丝（components.css L1417 snackbar 边的同族处理）。 */
+[data-theme='dark'] .page-back-btn {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── 刻意不覆盖（两套主题取值相同，逐条依据）─────────────────────
+   · .chip--selected / .action-chip--emphasized / .check-badge 的
+     --gradient-primary 实底 + 白字：primary/secondary 在 Theme.kt L59-60
+     （浅）与 L69-70（深）同值，白字压主题色底恒成立；
+   · .search-source-label 的 rgba(5,150,105,0.1)：primary 派生，同上；
+   · .app-tabbar-badge 的 #e5484d + 白字：AppBottomTabBar.kt L414
+     `Color(0xFFE5484D)` 编译期常量；
+   · .toast 的 rgba(24,25,28,0.88) 深胶囊 + #f5f5f7 字：Android 侧
+     AppToast.kt L83-89 在无 Snackbar 宿主时退回**系统** android.widget.Toast
+     （深胶囊与主题无关）；有宿主时走 components.css 的 .app-toast-snackbar，
+     那边已有深色块（L1411-1412）；
+   · .book-cover 的 rgba(255,255,255,0.92) 字 + 黑 text-shadow：压在封面
+     渐变/封面图上，与主题无关；
+   · .glass-card 的 rgba(24,25,28,0.06) 投影：components.css L1399 的
+     `[data-theme='dark'] .glass-card`（属性选择器特异度更高）已换成
+     深阴影 + 内侧发丝高光，此处无须重复；
+   · .app-button--secondary/--outline/--ghost：底 --glass-surface、
+     描边 --color-divider-gray 全是 token，随基座翻转；
+   · .switch-thumb 的 #fff（L984/L996）：白色拨钮两套主题一致
+     （AppSwitch 家族的拨钮都是白色圆片，settings.css L1234 同款留档）。
+   ═══════════════════════════════════════════════════════════════════════════ */

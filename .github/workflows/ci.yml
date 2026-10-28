@@ -1,0 +1,632 @@
+# Ciallo Reader — iOS 真机构建流水线
+#
+# ⚠️ 位置说明（很重要）
+# ------------------------------------------------------------------
+# GitHub Actions **只读取仓库根目录的 `.github/workflows/`**。
+# 所以本文件必须放在 <repo-root>/.github/workflows/ci.yml，
+# 放在 IOS/.github/workflows/ 里是**永远不会触发**的（死文件）。
+#
+# 仓库根 = 包含 `novel-reader/`（Android 只读源）和 `IOS/`（本 iOS 工程）
+# 的那一层，git remote = https://github.com/roxycon-dev/Ciallo-Reader-ios.git
+#
+# Job 依赖链（全部 needs 串联，任何一道门禁红 → 后面全部不跑）：
+#
+#   gates (ubuntu-latest)
+#     └─> web-build (ubuntu-latest)      dist + vite preview + Playwright e2e
+#           └─> cap-sync (macos-26)      npm ci → vite build → cap sync ios → cap copy ios
+#                 └─> ios-build (macos-26)   xcodebuild 真机构建（模拟器 .app）
+#                       └─> ios-archive (macos-26)  真机 ipa（无证书则跳过）
+#
+# 版本钉死策略（全部显式，不用 latest）：
+#   Node  : .nvmrc + actions/setup-node node-version-file（= 24.16.0）
+#   npm   : 11.13.0（与本机实测通过的版本一致）
+#   Ruby  : 3.4.4（ruby/setup-ruby）
+#   CocoaPods: 1.16.2（仅在检测到 Podfile 时才实际使用）
+#
+# 本工程用的是 **Swift Package Manager**（存在 ios/App/CapApp-SPM/），
+# 不是 CocoaPods —— 所以正常情况下**不跑 pod install**，详见 cap-sync job 里的断言步骤。
+
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # ---- 钉死的版本（不要用 latest）----
+  NODE_VERSION: '24.16.0'
+  NPM_VERSION: '11.13.0'
+  RUBY_VERSION: '3.4.4'
+  COCOAPODS_VERSION: '1.16.2'
+  IOS_DEPLOYMENT_TARGET: '16.0'
+  XCODE_SCHEME: 'App'
+
+jobs:
+  # ==================================================================
+  # 1) gates — 四道门禁，必须全绿
+  # ==================================================================
+  gates:
+    name: gates (tsc / eslint / vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: IOS
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert package-lock.json is committed
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "::error::package-lock.json 缺失。npm ci 需要它；请在本机跑 npm install 后提交 lock 文件。"
+            exit 1
+          fi
+          echo "package-lock.json OK ($(wc -c < package-lock.json) bytes)"
+          node -e "const l=require('./package-lock.json');console.log('lockfileVersion=',l.lockfileVersion)"
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+
+      - name: Setup npm ${{ env.NPM_VERSION }}
+        run: |
+          npm install -g "npm@$NPM_VERSION"
+          echo "node=$(node -v)  npm=$(npm -v)"
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Gate 1/4 — typecheck
+        run: npx tsc --noEmit
+
+      - name: Gate 2/4 — lint
+        run: npx eslint src --max-warnings=0
+
+      - name: Gate 3/4 — unit + parity tests
+        run: npx vitest run --reporter=default
+
+      - name: Gate 4/4 — lockfile is in sync with package.json
+        run: |
+          # 重新按 package.json 解析一次 lock（只改 lock 文件，不动 node_modules），
+          # 然后断言 lock 没有变化。变了 = package.json 改了但 lock 没提交。
+          cp package-lock.json /tmp/lock.before.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          if ! cmp -s package-lock.json /tmp/lock.before.json; then
+            echo "::error::package-lock.json 与 package.json 不同步，请在本机 npm install 后提交 lock。"
+            diff <(node -e "console.log(JSON.stringify(require('/tmp/lock.before.json').packages,null,1))") \
+                 <(node -e "console.log(JSON.stringify(require('./package-lock.json').packages,null,1))") \
+                 | head -60 || true
+            exit 1
+          fi
+          echo "package-lock.json in sync"
+
+  # ==================================================================
+  # 2) web-build — dist + preview + Playwright e2e（WebKit 为主）
+  # ==================================================================
+  web-build:
+    name: web-build (vite dist + preview + e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: gates
+    defaults:
+      run:
+        working-directory: IOS
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+
+      - name: Setup npm ${{ env.NPM_VERSION }}
+        run: |
+          npm install -g "npm@$NPM_VERSION"
+          node -v && npm -v
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Build dist
+        run: npx vite build
+
+      - name: Install Playwright browsers (WebKit required, Chromium best-effort)
+        run: |
+          set -o pipefail
+          # WebKit：主力，必装。iOS 上用的就是 WKWebView，语义最接近。
+          npx playwright install --with-deps webkit
+          # Chromium：本机下载失败过，CI 上若能装就一起装；playwright.config.ts 里默认不启用。
+          npx playwright install --with-deps chromium || \
+            echo "::warning::chromium 安装失败，跳过（配置以 WebKit 为主，不影响门禁）"
+
+      - name: Start vite preview
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          echo $! > preview.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4173 > /dev/null; then
+              echo "preview up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::vite preview 30s 内没起来"
+          cat preview.log
+          exit 1
+
+      - name: Playwright e2e (WebKit)
+        env:
+          CI: '1'
+          E2E_BASE_URL: 'http://localhost:4173'
+        run: npx playwright test
+
+      - name: Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            IOS/playwright-report/
+            IOS/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: IOS/dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Stop preview
+        if: always()
+        run: |
+          [ -f preview.pid ] && kill "$(cat preview.pid)" 2>/dev/null || true
+          true
+
+  # ==================================================================
+  # 3) cap-sync — macOS 上跑 cap sync（唯一允许改动 ios/ 的命令）
+  # ==================================================================
+  cap-sync:
+    name: cap-sync (vite build + cap sync/copy ios)
+    runs-on: macos-26
+    timeout-minutes: 40
+    needs: web-build
+    defaults:
+      run:
+        working-directory: IOS
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert Xcode 26+
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcode-select -p
+          xcodebuild -version | grep -E 'Xcode 26\.' || {
+            echo "::error::Capacitor 8 / @capacitor/ios 8.5.2 需要 Xcode 26+，当前 runner 的 Xcode 版本不满足。"
+            exit 1
+          }
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+
+      - name: Setup npm ${{ env.NPM_VERSION }}
+        run: |
+          npm install -g "npm@$NPM_VERSION"
+          node -v && npm -v
+
+      # SPM 模式下不跑 pod install；这里只把 Ruby/CocoaPods 版本钉死，
+      # 万一将来有人跑 spm-migration-assistant 迁到 CocoaPods，环境依然可复现。
+      - name: Setup Ruby ${{ env.RUBY_VERSION }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+
+      - name: Detect iOS package manager (SPM vs CocoaPods)
+        id: pkgmgr
+        run: |
+          set -o pipefail
+          if [ -d ios/App/CapApp-SPM ]; then
+            echo "mode=SPM" >> "$GITHUB_OUTPUT"
+            echo "iOS 用 Swift Package Manager（ios/App/CapApp-SPM 存在），不跑 pod install。"
+          elif [ -f ios/App/Podfile ]; then
+            echo "mode=Cocoapods" >> "$GITHUB_OUTPUT"
+            echo "iOS 用 CocoaPods，稍后执行 pod install。"
+          else
+            echo "::error::既没有 ios/App/CapApp-SPM 也没有 ios/App/Podfile —— ios/ 壳工程不完整。"
+            exit 1
+          fi
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Build web (vite build，不跑 tsc —— typecheck 已由 gates 把关)
+        run: npx vite build
+
+      - name: pod install (仅 CocoaPods 模式)
+        if: steps.pkgmgr.outputs.mode == 'Cocoapods'
+        run: |
+          set -o pipefail
+          gem install cocoapods -v "$COCOAPODS_VERSION" --no-document
+          pod --version
+          cd ios/App
+          pod install --repo-update
+        env:
+          COCOAPODS_VERSION: ${{ env.COCOAPODS_VERSION }}
+
+      # ---- 唯一会改动 ios/ 的命令 ----
+      - name: cap sync ios
+        run: npx cap sync ios
+
+      - name: cap copy ios
+        run: npx cap copy ios
+
+      - name: Verify iOS shell project is complete
+        run: |
+          set -o pipefail
+          test -d ios/App/CapApp-SPM -o -f ios/App/Podfile
+          test -f ios/App/App.xcodeproj/project.pbxproj
+          test -f ios/App/App/Info.plist
+          test -d ios/App/App/public && ls ios/App/App/public | head
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER' ios/App/App.xcodeproj/project.pbxproj
+          grep -q "IPHONEOS_DEPLOYMENT_TARGET = $IOS_DEPLOYMENT_TARGET" ios/App/App.xcodeproj/project.pbxproj
+          echo "ios/ 壳工程完整"
+          npx cap doctor ios || true
+
+      - name: Diff what cap sync changed in ios/
+        run: |
+          git --no-pager diff --stat -- ios/ || true
+          git status --porcelain -- ios/ | head -50 || true
+
+      - name: Upload synced ios/ + dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-synced
+          path: |
+            IOS/ios/
+            IOS/dist/
+          retention-days: 7
+          if-no-files-found: error
+
+  # ==================================================================
+  # 4) ios-build — xcodebuild 真机构建（模拟器 .app）
+  # ==================================================================
+  ios-build:
+    name: ios-build (xcodebuild iphonesimulator Release)
+    runs-on: macos-26
+    timeout-minutes: 60
+    needs: cap-sync
+    defaults:
+      run:
+        working-directory: IOS
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+
+      - name: Setup npm ${{ env.NPM_VERSION }}
+        run: |
+          npm install -g "npm@$NPM_VERSION"
+          node -v && npm -v
+
+      - name: Install (npm ci)
+        # SPM 依赖路径是 ../../../node_modules/xxx，必须有 node_modules 才解析得动
+        run: npm ci
+
+      - name: Download synced ios/ + dist from cap-sync
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-synced
+          path: .
+
+      - name: Restore capacitor.config.json (cap sync 生成的是 .gitignore 产物)
+        run: |
+          # ios/App/App/capacitor.config.json 与 ios/App/App/config.xml 在 .gitignore 里，
+          # artifact 里本来就有；这里只做一次存在性断言，不改动任何东西。
+          test -f ios/App/App/capacitor.config.json && echo "capacitor.config.json present"
+          test -d ios/App/App/public && echo "web assets present"
+
+      - name: Assert Xcode 26+
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild -version | grep -E 'Xcode 26\.' || {
+            echo "::error::需要 Xcode 26+"; exit 1; }
+
+      - name: Detect -workspace vs -project
+        id: target
+        run: |
+          set -o pipefail
+          # 本工程是 SPM，Capacitor CLI 生成的是 App.xcodeproj 而**没有** App.xcworkspace
+          # （参考 @capacitor/cli dist/ios/build.js：packageManager==='SPM' 时用 -project）。
+          # 任务书里写死的 `-workspace ios/App/App.xcworkspace` 在本仓库不存在，
+          # 照抄会直接 xcodebuild 报错。这里做检测：SPM → -project，有 workspace → -workspace。
+          if [ -d ios/App/App.xcworkspace ]; then
+            echo "flag=-workspace" >> "$GITHUB_OUTPUT"
+            echo "name=App.xcworkspace" >> "$GITHUB_OUTPUT"
+            echo "使用 -workspace ios/App/App.xcworkspace"
+          else
+            echo "flag=-project" >> "$GITHUB_OUTPUT"
+            echo "name=App.xcodeproj" >> "$GITHUB_OUTPUT"
+            echo "无 App.xcworkspace（SPM 模式），改用 -project ios/App/App.xcodeproj"
+          fi
+
+      - name: Resolve Swift packages
+        run: |
+          set -o pipefail
+          xcodebuild \
+            ${{ steps.target.outputs.flag }} ios/App/${{ steps.target.outputs.name }} \
+            -scheme "$XCODE_SCHEME" \
+            -resolvePackageDependencies \
+            | tee resolve-spm.log
+
+      # ---- 核心：xcodebuild 完整日志 ----
+      - name: xcodebuild (Release / iphonesimulator / generic destination)
+        run: |
+          set -o pipefail
+          # 注意：**不**接 xcpretty。xcpretty 会吞掉 warning/error 上下文，
+          # 真出问题时 CI 日志里什么都看不到。tee 保留全量日志，
+          # 失败时下面的 step 再把整份日志原样打出来。
+          xcodebuild \
+            ${{ steps.target.outputs.flag }} ios/App/${{ steps.target.outputs.name }} \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build \
+            2>&1 | tee xcodebuild-ios-build.log
+
+      - name: Print full xcodebuild log
+        if: failure()
+        run: |
+          echo "===== xcodebuild 完整日志开始 ====="
+          cat xcodebuild-ios-build.log
+          echo "===== xcodebuild 完整日志结束 ====="
+          echo "===== resolve-spm.log ====="
+          cat resolve-spm.log 2>/dev/null || true
+          # 顺手把真正的 error 行单独提出来，方便一眼定位
+          echo "===== 抽取出的 error 行 ====="
+          grep -nE '(error:|BUILD FAILED|The following build commands failed|\*\* BUILD)' xcodebuild-ios-build.log || true
+
+      - name: Upload xcodebuild log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: |
+            IOS/xcodebuild-ios-build.log
+            IOS/resolve-spm.log
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Locate App.app
+        id: app
+        run: |
+          set -o pipefail
+          APP_PATH=$(find ios/DerivedData/Build/Products/Release-iphonesimulator -maxdepth 1 -name 'App.app' | head -n1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::没找到 Release-iphonesimulator/App.app —— xcodebuild 可能产物路径变了"
+            ls -la ios/DerivedData/Build/Products/ || true
+            exit 1
+          fi
+          echo "path=$APP_PATH" >> "$GITHUB_OUTPUT"
+          echo "App.app at $APP_PATH"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist"
+
+      - name: Package simulator .app (zip)
+        run: |
+          set -o pipefail
+          mkdir -p artifacts
+          ditto -c -k --keepParent "${{ steps.app.outputs.path }}" "artifacts/CialloReader-sim.app.zip"
+          ls -lh artifacts/
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ciallo-ios-simulator-app
+          path: IOS/artifacts/CialloReader-sim.app.zip
+          retention-days: 14
+          if-no-files-found: error
+
+  # ==================================================================
+  # 5) ios-archive — 真机 ipa。没有开发者证书就跳过，不伪造证书。
+  # ==================================================================
+  ios-archive:
+    name: ios-archive (device ipa, needs cert)
+    runs-on: macos-26
+    timeout-minutes: 60
+    needs: ios-build
+    defaults:
+      run:
+        working-directory: IOS
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+
+      - name: Setup npm ${{ env.NPM_VERSION }}
+        run: |
+          npm install -g "npm@$NPM_VERSION"
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Download synced ios/ + dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-synced
+          path: .
+
+      - name: Detect signing credentials
+        id: creds
+        run: |
+          set -o pipefail
+          # 真机 ipa 必须要真实 Apple 开发者证书 + provisioning profile。
+          # 没有就跳过 —— **绝不**生成自签名证书冒充。
+          if [ -n "$IOS_CERT_P12_BASE64" ] && [ -n "$IOS_CERT_PASSWORD" ]; then
+            echo "have_cert=true" >> "$GITHUB_OUTPUT"
+            echo "检测到 iOS 证书 secret，执行真机 archive。"
+          else
+            echo "have_cert=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=跳过 ios-archive::未配置 IOS_CERT_P12_BASE64 / IOS_CERT_PASSWORD，跳过真机 ipa 构建。模拟器 .app 由 ios-build job 产出。"
+          fi
+
+      - name: Explain skip reason
+        if: steps.creds.outputs.have_cert == 'false'
+        run: |
+          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          ## ios-archive 已跳过
+
+          真机 ipa 需要真实 Apple 开发者证书与 provisioning profile，本仓库尚未配置。
+
+          缺失的 repository secrets：
+          - `IOS_CERT_P12_BASE64` — .p12 证书的 base64（`base64 -i cert.p12 | pbcopy`）
+          - `IOS_CERT_PASSWORD` — 导出 .p12 时设的密码
+          - （可选）`IOS_PROVISIONING_PROFILE_BASE64` + `IOS_TEAM_ID`
+
+          配置完成后本 job 会自动启用。当前可用产物请看 `ciallo-ios-simulator-app`。
+          EOF
+
+      - name: Import certificate & profile
+        if: steps.creds.outputs.have_cert == 'true'
+        run: |
+          set -o pipefail
+          set +x   # 别把证书/密码打进日志
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          PROFILE_PATH="$RUNNER_TEMP/app.mobileprovision"
+          echo "$IOS_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p ciallo-ci -s
+          security set-keychain-settings -lut 21600 ciallo-ci
+          security unlock-keychain -p ciallo-ci -u
+          security import "$CERT_PATH" -k ciallo-ci -P "$IOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s ciallo-ci login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ciallo-ci login.keychain-db
+          if [ -n "${IOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+            mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+            cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/"
+            echo "provisioning profile installed"
+          else
+            echo "::warning::未提供 IOS_PROVISIONING_PROFILE_BASE64，依赖 Xcode 自动签名（需要仓库开启 GitHub Actions 集成）"
+          fi
+          security find-identity -v -p codesigning || true
+        env:
+          IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+
+      - name: Detect -workspace vs -project
+        if: steps.creds.outputs.have_cert == 'true'
+        id: target
+        run: |
+          set -o pipefail
+          if [ -d ios/App/App.xcworkspace ]; then
+            echo "flag=-workspace" >> "$GITHUB_OUTPUT"
+            echo "name=App.xcworkspace" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=-project" >> "$GITHUB_OUTPUT"
+            echo "name=App.xcodeproj" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: cap sync ios (archive 需要最新 web 产物)
+        if: steps.creds.outputs.have_cert == 'true'
+        run: |
+          npx vite build
+          npx cap sync ios
+          npx cap copy ios
+
+      - name: xcodebuild archive (generic/platform=iOS)
+        if: steps.creds.outputs.have_cert == 'true'
+        run: |
+          set -o pipefail
+          xcodebuild \
+            ${{ steps.target.outputs.flag }} ios/App/${{ steps.target.outputs.name }} \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath ios/App/build/App.xcarchive \
+            archive \
+            2>&1 | tee xcodebuild-archive.log
+
+      - name: Print full archive log
+        if: failure() && steps.creds.outputs.have_cert == 'true'
+        run: |
+          echo "===== xcodebuild archive 完整日志开始 ====="
+          cat xcodebuild-archive.log
+          echo "===== xcodebuild archive 完整日志结束 ====="
+          grep -nE '(error:|BUILD FAILED|The following build commands failed|\*\* BUILD)' xcodebuild-archive.log || true
+
+      - name: Export IPA
+        if: steps.creds.outputs.have_cert == 'true'
+        run: |
+          set -o pipefail
+          cat > export-options.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>development</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>$(TEAM_ID)</string>
+          </dict>
+          </plist>
+          PLIST
+          sed -i '' "s/\$(TEAM_ID)/${IOS_TEAM_ID:-}/" export-options.plist
+          xcodebuild \
+            ${{ steps.target.outputs.flag }} ios/App/${{ steps.target.outputs.name }} \
+            -exportArchive \
+            -archivePath ios/App/build/App.xcarchive \
+            -exportOptionsPlist export-options.plist \
+            -exportPath ios/App/build/ipa \
+            2>&1 | tee xcodebuild-export.log
+          ls -lh ios/App/build/ipa/
+
+      - name: Upload ipa
+        if: steps.creds.outputs.have_cert == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ciallo-ios-ipa
+          path: IOS/ios/App/build/ipa/*.ipa
+          retention-days: 30
+          if-no-files-found: error

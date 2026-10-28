@@ -1,0 +1,183 @@
+/* Splash page — ported from Android SplashScreen.kt dimensions/colors.
+ *
+ * Kotlin → CSS map (ui/SplashScreen.kt, 305 lines):
+ *   L126-132  Box fillMaxSize + background Color(0xFF0F141C) + clickable  → .splash-page
+ *   L133-139  inner Box fillMaxSize + graphicsLayer{alpha}                → .splash-layer
+ *   L254-266  ProceduralArtisticPoster Box fillMaxSize + verticalGradient → .splash-poster
+ *   L268-282  Canvas drawCircle(radialGradient, center=(w/2, h*0.4),
+ *             radius = w*0.7)                                             → .splash-glow
+ *   L284-303  Surface(RoundedCornerShape(20.dp), White alpha 0.08,
+ *             padding 32 outer) { Column(padding 24) { Image(width 144.dp) } }
+ *                                                                    → .splash-card
+ *   L296-301  Image(R.drawable.splash_ciallo_logo, contentDescription
+ *             = "Ciallo Reader", ContentScale.Fit, width 144.dp)     → .splash-logo-img
+ *   L160-171  Box fillMaxWidth + fillMaxHeight(0.38f) + align BottomCenter
+ *             + Brush.verticalGradient(Transparent → Black 0.82)     → .splash-scrim
+ *   L172-198  Column align BottomCenter, padding(bottom 48, start 24,
+ *             end 24), CenterHorizontally:
+ *             Image(width 168.dp, graphicsLayer scale) / Spacer(10.dp) /
+ *             Text(13.sp, White 0.9, Center)                         → .splash-bottom
+ *   L180-190  Image(... width 168.dp) + graphicsLayer{scaleX/scaleY} → .splash-logo-img--lg
+ *   L192-197  Text(randomQuote, 13.sp, White 0.9, TextAlign.Center)   → .splash-quote
+ *   L200-207  Text("点击跳过", 12.sp, White 0.5, BottomCenter,
+ *             padding bottom 16)                                      → .splash-skip
+ */
+
+.splash-page {
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f141c;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.splash-layer {
+  position: absolute;
+  inset: 0;
+}
+
+/* ProceduralArtisticPoster: fillMaxSize + vertical gradient palette */
+.splash-poster {
+  position: absolute;
+  inset: 0;
+}
+
+/* Canvas radial glow — SplashScreen.kt L268-282.
+ *
+ * Kotlin draws a circle centred at (w/2, h*0.4) with radius exactly w * 0.7, filled with
+ * `Brush.radialGradient(colors = [palette[3], Color.Transparent], center, radius)`.
+ * A CSS `radial-gradient(circle at 50% 40%, … 70%)` cannot express that radius: for a
+ * `circle` gradient a percentage stop resolves against the *gradient ray*, which with the
+ * default `farthest-corner` sizing is the distance to the farthest box corner
+ * (≈ sqrt(0.25w² + 0.36h²) ≈ 549px on a 393×852dp phone) — roughly twice the intended
+ * 275px, i.e. a visibly larger and weaker halo.
+ *
+ * So the geometry lives here as a real circle instead: a square box 140% of the viewport
+ * width centred on the same point, `border-radius: 50%`, with `closest-side` sizing so the
+ * gradient ray is exactly the box's inradius = 0.7w. The colour arrives as `currentColor`
+ * (the caller sets `color: palette[3]`, keeping the palette in the same place Kotlin has
+ * it) — `currentColor` resolves to the computed `color` value including its alpha.
+ */
+.splash-glow {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 140%;
+  height: 140%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, currentcolor 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* Custom splash poster — SplashScreen.kt L140-151.
+ * `Image(bitmap = customBitmap!!, contentDescription = "开屏海报", contentScale = ContentScale.Crop,
+ *  modifier = Modifier.fillMaxSize().graphicsLayer { scaleX/scaleY = scale.value })`.
+ * `ContentScale.Crop` = `object-fit: cover`; `fillMaxSize` = `inset: 0`. */
+.splash-custom-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center center;
+}
+
+/* Decode probe — ADAPTATION, no Kotlin counterpart.
+ * Kotlin calls `decodeSplashBitmap()` on `Dispatchers.IO` (L68-78) and learns success from
+ * `BitmapFactory.decodeStream(...) != null`. The web has no synchronous decode primitive that
+ * works for every stored URI, so a 1×1 off-screen `<img>` stands in for the probe: its
+ * `load` / `error` events resolve the same two outcomes. Must never be visible or hit-testable. */
+.splash-poster-probe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Surface: RoundedCornerShape(20.dp), color White 0.08, padding 32 outer / 24 inner */
+.splash-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Hand-drawn logo — SplashScreen.kt L296-301 (card, width 144.dp) / L180-190 (bottom, 168.dp).
+ *
+ * `Image(painterResource(R.drawable.splash_ciallo_logo), ContentScale.Fit)` with a fixed
+ * `width()` and no `height()` means: constrain the width, derive the height from the
+ * intrinsic aspect ratio. That is exactly `width: <w>px; height: auto`.
+ * The PNG is 720×586 (aspect 1.2288) with an alpha channel — `res/drawable-nodpi/
+ * splash_ciallo_logo.png`, shipped byte-identical at `public/splash/splash_ciallo_logo.png`.
+ */
+.splash-logo-img {
+  display: block;
+  width: 144px;
+  height: auto;
+  /* The source artwork is light (~225 mean) on transparency; the Kotlin comment at
+   * SplashScreen.kt L178-179 notes it relies on the darkened bottom scrim for contrast. */
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.splash-logo-img--lg {
+  width: 168px;
+}
+
+/* Bottom scrim: fillMaxHeight(0.38f), Transparent → Black alpha 0.82 */
+.splash-scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 38%;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.82) 100%);
+}
+
+/* bottom Column: Alignment.BottomCenter, padding(bottom 48, start 24, end 24) */
+.splash-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 24px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.splash-spacer {
+  height: 10px;
+}
+
+/* Text 13sp, color White alpha 0.9, TextAlign.Center.
+ * ONE line box per entry — the quote body and its ` ——《source》` attribution are a single
+ * Android `Text` node (SplashScreen.kt L192-197), so no manual split into two lines here. */
+.splash-quote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+
+/* "点击跳过" 12sp, White alpha 0.5, BottomCenter padding(bottom 16) */
+.splash-skip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}

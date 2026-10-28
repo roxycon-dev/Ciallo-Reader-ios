@@ -1,0 +1,149 @@
+package com.example.data
+
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.File
+
+data class BackupPayload(
+    val exportTime: Long = System.currentTimeMillis(),
+    val booksCount: Int,
+    val preferences: Map<String, String>
+)
+
+/** Full portable ZIP backup plus compatibility JSON envelope. */
+class BackupManager(
+    private val context: Context,
+    private val prefs: PreferencesManager,
+    private val godRepository: com.example.god.GodMomentRepository? = null,
+) {
+
+    suspend fun authorizeProtectedExport(pin: String, selection: com.example.transfer.ExportSelection): com.example.transfer.ExportSelection = withContext(Dispatchers.Default) {
+        require(PrivacyManager(context).verifyPin(pin)) { "隐私 PIN 不正确或暂时处于冷却期" }
+        selection.copy(protectedAuthorized = true)
+    }
+
+    suspend fun exportArchive(target: File, selection: com.example.transfer.ExportSelection = com.example.transfer.ExportSelection(),
+        progress: (com.example.transfer.TransferProgress) -> Unit = {}): File = withContext(Dispatchers.IO) {
+        ContentMutationGate.mutex.lock()
+        try { com.example.transfer.PortableArchive.export(context,target,selection,progress) }
+        finally { ContentMutationGate.mutex.unlock() }
+    }
+
+    suspend fun inspectArchive(archive: File): com.example.transfer.ArchivePreview = com.example.transfer.PortableArchive.inspect(context,archive)
+
+    suspend fun estimateArchive(selection: com.example.transfer.ExportSelection): com.example.transfer.TransferEstimate =
+        com.example.transfer.PortableArchive.estimate(context,selection)
+
+    suspend fun importArchive(archive: File, mode: com.example.transfer.ImportMode = com.example.transfer.ImportMode.MERGE,
+        progress: (com.example.transfer.TransferProgress) -> Unit = {}): com.example.transfer.ImportResult = withContext(Dispatchers.IO) {
+        val preview=inspectArchive(archive)
+        require(!preview.containsProtected || PrivacyManager(context).isEnabled()) { "请先在接收设备设置隐私 PIN" }
+        com.example.download.DownloadManager.withControlLock {
+            com.example.library.ComicDownloadManager.withControlLock {
+                if(mode == com.example.transfer.ImportMode.REPLACE) {
+                    val dao=AppDatabase.getDatabase(context).downloadTaskDao()
+                    val work=androidx.work.WorkManager.getInstance(context)
+                    for(task in dao.getAllTasksSync()) if(task.status in setOf(com.example.download.DownloadStatus.PENDING,com.example.download.DownloadStatus.DOWNLOADING)) {
+                        work.cancelUniqueWork("download_${task.id}").result.get()
+                        com.example.download.DownloadWorker.withTaskLock(task.id) {
+                            dao.getTaskById(task.id)?.let { fresh -> dao.updateProgressAndStatus(fresh.id,com.example.download.DownloadStatus.PAUSED,fresh.downloadedBytes,fresh.totalBytes,null) }
+                        }
+                    }
+                    com.example.library.ComicDownloadManager.pauseAllLocked(context)
+                    dao.getAllTasksSync().forEach { com.example.download.DownloadProgressBroadcaster.removeState(it.id) }
+                }
+                ContentMutationGate.mutex.lock()
+                try { com.example.transfer.ArchiveImporter.import(context,archive,mode,progress).also { ContentMutationGate.invalidatePendingWrites() } }
+                finally { ContentMutationGate.mutex.unlock() }
+            }
+        }
+    }
+
+    fun hasMigrationUndo(): Boolean = com.example.transfer.ImportJournal.hasUndo(context)
+    suspend fun undoMigration() = withContext(Dispatchers.IO) {
+        com.example.download.DownloadManager.withControlLock { com.example.library.ComicDownloadManager.withControlLock {
+            val dao=AppDatabase.getDatabase(context).downloadTaskDao()
+            val work=androidx.work.WorkManager.getInstance(context)
+            for(task in dao.getAllTasksSync())if(task.status in setOf(com.example.download.DownloadStatus.PENDING,com.example.download.DownloadStatus.DOWNLOADING)) {
+                work.cancelUniqueWork("download_${task.id}").result.get()
+                com.example.download.DownloadWorker.withTaskLock(task.id) {dao.getTaskById(task.id)?.let {fresh ->
+                    dao.updateProgressAndStatus(fresh.id,com.example.download.DownloadStatus.PAUSED,fresh.downloadedBytes,fresh.totalBytes,null)
+                }}
+            }
+            com.example.library.ComicDownloadManager.pauseAllLocked(context)
+            ContentMutationGate.mutex.lock()
+            try {
+                com.example.transfer.ImportJournal.activateUndo(context)
+                val db=AppDatabase.getDatabase(context)
+                com.example.transfer.ImportJournal.recover(context,db.openHelper.writableDatabase)
+                ContentMutationGate.invalidatePendingWrites(); db.invalidationTracker.refreshVersionsAsync()
+            } finally { ContentMutationGate.mutex.unlock() }
+        } }
+    }
+
+    suspend fun exportBackupArchive(target: File): File = exportArchive(target)
+
+    suspend fun restoreBackupArchive(archive: File): Boolean {
+        importArchive(archive, com.example.transfer.ImportMode.REPLACE)
+        return true
+    }
+    suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
+        val archive = exportBackupArchive(File(context.cacheDir, "backup_${java.util.UUID.randomUUID()}.zip"))
+        val encoded = try {
+            require(archive.length() <= 16L * 1024 * 1024) { "备份超过 JSON 容量，请使用 ZIP 备份接口" }
+            android.util.Base64.encodeToString(archive.readBytes(), android.util.Base64.NO_WRAP)
+        } finally { archive.delete() }
+        val payload = BackupPayload(
+            booksCount = AppDatabase.getDatabase(context).bookDao().getBooksCount(),
+            preferences = mapOf(
+                "fontSize" to prefs.fontSize.toString(),
+                "lineHeight" to prefs.lineHeight.toString(),
+                "readerTheme" to prefs.readerTheme.toString(),
+                "pageTurnMode" to prefs.pageTurnMode.toString(),
+                "splashPureMode" to prefs.splashPureMode.toString(),
+                "screenOrientationLock" to prefs.screenOrientationLock.toString(),
+                "restReminderMinutes" to prefs.restReminderMinutes.toString()
+            )
+        )
+        val json = JSONObject()
+            .put("archive", encoded)
+            .put("exportTime", payload.exportTime)
+            .put("booksCount", payload.booksCount)
+            .put("preferences", JSONObject(payload.preferences))
+            .toString()
+
+        val file = File(context.filesDir, "novel_reader_backup.json")
+        file.writeText(json)
+        json
+    }
+
+    suspend fun restoreBackupJson(jsonString: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val payload = JSONObject(jsonString)
+            payload.optString("archive").takeIf { it.isNotBlank() }?.let { encoded ->
+                require(encoded.length <= 24 * 1024 * 1024)
+                val archive = File(context.cacheDir, "restore_${java.util.UUID.randomUUID()}.zip")
+                try { archive.writeBytes(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)); return@withContext restoreBackupArchive(archive) }
+                finally { archive.delete() }
+            }
+            val preferences = payload.optJSONObject("preferences") ?: return@withContext false
+
+            preferences.optString("fontSize").toFloatOrNull()?.takeIf { it.isFinite() && it in 8f..80f }?.let { prefs.fontSize = it }
+            preferences.optString("lineHeight").toFloatOrNull()?.takeIf { it.isFinite() && it in 8f..120f }?.let { prefs.lineHeight = it }
+            preferences.optString("readerTheme").toIntOrNull()?.takeIf { it in 0..5 }?.let { prefs.readerTheme = it }
+            preferences.optString("pageTurnMode").toIntOrNull()?.takeIf { it in 0..4 }?.let { prefs.pageTurnMode = it }
+            preferences.optString("splashPureMode").toBooleanStrictOrNull()?.let { prefs.splashPureMode = it }
+            preferences.optString("screenOrientationLock").toIntOrNull()?.takeIf { it in 0..2 }?.let { prefs.screenOrientationLock = it }
+            preferences.optString("restReminderMinutes").toIntOrNull()?.takeIf { it in 0..1440 }?.let { prefs.restReminderMinutes = it }
+
+            // 神回：同 (bookId, chapterId) 覆盖；缺失字段走默认值，旧备份文件照样能读
+            payload.optJSONArray("godMoments")?.let { godRepository?.importJson(it) }
+            true
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            false
+        }
+    }
+}

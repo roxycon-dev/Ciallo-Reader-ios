@@ -1,0 +1,50 @@
+name: Native iOS verification
+on:
+  pull_request:
+    paths: ['IOS/**', '.github/workflows/native-ios.yml']
+  workflow_dispatch:
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: IOS
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: IOS/.nvmrc
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+      - run: npm ci
+      - run: npm run ios:sync
+      - name: Compile registered Swift plugins and the complete app
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath native-build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee native-build.log
+      - name: Launch the native app in the simulator
+        run: |
+          set -euo pipefail
+          device_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for k,vs in d["devices"].items() if "iOS" in k for v in vs if "iPhone" in v["name"]))')
+          xcrun simctl boot "$device_id" || true
+          xcrun simctl bootstatus "$device_id" -b
+          xcrun simctl install "$device_id" native-build/Build/Products/Debug-iphonesimulator/App.app
+          xcrun simctl launch "$device_id" com.aistudio.ciallo.reader
+          sleep 8
+          xcrun simctl io "$device_id" screenshot native-startup.png
+          xcrun simctl spawn "$device_id" log show --last 1m --style compact --predicate 'process == "App"' > native-runtime.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ios-diagnostics
+          path: |
+            IOS/native-build.log
+            IOS/native-runtime.log
+            IOS/native-startup.png
+          retention-days: 7

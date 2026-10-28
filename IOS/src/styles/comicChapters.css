@@ -1,0 +1,1097 @@
+/* ══════════════════════════════════════════════════════════════
+   漫画主页面（漫画章节列表）— 逐行对照 Android
+   `com/example/ui/ComicChaptersScreen.kt`（1568 行）
+     · L93–100    神回配色 / LIST_HEADER_ITEMS
+     · L266–448   Scaffold + topBar + bottomBar
+     · L451–472   loading / error 态
+     · L485–628   LazyColumn 头部三件套 + 工具行 + 快捷胶囊
+     · L632–742   神回卡 / 普通章节卡
+     · L791–1055  ChapterCardSpec（规格三）
+     · L1057–1242 GodCardSpec（规格四）
+     · L1244–1274 CheckCircleSpec
+     · L1276–1460 ComicHeroHeader（+ ComicMetadataBlock）
+     · L1462–1541 DownloadProgressOverlay
+
+   本页是**浅色**页：Scaffold(containerColor = MaterialTheme.colorScheme.background)，
+   Theme.kt L58–66 lightColorScheme(background = LightBg #FFFFFF,
+   surface = PureWhite #FFFFFF, onBackground = DarkCharcoal #18191C)。
+   颜色令牌由页面以 CSS 变量注入（--cc-primary 跟随设置页的主题色索引），
+   dp ≈ CSS px、sp ≈ px（与本项目其它页面同一换算）。
+   ══════════════════════════════════════════════════════════════ */
+
+.cc-root {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--cc-bg, #ffffff);
+  color: var(--cc-on-bg, #18191c);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* ── Scaffold 顶栏（L268–335） ── */
+.cc-topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 4px 16px 4px 8px;
+  padding-top: calc(var(--safe-top, 0px) + 4px);
+  background: var(--cc-surface, #ffffff);
+}
+
+.cc-topbar__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--cc-on-bg, #18191c);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+/* 多选顶栏：已选 N 话（L287–293） */
+.cc-topbar__count {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--cc-on-bg, #18191c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-icon-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--cc-on-bg, #18191c);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cc-icon-button:active {
+  opacity: 0.6;
+}
+
+.cc-text-button {
+  flex: none;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 32px;
+  color: var(--cc-primary, #059669);
+  cursor: pointer;
+}
+.cc-text-button--left {
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+/* ── 内容区（L449–483） ── */
+.cc-content {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cc-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.cc-state__text {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--cc-on-surface-variant, #49454f);
+}
+
+.cc-state__error {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--cc-error, #b3261e);
+  text-align: center;
+}
+.cc-state__error + .app-button + .cc-text-button {
+  margin-top: 8px;
+}
+
+/* LazyColumn（contentPadding h16 v8 / spacedBy 8） */
+.cc-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px;
+}
+
+/* ── L1276–1460 ComicHeroHeader ── */
+.cc-hero {
+  width: 100%;
+}
+
+.cc-hero__art {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.cc-hero__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* RenderEffect.createBlurEffect(30f, 30f, CLAMP)：CSS blur + 轻微放大补掉透明边 */
+.cc-hero__bg--blur {
+  object-fit: cover;
+  filter: blur(30px);
+  transform: scale(1.08);
+  transition: opacity 220ms ease-out;
+}
+
+.cc-hero__row {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.cc-hero__cover {
+  flex: none;
+  width: 120px;
+  height: 170px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(128, 128, 128, 0.3);
+  /* consistentShadow(12.dp, RoundedCornerShape(12.dp)) */
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.cc-hero__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cc-hero__cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.cc-hero__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.cc-hero__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.cc-hero__badge {
+  margin-top: 6px;
+  padding: 3px 8px;
+  border-radius: 25px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.cc-hero__author,
+.cc-hero__comic-id {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 6px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+  text-align: left;
+  cursor: pointer;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.cc-hero__comic-id {
+  -webkit-line-clamp: 1;
+  margin-top: 4px;
+}
+
+/* ComicMetadataBlock（ComicMetadataUi.kt L24–83，surfaceContainerHigh） */
+.cc-metadata {
+  margin-top: 12px;
+  border-radius: 14px;
+  background: var(--cc-surface-container-high, #ece6f0);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.cc-metadata__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+.cc-metadata__row {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--cc-on-surface-variant, #49454f);
+}
+
+.cc-metadata__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cc-tag {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--cc-surface-variant, #e7e0ec);
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--cc-on-bg, #18191c);
+  cursor: pointer;
+}
+
+.cc-desc {
+  margin-top: 12px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.cc-desc__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--cc-on-surface-variant, #49454f);
+  white-space: pre-wrap;
+}
+.cc-desc__text--full {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+
+.cc-desc__empty {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--cc-on-surface-variant, #49454f);
+}
+
+/* ── L496–513 信息行（contentPadding 16 + 自身 16 = 32） ── */
+.cc-info {
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--cc-on-surface-variant, #49454f);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-info__accent {
+  font-weight: 500;
+}
+
+/* ── L515–597 工具行（高 32） ── */
+.cc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 16px;
+}
+
+.cc-toolbar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cc-toolbar__chip-text {
+  font-size: 13px;
+  line-height: 1;
+}
+.cc-toolbar__chip-text--strong {
+  font-weight: 500;
+  color: var(--cc-on-bg, #18191c);
+}
+
+.cc-toolbar__latest {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cc-toolbar__spacer {
+  flex: 1;
+}
+
+/* ── L599–628 多选快捷胶囊 ── */
+.cc-pills {
+  display: flex;
+  gap: 8px;
+  padding: 4px 16px;
+}
+
+.cc-pill {
+  height: 30px;
+  padding: 0 12px;
+  border: 0.5px solid var(--cc-on-bg-12, rgba(24, 25, 28, 0.12));
+  border-radius: 16px;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--cc-on-bg, #18191c);
+  cursor: pointer;
+}
+
+/* ── L791–1055 ChapterCardSpec ── */
+.cc-chapter-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px 6px 12px 14px;
+  border: 0.5px solid var(--cc-on-bg-18, rgba(24, 25, 28, 0.18));
+  border-radius: 14px;
+  background: var(--cc-surface, #ffffff);
+  cursor: pointer;
+  overflow: hidden;
+  /* 横向手势归本页、纵向手势归滚动容器 */
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 320ms cubic-bezier(0, 0, 0.58, 1),
+    border-color 320ms cubic-bezier(0, 0, 0.58, 1),
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cc-chapter-card--accent {
+  background: var(--cc-primary-08, rgba(5, 150, 105, 0.08));
+  border: 1px solid var(--cc-primary, #059669);
+}
+
+/* animateFloatAsState(tween 320) 的高亮底色 */
+.cc-chapter-card__highlight {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms cubic-bezier(0, 0, 0.58, 1);
+}
+.cc-chapter-card--highlight .cc-chapter-card__highlight {
+  opacity: 1;
+}
+
+.cc-chapter-card--dragging {
+  z-index: 1;
+  transition: background-color 320ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.cc-chapter-card__body {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* 左侧书签槽：Spacer(14) + Spacer(10) */
+.cc-chapter-card__slot {
+  flex: none;
+  width: 24px;
+}
+
+.cc-chapter-card__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cc-chapter-card__caption {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-chapter-card__title {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-chapter-card__right {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.cc-chapter-card__right--static {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* 当前阅读：底边 3dp 进度线（轨道 18%） */
+.cc-chapter-card__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--cc-primary-18, rgba(5, 150, 105, 0.18));
+}
+.cc-chapter-card__progress-fill {
+  display: block;
+  height: 3px;
+}
+
+/* ── BookmarkRibbon（22×36，scale 出场 + 弹性） ── */
+.cc-ribbon {
+  position: absolute;
+  left: 14px;
+  top: 0;
+  width: 22px;
+  height: 36px;
+  transform-origin: 0 0;
+  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
+  /* body: lerp(primary, White, 0.16) → primary → lerp(primary, Black, 0.26)；
+     sheen: White 0.30 → White 0.04 → Transparent（0 → 45% 宽） */
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0.04) 45%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0) 32%,
+      rgba(0, 0, 0, 0.26) 100%
+    ),
+    var(--cc-primary, #059669);
+  clip-path: polygon(20% 0, 80% 0, 100% 20%, 100% 100%, 50% 76%, 0 100%, 0 20%);
+  box-shadow: 0 1.5px 0 rgba(0, 0, 0, 0.12);
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 200ms ease-out;
+}
+.cc-ribbon--on {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* ── L1244–1274 CheckCircleSpec ── */
+.cc-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #ffffff;
+}
+.cc-check__on {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--cc-primary, #059669);
+}
+.cc-check__off {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--cc-on-bg-35, rgba(24, 25, 28, 0.35));
+  border-radius: 50%;
+}
+
+/* ── L1057–1242 GodCardSpec ── */
+.cc-god-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 60px;
+  padding: 12px 6px 12px 14px;
+  border: 0.5px solid var(--cc-god-stroke, rgba(232, 197, 106, 0.55));
+  border-radius: 14px;
+  background: var(--cc-surface, #ffffff);
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cc-god-card--selected {
+  background: var(--cc-primary-08, rgba(5, 150, 105, 0.08));
+  border-color: var(--cc-primary, #059669);
+}
+
+.cc-god-card__cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  transition: opacity 220ms ease-out;
+}
+
+.cc-god-card__pulse {
+  opacity: 0;
+}
+.cc-god-card--pulse .cc-god-card__pulse {
+  animation: cc-god-pulse 900ms ease-out 1;
+}
+@keyframes cc-god-pulse {
+  0% {
+    opacity: 0;
+  }
+  27% {
+    opacity: var(--cc-god-pulse, 0.28);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.cc-god-card__body {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.cc-god-card__right {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.cc-god-card__rating {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+}
+
+.cc-god-card__rating-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ── ChasingDots（durationMillis 2000 / delayBetweenDotsMillis 50 / circleRatio 0.25） ── */
+.cc-chasing-dots {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+
+.cc-chasing-dots__ring {
+  position: absolute;
+  inset: 0;
+  animation: cc-chasing-rotate 8000ms cubic-bezier(0.42, 0, 0.58, 1) infinite;
+}
+.cc-chasing-dots--still .cc-chasing-dots__ring,
+.cc-chasing-dots--still .cc-chasing-dots__dot > span {
+  animation: none;
+}
+
+@keyframes cc-chasing-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(2520deg);
+  }
+}
+
+.cc-chasing-dots__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5.2px;
+  height: 5.2px;
+  margin: -2.6px 0 0 -2.6px;
+  /* 6 个点均分 360°：绕半径 var(--cc-chasing-radius) 排布 */
+  transform: rotate(calc(var(--cc-chasing-index) * 60deg)) translateY(calc(-1 * var(--cc-chasing-radius)));
+}
+.cc-chasing-dots__dot > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--cc-chasing-color, #059669);
+}
+.cc-chasing-dots__dot--pulse > span {
+  /* radius multiplier 0.512 ↔ circleRatio 0.25 → scale 2.05 ↔ 1（1000ms 往复） */
+  animation: cc-chasing-breathe 1000ms linear infinite alternate;
+}
+@keyframes cc-chasing-breathe {
+  from {
+    transform: scale(2.05);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* ── 进度指示 ── */
+.cc-ring {
+  flex: none;
+  display: block;
+}
+
+.cc-linear {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.cc-linear__fill {
+  display: block;
+  height: 100%;
+}
+
+/* ── L1462–1541 DownloadProgressOverlay ── */
+.cc-download-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.cc-download-overlay__card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+}
+
+.cc-download-overlay__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cc-download-overlay__title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-on-bg, #18191c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-download-overlay__percent {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cc-playpause {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ── L336–448 底部固定栏 ── */
+.cc-bottombar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  padding-bottom: calc(var(--safe-bottom, 0px) + 10px);
+  background: var(--cc-surface, #ffffff);
+}
+
+.cc-bottombar__heart {
+  flex: none;
+  width: 40px;
+  height: 48px;
+}
+
+.cc-longpress-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 48px;
+}
+
+.cc-primary-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 24px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cc-primary-button__strong,
+.cc-primary-button__soft {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* SpanStyle(fontWeight = Normal, color = Color.White.copy(alpha = 0.85f)) */
+.cc-primary-button__soft {
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   ──────────────────────────────────────────────────────────────
+   触发：`<html data-theme="dark">`（设置项 `auto_night_mode`），消费方是
+   MainActivity.kt L213 `MyApplicationTheme(darkTheme = autoNightMode)`。
+   绝不用 `@media (prefers-color-scheme: dark)`：`isSystemInDarkTheme()`
+   只是 Theme.kt L35 的**参数默认值**，已被 MainActivity 覆盖（theme.css L97-106）。
+
+   本块只追加，既有规则一行未改、未删（浅色态零回归）。
+   本页是**普通 app 页面**（Scaffold containerColor = background，L267），
+   与漫画阅读器那套「永远黑底」无关，必须有完整的深色变体。
+
+   ── 与其它 css 文件不同的两点，先说明 ──────────────────────────
+   1) `.cc-root` 上的 `--cc-*` 是 `ComicChaptersPage.tsx` L1775-1792 以
+      **内联 style** 写上去的、**取自 LIGHT_SCHEME 常量**（L200-212）的浅色值，
+      它们永远不会随主题翻转。CSS 侧唯一的杠杆是在 `.cc-root` 自己身上用
+      `!important` 重声明这些自定义属性：按 CSS Cascade 4 §6.4.4，
+      「author 重要声明」排在「内联 style 属性的普通声明」之前，所以能盖住；
+      而整棵子树（顶栏/底栏/卡片/资料块/描述…）全部 `var()` 到同一批 token，
+      一条规则翻全页。**不要**改成覆写 `background`/`color` 等消费属性 ——
+      那样要写几十条，而且会漏。
+   2) 本页这四个 M3 角色是真的 `MaterialTheme.colorScheme.*`
+      （不是别处那种硬写的 MediumGray/DividerGray），而 Theme.kt L58-76
+      两套方案都没覆盖它们，取的是 Material3 基线值。所以深色档直接用
+      **M3 基线深色值**，而不是别处常用的 `--color-medium-gray`(#9AA0A6)：
+        onSurfaceVariant     #49454F → #CAC4D0
+        surfaceVariant       #E7E0EC → #49454F
+        surfaceContainerHigh #ECE6F0 → #2B2930
+        error                #B3261E → #FFB4AB
+   ────────────────────────────────────────────────────────────── */
+
+/* ── 1. token 翻转（L267 background / L274·L311·L389·L824·L1094 surface /
+        L283·L291·L320·L331·L585·L593·L787·L820 onBackground /
+        L457·L508·L534·L541·L823·L1446·L1457 onSurfaceVariant /
+        ComicMetadataUi.kt L47·L68 surfaceContainerHigh·surfaceVariant /
+        L465 error）──
+   一条规则覆盖页面全部表面：.cc-root（L28-29）、.cc-topbar（L43）、
+   .cc-bottombar（L837）、.cc-chapter-card（L449）、.cc-god-card（L633）、
+   .cc-metadata（L292）、.cc-tag（L321-324）、.cc-info（L361）、
+   .cc-desc__text（L342）、.cc-desc__empty（L353）、.cc-state__text（L132）、
+   .cc-state__error（L138）、.cc-toolbar__chip-text--strong（L399）、
+   .cc-download-overlay__title（L806）、.cc-topbar__title/count/icon-button
+   （L56/L70/L85）全部经由这批 token 取色。 */
+[data-theme='dark'] .cc-root {
+  /* Scaffold containerColor = MaterialTheme.colorScheme.background（Kotlin L267）
+     → Theme.kt L72 `background = DarkCharcoal` = Color(0xFF18191C) */
+  --cc-bg: var(--color-light-bg, #18191c);
+  /* topBar L274/L311、bottomBar L389、ChapterCardSpec L824 `cardBg`、
+     GodCardSpec L1094 → Theme.kt L73 `surface = Color(0xFF222428)`。
+     比 page 底亮 4 级 L*，深色下的「抬起一层」靠的是它自己，不再需要阴影 */
+  --cc-surface: var(--color-surface, #222428);
+  /* 顶栏图标/标题 L283/L291/L320/L331、工具行 L585/L593、QuickPill L787、
+     ChapterCardSpec L820 `onSurface`、CheckCircleSpec L1247
+     → Theme.kt L74-75 `onBackground = onSurface = NightText` = #D4D4D4 */
+  --cc-on-bg: var(--color-on-light, #d4d4d4);
+  /* M3 darkColorScheme 基线 onSurfaceVariant（Theme.kt 未覆盖该角色） */
+  --cc-on-surface-variant: #cac4d0;
+  /* M3 基线 surfaceVariant。它比 surface(#222428) 亮，正好当 `.cc-tag` 的
+     「按下去的面」——浅色下 #E7E0EC 比 #FFFFFF 暗，深色下要反过来亮 */
+  --cc-surface-variant: #49454f;
+  /* M3 基线 surfaceContainerHigh（`.cc-metadata`，ComicMetadataUi.kt L47） */
+  --cc-surface-container-high: #2b2930;
+  /* M3 基线 error。#B3261E 在 #18191C 上只有 3.4:1，14px 错误文案读不出 */
+  --cc-error: #ffb4ab;
+
+  /* ── onBackground.copy(α) 三档（Kotlin L782 / L867 / L1247）──
+     alpha 逐档 +0.04：`onSurface` 翻成 #D4D4D4 后，0.12 落在 #18191C 上
+     只有 rgb(46,47,49) vs rgb(24,25,28)，等于没有发丝线 */
+  --cc-on-bg-12: rgba(212, 212, 212, 0.16);
+  --cc-on-bg-18: rgba(212, 212, 212, 0.22);
+  --cc-on-bg-35: rgba(212, 212, 212, 0.4);
+
+  /* ── MintPrimary.copy(α) 两档 ──
+     `MintPrimary` = colorScheme.primary，Theme.kt L59 与 L69 **同值**，
+     所以色相不用改；改的是「落在什么底上」：浅色是 #FFFFFF，深色是 #222428，
+     同样的 alpha 在深底上会掉一档可见度（0.08 绿在 #222428 上算出来只有
+     rgb(37,53,49)，跟卡片底几乎同色），故整体抬高。 */
+  /* ChapterCardSpec L851 emphasized/isSelected 底 + GodCardSpec L1096 */
+  --cc-primary-08: rgba(5, 150, 105, 0.22);
+  /* ChapterCardSpec L1044 当前阅读的 3dp 进度线轨道 */
+  --cc-primary-18: rgba(5, 150, 105, 0.32);
+}
+
+/* ── 2. 0.5dp 发丝线 → 1px（本页在深色下最先崩的东西）─────────────
+   Kotlin 三处 `.border(0.5.dp, …)`：
+     · QuickPill L782 `onSurface.copy(alpha = 0.12f)`   → `.cc-pill`
+     · ChapterCardSpec L867 `onSurface.copy(alpha = 0.18f)` → `.cc-chapter-card`
+     · GodCardSpec L1099 `GodGoldStroke`                 → `.cc-god-card`
+   0.5px 在深色底上会被抗锯齿再吃掉半格（渲染成约 0.25px），三条线一起消失；
+   颜色档位已在第 1 节抬起，这里只负责线宽。
+   ⚠️ 排除 `--accent`（当前阅读 / 已选中）：它走的是 Kotlin L865 的
+   `border(1.dp, MintPrimary)`，本文件 L463-466 本来就是 1px，不该被这条
+   `border-width` 顺手改写（虽然改完同值，但留着意图更清楚）。
+   ⚠️ `.cc-god-card--selected` 不排除：它只改 `border-color`（Kotlin L1100），
+   线宽仍由 L631 的 0.5px 决定，所以选中态也需要跟着提到 1px。 */
+[data-theme='dark'] .cc-chapter-card:not(.cc-chapter-card--accent),
+[data-theme='dark'] .cc-god-card,
+[data-theme='dark'] .cc-pill {
+  border-width: 1px;
+}
+
+/* ── 3. 章节状态徽章（CheckCircleSpec L1246-1274）───────────────────
+   `uncheckedStroke` 在 `ComicChaptersPage.tsx` L507/L514 是内联
+   `style={{ borderColor }}`，而 ComicChaptersPage.tsx 是只读 TSX，
+   样式表要压住内联普通声明只能 `!important`（favorite.css L1071-1074
+   已为同一种情况立过规矩）。
+   ⚠️ 排除 `.cc-god-card`：GodCardSpec L1206 传的是
+   `Color.White.copy(alpha = 0.70f)`，与主题无关，两套主题都该是白环。 */
+[data-theme='dark'] .cc-chapter-card:not(.cc-god-card) .cc-check__off {
+  border-color: rgba(212, 212, 212, 0.4) !important;
+}
+
+/* ── 4. 排序 / 整本下载 chip（Kotlin L531-542 onSurfaceVariant）─────
+   `ComicChaptersPage.tsx` L1872 / L1900 内联
+   `style={{ color: LIGHT_SCHEME.onSurfaceVariant }}`，浅色值 #49454F
+   落到 #18191C 上对比 1.7:1，正序/倒序四个字会彻底看不见。
+   ⚠️ 排除 `--strong`（「多选」走 onBackground，Kotlin L585/L593，
+   TSX L1917 没写内联色，仍由本文件 L397-400 的规则 + `--cc-on-bg` 供给）。 */
+[data-theme='dark'] .cc-toolbar__chip-text:not(.cc-toolbar__chip-text--strong) {
+  color: #cac4d0 !important;
+}
+
+/* ── 5. 章节卡两行正文（ChapterCardSpec L954-976）──────────────────
+   两行都是 TSX 内联（`ComicChaptersPage.tsx` L797/L800 的
+   `captionColor` / `titleColor`，值来自 L2066-2068 的
+   LIGHT_SCHEME 常量），同样只能 `!important`。
+   ⚠️ 排除 `.cc-god-card`：GodCardSpec L1171-1177 的 caption 是 GodGold、
+   L1180-1186 的 title 是 Color.White（TSX L938/L941），两套主题同值。 */
+[data-theme='dark'] .cc-chapter-card:not(.cc-god-card):not(.cc-chapter-card--accent)
+  .cc-chapter-card__caption {
+  /* Kotlin L964 非当前档 = `textMuted` = L823 `onSurfaceVariant` */
+  color: #cac4d0 !important;
+}
+
+[data-theme='dark'] .cc-chapter-card:not(.cc-god-card) .cc-chapter-card__title {
+  /* Kotlin L821 `textPrimary = onSurface` = NightText #D4D4D4。
+     ⚠️ 已偏离一档并留档：Kotlin L822 的「已读」档是
+     `onSurface.copy(alpha = 0.55f)`，而 TSX 是按 `visual` 在**内联**里
+     二选一（`ComicChaptersPage.tsx` L766），CSS 拿不到这个状态，
+     所以深色下统一取 L821 的未读档 —— 代价是已读话不再变淡。
+     要恢复得在 ComicChaptersPage.tsx 给卡片补一个 `is-read` 类。 */
+  color: var(--color-on-light, #d4d4d4) !important;
+}
+
+/* ── 6. 下载浮条（DownloadProgressOverlay L1462-1541）───────────────
+   浅色端口把卡片写死成 `rgba(255,255,255,0.94)`（本文件 L792），
+   它对应的是 Kotlin L1480 `MaterialTheme.colorScheme.surface.copy(0.94f)`，
+   深色必须换成 #222428@0.94；原来那层
+   `0 10px 22px rgba(0,0,0,0.18)`（对应 L1477 `consistentShadow(10.dp,…)`）
+   在 #18191C 上等于没有投影，改成实心深阴影 + 一圈白 10% 描边来分层
+   —— 深色面靠边、不靠影（favorite.css L630-636 同一手法）。 */
+[data-theme='dark'] .cc-download-overlay__card {
+  background: rgba(34, 36, 40, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.55);
+}
+
+/* LinearProgressIndicator 的 `trackColor = MaterialTheme.colorScheme.surfaceVariant`
+   （Kotlin L1512）在 `ComicChaptersPage.tsx` L1188 是内联
+   `style={{ background: LIGHT_SCHEME.surfaceVariant }}` = #E7E0EC ——
+   深色下是一条近白的槽画在深卡上。 */
+[data-theme='dark'] .cc-linear {
+  background: #49454f !important;
+}
+
+/* 同一个 surfaceVariant 轨道还出现在浮条左边的环形指示器上
+   （`ComicChaptersPage.tsx` L1179 传给 `ProgressRing.trackColor`，
+   L348 落成 SVG 的 `stroke` **表现属性**）。
+   `stroke` 表现属性的优先级低于任何 CSS 声明，所以这里不必 `!important`；
+   限定在 `.cc-download-overlay` 内是为了不碰章节卡上那个
+   `MintPrimary.copy(0.18f)`（Kotlin L1000 / TSX L828）的绿环。 */
+[data-theme='dark'] .cc-download-overlay .cc-ring circle:first-of-type {
+  stroke: #49454f;
+}
+
+/* ── 7. 书签丝带投影（ChapterStatusRow.kt L388+ BookmarkRibbon）─────
+   本文件 L587 的 `0 1.5px 0 rgba(0,0,0,0.12)` 是端口自造的（Kotlin 里
+   `shadowPath` 画了但没 draw），它唯一的作用是让 22×36 的丝带从卡片上
+   「浮」起来 —— 而黑色投影在 #222428 的卡片上完全不显影，
+   与 favorite.css L1121-1124 `.chapter-row__ribbon-shadow` 同一处理。 */
+[data-theme='dark'] .cc-ribbon {
+  box-shadow: 0 1.5px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* ── 8. 刻意不覆盖（两套主题取值相同，逐条给出依据）───────────────
+   · `.cc-text-button` / `.cc-toolbar__latest` / `.cc-info__accent`
+     / `.cc-download-overlay__percent` 的主题绿 —— MintPrimary 在
+     Theme.kt L59 与 L69 同值；
+   · `.cc-primary-button`、`.cc-primary-button__soft`、`.cc-check__on`、
+     `.cc-check`、`.cc-check__on` 里的 `Color.White`（Kotlin L377/L426/L1262）
+     —— 白字压在主题绿底上，两套主题都成立；
+   · `.cc-hero-*` 全组（`.cc-hero__art` / `__cover` / `__cover-fallback` /
+     `__title` / `__badge` / `__author` / `__comic-id`）—— ComicHeroHeader
+     L1367 `Color.Gray.copy(0.3f)`、L1381 / L1395 / L1400 / L1405 /
+     L1415 / L1422 / L1430 全是 `Color.White` 家族，压在 L1353 那层
+     `Black 0.45→0.82` 的固定黑渐变上；封面图可能是纯白，跟夜间模式无关；
+   · `.cc-god-card__rating-text`（Kotlin L1220 `Color.White.copy(0.90f)`）
+     与神回卡的 GodGold / 白色下载图标（L1206 / L1233）—— 都在封面图上；
+   · `.cc-god-card__pulse` / `.cc-chapter-card__highlight` 的
+     `MintPrimary.copy(0.10f)`（Kotlin L858 / L1084）—— 短暂高亮，够亮；
+   · `.cc-chasing-dots__dot > span` 的 `--cc-chasing-color`、
+     章节卡「已下载/下载」图标的 `props.primary` / `props.textMuted`
+     —— 前者是 MintPrimary（同值），后者是 TSX L837 的无 class 内联
+     `<span style>`，CSS 选择器够不着。
+
+   ── 已知遗留（TSX 只读、CSS-only 改不到，需在 TSX 侧修）─────────
+   · `ComicChaptersPage.tsx` L838 `<span style={{ color: props.textMuted }}>`
+     （章节卡「下载」图标，onSurfaceVariant）—— 深色下不可读，但该 span
+     没有任何 class，无法用选择器定位；
+   · `ComicChaptersPage.tsx` L1205 `<span style={{ color: LIGHT_SCHEME.error }}>`
+     （取消下载按钮图标）—— 同上，且 #B3261E 在 #18191C 上只有 3.4:1。
+   ══════════════════════════════════════════════════════════════ */
