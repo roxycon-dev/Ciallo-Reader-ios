@@ -451,6 +451,7 @@ jobs:
       - name: Package simulator .app (zip)
         run: |
           set -o pipefail
+          bash scripts/sign-ios-simulator.sh "${{ steps.app.outputs.path }}"
           mkdir -p artifacts
           ditto -c -k --keepParent "${{ steps.app.outputs.path }}" "artifacts/CialloReader-sim.app.zip"
           ls -lh artifacts/

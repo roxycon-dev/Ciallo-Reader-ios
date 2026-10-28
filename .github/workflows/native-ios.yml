@@ -28,6 +28,8 @@ jobs:
           set -o pipefail
           xcodebuild -version
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath native-build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee native-build.log
+      - name: Sign simulator bundle with isolated Keychain entitlements
+        run: bash scripts/sign-ios-simulator.sh native-build/Build/Products/Debug-iphonesimulator/App.app
       - name: Launch the native app in the simulator
         run: |
           set -euo pipefail
