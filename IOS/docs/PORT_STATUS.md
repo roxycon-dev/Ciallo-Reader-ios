@@ -4,6 +4,14 @@
 
 ## 已修改和验证
 
+### 10:46 增量
+
+- `075df3f` 主 CI 与 Native iOS verification 均成功；新系统文件 inbox 的原生持久化查看/领取/清空测试通过（16/16），已取回实际能力产物。
+- 新增注册 `ReaderHttp`，生产原生网络改为 URLSession delegate 原始实体字节 → 私有缓存 → 最多 512KiB 桥分块，不再解析/重新序列化 JSON。共享原生 Cookie 存储以保持站点验证连续；重定向 follow/manual/error 分开处理，跨源删除认证与手工 Cookie；默认系统 TLS 校验。
+- 原生绝对超时和调用方 AbortSignal 均取消 URLSession 任务，JS 截止时间涵盖分块读取，清理异常也不拖住调用方。响应上限 512MiB、请求体 32MiB、请求头/并发边界、失败/释放/旧缓存清理已实现。响应仍按 HttpClient 契约生成 Uint8Array，整书直接落文件及后台会话后续继续。
+- 新增 Debug 模拟器本地 TCP HTTP 测试服务，第 17 项原生验证涵盖 JSON 原字节、GBK/二进制、接近 1MiB 上传与多分块响应、重定向、超限、超时和实际 socket 取消，待云端结果。
+- 完整类型/Lint/单元门禁 238 文件 / 4860 测试、生产构建通过；随后追加“原生清理不返回仍按时超时”用例，HTTP 相关 28 项定向复测通过。未以本地测试替代原生 HTTP 验收，完整移植仍未完成。
+
 ### 10:32 增量
 
 - `d4aeaef` 主 CI 与 Native iOS verification 全部成功；实际启动 `ready`、16/16 原生检查通过，新增流式复制/摘要/取消/限制/符号链接检查成功。

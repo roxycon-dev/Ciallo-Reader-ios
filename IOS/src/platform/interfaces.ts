@@ -210,6 +210,7 @@ export interface HttpHeader {
 }
 
 export interface HttpRequest {
+  signal?: AbortSignal | undefined;
   redirect?: 'follow' | 'manual' | 'error';
   url: string;
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';

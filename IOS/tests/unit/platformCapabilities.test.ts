@@ -29,15 +29,8 @@ import {
 const nativeState = { native: false, httpAvailable: true };
 
 vi.mock('@capacitor/core', () => ({
-  Capacitor: { isNativePlatform: () => nativeState.native },
-  get CapacitorHttp() {
-    return nativeState.httpAvailable
-      ? { request: (options: NativeHttpRequestOptions) => nativeRequest(options) }
-      : undefined;
-  },
+  Capacitor: { isNativePlatform: () => nativeState.native, isPluginAvailable: () => nativeState.httpAvailable },
 }));
-
-let nativeRequest: (options: NativeHttpRequestOptions) => Promise<NativeHttpResponse>;
 
 function defineGlobals(name: string, value: unknown): void {
   Object.defineProperty(globalThis.navigator, name, { value, configurable: true });
@@ -189,7 +182,6 @@ describe('platform/ios-native/capacitorHttpClient — 原生 URLSession 传输',
   beforeEach(() => {
     nativeState.native = true;
     resetNativeHttpTransportCache();
-    nativeRequest = async () => ({ data: '', status: 200, headers: {}, url: 'https://a.test/' });
   });
 
   afterEach(() => {

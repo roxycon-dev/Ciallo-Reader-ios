@@ -61,6 +61,9 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
       assert((await resources.resource('/etc/hosts')).kind === 'missing', 'Native resource escaped Documents');
     } finally { await platform.fs.delete(path); }
   });
+  await check('Native HTTP preserves bytes, bounds chunks and cancels real sockets', async () => {
+    const { probeNativeHttp } = await import('./nativeHttpProbe'); await probeNativeHttp(platform);
+  }, 40_000);
   await check('PDFKit renders actual PDF bytes to a readable JPEG', async () => {
     const path = `${prefix}/input.pdf`; let pages: string[] = [];
     try {
