@@ -35,10 +35,19 @@ export class NativeLocalArchiveResources {
     return descriptor.files.length ? `@FILES@/${descriptor.path}` : '';
   }
   async exportBody(content: string, contentType: string): Promise<string> {
-    if (contentType === 'COMIC' && content.trim() && !content.includes('[IMG:')) return this.exportPath(content.trim());
+    return this.mapBody(content, contentType, (path) => this.exportPath(path));
+  }
+  async normalizeBody(content: string, contentType: string): Promise<string> {
+    return this.mapBody(content, contentType, async (path) => {
+      if (!path || /^https?:\/\//.test(path)) return path;
+      const descriptor = await this.describe(path); return descriptor.kind === 'missing' ? path : `@FILES@/${descriptor.path}`;
+    });
+  }
+  private async mapBody(content: string, contentType: string, relocate: (path: string) => Promise<string>): Promise<string> {
+    if (contentType === 'COMIC' && content.trim() && !content.includes('[IMG:')) return relocate(content.trim());
     const parts: string[] = []; let position = 0;
     for (const match of content.matchAll(/\[IMG:([^\]]+)]/g)) {
-      parts.push(content.slice(position, match.index)); const path = await this.exportPath(match[1]!);
+      parts.push(content.slice(position, match.index)); const path = await relocate(match[1]!);
       if (path) parts.push(`[IMG:${path}]`); position = match.index + match[0].length;
     }
     parts.push(content.slice(position)); return parts.join('');

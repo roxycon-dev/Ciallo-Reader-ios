@@ -28,6 +28,7 @@ export async function importPortableArchive(database: SqliteExecutor, preview: P
   }
   requireTransfer(!options.signal?.aborted, '导入已取消');
   const categories = preview.categories, chosen = (table: string) => categories.includes(PORTABLE_TABLE_CATEGORY[table]!);
+  const needsParents = categories.some((category) => ['ANNOTATIONS', 'HISTORY', 'SETTINGS'].includes(category));
   if (options.mode === 'REPLACE') {
     for (const table of [...BACKUP_TABLES].reverse()) {
       const remove = chosen(table) || categories.includes('BOOKS') && ['bookmarks', 'highlights', 'god_moments', 'reading_records', 'reading_sessions', 'comic_progress', 'comic_chapter_read'].includes(table);
@@ -46,9 +47,9 @@ export async function importPortableArchive(database: SqliteExecutor, preview: P
     const order = ['categories', 'favorite_categories', 'books', 'chapters', 'favorites', 'comic_progress', 'comic_chapter_read', 'bookmarks', 'highlights', 'god_moments', 'reading_sessions'];
     for (const table of order) for await (const envelope of staging.table(table)) {
       requireTransfer(!options.signal?.aborted, '导入已取消');
-      if (!chosen(table) && !(table === 'books' && envelope.parentOnly)) { count('skipped'); continue; }
+      if (!chosen(table) && !(table === 'books' && envelope.parentOnly) && !(needsParents && (table === 'categories' || table === 'chapters'))) { count('skipped'); continue; }
       if (table === 'books') count(await books.book(envelope));
-      else if (table === 'chapters') count(await books.chapter(envelope));
+      else if (table === 'chapters') count(await books.chapter(envelope, !chosen(table)));
       else count(await related.merge({ ...envelope, row: options.resources.row(envelope.row) }));
     }
     if (categories.includes('HISTORY')) {

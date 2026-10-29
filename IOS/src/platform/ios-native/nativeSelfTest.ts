@@ -105,6 +105,9 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
       assert(rolledBack && rows.length === 1 && rows[0]!.value === 'committed', 'Native SQLite rollback exposed uncommitted data');
     } finally { await platform.db.execute(`DROP TABLE IF EXISTS "${table}"`); }
   }, 40_000);
+  await check('Native whole archive import remaps ids and rolls back SQLite and reader preferences', async () => {
+    const { probeNativeArchiveImport } = await import('./archiveImportProbe'); await probeNativeArchiveImport(nonce);
+  }, 60_000);
   const keys = ['bilimanga', 'vomic', 'pufei', 'aimanhua', 'nineteen', 'xipi'];
   const paths = ['js_safety/acorn.js', 'js_safety/instrument.js', 'venera/_venera_.js', 'venera/comic_metadata.js', 'venera/discover_bridge.js', ...keys.map((key) => `js_extra/${key}.js`)];
   const assets = Object.fromEntries(await Promise.all(paths.map(async (path) => { const response = await platform.http.request({ url: `/${path}`, method: 'GET' }); assert(response.status === 200, `Missing asset ${path}`); return [path, new TextDecoder().decode(response.body)]; })));

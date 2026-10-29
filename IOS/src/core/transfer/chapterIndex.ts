@@ -20,7 +20,7 @@ export class TransferChapterIndex {
     requireTransfer(!this.ready, '章节索引已建立');
     await this.db.execute(`CREATE TEMP TABLE "${this.name}" (side TEXT NOT NULL, bookId INTEGER NOT NULL, chapterOrder INTEGER NOT NULL, bodyHash TEXT NOT NULL, hasContent INTEGER NOT NULL, PRIMARY KEY(side,bookId,chapterOrder))`); this.ready = true;
   }
-  async addBook(side: Side, book: PortableRow, chapters: AsyncIterable<PortableChapterBody>, fingerprint: BookContentFingerprint, filesRoot = '', signal?: AbortSignal): Promise<IndexedBookBody> {
+  async addBook(side: Side, book: PortableRow, chapters: AsyncIterable<PortableChapterBody>, fingerprint: BookContentFingerprint, filesRoot = '', signal?: AbortSignal, normalizeBody?: (body: string, contentType: string) => Promise<string>): Promise<IndexedBookBody> {
     const key = `${side}:${book.id}`;
     requireTransfer(this.ready && !this.books.has(key) && Number.isSafeInteger(book.id), '章节索引未就绪或书籍重复');
     const content = new BookContentAccumulator(), raw = sha256.create(), version = sha256.create(), encoder = new TextEncoder();
@@ -36,7 +36,8 @@ export class TransferChapterIndex {
         requireTransfer(Number.isSafeInteger(chapter.chapterOrder) && (previous === null || chapter.chapterOrder > previous), '章节顺序重复或未排序'); previous = chapter.chapterOrder;
         const hash = await fingerprint.chapter(chapter.content, book.contentType as string), readable = chapter.content.trim().length > 0;
         content.add(chapter.chapterOrder, chapter.title, hash, readable);
-        for (const part of [String(chapter.chapterOrder), chapter.title, chapter.content]) raw.update(encoder.encode(`${filesRoot ? part.split(filesRoot).join('@FILES@') : part}\0`));
+        const rawBody = normalizeBody ? await normalizeBody(chapter.content, book.contentType as string) : chapter.content;
+        for (const part of [String(chapter.chapterOrder), chapter.title, rawBody]) raw.update(encoder.encode(`${filesRoot ? part.split(filesRoot).join('@FILES@') : part}\0`));
         for (const part of [String(chapter.chapterOrder), chapter.title, chapter.content.replace(/\[IMG:[^\]]+]/g, '[IMG]')]) version.update(encoder.encode(`${part}\0`));
         batch.push([side, book.id!, chapter.chapterOrder, hash ?? `unresolved:${transferHash(encoder.encode(chapter.content))}`, readable ? 1 : 0]); count++;
         if (batch.length >= 64) await flush();

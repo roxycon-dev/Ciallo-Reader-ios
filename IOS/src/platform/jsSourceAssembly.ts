@@ -22,6 +22,11 @@ export interface AppJsSources {
   refresh(onStatus?: (status: string) => void): Promise<void>;
   exportPortable(warnings: string[]): Promise<PortableJsSource[]>;
   importPortable(scripts: unknown, replace: boolean): Promise<void>;
+  withDefinitionLease<T>(operation: (definitions: JsDefinitionLease) => Promise<T>): Promise<T>;
+}
+export interface JsDefinitionLease {
+  exportPortable(warnings: string[]): Promise<PortableJsSource[]>;
+  importPortable(scripts: unknown, replace: boolean): Promise<void>;
 }
 const services = new WeakMap<SourceManager, AppJsSources>();
 export function getAppJsSources(manager: SourceManager): AppJsSources | undefined { return services.get(manager); }
@@ -35,7 +40,7 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
     if (response.status !== 200) throw new Error(`书源资源加载失败：${path}`);
     return [path, new TextDecoder().decode(response.body)] as const;
   })));
-  const files = await sourceFileStorage(platform.fs, assets);
+  let files = await sourceFileStorage(platform.fs, assets);
   const meta = new EnginePreferences(platform.secure, 'js_source_meta');
   const verification = new EnginePreferences(platform.secure, 'js_source_website_verification');
   await Promise.all([meta.load(), verification.load()]);
@@ -57,7 +62,7 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
     densityOf: () => 1, heightPixelsOf: () => window.innerHeight,
     defaultUserAgent: () => navigator.userAgent,
   };
-  const deps: JsSourceRepoDeps = {
+  let deps: JsSourceRepoDeps = {
     files, http, metaPrefs: preferencePort(meta),
     systemDns: { lookup: async () => [] }, // URLSession performs system DNS and proxy resolution.
     proxy: { http, systemProxy: { resolve: () => null }, monotonicClock: () => performance.now(),
@@ -111,8 +116,12 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
   await register(await JsSourceRepo.loadCached(deps, true));
   let refreshing: Promise<void> | null = null;
   let sourceWrites: Promise<unknown> = Promise.resolve();
+  let reloadDefinitions = false;
   const serial = <T>(operation: () => Promise<T>): Promise<T> => {
-    const task = sourceWrites.catch(() => {}).then(operation); sourceWrites = task.catch(() => {}); return task;
+    const task = sourceWrites.catch(() => {}).then(async () => {
+      if (reloadDefinitions) { files = await sourceFileStorage(platform.fs, assets); deps = { ...deps, files }; reloadDefinitions = false; }
+      return operation();
+    }); sourceWrites = task.catch(() => {}); return task;
   };
   const service: AppJsSources = { refresh(onStatus) {
     if (refreshing) return refreshing;
@@ -126,6 +135,16 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
   },
   exportPortable: (warnings) => serial(async () => { await files.flush(); return JsSourceRepo.exportPortable(deps, warnings); }),
   importPortable: (scripts, replace) => serial(async () => { await JsSourceRepo.importPortable(deps, scripts, replace); await register(await JsSourceRepo.loadCached(deps, true)); }),
+  withDefinitionLease: (operation) => serial(async () => {
+    await files.flush();
+    // An isolated cache prevents rolled-back definitions from surviving in the
+    // live repository's synchronous file mirror. Acquire this lease before the
+    // SourceManager lease, matching refresh -> register's lock order.
+    const scoped = { ...deps, files: await sourceFileStorage(platform.fs, assets) }; let active = true;
+    const check = () => { if (!active) throw new Error('书源定义事务已结束'); };
+    try { return await operation({ exportPortable: async (warnings) => { check(); return JsSourceRepo.exportPortable(scoped, warnings); }, importPortable: async (scripts, replace) => { check(); await JsSourceRepo.importPortable(scoped, scripts, replace); } }); }
+    finally { active = false; reloadDefinitions = true; }
+  }),
   };
   services.set(manager, service);
   // Keep cached/bundled sources immediately usable while repairing stale or

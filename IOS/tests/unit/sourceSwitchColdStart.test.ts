@@ -8,6 +8,14 @@ import { AutoNovelSource } from '@core/source/impl/autoNovelSource';
 import type { FileSystemApi } from '@platform/interfaces';
 
 describe('native source switches survive a new adapter instance', () => {
+  it('queues source mutations behind a transfer lease and releases them after failure', async () => {
+    const secure = new MemorySecureStore(), storage = new SharedPreferencesSourceStorage({ prefs: new SecureStoreSourcePrefs(secure), files: new FileSystemSourceConfigFile(new MemoryFileSystem()) });
+    const source = new AutoNovelSource({ client: { request: async () => { throw new Error('Unexpected request'); } } }), manager = new SourceManager(storage); await manager.registerSource(source);
+    let release!: () => void, entered!: () => void; const started = new Promise<void>((resolve) => { entered = resolve; }); const hold = new Promise<void>((resolve) => { release = resolve; });
+    const lease = manager.withMutationLease(async () => { entered(); await hold; throw new Error('intentional rollback'); }); await started;
+    const update = manager.setSourceEnabled(source.id, false); await Promise.resolve(); expect(await secure.get(`source_enabled_${source.id}`)).toBeNull();
+    release(); await expect(lease).rejects.toThrow('intentional rollback'); await update; expect(await secure.get(`source_enabled_${source.id}`)).toBe('false');
+  });
   it('does not publish a disabled switch when the secure write fails', async () => {
     const secure = new MemorySecureStore(), storage = new SharedPreferencesSourceStorage({ prefs: new SecureStoreSourcePrefs(secure), files: new FileSystemSourceConfigFile(new MemoryFileSystem()) });
     const source = new AutoNovelSource({ client: { request: async () => { throw new Error('Unexpected network request'); } } }), manager = new SourceManager(storage);

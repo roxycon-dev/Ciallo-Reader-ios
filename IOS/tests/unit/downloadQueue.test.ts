@@ -46,6 +46,23 @@ async function flush(times = 10): Promise<void> {
   }
 }
 
+describe('device-transfer download control lease', () => {
+  it('holds newly enqueued and resumed work until a library operation exits', async () => {
+    const { http, calls } = deferredHttp([okResponse('https://example.org/new', new Uint8Array([1]))]), queue = new DownloadQueue({ http });
+    await expect(queue.withPausedDownloads(async () => {
+      queue.enqueue({ id: 'new', url: 'https://example.org/new', format: 'epub', filePath: 'new.epub' }); queue.resume('new'); await flush(); expect(calls).toHaveLength(0); throw new Error('import failed');
+    })).rejects.toThrow('import failed');
+    await flush(); expect(calls).toHaveLength(1);
+  });
+  it('does not emit a completed event for a request that settles during import', async () => {
+    let finish!: (value: HttpResponse) => void;
+    const { http } = deferredHttp(async () => new Promise((resolve) => { finish = resolve; })), queue = new DownloadQueue({ http }), events: DownloadEvent[] = [];
+    queue.on((event) => events.push(event)); queue.enqueue({ id: 'old', url: 'https://example.org/old', format: 'epub', filePath: 'old.epub' }); await flush();
+    await queue.withPausedDownloads(async () => { queue.resume('old'); finish(okResponse('https://example.org/old', new Uint8Array([1]))); await flush(); expect(events.filter((event) => event.type === 'completed')).toEqual([]); });
+    expect(queue.getSnapshot()[0]?.status).toBe('PAUSED');
+  });
+});
+
 async function until(cond: () => boolean, label: string): Promise<void> {
   for (let i = 0; i < 100; i += 1) {
     if (cond()) return;

@@ -116,6 +116,13 @@ export class SourceManager {
     this.importer = importer;
   }
 
+  /** Hold app source mutations while the private import journal snapshots or
+   * restores definition files. The callback uses its own persistence facade;
+   * calling manager mutation methods here would wait on this same lease. */
+  async withMutationLease<T>(operation: () => Promise<T>): Promise<T> {
+    await this.initialize(); return this.mutex.withLock(operation);
+  }
+
   async initialize(): Promise<void> {
     if (this.initialized) return;
     if (this.initializing !== null) return this.initializing;

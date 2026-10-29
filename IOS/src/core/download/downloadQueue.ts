@@ -108,6 +108,15 @@ export class DownloadQueue {
   private readonly inFlight = new Set<string>();
   private active = 0;
   private restored = false;
+  private controlHolds = 0;
+
+  /** Keep transfers from starting or resuming downloads across a library
+   * snapshot. Existing requests settle as paused before emitting completion. */
+  async withPausedDownloads<T>(operation: () => Promise<T>): Promise<T> {
+    this.controlHolds++; this.pauseAll();
+    try { return await operation(); }
+    finally { this.controlHolds--; if (this.controlHolds === 0) this.pump(); }
+  }
 
   constructor(opts: DownloadQueueOptions) {
     this.maxConcurrent = opts.maxConcurrent ?? 2;
@@ -216,6 +225,7 @@ export class DownloadQueue {
   }
 
   resume(taskId: string): void {
+    if (this.controlHolds > 0) return;
     const task = this.tasks.get(taskId);
     if (!task) return;
     if (task.status !== 'PAUSED' && task.status !== 'FAILED' && task.status !== 'PENDING') return;
@@ -399,6 +409,7 @@ export class DownloadQueue {
   }
 
   private pump(): void {
+    if (this.controlHolds > 0) return;
     while (this.active < this.maxConcurrent && this.pendingIds.length > 0) {
       const id = this.pendingIds.shift();
       if (id === undefined) break;

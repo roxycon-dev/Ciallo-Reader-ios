@@ -19,6 +19,7 @@ export interface ArchiveBookImportOptions {
   localOriginal(book: PortableRow): Promise<string | null>;
   localDirectoryIdentity?(book: PortableRow): Promise<string | null>;
   localFilesRoot?: string;
+  normalizeLocalBody?(body: string, contentType: string): Promise<string>;
   signal?: AbortSignal;
 }
 /** Runs under the caller's managed import transaction. Matching never relies on
@@ -60,7 +61,7 @@ export class ArchiveBookImporter {
   }
   private async localBody(local: LocalBook): Promise<IndexedBookBody> {
     if (local.incomingOrigin !== undefined) return this.incomingBodies.get(local.incomingOrigin)!;
-    local.body ??= await this.options.index.addBook('local', local.row, localBookChapters(this.rows.database, local.row.id as number), this.options.localFingerprint, this.options.localFilesRoot, this.options.signal);
+    local.body ??= await this.options.index.addBook('local', local.row, localBookChapters(this.rows.database, local.row.id as number), this.options.localFingerprint, this.options.localFilesRoot, this.options.signal, this.options.normalizeLocalBody);
     return local.body;
   }
   private async original(local: LocalBook): Promise<string | null> {
@@ -131,18 +132,20 @@ export class ArchiveBookImporter {
     await this.rows.database.execute('INSERT OR REPLACE INTO transfer_identities (localKey,stableId) VALUES (?,?)', [`books:${mapped}`, identity]);
     return outcome;
   }
-  async chapter(envelope: PortableEnvelope): Promise<ImportRowOutcome> {
+  async chapter(envelope: PortableEnvelope, parentOnly = false): Promise<ImportRowOutcome> {
     requireTransfer(this.ready && envelope.table === 'chapters', '章节导入器未就绪');
     const incoming = envelope.row, bookId = this.books.get(incoming.bookId as number); if (bookId === undefined) return 'skipped';
     const local = this.locals.get(bookId)!, existing = await this.rows.find('chapters', ['bookId', 'chapterOrder'], [bookId, incoming.chapterOrder!]);
     const content = this.options.resources.body(incoming.content as string, local.row.contentType as string);
     if (existing) {
       this.chapters.set(incoming.id as number, existing.id as number);
+      if (parentOnly) return 'skipped';
       if (!(existing.content as string).trim() && content.trim()) {
         await this.rows.database.execute('UPDATE chapters SET content=?,startCharIndex=?,endCharIndex=? WHERE id=?', [content, incoming.startCharIndex!, incoming.endCharIndex!, existing.id!]); return 'merged';
       }
       return 'skipped';
     }
+    if (parentOnly) return 'skipped';
     const row: PortableRow = { ...incoming, bookId, content }; delete row.id;
     this.chapters.set(incoming.id as number, await this.rows.insert('chapters', row)); return 'added';
   }

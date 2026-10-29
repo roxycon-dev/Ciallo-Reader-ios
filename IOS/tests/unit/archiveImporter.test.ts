@@ -10,7 +10,7 @@ import { ArchiveResources } from '@core/transfer/archiveResources';
 import { BookContentFingerprint } from '@core/transfer/bookFingerprint';
 import { TransferStagingRows } from '@core/transfer/stagingRows';
 import { TABLES } from '@core/db/schemaV13';
-import type { PortableArchivePreview, PortableEnvelope, PortableRow, TransferCategory } from '@core/transfer/portableFormat';
+import { portableChapterVersion, type PortableArchivePreview, type PortableEnvelope, type PortableRow, type TransferCategory } from '@core/transfer/portableFormat';
 const id = '01234567-89ab-cdef-0123-456789abcdef', databases: MemorySqlite[] = [];
 afterEach(() => { for (const db of databases.splice(0)) db.close(); });
 function envelope(table: string, values: PortableRow): PortableEnvelope {
@@ -32,6 +32,15 @@ async function setup(categories: TransferCategory[], input: PortableEnvelope[]) 
 const book = () => envelope('books', { id: 1, title: '传入小说', category: '默认', contentType: 'NOVEL', totalChapters: 1, filePath: 'source_configs/secret.json' });
 const chapter = () => envelope('chapters', { id: 1, bookId: 1, chapterOrder: 0, title: '第一章', content: '正文' });
 describe('journaled whole-archive import on real managed SQLite', () => {
+  it('maps parent-only chapter ids for annotations without copying metadata content over the local book', async () => {
+    const identity = `file:${'a'.repeat(64)}`, parent = { ...book(), identity, parentOnly: true, bodyVersion: portableChapterVersion([{ chapterOrder: 0, title: '第一章', content: '本机正文' }]) };
+    const metadata = chapter(); metadata.row.content = '';
+    const fixture = await setup(['ANNOTATIONS'], [parent, metadata, envelope('god_moments', { id: 1, bookId: '1', chapterId: '1', contentType: 'NOVEL', updatedAt: 10 })]);
+    const existing = { ...book().row, id: 50 }; const writer = new (await import('@core/transfer/archiveDatabaseRows')).ArchiveDatabaseRows(fixture.db);
+    await writer.insert('books', existing); await writer.insert('chapters', { ...chapter().row, id: 90, bookId: 50, content: '本机正文' }); await fixture.db.execute('INSERT INTO transfer_identities VALUES (?,?)', ['books:50', identity]);
+    await fixture.journal.run(id, id, false, (tx) => importPortableArchive(tx, fixture.preview, {}, fixture.options));
+    expect(await fixture.db.query('SELECT bookId,chapterId FROM god_moments')).toEqual([{ bookId: '50', chapterId: '90' }]); expect(await fixture.db.query('SELECT content FROM chapters')).toEqual([{ content: '本机正文' }]);
+  });
   it('imports books, mapped annotations and history together, then skips a repeated package before any file/settings action', async () => {
     const fixture = await setup(['BOOKS', 'ANNOTATIONS', 'HISTORY'], [book(), chapter(), envelope('bookmarks', { id: 1, bookId: 1, chapterIndex: 0, title: '书签' }), envelope('reading_records', { bookId: 1, bookTitle: '传入小说', dateStr: '2026-10-28', durationSeconds: 30 })]);
     await fixture.db.execute("INSERT INTO books SELECT 50,'原有书籍','','',NULL,'默认',0,0,0,0,'NOVEL',0,0,NULL,NULL");
