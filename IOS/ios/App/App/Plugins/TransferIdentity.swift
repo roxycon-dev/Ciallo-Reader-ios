@@ -15,6 +15,7 @@ struct TransferIdentity {
     let identity: SecIdentity
     let fingerprint: String
     private static let identityLabel = "ciallo.transfer.identity.v1"
+    private static let verificationQueue = DispatchQueue(label: "ciallo.transfer.certificates", qos: .userInitiated, attributes: .concurrent)
 
     static func load(label: String = identityLabel) throws -> TransferIdentity {
         let query: [CFString: Any] = [kSecClass: kSecClassIdentity, kSecAttrLabel: label, kSecReturnRef: true]
@@ -169,11 +170,14 @@ struct TransferIdentity {
         sec_protocol_options_set_min_tls_protocol_version(options.securityProtocolOptions, .TLSv12)
         sec_protocol_options_set_max_tls_protocol_version(options.securityProtocolOptions, .TLSv13)
         sec_protocol_options_set_peer_authentication_required(options.securityProtocolOptions, true)
-        sec_protocol_options_set_verify_block(options.securityProtocolOptions, { _, trust, complete in
-            let value = sec_trust_copy_ref(trust).takeRetainedValue()
-            guard let chain = SecTrustCopyCertificateChain(value) as? [SecCertificate], chain.count == 1 else { complete(false); return }
-            do { _ = try TransferIdentity.validate(chain[0]); complete(true) } catch { complete(false) }
-        }, queue)
+        // Pairing authenticates a single self-signed leaf, rather than an OS
+        // trust path. Reading an evaluated SecTrust chain here can synchronously
+        // evaluate trust and stall the network queue inside its own callback.
+        // https://developer.apple.com/documentation/security/sec_protocol_metadata_access_peer_certificate_chain(_:_:)
+        sec_protocol_options_set_verify_block(options.securityProtocolOptions, { metadata, _, complete in
+            do { _ = try TransferIdentity.validate(TransferIdentity.peerCertificate(metadata)); complete(true) }
+            catch { complete(false) }
+        }, Self.verificationQueue)
         let tcp = NWProtocolTCP.Options(); tcp.noDelay = true
         let parameters = NWParameters(tls: options, tcp: tcp)
         parameters.includePeerToPeer = true
@@ -181,11 +185,15 @@ struct TransferIdentity {
     }
     static func peerFingerprint(_ connection: NWConnection) throws -> String {
         guard let metadata = connection.metadata(definition: NWProtocolTLS.definition) as? NWProtocolTLS.Metadata else { throw TransferNativeError.invalid("连接不是 TLS") }
+        return try validate(peerCertificate(metadata.securityProtocolMetadata))
+    }
+    private static func peerCertificate(_ metadata: sec_protocol_metadata_t) throws -> SecCertificate {
         var certificates = [SecCertificate]()
-        let accessible = sec_protocol_metadata_access_peer_certificate_chain(metadata.securityProtocolMetadata) { certificate in
-            certificates.append(sec_certificate_copy_ref(certificate).takeRetainedValue())
+        var count = 0
+        let accessible = sec_protocol_metadata_access_peer_certificate_chain(metadata) { certificate in
+            count += 1; if count <= 2 { certificates.append(sec_certificate_copy_ref(certificate).takeRetainedValue()) }
         }
-        guard accessible, certificates.count == 1 else { throw TransferNativeError.invalid("对方设备证书缺失") }
-        return try validate(certificates[0])
+        guard accessible, count == 1 else { throw TransferNativeError.invalid("需要对方单一自签名设备证书") }
+        return certificates[0]
     }
 }

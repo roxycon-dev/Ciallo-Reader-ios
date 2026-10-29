@@ -1,10 +1,11 @@
-import { BACKUP_TABLES } from '@core/db/schemaV13';
+import { BACKUP_TABLES, TABLES } from '@core/db/schemaV13';
 import type { SqliteExecutor } from '@platform/interfaces';
 import { SettingsRepository } from '@core/settings/settingsRepository';
 import { BookContentFingerprint } from './bookFingerprint';
 import { TransferChapterIndex, localBookChapters } from './chapterIndex';
 import { PORTABLE_ROWS_HEADER, PORTABLE_TABLE_CATEGORY, PortableRowsInspector, parsePortableRow, portableOnlineIdentity, type PortableEnvelope, type PortableRow, type TransferCategory } from './portableFormat';
 import { requireTransfer } from './transferWire';
+import { boundedTransferBatch } from './rowBatch';
 
 export interface ArchiveExportSelection { categories: readonly TransferCategory[]; protectedAuthorized: boolean; }
 export interface ExportResourceCatalog {
@@ -18,7 +19,7 @@ export interface ExportResourceCatalog {
 export interface ArchiveExportRowsResult { counts: Record<string, number>; selectedBookKeys: ReadonlySet<string>; containsProtected: boolean; protectedFavorites: boolean; }
 
 /** The caller holds the content/source/download gates and a database snapshot.
- * Two bounded rows cross the SQLite bridge at a time; NDJSON is flushed without
+ * Byte-bounded rows cross the SQLite bridge; NDJSON is flushed without
  * materializing the library or any image/EPUB bytes in JavaScript. */
 export async function exportPortableRows(database: SqliteExecutor, stageId: string, selection: ArchiveExportSelection, resources: ExportResourceCatalog, write: (text: string, reset: boolean) => Promise<void>, signal?: AbortSignal): Promise<ArchiveExportRowsResult> {
   const categories = new Set(selection.categories), protectedNames = new Set((await database.query<{ name: string }>('SELECT name FROM categories WHERE isProtected<>0')).map((row) => row.name));
@@ -82,9 +83,15 @@ export async function exportPortableRows(database: SqliteExecutor, stageId: stri
 
 export async function* tableRows(database: SqliteExecutor, table: string): AsyncGenerator<PortableRow> {
   requireTransfer(BACKUP_TABLES.includes(table), '导出数据表无效'); let cursor: number | null = null;
+  const lengths = TABLES.find((definition) => definition.name === table)!.columns.filter((column) => column.type === 'TEXT').map((column) => `COALESCE(length(CAST("${column.name}" AS BLOB)),0)`);
+  const size = lengths.length ? lengths.join('+') : '0';
   while (true) {
-    const rows: PortableRow[] = await database.query(`SELECT rowid AS _transferRowid,* FROM "${table}" WHERE (? IS NULL OR rowid>?) ORDER BY rowid LIMIT 2`, [cursor, cursor]);
-    if (!rows.length) return;
+    const metadata: { id: number; bytes: number }[] = await database.query(`SELECT rowid AS id,(${size}) AS bytes FROM "${table}" WHERE (? IS NULL OR rowid>?) ORDER BY rowid LIMIT 128`, [cursor, cursor]);
+    if (!metadata.length) return;
+    const selected = boundedTransferBatch(metadata, 6);
+    requireTransfer(selected.every((row) => Number.isSafeInteger(row.id)), '本机数据行编号无效');
+    const rows: PortableRow[] = await database.query(`SELECT rowid AS _transferRowid,* FROM "${table}" WHERE rowid IN (${selected.map(() => '?').join(',')}) ORDER BY rowid`, selected.map((row) => row.id));
+    requireTransfer(rows.length === selected.length, '本机数据在导出时发生变化');
     for (const value of rows) { cursor = value._transferRowid as number; const row = { ...value }; delete row._transferRowid; yield row; }
   }
 }

@@ -4,6 +4,14 @@
 
 ## 已修改和验证
 
+### 09:53 增量
+
+- `85bb5b6` 主 CI（含完整浏览器/Release）成功，Swift 编译成功；Native 验证 14/15 通过：新增文件 Undo 和真实 iOS SQLite 整包撤回均成功，仅 TLS 回环出现 40 秒超时，不计整体验证成功。产物 `.tmp/native-artifact-40801332336/` 确认失败项和启动 error，未隐去失败。
+- Native 日志停在 TLS 外部证书验证，且同一队列上的 25 秒超时未触发。核对 Apple 开源 `SecTrustCopyCertificateChain` 实现，内部会 `SecTrustEvaluateIfNecessary` 并同步访问 trust queue。改为在独立证书队列从协议 metadata 取单一 peer 证书，仍执行自签名/有效期/RSA 强度和指纹检查；不再在验证回调里触发系统链求值。已增加阶段追踪和超时阶段信息、CI 失败产物保留 trace，待云端实际复测。
+- 参考原始来源：[Apple peer certificate metadata API](https://developer.apple.com/documentation/security/sec_protocol_metadata_access_peer_certificate_chain(_:_:))、[Apple Security SecTrust.c](https://github.com/apple-oss-distributions/Security/blob/main/OSX/sec/Security/SecTrust.c)。当前证据支持上述阻塞点，尚未以新原生结果宣称完全修复。
+- 大库分页改为先取最多 128 行大小元数据、按桥 JSON 字节预算选择后再取正文。暂存以覆盖索引读取大小，小章节成批、长 Unicode 章节单行、超限旧正文不跨原生桥；按表/章节序游标完整保留顺序和取消语义。真实 SQLite 600 章数据无遗漏，正文查询批次少于 10；大行/取消/整包回归通过。完整门禁 236 文件 / 4833 测试及类型/Lint 全通过。
+- 迁移文件选择/分享的流式入口、双机原生验收和其余完整移植缺口仍继续；不可因已完成互传界面或 Node 测试而结束任务。
+
 ### 09:34 增量
 
 - `276aec5` 主 CI（含浏览器/Release）及 Native iOS verification 均成功；设备互传页面已获原生整包构建验证。互传入口稳定截图的定向重跑 WebKit / Chrome 均通过，已检查实际截图，手机无横向溢出、文字/卡片显示正常。

@@ -4,6 +4,7 @@ import type { DatabaseLike } from '@core/library/bookRepository';
 import type { PortableChapterBody, PortableRow } from './portableFormat';
 import { BookContentAccumulator, type BookContentFingerprint } from './bookFingerprint';
 import { isTransferSessionId, requireTransfer, transferHash } from './transferWire';
+import { boundedTransferBatch } from './rowBatch';
 
 export interface IndexedBookBody { contentIdentity: string | null; rawIdentity: string; version: string; chapters: number; }
 type Side = 'incoming' | 'local';
@@ -61,8 +62,12 @@ export async function* localBookChapters(db: DatabaseLike, bookId: number): Asyn
   requireTransfer(Number.isSafeInteger(bookId), '本机书籍身份无效');
   let order: number | null = null, id = 0;
   while (true) {
-    const rows: (PortableChapterBody & { id: number })[] = await db.query('SELECT id,chapterOrder,title,content FROM chapters WHERE bookId=? AND (? IS NULL OR chapterOrder>? OR (chapterOrder=? AND id>?)) ORDER BY chapterOrder,id LIMIT 2', [bookId, order, order, order, id]);
-    if (!rows.length) return;
+    const metadata: { id: number; bytes: number }[] = await db.query('SELECT id,length(CAST(title AS BLOB))+length(CAST(content AS BLOB)) AS bytes FROM chapters WHERE bookId=? AND (? IS NULL OR chapterOrder>? OR (chapterOrder=? AND id>?)) ORDER BY chapterOrder,id LIMIT 128', [bookId, order, order, order, id]);
+    if (!metadata.length) return;
+    const selected = boundedTransferBatch(metadata, 6);
+    requireTransfer(selected.every((row) => Number.isSafeInteger(row.id)), '本机章节编号无效');
+    const rows: (PortableChapterBody & { id: number })[] = await db.query(`SELECT id,chapterOrder,title,content FROM chapters WHERE id IN (${selected.map(() => '?').join(',')}) ORDER BY chapterOrder,id`, selected.map((row) => row.id));
+    requireTransfer(rows.length === selected.length, '本机章节在读取时发生变化');
     for (const row of rows) { order = row.chapterOrder; id = row.id; yield row; }
   }
 }

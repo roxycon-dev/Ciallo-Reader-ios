@@ -295,12 +295,20 @@ private final class TransferLoopbackTest {
     private var received = 0
     private var digest = SHA256()
     private var response = Data()
+    private var phase = "initializing"
     private let payload = Data((0..<(1048576 + 37)).map { UInt8($0 % 251) })
     init(queue: DispatchQueue, completion: @escaping (Result<String, Error>) -> Void) { self.queue = queue; self.completion = completion }
+    private func trace(_ message: String) {
+        phase = message; NSLog("[CialloTLS] %@", message)
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("reader-transfer-tls-phase.txt")
+        try? Data(message.utf8).write(to: url, options: .atomic)
+    }
     func start() {
+        trace("loading Keychain identities")
         do {
             let serverIdentity = try TransferIdentity.load(), clientIdentity = try TransferIdentity.load(label: "ciallo.transfer.ci.client.v1")
             self.serverIdentity = serverIdentity; self.clientIdentity = clientIdentity
+            trace("validating stored identities")
             guard serverIdentity.fingerprint != clientIdentity.fingerprint,
                   try TransferIdentity.load().fingerprint == serverIdentity.fingerprint else { throw TransferNativeError.invalid("Device identity persistence failed") }
             var certificate: SecCertificate?
@@ -312,22 +320,29 @@ private final class TransferLoopbackTest {
             do { _ = try TransferIdentity.validate(certificate, now: Date(timeIntervalSince1970: 4133980800)); throw TransferNativeError.invalid("Expired certificate accepted") }
             catch let error as TransferNativeError { if error.localizedDescription == "Expired certificate accepted" { throw error } }
             let parameters = try serverIdentity.parameters(queue: queue)
+            trace("starting loopback listener")
             parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .any)
             let listener = try NWListener(using: parameters, on: .any); self.listener = listener
             listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
             listener.stateUpdateHandler = { [weak self] state in
                 guard let self = self else { return }
+                self.trace("listener: \(state)")
                 if case .ready = state { self.connect() }
                 if case .failed(let error) = state { self.finish(.failure(error)) }
             }
             listener.start(queue: queue)
-            queue.asyncAfter(deadline: .now() + 25) { [weak self] in self?.finish(.failure(TransferNativeError.invalid("Native mutual TLS loopback timed out"))) }
+            queue.asyncAfter(deadline: .now() + 25) { [weak self] in
+                guard let self = self, self.completion != nil else { return }
+                self.finish(.failure(TransferNativeError.invalid("Native mutual TLS loopback timed out: \(self.phase)")))
+            }
         } catch { finish(.failure(error)) }
     }
     private func accept(_ connection: NWConnection) {
         guard server == nil else { connection.cancel(); return }; server = connection
+        trace("server accepted")
         connection.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
+            self.trace("server: \(state)")
             if case .ready = state {
                 do {
                     guard try TransferIdentity.peerFingerprint(connection) == self.clientIdentity?.fingerprint else { throw TransferNativeError.invalid("Client certificate fingerprint mismatch") }
@@ -342,8 +357,10 @@ private final class TransferLoopbackTest {
         guard let port = listener?.port, let identity = clientIdentity else { finish(.failure(TransferNativeError.invalid("Loopback listener not ready"))); return }
         do {
             let connection = NWConnection(host: .ipv4(.loopback), port: port, using: try identity.parameters(queue: queue)); client = connection
+            trace("client connecting")
             connection.stateUpdateHandler = { [weak self] state in
                 guard let self = self else { return }
+                self.trace("client: \(state)")
                 if case .ready = state {
                     do {
                         guard try TransferIdentity.peerFingerprint(connection) == self.serverIdentity?.fingerprint else { throw TransferNativeError.invalid("Server certificate fingerprint mismatch") }
@@ -364,6 +381,7 @@ private final class TransferLoopbackTest {
             guard let data = data, !data.isEmpty else { self.finish(.failure(TransferNativeError.invalid("TLS payload was truncated"))); return }
             self.digest.update(data: data); self.received += data.count
             if self.received == self.payload.count {
+                self.trace("payload bytes received")
                 let hash = self.digest.finalize().map { String(format: "%02x", $0) }.joined()
                 connection.send(content: Data(hash.utf8), completion: .contentProcessed { [weak self] error in if let error = error { self?.finish(.failure(error)) } })
             } else { self.receivePayload(connection) }
@@ -383,6 +401,7 @@ private final class TransferLoopbackTest {
     }
     private func finish(_ result: Result<String, Error>) {
         guard let completion = completion else { return }; self.completion = nil
+        switch result { case .success: trace("streamed mutual TLS verified"); case .failure(let error): trace("failed: \(error.localizedDescription)") }
         listener?.stateUpdateHandler = nil; listener?.newConnectionHandler = nil; listener?.cancel(); listener = nil
         client?.stateUpdateHandler = nil; client?.cancel(); client = nil
         server?.stateUpdateHandler = nil; server?.cancel(); server = nil
