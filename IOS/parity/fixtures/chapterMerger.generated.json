@@ -1,0 +1,348 @@
+{
+  "cases": [
+    {
+      "name": "single-chapter",
+      "input": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "Hello",
+          "startCharIndex": 0,
+          "endCharIndex": 5
+        }
+      ],
+      "logical": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "Hello",
+          "startCharIndex": 0,
+          "endCharIndex": 5
+        }
+      ],
+      "physicalToLogical": [
+        0
+      ],
+      "physicalToLogicalOffset": [
+        0
+      ],
+      "logicalToPhysicalOrders": [
+        [
+          0
+        ]
+      ]
+    },
+    {
+      "name": "merge-continuation",
+      "input": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "A",
+          "startCharIndex": 0,
+          "endCharIndex": 1
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 1,
+          "title": "第一章 (续)",
+          "content": "B",
+          "startCharIndex": 1,
+          "endCharIndex": 2
+        }
+      ],
+      "logical": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "AB",
+          "startCharIndex": 0,
+          "endCharIndex": 2
+        }
+      ],
+      "physicalToLogical": [
+        0,
+        0
+      ],
+      "physicalToLogicalOffset": [
+        0,
+        1
+      ],
+      "logicalToPhysicalOrders": [
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "max-4-parts-then-new",
+      "input": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第二章",
+          "content": "A",
+          "startCharIndex": 0,
+          "endCharIndex": 1
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 1,
+          "title": "第二章 (续)",
+          "content": "B",
+          "startCharIndex": 1,
+          "endCharIndex": 2
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 2,
+          "title": "第二章 (续)",
+          "content": "C",
+          "startCharIndex": 2,
+          "endCharIndex": 3
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 3,
+          "title": "第二章 (续)",
+          "content": "D",
+          "startCharIndex": 3,
+          "endCharIndex": 4
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 4,
+          "title": "第二章 (续)",
+          "content": "E",
+          "startCharIndex": 4,
+          "endCharIndex": 5
+        }
+      ],
+      "logical": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第二章",
+          "content": "ABCD",
+          "startCharIndex": 0,
+          "endCharIndex": 4
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 1,
+          "title": "第二章",
+          "content": "E",
+          "startCharIndex": 4,
+          "endCharIndex": 5
+        }
+      ],
+      "physicalToLogical": [
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "physicalToLogicalOffset": [
+        0,
+        1,
+        2,
+        3,
+        0
+      ],
+      "logicalToPhysicalOrders": [
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          4
+        ]
+      ]
+    },
+    {
+      "name": "title-cleanup-xu2",
+      "input": [
+        {
+          "bookId": 2,
+          "chapterOrder": 0,
+          "title": "第三章",
+          "content": "X",
+          "startCharIndex": 0,
+          "endCharIndex": 1
+        },
+        {
+          "bookId": 2,
+          "chapterOrder": 1,
+          "title": "第三章 (续2)",
+          "content": "Y",
+          "startCharIndex": 1,
+          "endCharIndex": 2
+        }
+      ],
+      "logical": [
+        {
+          "bookId": 2,
+          "chapterOrder": 0,
+          "title": "第三章",
+          "content": "XY",
+          "startCharIndex": 0,
+          "endCharIndex": 2
+        }
+      ],
+      "physicalToLogical": [
+        0,
+        0
+      ],
+      "physicalToLogicalOffset": [
+        0,
+        1
+      ],
+      "logicalToPhysicalOrders": [
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "no-merge-different-titles",
+      "input": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "A",
+          "startCharIndex": 0,
+          "endCharIndex": 1
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 1,
+          "title": "第二章",
+          "content": "B",
+          "startCharIndex": 1,
+          "endCharIndex": 2
+        }
+      ],
+      "logical": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "A",
+          "startCharIndex": 0,
+          "endCharIndex": 1
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 1,
+          "title": "第二章",
+          "content": "B",
+          "startCharIndex": 1,
+          "endCharIndex": 2
+        }
+      ],
+      "physicalToLogical": [
+        0,
+        1
+      ],
+      "physicalToLogicalOffset": [
+        0,
+        0
+      ],
+      "logicalToPhysicalOrders": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "name": "continuation-break-by-title-change",
+      "input": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "A",
+          "startCharIndex": 0,
+          "endCharIndex": 1
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 1,
+          "title": "第一章 (续)",
+          "content": "B",
+          "startCharIndex": 1,
+          "endCharIndex": 2
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 2,
+          "title": "第二章",
+          "content": "C",
+          "startCharIndex": 2,
+          "endCharIndex": 3
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 3,
+          "title": "第二章 (续)",
+          "content": "D",
+          "startCharIndex": 3,
+          "endCharIndex": 4
+        }
+      ],
+      "logical": [
+        {
+          "bookId": 1,
+          "chapterOrder": 0,
+          "title": "第一章",
+          "content": "AB",
+          "startCharIndex": 0,
+          "endCharIndex": 2
+        },
+        {
+          "bookId": 1,
+          "chapterOrder": 1,
+          "title": "第二章",
+          "content": "CD",
+          "startCharIndex": 2,
+          "endCharIndex": 4
+        }
+      ],
+      "physicalToLogical": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "physicalToLogicalOffset": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "logicalToPhysicalOrders": [
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    }
+  ]
+}

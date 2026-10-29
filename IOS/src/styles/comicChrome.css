@@ -1,0 +1,848 @@
+/*
+ * comicChrome.css — 逐行移植 Android
+ *   app/src/main/java/com/example/ui/comic/ComicReaderChrome.kt（768 行）
+ *   app/src/main/java/com/example/ui/comic/ComicPanelDesign.kt（339 行）
+ *   app/src/main/java/com/example/ui/comic/ComicReaderBackground.kt（164 行）
+ *   app/src/main/java/com/example/ui/comic/ComicChapterEdgeGesture.kt（109 行）
+ *
+ * 换算约定（与本项目其它模块一致）：dp → CSS px 1:1，sp → CSS px 1:1。
+ * 色彩令牌用 CSS 自定义属性集中定义在 .comic-chrome 上，值与 Kotlin 字面量一一对应：
+ *   PanelBg            0xD91A1A1E → --comic-panel-bg
+ *   PanelBgGlass       0xCC1A1A1E → --comic-panel-bg-glass
+ *   PanelChipBg        0x16FFFFFF → --comic-panel-chip-bg
+ *   PanelChipActiveBg  0x30FFFFFF → --comic-panel-chip-active-bg
+ *   StrokeColor        0x1FFFFFFF → --comic-stroke
+ *   TextPrimary        0xFFF2F2F4 → --comic-text-primary
+ *   TextSecondary      0xB3FFFFFF → --comic-text-secondary
+ *   顶/底栏底色        0xD9101012 → --comic-bar-bg
+ *   面板遮罩           0x66000000 → --comic-scrim
+ *
+ * 硬性约束：漫画阅读 chrome 为**有意深色**（Android 纯黑），不可改成浅色。
+ */
+
+/* ══════════════ 根容器与色彩令牌 ══════════════ */
+.comic-chrome {
+  /* 第 11 条：半透明面板底。第七轮第 3 条：毛玻璃路径的暗纱从 0xD9（85%）
+     收敛到 0xCC（80%）+ 模糊加深——玻璃质感更通透、不再"接近纯黑的沉闷"；
+     backdrop 为 null（CURL 的 GL 层采不到）时仍回退 0xD9 纯半透明
+     （GL SurfaceView 叠层下避免更低透明度——透底鬼影会被损伤混叠放大） */
+  --comic-panel-bg: rgba(26, 26, 30, 0.85);
+  --comic-panel-bg-glass: rgba(26, 26, 30, 0.8);
+  --comic-panel-chip-bg: rgba(255, 255, 255, 0.086);
+  --comic-panel-chip-active-bg: rgba(255, 255, 255, 0.188);
+  --comic-stroke: rgba(255, 255, 255, 0.122);
+  --comic-text-primary: #f2f2f4;
+  /* 0xB3 alpha ≈ 70% 白，对 PanelBg 对比度 ≈ 5.9:1（旧 0x99 仅 ~4:1，12sp 标签低于 WCAG AA） */
+  --comic-text-secondary: rgba(255, 255, 255, 0.7);
+  --comic-bar-bg: rgba(16, 16, 18, 0.85);
+  --comic-scrim: rgba(0, 0, 0, 0.4);
+  --comic-menu-bg: #232327;
+  --comic-disabled-fill: rgba(255, 255, 255, 0.063);
+  --comic-disabled-text: rgba(255, 255, 255, 0.333);
+  --comic-icon-tint: rgba(242, 242, 244, 0.92);
+  /* GodGold.DarkStart = Color(0xFFE0CB96) */
+  --comic-god-gold: #e0cb96;
+  /* MintPrimary → 主题动态取色；漫画 chrome 为深色面板，故取薄荷绿基色 #059669 */
+  --comic-mint: var(--color-primary, #059669);
+
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  /* ComicReaderChrome 的 AnimatedVisibility 宿主（Box(fillMaxSize)） */
+  display: block;
+  font-family: var(--font-sans);
+  color: var(--comic-text-primary);
+  /* 禁止底层阅读区手势穿透到 chrome 之外 */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 面板与 chrome 不吞掉页面级滚动以外的默认行为 */
+.comic-chrome__reset {
+  box-sizing: border-box;
+}
+
+/* ══════════════ 顶栏（ComicReaderChrome.kt L314-L423） ══════════════ */
+.comic-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* AnimatedVisibility: visible && panel == NONE（L177-L181） */
+  transition:
+    opacity 240ms var(--ease-out),
+    transform 240ms var(--ease-out);
+}
+.comic-top-bar--out {
+  /* exit = fadeOut(180) + slideOutVertically(180) { -it } → 上移 */
+  opacity: 0;
+  transform: translateY(-100%);
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
+  pointer-events: none;
+}
+
+.comic-top-bar__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))（L333） */
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  /* .background(Color(0xD9101012))（L334） */
+  background: var(--comic-bar-bg);
+  /* .border(0.5.dp, StrokeColor, …)（L335） */
+  border: 0.5px solid var(--comic-stroke);
+  /* .statusBarsPadding()（L336） */
+  padding-top: calc(var(--safe-top, 0px) + 8px);
+  /* .padding(horizontal = 6.dp, vertical = 8.dp)（L337） */
+  padding-right: 6px;
+  padding-bottom: 8px;
+  padding-left: 6px;
+  overflow: hidden;
+}
+
+.comic-top-bar__row {
+  display: flex;
+  align-items: center;
+}
+
+.comic-top-bar__titles {
+  /* Column(Modifier.weight(1f))（L342） */
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.comic-top-bar__title {
+  color: var(--comic-text-primary);
+  font-size: 16px;
+  font-weight: 600; /* FontWeight.SemiBold */
+  line-height: 1.25;
+  /* maxLines = 1, overflow = TextOverflow.Ellipsis（L345） */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comic-top-bar__subtitle {
+  color: var(--comic-text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comic-top-bar__gap4 {
+  width: 4px; /* Spacer(Modifier.width(4.dp))（L341） */
+  flex: 0 0 4px;
+}
+
+/* ══════════════ 通用控件（ChromeIconButton L593-L609） ══════════════ */
+.comic-icon-button {
+  /* Box(Modifier.size(44.dp).clip(CircleShape))（L600-L603） */
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* clickableNoRipple（indication = null，L611-L612） */
+  -webkit-tap-highlight-color: transparent;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.comic-icon-button:disabled {
+  cursor: default;
+}
+.comic-icon-button__glyph {
+  /* Icon(icon, desc, tint, Modifier.size(22.dp))（L607） */
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/* 通用「无涟漪可点」修饰（L611-L612）：无背景变化、无按下涟漪 */
+.comic-no-ripple {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+.comic-no-ripple:active {
+  background-color: inherit;
+}
+
+/* ══════════════ 下拉菜单（DropdownMenu L375-L419） ══════════════ */
+.comic-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  /* DropdownMenu 自身左对齐；父 Box 是 inline-flex，故用 min-width 撑开 */
+  min-width: 168px;
+  z-index: 4;
+  /* containerColor = Color(0xFF232327)（L378/L401） */
+  background: var(--comic-menu-bg);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 4px 0;
+}
+.comic-menu--fav {
+  left: 0;
+}
+.comic-menu--more {
+  right: 0;
+}
+.comic-menu__heading {
+  color: var(--comic-text-secondary);
+  font-size: 11px;
+  /* Modifier.padding(horizontal = 16.dp, vertical = 4.dp)（L383） */
+  padding: 4px 16px;
+}
+.comic-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  /* DropdownMenuItem 默认最小高度 48dp */
+  min-height: 48px;
+  padding: 0 16px;
+  cursor: pointer;
+  color: var(--comic-text-primary);
+  font-size: 14px;
+}
+.comic-menu__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.comic-menu__leading {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.comic-menu__leading-glyph {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+.comic-menu__leading-emoji {
+  color: var(--comic-mint);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* 面板外点击关闭菜单的透明遮罩 */
+.comic-menu__dismiss {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+
+/* ══════════════ 底栏（ComicBottomBar L427-L537） ══════════════ */
+.comic-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* AnimatedVisibility（底部）: enter { it } → 上移；exit { it } → 下移（L207-L208） */
+  transition:
+    opacity 240ms var(--ease-out),
+    transform 240ms var(--ease-out);
+}
+.comic-bottom-bar--out {
+  opacity: 0;
+  transform: translateY(100%);
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
+  pointer-events: none;
+}
+
+.comic-bottom-bar__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  background: var(--comic-bar-bg);
+  border: 0.5px solid var(--comic-stroke);
+  /* .navigationBarsPadding()（L463） */
+  padding-bottom: calc(var(--safe-bottom, 0px) + 6px);
+  /* .padding(horizontal = 16.dp, vertical = 6.dp)（L464） */
+  padding-right: 16px;
+  padding-left: 16px;
+  overflow: hidden;
+}
+
+.comic-bottom-bar__row {
+  display: flex;
+  align-items: center;
+}
+
+.comic-bottom-bar__page {
+  color: var(--comic-text-primary);
+  font-size: 14px;
+  font-weight: 700; /* FontWeight.Bold（L469） */
+}
+.comic-bottom-bar__gap8 {
+  width: 8px; /* Spacer(Modifier.width(8.dp))（L471） */
+  flex: 0 0 8px;
+}
+.comic-bottom-bar__percent {
+  color: var(--comic-text-secondary);
+  font-size: 12px;
+}
+.comic-bottom-bar__spacer {
+  /* Spacer(Modifier.weight(1f))（L480） */
+  flex: 1 1 0%;
+}
+.comic-bottom-bar__status {
+  font-size: 11px;
+  /* 状态文字默认次级色；自动阅读激活态才用强调色（强调色留给可交互/激活语义） */
+  color: var(--comic-text-secondary);
+}
+.comic-bottom-bar__status--active {
+  color: var(--comic-mint);
+}
+.comic-bottom-bar__gap6 {
+  width: 6px; /* Spacer(Modifier.width(6.dp))（L487） */
+  flex: 0 0 6px;
+}
+
+/* 章节导航行（L522-L535）：Arrangement.spacedBy(8.dp) */
+.comic-chapter-nav {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.comic-chapter-nav__button {
+  /* Box(clip(RoundedCornerShape(12.dp)).padding(vertical = 10.dp))（L541-L547） */
+  flex: 1 1 0%;
+  min-width: 0;
+  border-radius: 12px;
+  background: var(--comic-panel-chip-bg);
+  padding: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.comic-chapter-nav__button--disabled {
+  /* Color(0x10FFFFFF)（L544） */
+  background: var(--comic-disabled-fill);
+  cursor: default;
+}
+.comic-chapter-nav__label {
+  color: var(--comic-text-primary);
+  font-size: 12px;
+}
+.comic-chapter-nav__label--disabled {
+  /* Color(0x55FFFFFF)（L549） */
+  color: var(--comic-disabled-text);
+}
+
+/* ══════════════ 缩略图气泡（ComicThumbPreview L554-L589） ══════════════ */
+.comic-thumb-preview {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 3;
+}
+.comic-thumb-preview__card {
+  /* Column(clip(RoundedCornerShape(12.dp)).background(PanelBg).border(0.5.dp, …).padding(6.dp)) */
+  border-radius: 12px;
+  background: var(--comic-panel-bg);
+  border: 0.5px solid var(--comic-stroke);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.comic-thumb-preview__frame {
+  /* Box(Modifier.size(width = 96.dp, height = 128.dp).clip(RoundedCornerShape(8.dp))
+   *   .background(Color(0x22FFFFFF)), Center)（L572-L577） */
+  position: relative;
+  width: 96px;
+  height: 128px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.133);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.comic-thumb-preview__img {
+  width: 100%;
+  height: 100%;
+  /* ContentScale.Crop（L580） */
+  object-fit: cover;
+  display: block;
+}
+.comic-thumb-preview__label {
+  margin-top: 4px; /* Spacer(Modifier.height(4.dp))（L586） */
+  color: var(--comic-text-primary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ══════════════ 面板遮罩 + 面板宿主（L249-L309） ══════════════ */
+.comic-panel-scrim {
+  position: absolute;
+  inset: 0;
+  /* Color(0x66000000)（L256） */
+  background: var(--comic-scrim);
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  transition: opacity 240ms var(--ease-out);
+}
+.comic-panel-scrim--out {
+  opacity: 0;
+  transition: opacity 180ms var(--ease-out);
+  pointer-events: none;
+}
+
+.comic-panel-host {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* AnimatedVisibility: enter slideInVertically(280) { it } + fadeIn(240)（L264-L265） */
+  transition:
+    opacity 240ms var(--ease-out),
+    transform 280ms var(--ease-out);
+}
+/* exit = slideOutVertically(180) { it } + fadeOut(160)（L265） */
+.comic-panel-host--out {
+  opacity: 0;
+  transform: translateY(100%);
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 180ms var(--ease-out);
+  pointer-events: none;
+}
+
+/* ══════════════ 通用底部面板容器（ComicSheetContainer L713-L759） ══════════════ */
+.comic-sheet {
+  /* .adaptiveSheetWidth()（L728）：竖屏 560dp、横屏 840dp
+     adaptiveSheetWidth = widthIn(max) 必须在 fillMaxWidth 之前（L725-L727 注释）：
+     先钳制最大宽度再填充——反序会让 fillMaxWidth 先撑满屏宽，
+     560dp 背景钉在左侧留出无背景空区。*/
+  width: 100%;
+  max-width: 560px;
+  /* .fillMaxHeight(heightFraction)（L729） */
+  height: 66%;
+  /* .clip(sheetShape)（L730）RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp) */
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  /* .comicPanelGlass(glassBackdrop, sheetShape)（L731）→ CSS backdrop-filter 等价 */
+  background: var(--comic-panel-bg-glass);
+  -webkit-backdrop-filter: blur(26px) saturate(1.18);
+  backdrop-filter: blur(26px) saturate(1.18);
+  border: 0.5px solid var(--comic-stroke);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+@media (orientation: landscape) {
+  /* 横屏放宽到 840dp，与阅读设置面板（第 11 条）同一套自适应规范 */
+  .comic-sheet {
+    max-width: 840px;
+  }
+}
+/* backdrop 为 null（CURL 的 GL 层采不到）时仍回退 0xD9 纯半透明（L90-L91） */
+.comic-sheet--no-glass {
+  background: var(--comic-panel-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.comic-sheet__handle-row {
+  /* Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter)（L734） */
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.comic-sheet__handle {
+  /* .padding(top = 10.dp).size(width = 40.dp, height = 4.dp)
+   *   .clip(CircleShape).background(Color(0x2EFFFFFF))（L735-L741） */
+  margin-top: 10px;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  flex: 0 0 auto;
+}
+.comic-sheet__title {
+  color: var(--comic-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  /* .padding(horizontal = 20.dp, vertical = 8.dp)（L746） */
+  padding: 8px 20px;
+}
+.comic-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* .navigationBarsPadding()（L752） */
+  padding-bottom: var(--safe-bottom, 0px);
+  /* .padding(horizontal = 20.dp)（L754） */
+  padding-right: 20px;
+  padding-left: 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.comic-sheet__body--static {
+  /* scrollable = false（L718/L753）：不挂 verticalScroll */
+  overflow-y: hidden;
+}
+
+/* 面板小节标题（SectionLabel L762-L768） */
+.comic-section-label {
+  color: var(--comic-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding-top: 14px;
+  padding-bottom: 2px;
+}
+
+/* ══════════════ SegmentRow（L619-L666） ══════════════ */
+.comic-segment-row {
+  width: 100%;
+  /* .padding(vertical = 4.dp)（L627） */
+  padding-top: 4px;
+  padding-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.comic-segment-row__title {
+  color: var(--comic-text-secondary);
+  font-size: 12px;
+}
+.comic-segment-row__gap6 {
+  height: 6px; /* Spacer(Modifier.height(6.dp))（L629） */
+  flex: 0 0 6px;
+}
+.comic-segment-row__flow {
+  /* FlowRow(spacedBy(3.dp, 3.dp))（L630-L637）——每项按文字实际宽度占位，
+     一行放不下自动换行（修复"7 个手势选项/5 个长 label 挤同一行全部截断"的实机 bug） */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  width: 100%;
+  border-radius: 12px;
+  background: var(--comic-panel-chip-bg);
+  padding: 3px;
+}
+.comic-segment-row__option {
+  border-radius: 9px;
+  /* 第七轮第 3 条：选中态 = 品牌薄荷半透明填充 + 细边框 + SemiBold 文字 */
+  background: transparent;
+  border: 0.5px solid transparent;
+  padding: 8px 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  color: rgba(255, 255, 255, 0.667);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  /* softWrap = false, maxLines = 1（L659-L660） */
+}
+.comic-segment-row__option--active {
+  color: var(--comic-mint);
+  font-weight: 600;
+  border-color: var(--comic-segment-active-stroke, transparent);
+  background: var(--comic-segment-active-bg, transparent);
+}
+
+/* ══════════════ SliderRow（L671-L695） ══════════════ */
+.comic-slider-row {
+  width: 100%;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  display: flex;
+  flex-direction: column;
+}
+.comic-slider-row__head {
+  display: flex;
+  align-items: center;
+}
+.comic-slider-row__title {
+  color: var(--comic-text-secondary);
+  font-size: 12px;
+}
+.comic-slider-row__value {
+  color: var(--comic-mint);
+  font-size: 12px;
+  font-weight: 500; /* FontWeight.Medium（L685） */
+}
+
+/* ══════════════ SwitchRow（L698-L710） ══════════════ */
+.comic-switch-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.comic-switch-row__text {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.comic-switch-row__title {
+  color: var(--comic-text-primary);
+  font-size: 13px;
+}
+.comic-switch-row__subtitle {
+  color: var(--comic-text-secondary);
+  font-size: 11px;
+}
+
+/* ══════════════ PanelSectionCard（ComicPanelDesign.kt L78-L106） ══════════════ */
+.comic-panel-card {
+  width: 100%;
+  /* .padding(vertical = 4.dp)（L88） */
+  padding-top: 4px;
+  padding-bottom: 4px;
+  /* .clip(RoundedCornerShape(18.dp)).background(PanelCardBg)
+   *   .border(0.5.dp, PanelCardStroke, RoundedCornerShape(18.dp))（L90-L91） */
+  border-radius: 18px;
+  background: var(--comic-card-bg);
+  border: 0.5px solid var(--comic-card-stroke);
+  /* .padding(horizontal = 14.dp, vertical = 12.dp)（L92） */
+  padding-right: 14px;
+  padding-left: 14px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.comic-panel-card__head {
+  display: flex;
+  align-items: center;
+}
+.comic-panel-card__head-icon {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.comic-panel-card__head-gap6 {
+  width: 6px;
+  flex: 0 0 6px;
+}
+.comic-panel-card__title {
+  color: var(--comic-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.comic-panel-card__gap8 {
+  height: 8px;
+  flex: 0 0 8px;
+}
+
+/* ══════════════ PanelTabRow（ComicPanelDesign.kt L115-L163） ══════════════ */
+.comic-panel-tabs {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  border-radius: 14px;
+  background: var(--comic-panel-chip-bg);
+  padding: 4px;
+}
+.comic-panel-tabs__tab {
+  flex: 1 1 0%;
+  min-width: 0;
+  border-radius: 11px;
+  background: transparent;
+  border: 0.5px solid transparent;
+  padding: 7px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  color: rgba(255, 255, 255, 0.667);
+}
+.comic-panel-tabs__tab--active {
+  background: var(--comic-tab-active-bg, transparent);
+  border-color: var(--comic-tab-active-stroke, transparent);
+  color: var(--comic-mint);
+}
+.comic-panel-tabs__icon {
+  width: 17px;
+  height: 17px;
+  display: block;
+}
+.comic-panel-tabs__gap3 {
+  height: 3px;
+  flex: 0 0 3px;
+}
+.comic-panel-tabs__label {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.comic-panel-tabs__label--active {
+  font-weight: 600;
+}
+
+/* ══════════════ PanelSlider（ComicPanelDesign.kt L171-L280） ══════════════
+   Compose Canvas 绘制 → SVG。几何常量与 core/comic/comicPanelDesign.ts 共用同一组值。 */
+.comic-panel-slider {
+  position: relative;
+  width: 100%;
+  /* .height(30.dp)（L196） */
+  height: 30px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.comic-panel-slider--disabled {
+  cursor: default;
+}
+.comic-panel-slider__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+/* ══════════════ PanelSwitch（ComicPanelDesign.kt L286-L321） ══════════════ */
+.comic-panel-switch {
+  position: relative;
+  /* .width(46.dp).height(28.dp).clip(CircleShape)（L301-L303） */
+  width: 46px;
+  height: 28px;
+  flex: 0 0 46px;
+  border-radius: 999px;
+  border: 0.5px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.comic-panel-switch__knob {
+  position: absolute;
+  top: 50%;
+  /* .size(22.dp).clip(CircleShape).background(Color.White)（L316-L318） */
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  transform: translate(3px, -50%);
+  /* animateFloatAsState(spring(DampingRatioLowBouncy, stiffness = 1400f))（L292-L296） */
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.comic-panel-switch__knob--on {
+  transform: translate(21px, -50%); /* 3dp + travel 18dp */
+}
+.comic-panel-switch:focus-visible {
+  outline: 2px solid var(--comic-mint);
+  outline-offset: 2px;
+}
+
+/* ══════════════ 阅读背景（ComicReaderBackground.kt） ══════════════ */
+.comic-reader-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.comic-reader-bg--image {
+  /* ContentScale.Crop（L93） */
+  object-fit: cover;
+  display: block;
+}
+
+/* ══════════════ 跨章外翻手势（ComicChapterEdgeGesture.kt L106-L108） ══════════════
+   graphicsLayer { translationY / translationX = offset.value } → CSS transform。
+   单指外翻接管后必须禁用浏览器的滚动手势。 */
+.comic-edge-swipe {
+  touch-action: none;
+  will-change: transform;
+}
+
+/* ══════════════ 长按检测（detectTapGestures onLongPress，L362-L366） ══════════════ */
+.comic-long-press {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+}
+
+/* ══════════════ ChasingDots（com.example.ui.components.ChasingDots）
+   缩略图加载中的 6 点追逐动画：ChasingDots.kt L105-L168 的 Canvas 几何 →
+   CSS conic-gradient 遮罩 + 旋转动画（等价视觉，角度/半径常量保持一致）。 */
+.comic-chasing-dots {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  /* pathRadius = size/2，radius = size/5（ChasingDots.kt L107-L108） */
+  background: conic-gradient(
+    from 0deg,
+    var(--comic-mint) 0deg,
+    rgba(255, 255, 255, 0) 60deg,
+    rgba(255, 255, 255, 0) 360deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 0 3px, #000 3px 4px, transparent 4px);
+  mask: radial-gradient(circle, transparent 0 3px, #000 3px 4px, transparent 4px);
+  animation: comic-chasing-dots-spin 1.2s linear infinite;
+}
+@keyframes comic-chasing-dots-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — **本文件（漫画阅读 chrome）无需夜间模式变体，逐条审计留档**
+   ══════════════════════════════════════════════════════════════
+   结论与 comic.css / comicSheets.css 末尾的留档同源：本文件的每个颜色
+   都能回溯到 Kotlin 里**不读 MaterialTheme.colorScheme** 的编译期常量，
+   Android 开夜间模式后这些值一个都不会变，所以本块一条
+   `[data-theme='dark']` 规则都不加（加任何一条都会让 CSS 偏离安卓）。
+
+   ── 核对依据（只读源 novel-reader/）─────────────────────────────
+   1. `ui/comic/ComicReaderChrome.kt` / `ComicPanelDesign.kt` /
+      `ComicReaderSheets.kt` 三个文件 `MaterialTheme.colorScheme` 出现
+      **0 次**（grep 实测），头部注释里的令牌对照表（L9-18）逐条成立：
+        · PanelBg 0xD91A1A1E / PanelBgGlass 0xCC1A1A1E（Chrome.kt L120-121）
+        · PanelChipBg 0x16FFFFFF / PanelChipActiveBg 0x30FFFFFF（L122-123）
+        · StrokeColor 0x1FFFFFFF / TextPrimary 0xFFF2F2F4 /
+          TextSecondary 0xB3FFFFFF（L124-126）
+        · 顶/底栏 0xD9101012、面板遮罩 0x66000000 —— 全部是
+          「黑底 + 白字 + 白蒙版」三件套，与主题无关。
+   2. 本文件的白系字面量逐条对号：
+        · L225 `.comic-menu__item:hover`（白蒙版 hover，端口自加的
+          DropdownMenu 涟漪近似，压在 #232327 菜单上）；
+        · L387 `.comic-thumb-preview__frame` = Chrome.kt L572-577
+          `Color(0x22FFFFFF)`；
+        · L491 `.comic-sheet__handle` = L735-741 `Color(0x2EFFFFFF)`；
+        · L563/L684 未选中段码/页签 = 白 0.667（TextSecondary 系派生）；
+        · L754 `.comic-panel-switch__knob` = PanelDesign.kt L316-318
+          `Color.White` —— 白色拨钮两套主题一致（settings.css L1234 同款留档）；
+        · L802-806 追逐点 conic-gradient 的透明段是 alpha 0 的白，无色。
+   3. 唯一随主题的 token 是 `--comic-mint: var(--color-primary)`，而
+      Theme.kt L59/L69（浅/深）的 primary 同值 → 翻过去值不变。
+   ══════════════════════════════════════════════════════════════ */

@@ -1,0 +1,1503 @@
+/*
+ * components.css — styles for the ports of `ui/components/*.kt`
+ *
+ * Kotlin → TS map
+ * ──────────────
+ * Sources: `novel-reader/app/src/main/java/com/example/ui/components/**`
+ * (GlassQuality, LiquidGlass, CardTweaks, GlassCard, AcrylicDialog, AppButton,
+ *  CustomButtons, AppSwitch, AppSnackbar, AppErrorSnackbar, AppToast, ColorMorph,
+ *  PlayPauseMorph, ChasingDots, ChasingDotsTransition, ShimmerBox, HazeProgress,
+ *  LiquidBlob, SourceAvatar, StarryNightBackground, OverlayAnimations,
+ *  ReadingStats, ReadingTrendCard, ReadingCalendarCard, ReadingRecordCover,
+ *  SettingsControls, MaxFx, MaxCardEffects, ScrollTilt, MascotEmptyState,
+ *  LiquidGlassControls, GradientActionButton) plus `ui/glasskit/**`,
+ *  `ui/adaptive/**`, `ui/design/**`, `ui/feedback/**`, `ui/privacy/**`.
+ *
+ * Theme tokens consumed: --color-* / --radius-* / --space-* / --glass-* /
+ * --motion-* / --ease-* (defined in theme.css, which this file does NOT modify).
+ *
+ * NO CSS custom properties are added here — only consumed — so the light theme in
+ * theme.css remains the single source of truth.
+ */
+
+/* ══ Glass primitives (GlassCard.kt / LiquidGlass.kt) ══════════════════════ */
+
+.glass-card {
+  background: var(--glass-card-bg, rgba(255, 255, 255, 0.82));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.45));
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.08),
+    0 4px 8px rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+.glass-card--interactive {
+  cursor: pointer;
+  transition: transform var(--motion-fast, 150ms) var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.glass-card--interactive:active {
+  transform: scale(0.98);
+}
+
+/* MAX-tier layers (MaxFx.kt / MaxCardEffects.kt / GlassCard.kt) */
+
+.glass-card--max {
+  transform-style: preserve-3d;
+}
+
+.max-card-aura,
+.chroma-flow-edge {
+  border-radius: inherit;
+}
+
+.glass-sheen {
+  mix-blend-mode: screen;
+}
+
+@keyframes glass-sheen-sweep {
+  from {
+    background-position: -110% 0;
+  }
+  to {
+    background-position: 210% 0;
+  }
+}
+
+@keyframes card-aura-breathe {
+  from {
+    opacity: 0.66;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes card-aura-hue {
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+@keyframes chroma-flow-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer-pearl-drift {
+  from {
+    transform: translate(12%, 4%);
+  }
+  to {
+    transform: translate(72%, 19%);
+  }
+}
+
+/* ══ Overlay entrances (OverlayAnimations.kt) ══════════════════════════════ */
+
+.overlay-entrance {
+  will-change: transform, opacity;
+}
+
+@keyframes overlay-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes overlay-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16.6667%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes overlay-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ══ AcrylicDialog.kt / LiquidGlassControls.tsx ═══════════════════════════ */
+
+.acrylic-dialog-root,
+.acrylic-bottom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  pointer-events: none;
+}
+
+.acrylic-dialog-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+.acrylic-dialog-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.acrylic-panel {
+  position: relative;
+  pointer-events: auto;
+  overflow: hidden;
+  background-clip: padding-box;
+}
+
+.acrylic-panel--bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+/* film grain: BlendMode.Overlay needs its own compositing layer */
+.acrylic-panel__grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--film-grain, none);
+  background-repeat: repeat;
+  background-size: 64px 64px;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+}
+
+.acrylic-panel__prism {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.acrylic-panel__content {
+  position: relative;
+  z-index: 1;
+}
+
+.acrylic-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+}
+
+.acrylic-bottom-overlay__sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.liquid-glass-provider {
+  isolation: isolate;
+}
+
+/* ══ Buttons (AppButton.kt / CustomButtons.kt / AppSwitch.kt) ══════════════ */
+
+.app-icon-button {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  /* Unbounded borderless ripple: overflow stays visible */
+  overflow: visible;
+  transition: transform 350ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.app-icon-button:active {
+  transform: scale(0.88);
+}
+
+.app-icon-button__ripple {
+  position: absolute;
+  inset: -50%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+  opacity: 0;
+  transition: opacity var(--motion-fast, 150ms) ease-out;
+}
+
+.app-icon-button:active .app-icon-button__ripple {
+  opacity: 1;
+}
+
+.app-pill-button {
+  position: relative;
+  overflow: hidden;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 350ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.app-pill-button:active {
+  transform: scale(0.96);
+}
+
+.app-pill-button__ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 70%);
+  opacity: 0;
+  transition: opacity var(--motion-fast, 150ms) ease-out;
+}
+
+.app-pill-button:active .app-pill-button__ripple {
+  opacity: 1;
+}
+
+.app-pill-button__content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.app-liquid-button {
+  isolation: isolate;
+}
+
+/* AppSwitch.kt — four-stage squash-and-stretch (SquishyToggleSwitch) */
+.app-switch {
+  position: relative;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--color-primary, #059669) 32%, rgba(0, 0, 0, 0.18));
+  transition: background var(--motion-normal, 250ms) var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.app-switch--on {
+  background: var(--app-switch-color, #059669);
+}
+
+.app-switch__track {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.app-switch__knob {
+  position: absolute;
+  top: var(--app-switch-padding, 4px);
+  left: var(--app-switch-padding, 4px);
+  width: var(--app-switch-knob, 24px);
+  height: var(--app-switch-knob, 24px);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+  transform: translateX(0);
+  transition: transform var(--motion-normal, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Four-stage elastic squeeze: the outer layer carries the travel, the inner one
+   the squash (scaleX up / scaleY down) that the Android library animates. */
+.app-switch__squash {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transform-origin: center;
+}
+
+.app-switch--on .app-switch__knob {
+  transform: translateX(var(--app-switch-travel, 28px));
+}
+
+.app-switch:active .app-switch__squash {
+  animation: app-switch-squash 260ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+@keyframes app-switch-squash {
+  0% {
+    transform: scale(1, 1);
+  }
+  35% {
+    transform: scale(1.14, 0.86);
+  }
+  70% {
+    transform: scale(0.96, 1.04);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+.play-pause-button {
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* ══ Snackbars (AppSnackbar.kt / AppErrorSnackbar.kt) ═════════════════════ */
+
+.app-toast-snackbar,
+.app-error-snackbar {
+  position: relative;
+  width: 100%;
+  margin: 8px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  overflow: hidden;
+}
+
+.app-error-snackbar {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.app-snackbar__row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+}
+
+.app-snackbar__icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-snackbar__spacer {
+  flex: none;
+}
+
+.app-snackbar__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-snackbar__action {
+  flex: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 10px;
+  height: 32px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-snackbar__close {
+  flex: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-snackbar__border {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-divider-gray, #e3e5e7);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.app-snackbar__border--error {
+  border-width: 1.5px;
+}
+
+.app-error-snackbar__row {
+  justify-content: space-between;
+}
+
+.app-error-snackbar__left {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-error-snackbar__texts {
+  min-width: 0;
+}
+
+.app-error-snackbar__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-error-snackbar__body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-error-snackbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.app-error-snackbar__copy {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 8px;
+  height: 32px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app-error-snackbar__close {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ══ ChasingDots.kt / ShimmerBox.kt / HazeProgress.kt ═════════════════════ */
+
+.chasing-dots {
+  display: inline-block;
+}
+
+@keyframes shimmer-sweep {
+  from {
+    background-position: -120px 0;
+  }
+  to {
+    background-position: 520px 0;
+  }
+}
+
+.shimmer-box {
+  min-height: 1px;
+}
+
+.flowing-progress {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.flowing-progress__track,
+.flowing-progress__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.flowing-progress__fill {
+  background-repeat: no-repeat;
+}
+
+@keyframes flowing-progress-sweep {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 200px 0;
+  }
+}
+
+/* ══ LiquidBlob.kt / SourceAvatar.kt / StarryNightBackground.kt ════════════ */
+
+.liquid-blob {
+  pointer-events: none;
+}
+
+.source-avatar {
+  flex: none;
+  user-select: none;
+}
+
+.starry-night-background {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+}
+
+.starry-night-background__lamp {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.starry-night-background__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+/* ══ ColorMorph.kt ════════════════════════════════════════════════════════ */
+
+.color-state-morph {
+  width: 100%;
+}
+
+.color-state-morph__stage {
+  width: 100%;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.color-state-morph__fab {
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.color-morph-swatch {
+  position: relative;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.color-morph-swatch__bg {
+  pointer-events: none;
+}
+
+.color-morph-swatch__check {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ══ SettingsControls.kt ══════════════════════════════════════════════════ */
+
+.settings-pill__row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.settings-pill__option {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-medium-gray, #61666d);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 350ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1)),
+    color var(--motion-fast, 150ms) ease;
+}
+
+.settings-pill__option:active {
+  transform: scale(0.92);
+}
+
+.settings-pill__option--active {
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.settings-pt-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(97, 102, 109, 0.35);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 350ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.settings-pt-row:active {
+  transform: scale(0.97);
+}
+
+.settings-pt-row--active {
+  border: 1.5px solid color-mix(in srgb, var(--color-primary, #059669) 55%, transparent);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary, #059669) 16%, transparent) 0%,
+    color-mix(in srgb, var(--color-secondary, #10b981) 10%, transparent) 100%
+  );
+}
+
+.settings-pt-row__preview {
+  flex: none;
+  margin-right: 14px;
+}
+
+.settings-pt-row__texts {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-pt-row__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.settings-pt-row--active .settings-pt-row__title {
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.settings-pt-row__desc {
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.settings-pt-row__check {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-left: 8px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-pt-preview {
+  display: block;
+}
+
+.settings-dialog__title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.settings-dialog__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.settings-textfield {
+  width: 100%;
+  border: 1px solid var(--color-primary, #059669);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: transparent;
+  color: var(--color-on-light, #18191c);
+  outline: none;
+}
+
+.settings-textfield:focus {
+  border-color: var(--color-primary, #059669);
+}
+
+.settings-textfield::placeholder {
+  color: var(--color-medium-gray, #61666d);
+}
+
+.settings-dialog__stepper {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.settings-dialog__minutes {
+  font-size: 24px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 12px;
+  min-width: 96px;
+  text-align: center;
+}
+
+.settings-dialog__text-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 8px 16px;
+  color: var(--color-primary, #059669);
+  font-weight: 500;
+}
+
+.juno-slider__bubble {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 10px;
+  animation: juno-bubble-in 180ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+@keyframes juno-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+.juno-slider__fill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* thumb：仅拖动时出现（仓库 opacity 0/1） */
+.juno-slider__thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0 3.3px;
+  border-radius: 50%;
+  background: var(--color-primary, #059669);
+  border: 2px solid #ffffff;
+  transform: scale(1);
+  animation: juno-thumb-in 200ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+@keyframes juno-thumb-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ══ ReadingTrendCard.kt ═════════════════════════════════════════════════ */
+
+.trend-card__body {
+  padding: 16px;
+}
+
+.trend-card__head {
+  display: flex;
+  align-items: center;
+}
+
+.trend-card__head-texts {
+  min-width: 0;
+}
+
+.trend-card__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.trend-card__subtitle {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.trend-card__spacer {
+  flex: 1 1 auto;
+}
+
+.trend-card__tabs {
+  width: 100%;
+}
+
+.trend-card__legend {
+  display: flex;
+  align-items: center;
+}
+
+.trend-card__legend-label {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.trend-card__legend-peak {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.trend-card__readout {
+  align-self: center;
+  border-radius: 10px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.trend-card__chart {
+  position: relative;
+  width: 100%;
+  height: 150px;
+}
+
+.trend-card__chart-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.trend-card__fullscale {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  margin: 0;
+  font-size: 10px;
+  color: rgba(97, 102, 109, 0.7);
+}
+
+.trend-card__empty {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+  text-align: center;
+  padding: 0 16px;
+}
+
+.trend-card__peak-head {
+  display: flex;
+  align-items: center;
+}
+
+.trend-card__peak-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.trend-card__peak-range {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-mint-gold, #e8c97a);
+}
+
+.trend-card__no-peak {
+  margin: 8px 0;
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.peak-bars {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 72px;
+}
+
+.peak-bars__col {
+  flex: 1 1 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.peak-bars__bar {
+  display: block;
+  width: 100%;
+  margin: 0 0.5px;
+  border-radius: 2px 2px 0 0;
+  transition:
+    height 420ms cubic-bezier(0.4, 0, 0.2, 1),
+    background 260ms ease-out;
+}
+
+/* ══ ReadingCalendarCard.kt ═══════════════════════════════════════════════ */
+
+.cal-card__body {
+  padding: 16px;
+}
+
+.cal-card__head {
+  display: flex;
+  align-items: center;
+}
+
+.cal-card__head-texts {
+  min-width: 0;
+}
+
+.cal-card__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.cal-card__subtitle {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.cal-card__spacer {
+  flex: 1 1 auto;
+}
+
+.cal-card__tabs {
+  flex: none;
+}
+
+.cal-card__stepper {
+  display: flex;
+  align-items: center;
+}
+
+.cal-card__period {
+  flex: 1 1 auto;
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.cal-card__back-today {
+  flex: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-primary, #059669);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.cal-card__view {
+  animation: cal-view-in 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes cal-view-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cal-month__weekdays,
+.cal-month__row {
+  display: flex;
+  width: 100%;
+}
+
+.cal-month__weekday {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 10px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.cal-month__cell-spacer {
+  flex: 1 1 0;
+}
+
+.cal-day {
+  position: relative;
+  flex: 1 1 0;
+  height: 44px;
+  margin: 2px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.cal-day:active {
+  transform: scale(0.94);
+}
+
+.cal-day__peak {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.cal-day__num {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.cal-day__dur {
+  font-size: 8px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Year heatmap (GitHub contribution layout) */
+.cal-year__scroll {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cal-year__weekday-col {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-year__weekday-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-year__weekday {
+  font-size: 9px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.cal-year__months {
+  display: flex;
+  align-items: flex-start;
+}
+
+.cal-year__month {
+  font-size: 10px;
+  white-space: nowrap;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.cal-year__row {
+  display: flex;
+  align-items: center;
+}
+
+/* 入场：按星期行错峰淡入（ReadingCalendarCard.kt lines 321-324） */
+@keyframes cal-year-row-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cal-year__cell,
+.cal-year__cell-spacer {
+  flex: none;
+  border-radius: 3px;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  transition: transform 150ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.cal-year__cell:active {
+  transform: scale(0.86);
+}
+
+.cal-year__cell-spacer {
+  cursor: default;
+}
+
+.cal-year__legend {
+  display: flex;
+  align-items: center;
+}
+
+.cal-year__legend-label {
+  font-size: 10px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.cal-year__legend-cell {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.cal-year__spacer {
+  flex: 1 1 auto;
+}
+
+/* ══ ReadingRecordCover.kt ════════════════════════════════════════════════ */
+
+.reading-record-cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(241, 243, 244, 0.45);
+  border-radius: inherit;
+}
+
+/* ══ MascotEmptyState.kt ══════════════════════════════════════════════════ */
+
+.mascot-empty-state {
+  position: relative;
+  width: 100%;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+}
+
+.mascot-empty-state__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+}
+
+.mascot-empty-state__glow {
+  width: 160px;
+  height: 160px;
+  border-radius: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mascot-empty-state__image {
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  will-change: transform, opacity;
+}
+
+.mascot-empty-state__image--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+}
+
+.mascot-empty-state__halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mascot-empty-state__title {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.mascot-empty-state__description {
+  width: 100%;
+  margin: 0;
+  padding: 0 16px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ══ GlassKit.kt ══════════════════════════════════════════════════════════ */
+
+.glasskit-host {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+}
+
+.glasskit-host__layer {
+  position: absolute;
+  inset: 0;
+}
+
+.glasskit-host__backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.glasskit-host__top-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+
+.glasskit-card {
+  isolation: isolate;
+}
+
+.glasskit-card__highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.glass-top-bar-strip {
+  isolation: isolate;
+}
+
+.glass-top-bar-strip__hairline {
+  pointer-events: none;
+}
+
+/* ══ AdaptiveSpec.kt ═════════════════════════════════════════════════════ */
+
+.adaptive-sheet,
+.adaptive-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.adaptive-sheet__inner,
+.adaptive-page__inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* ══ Feedback / Motion.kt (overlay tokens are shared) ════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay-entrance,
+  .cal-card__view {
+    animation-duration: 1ms !important;
+  }
+
+  .glass-sheen,
+  .max-card-aura,
+  .chroma-flow-edge,
+  .shimmer-pearl,
+  .shimmer-box,
+  .flowing-progress__fill {
+    animation: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   ──────────────────────────────────────────────────────────────
+   theme.css 的 `[data-theme='dark']` 块已经把 --color-* / --glass-* 换掉了，
+   所以凡是用 var() 的规则自动跟随。这里只补：
+     1) 硬编码的浅色（#fff、rgba(255,255,255,α) 表面、rgba(241,243,244,α)、
+        rgba(97,102,109,α) 文字、rgba(0,0,0,α) 的浅色投影）
+     2) 深色底上会消失的分隔：黑色涟漪/黑色投影 → 换成白蒙版或更深的实心阴影
+   共享组件里的纯白零件（AppSwitch 拨钮、juno 滑块的白圈）在 Android 侧
+   本来就是 Material 白，两种主题保持一致，因此不改。
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 玻璃卡 ──
+   深色玻璃上 `rgba(0,0,0,0.08/.15)` 是隐形的（黑上加黑）。
+   改成有实感的深阴影撑层级，内侧再补一道发丝高光当边缘。 */
+[data-theme='dark'] .glass-card {
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* 无边框涟漪（IconButton）：黑涟漪在深色底上看不见 → 白涟漪 */
+[data-theme='dark'] .app-icon-button__ripple {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+/* ── Snackbars ── */
+[data-theme='dark'] .app-toast-snackbar { background: rgba(34, 36, 40, 0.94); }
+[data-theme='dark'] .app-error-snackbar { background: rgba(34, 36, 40, 0.92); }
+
+/* --color-divider-gray 的深色值 #2f3238 贴在 #222428 的 snackbar 上几乎
+   等于同色，边框消失 → 换成同 alpha 的白色发丝。 */
+[data-theme='dark'] .app-snackbar__border {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ── SettingsControls ──
+   原 border: rgba(97,102,109,0.35) 是「灰发丝压在白底上」；
+   深色下要压住的是黑色背景，所以改成白色发丝。
+   排除 --active：它的边框是主题绿 + 渐变底，不能被通用边框覆盖。 */
+[data-theme='dark'] .settings-pt-row:not(.settings-pt-row--active) {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* ── ReadingTrendCard：SVG 旁的满刻度标注 ── */
+[data-theme='dark'] .trend-card__fullscale { color: rgba(154, 160, 166, 0.75); }
+
+/* ── ReadingCalendarCard ──
+   格子的 background 由 ReadingCalendarCard.tsx L281/L507 的内联 style 决定，
+   CSS 覆盖不了；能安全接管的是 TSX 没写过的 box-shadow。
+   空格子内联是 rgba(24,25,28,.10)（墨色晕）——深色底上等于没有颜色，
+   所以给整张网格补一道内嵌发丝边，空白格与有记录格都重新有了轮廓。
+   有记录格的 background 是内联的，绿底上这道 8% 白边只做收边、不改色。 */
+[data-theme='dark'] .cal-day {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+[data-theme='dark'] .cal-year__cell {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* ── ReadingRecordCover：封面占位（浅灰 45% → 白 10%）── */
+[data-theme='dark'] .reading-record-cover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+/* ── MascotEmptyState：白卡 → 玻璃卡 token + 发丝边 ── */
+[data-theme='dark'] .mascot-empty-state {
+  background: var(--glass-card-bg, rgba(34, 36, 40, 0.86));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   iOS 16.0 降级块 —— `color-mix()` 是 **Safari 16.2** 才支持的
+   ══════════════════════════════════════════════════════════════════════════════
+   部署目标是 iOS 16.0（`ios/App/App.xcodeproj/project.pbxproj` 的
+   `IPHONEOS_DEPLOYMENT_TARGET = 16.0`），WKWebView = Safari 16.0 引擎。
+   `color-mix()` 在 16.0/16.1 上是**解析期就 invalid at parse time** → 整条声明
+   被丢弃（不是「算错」），于是本文件里用到 `color-mix()` 的两条规则直接变成
+   「什么都没画」：
+
+     · L302 `.app-switch`（SquishyToggleSwitch 关闭态轨道，**浅色态**）
+       → 轨道完全透明，只剩 `.app-switch__track` 的内阴影，开关看起来「消失」。
+     · L696-701 `.settings-pt-row--active`（翻页方式当前选中行，**浅色态**）
+       → 选中态的 1.5px 描边与那层 primary→secondary 的淡渐变全没了，
+         换页方式切换后看不出选了哪一项。
+
+   这两条是**浅色态**规则，所以 iOS 16.0 上**默认主题就已经受影响**，
+   不只是夜间模式。
+
+   修法：**只追加**这一个 `@supports not` 兜底块（既有规则一行未改、未删），
+   选择器与特异度逐字对齐上面两条规则，同特异度下靠「在后面」取胜。
+
+   折叠公式（CSS Color 4 §color-mix，两个操作数都先预乘 alpha）：
+
+       alpha_out = Σ pᵢ·αᵢ ，  C_out[ch] = Σ pᵢ·αᵢ·Cᵢ[ch] / alpha_out
+
+   · `color-mix(in srgb, C P%, transparent)` ≡ `rgba(R_C, G_C, B_C, P%)`
+     （`transparent` == `rgba(0,0,0,0)`，预乘后只剩 C 自身那一份）
+   · `.app-switch` 的 `color-mix(in srgb, primary 32%, rgba(0,0,0,0.18))`
+     是两个都带 alpha 的操作数，按上式算出 alpha = 0.4424、RGB = (3.6, 108.5,
+     75.9) → `rgba(4, 108, 76, 44.24%)`。
+
+   token 取值按**浅色态**下的真实值解（theme.css L21-37 `:root`）：
+   `--color-primary` #059669 ｜ `--color-secondary` #10b981。
+
+   ⚠️ `--color-primary` 全仓没有任何写入点（`grep -rn "setProperty('--color" src/`
+   只有 App.tsx 的两个 `--app-bottom-inset*`），换主题色那一项只改内联
+   `--home-primary`（HomePage.tsx L2019），所以这里写死出厂绿与 16.2+ 的计算结果
+   **逐位相同**。
+   ══════════════════════════════════════════════════════════════════════════ */
+@supports not (color: color-mix(red, blue)) {
+  .app-switch {
+    background: rgba(4, 108, 76, 44.24%)
+  }
+  .settings-pt-row--active {
+    border: 1.5px solid rgba(5, 150, 105, 55%)
+    background: linear-gradient( 90deg, rgba(5, 150, 105, 16%) 0%, rgba(16, 185, 129, 10%) 100% )
+  }
+}

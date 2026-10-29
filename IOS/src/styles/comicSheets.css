@@ -1,0 +1,1599 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * comicSheets.css — 漫画阅读器面板族样式。
+ *
+ * Kotlin 来源：
+ *   ui/comic/ComicReaderSheets.kt   （面板 / 对话框 / 裁边编辑器）
+ *   ui/comic/ComicReaderChrome.kt   （面板配色令牌 88–116、SwitchRow/SliderRow/
+ *                                    SegmentRow/ComicSheetContainer 614–759）
+ *   ui/comic/ComicPanelDesign.kt    （PanelSectionCard/PanelTabRow/PanelSlider/
+ *                                    PanelSwitch 62–336）
+ *
+ * 主题：暗色（Android 漫画阅读器为黑底）。面板底 = PanelBg 0xD9(217)，
+ * 毛玻璃路径 = PanelBgGlass 0xCC(204)，品牌绿 MintPrimary 取项目 --color-primary。
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cmcs-sheet,
+.cmcs-sheet *,
+.cmcs-cropsheet,
+.cmcs-cropsheet *,
+.cmcs-dialog,
+.cmcs-dialog * {
+  box-sizing: border-box;
+}
+
+.cmcs-sheet,
+.cmcs-cropsheet,
+.cmcs-dialog {
+  --cmcs-mint: var(--color-primary, #059669);
+  --cmcs-panel-bg: #d91a1a1e;
+  --cmcs-panel-bg-glass: #cc1a1a1e;
+  --cmcs-chip-bg: #16ffffff;
+  --cmcs-chip-active-bg: #30ffffff;
+  --cmcs-stroke: #1fffffff;
+  --cmcs-card-bg: #0dffffff;
+  --cmcs-card-stroke: #26ffffff;
+  --cmcs-text-primary: #f2f2f4;
+  --cmcs-text-secondary: #b3ffffff;
+  --cmcs-selected-bg: rgba(5, 150, 105, 0.18);
+  --cmcs-selected-stroke: rgba(5, 150, 105, 0.55);
+  --cmcs-danger: #e58b8b;
+  --cmcs-accent: #f0d9c0;
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+}
+
+/* ── 底部面板 overlay（Adaptation #1：ModalBottomSheet → flex-end + 拖拽关闭） ── */
+
+.cmcs-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  animation: cmcs-fade-in 200ms ease;
+}
+
+@keyframes cmcs-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cmcs-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 24px 24px 0 0;
+  background: var(--cmcs-panel-bg-glass);
+  backdrop-filter: blur(26px) saturate(1.18);
+  -webkit-backdrop-filter: blur(26px) saturate(1.18);
+  border: 0.5px solid var(--cmcs-stroke);
+  animation: cmcs-sheet-up 280ms cubic-bezier(0.25, 1, 0.5, 1);
+  touch-action: none;
+}
+
+@keyframes cmcs-sheet-up {
+  from {
+    opacity: 0.6;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 拖动条 + 标题（Kotlin 190–203 / Chrome 734–747） ── */
+
+.cmcs-sheet__grab-area {
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+}
+
+.cmcs-sheet__grab {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: #2effffff;
+}
+
+.cmcs-sheet__title {
+  padding: 8px 20px;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-sheet__tabs-pad {
+  padding: 0 20px;
+}
+
+.cmcs-sheet__gap4 {
+  height: 4px;
+}
+.cmcs-sheet__gap6 {
+  height: 6px;
+}
+.cmcs-sheet__gap12 {
+  height: 12px;
+}
+
+/* 内容滚动区（Kotlin 216–233 `verticalScroll`） */
+.cmcs-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px;
+  touch-action: pan-y;
+}
+
+.cmcs-sheet__body--flush {
+  padding: 0 20px;
+}
+
+.cmcs-sheet__divider {
+  height: 0.5px;
+  margin-bottom: 8px;
+  background: var(--cmcs-stroke);
+}
+
+.cmcs-sheet__footer {
+  flex: 0 0 auto;
+  padding: 0 16px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Tab 导航（Kotlin PanelTabRow 111–163） ── */
+
+.cmcs-tabrow {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--cmcs-chip-bg);
+}
+
+.cmcs-tabrow__item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 7px 2px;
+  border: 0.5px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #aaffffff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 160ms var(--ease-out, ease), border-color 160ms var(--ease-out, ease);
+}
+
+.cmcs-tabrow__item--active {
+  background: var(--cmcs-selected-bg);
+  border-color: var(--cmcs-selected-stroke);
+  color: var(--cmcs-mint);
+}
+
+.cmcs-tabrow__icon {
+  display: inline-flex;
+}
+
+.cmcs-tabrow__gap3 {
+  height: 3px;
+}
+
+.cmcs-tabrow__label {
+  font-size: 10px;
+  line-height: 13px;
+  white-space: nowrap;
+  color: #aaffffff;
+}
+
+.cmcs-tabrow__item--active .cmcs-tabrow__label {
+  color: var(--cmcs-mint);
+  font-weight: 600;
+}
+
+/* ── 玻璃卡片 PanelSectionCard（Kotlin 74–106） ── */
+
+.cmcs-card {
+  width: 100%;
+  padding: 12px 14px;
+  margin: 4px 0;
+  border-radius: 18px;
+  background: var(--cmcs-card-bg);
+  border: 0.5px solid var(--cmcs-card-stroke);
+}
+
+.cmcs-card__head {
+  display: flex;
+  align-items: center;
+}
+
+.cmcs-card__icon {
+  display: inline-flex;
+  color: rgba(5, 150, 105, 0.9);
+}
+
+.cmcs-card__icon-gap {
+  width: 6px;
+}
+
+.cmcs-card__title {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-card__gap4 {
+  height: 4px;
+}
+.cmcs-card__gap6 {
+  height: 6px;
+}
+.cmcs-card__gap8 {
+  height: 8px;
+}
+
+/* ── 开关行 SwitchRow（Kotlin 697–710） ── */
+
+.cmcs-switchrow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 0;
+}
+
+/* ── PanelHint（ComicPanelDesign.kt:190-193）
+   TypeCaption / TypeCaptionLineHeight / SpaceXs，fillMaxWidth + 垂直内边距。 ── */
+
+.cmcs-hint {
+  margin: 0;
+  padding: 4px 0;
+  width: 100%;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-switchrow__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cmcs-switchrow__title {
+  display: block;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-switchrow__gap2 {
+  height: 2px;
+}
+
+.cmcs-switchrow__subtitle {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+/* ── 玻璃胶囊开关 PanelSwitch（Kotlin 282–321） ── */
+
+.cmcs-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 28px;
+  padding: 0;
+  border: 0.5px solid #2effffff;
+  border-radius: 999px;
+  background: #33ffffff;
+  cursor: pointer;
+  transition: background 200ms var(--ease-out, ease), border-color 200ms var(--ease-out, ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cmcs-switch--on {
+  background: rgba(5, 150, 105, 0.85);
+  border-color: rgba(5, 150, 105, 0.6);
+}
+
+.cmcs-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cmcs-switch--on .cmcs-switch__thumb {
+  transform: translateX(18px);
+}
+
+/* ── 分段选择器 SegmentRow（Kotlin 614–666） ── */
+
+.cmcs-segment {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.cmcs-segment__title {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-segment__gap6 {
+  height: 6px;
+}
+
+.cmcs-segment__flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--cmcs-chip-bg);
+}
+
+.cmcs-segment__item {
+  padding: 8px 10px;
+  border: 0.5px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #aaffffff;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cmcs-segment__item--active {
+  background: var(--cmcs-selected-bg);
+  border-color: var(--cmcs-selected-stroke);
+  color: var(--cmcs-mint);
+  font-weight: 600;
+}
+
+/* ── 滑条行 SliderRow（Kotlin 668–695 + PanelSlider → range input） ── */
+
+.cmcs-sliderrow {
+  width: 100%;
+  padding: 2px 0;
+}
+
+.cmcs-sliderrow__head {
+  display: flex;
+  align-items: center;
+}
+
+.cmcs-sliderrow__title {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-sliderrow__value {
+  margin-left: auto;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--cmcs-mint);
+}
+
+.cmcs-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cmcs-slider::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 999px;
+  background: #2effffff;
+}
+
+.cmcs-slider::-moz-range-track {
+  height: 5px;
+  border-radius: 999px;
+  background: #2effffff;
+}
+
+.cmcs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5.5px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.18);
+}
+
+.cmcs-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* ── ActionChip（Kotlin 918–930） ── */
+
+.cmcs-actionchip {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cmcs-chip-bg);
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.cmcs-actionrow {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.cmcs-actionrow > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* ── 芯片行（Kotlin 243–266 / 446–461 / 486–501 / 794–815） ── */
+
+.cmcs-chiprow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--cmcs-chip-bg);
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-chiprow__icon {
+  display: inline-flex;
+}
+
+.cmcs-chiprow__gap8 {
+  width: 8px;
+}
+
+.cmcs-chiprow__label {
+  flex: 1 1 auto;
+  text-align: left;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cmcs-chiprow__chev {
+  display: inline-flex;
+  color: var(--cmcs-text-secondary);
+}
+
+/* 导航行（Kotlin 794–815 手动裁边入口） */
+.cmcs-navrow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cmcs-chip-bg);
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-padtop6 {
+  padding-top: 6px;
+}
+
+.cmcs-navrow__label {
+  flex: 1 1 auto;
+  text-align: left;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cmcs-navrow__chev {
+  display: inline-flex;
+  color: var(--cmcs-text-secondary);
+}
+
+/* 文本按钮（Kotlin TextButton：817 / 907 等） */
+.cmcs-textbtn {
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--cmcs-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cmcs-textbtn--sm {
+  font-size: 11px;
+}
+
+/* ── 引擎卡片 EngineCard（Kotlin 1094–1136） ── */
+
+.cmcs-enginecard {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--cmcs-chip-bg);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cmcs-enginecard--active {
+  background: rgba(5, 150, 105, 0.14);
+  border-color: rgba(5, 150, 105, 0.6);
+}
+
+.cmcs-enginecard__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cmcs-enginecard__title {
+  display: block;
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 600;
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-enginecard__gap2 {
+  height: 2px;
+}
+.cmcs-enginecard__gap4 {
+  height: 4px;
+}
+
+.cmcs-enginecard__desc {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-enginecard__state {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-enginecard__state--active {
+  color: var(--cmcs-mint);
+  font-weight: 700;
+}
+
+.cmcs-enginecard__check {
+  display: inline-flex;
+  color: var(--cmcs-mint);
+}
+
+/* ── 面板行 PanelRow（Kotlin 1138–1154） ── */
+
+.cmcs-panelrow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cmcs-chip-bg);
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-panelrow__icon {
+  display: inline-flex;
+  color: var(--cmcs-mint);
+}
+
+.cmcs-panelrow__gap8 {
+  width: 8px;
+}
+
+.cmcs-panelrow__label {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* ── 面板输入框 PanelTextField（Kotlin 1156–1184） ── */
+
+.cmcs-textfield {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.cmcs-textfield__label {
+  display: block;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-textfield__gap2 {
+  height: 2px;
+}
+
+.cmcs-textfield__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #22ffffff;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  caret-color: var(--cmcs-mint);
+}
+
+.cmcs-textfield__input:focus {
+  outline: none;
+  border-color: rgba(5, 150, 105, 0.6);
+}
+
+/* ── 追光点 ChasingDots ── */
+
+.cmcs-chasing {
+  position: relative;
+  display: inline-block;
+}
+
+.cmcs-chasing__dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: cmcs-chase 2000ms ease-in-out infinite;
+}
+
+@keyframes cmcs-chase {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg) translateX(0);
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(720deg) translateX(28%);
+    opacity: 0.25;
+  }
+}
+
+/* ── 翻译 Tab：模型下载（Kotlin 413–468） ── */
+
+.cmcs-download {
+  width: 100%;
+  padding: 8px 0 4px;
+}
+
+.cmcs-download__text {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-download__hint {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-download__gap6 {
+  height: 6px;
+}
+.cmcs-download__gap8 {
+  height: 8px;
+}
+
+.cmcs-download__track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: #1fffffff;
+  overflow: hidden;
+}
+
+.cmcs-download__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cmcs-mint);
+  transition: width 120ms linear;
+}
+
+.cmcs-download__error {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-danger);
+}
+
+/* ── 网格（ModeGrid / DirectionGrid / SceneOptionFlow） ── */
+
+.cmcs-grid {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.cmcs-grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.cmcs-grid--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.cmcs-grid__cell {
+  padding: 10px 4px;
+  border: 0.5px solid transparent;
+  border-radius: 12px;
+  background: var(--cmcs-chip-bg);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-grid__cell--active {
+  background: var(--cmcs-chip-active-bg);
+  border-color: rgba(5, 150, 105, 0.6);
+}
+
+.cmcs-grid__label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-align: center;
+  font-size: 12px;
+  line-height: 16px;
+  color: #aaffffff;
+}
+
+.cmcs-grid__label--active {
+  color: var(--cmcs-mint);
+  font-weight: 600;
+}
+
+/* ── 场景卡（Kotlin 1039–1092） ── */
+
+.cmcs-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 9px 2px;
+  border: 0.5px solid transparent;
+  border-radius: 12px;
+  background: var(--cmcs-chip-bg);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-scene--active {
+  background: var(--cmcs-selected-bg);
+  border-color: var(--cmcs-selected-stroke);
+}
+
+.cmcs-scene__icon {
+  display: inline-flex;
+  color: #99ffffff;
+}
+
+.cmcs-scene__icon--active {
+  color: var(--cmcs-mint);
+}
+
+.cmcs-scene__gap4 {
+  height: 4px;
+}
+
+.cmcs-scene__label {
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+  color: #aaffffff;
+}
+
+.cmcs-scene__label--active {
+  color: var(--cmcs-mint);
+  font-weight: 600;
+}
+
+/* ── 背景色卡（Kotlin 978–1037） ── */
+
+.cmcs-bgrow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-evenly;
+  width: 100%;
+  padding: 2px 0;
+}
+
+.cmcs-bgswatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-bgswatch__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0.5px solid #40ffffff;
+}
+
+.cmcs-bgswatch--active .cmcs-bgswatch__dot {
+  border: 2px solid var(--cmcs-mint);
+}
+
+.cmcs-bgswatch__check {
+  display: inline-flex;
+}
+
+.cmcs-bgswatch__dynamic {
+  display: inline-flex;
+  color: #ccffffff;
+}
+
+.cmcs-bgswatch__gap4 {
+  height: 4px;
+}
+
+.cmcs-bgswatch__label {
+  font-size: 10px;
+  line-height: 13px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-bgswatch__label--active {
+  color: var(--cmcs-mint);
+  font-weight: 600;
+}
+
+/* ── 滤镜预览（Kotlin 932–974） ── */
+
+.cmcs-filterpreview {
+  width: 100%;
+  padding: 6px 0;
+}
+
+.cmcs-filterpreview__frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  aspect-ratio: 0.7;
+  border-radius: 8px;
+  background: #22ffffff;
+  overflow: hidden;
+}
+
+.cmcs-filterpreview__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cmcs-desc {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+/* ── 自定义缩放预设行（Kotlin 670–701） ── */
+
+.cmcs-fitrow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 2px 0;
+}
+
+.cmcs-fitrow__chip {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--cmcs-chip-bg);
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.cmcs-fitrow-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.cmcs-fitrow-actions > * {
+  flex: 1 1 0;
+}
+
+/* ── 目录（Kotlin 1278–1348） ── */
+
+.cmcs-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+}
+
+.cmcs-toc__row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #ccffffff;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-toc__row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.cmcs-toc__row--active {
+  background: var(--cmcs-chip-active-bg);
+}
+
+.cmcs-toc__bar {
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.cmcs-toc__bar--active {
+  background: var(--cmcs-mint);
+}
+
+.cmcs-toc__gap10 {
+  width: 10px;
+}
+
+.cmcs-toc__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmcs-toc__title--active {
+  color: var(--cmcs-mint);
+}
+
+.cmcs-toc__check {
+  display: inline-flex;
+  color: var(--cmcs-mint);
+}
+
+/* 页缩略图网格（Kotlin 1337–1345，Adaptive(72dp)，间距 8dp） */
+.cmcs-thumbgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.cmcs-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  border: 0.5px solid transparent;
+  border-radius: 10px;
+  background: #14ffffff;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-thumb--active {
+  background: var(--cmcs-chip-active-bg);
+  border-color: rgba(5, 150, 105, 0.7);
+}
+
+.cmcs-thumb__frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 0.72;
+  border-radius: 7px;
+  background: #1fffffff;
+  overflow: hidden;
+}
+
+.cmcs-thumb__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cmcs-thumb__gap3 {
+  height: 3px;
+}
+
+.cmcs-thumb__no {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-thumb__no--active {
+  color: var(--cmcs-mint);
+}
+
+/* ── 预设面板（Kotlin 1393–1608） ── */
+
+.cmcs-sheet--preset {
+  height: 62dvh;
+}
+
+.cmcs-preset {
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--cmcs-chip-bg);
+}
+
+.cmcs-preset--fav {
+  background: var(--cmcs-chip-active-bg);
+}
+
+.cmcs-preset__main {
+  display: flex;
+  align-items: center;
+}
+
+.cmcs-preset__emoji-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #2af0d9c0;
+}
+
+.cmcs-preset__emoji {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cmcs-mint);
+}
+
+.cmcs-preset__gap10 {
+  width: 10px;
+}
+
+.cmcs-preset__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cmcs-preset__namerow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+}
+
+.cmcs-preset__name {
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 500;
+  color: var(--cmcs-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.cmcs-preset__gap6 {
+  width: 6px;
+}
+
+.cmcs-preset__star {
+  display: inline-flex;
+  color: #ffd27d;
+}
+
+.cmcs-preset__badge {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #1fffffff;
+  font-size: 10px;
+  line-height: 13px;
+  color: var(--cmcs-mint);
+}
+
+.cmcs-preset__badge--muted {
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-preset__subtitle {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-preset__apply {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #f0d9c0;
+  color: #0e1512;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Keep actions on their own wrapping row so names retain their width
+   on small screens and when the system font size is increased. */
+.cmcs-preset__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.cmcs-preset__act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--cmcs-text-secondary);
+  cursor: pointer;
+}
+
+.cmcs-preset__act--danger {
+  color: #ff9a9a;
+}
+
+.cmcs-preset-create {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cmcs-chip-active-bg);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cmcs-preset-create__icon {
+  display: inline-flex;
+  color: var(--cmcs-mint);
+}
+
+.cmcs-preset-create__gap6 {
+  width: 6px;
+}
+
+.cmcs-preset-create__label {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--cmcs-mint);
+}
+
+.cmcs-preset-summary {
+  display: flex;
+  align-items: center;
+}
+
+.cmcs-preset-summary__mode {
+  margin-right: 6px;
+}
+
+.cmcs-preset-summary__text {
+  font-size: 11px;
+  color: var(--cmcs-text-secondary);
+}
+
+/* ── 对话框（Kotlin 1611–1641 AlertDialog → 居中 overlay） ── */
+
+.cmcs-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.cmcs-dialog {
+  width: 100%;
+  max-width: 340px;
+  padding: 24px;
+  border-radius: 24px;
+  /* Kotlin 1639 `containerColor = Color(0xFF232327)`（暗色对话框） */
+  background: #232327;
+  color: var(--cmcs-text-primary);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.cmcs-dialog__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-dialog__body {
+  margin-top: 16px;
+}
+
+.cmcs-dialog__field {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #33ffffff;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cmcs-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  caret-color: var(--cmcs-mint);
+}
+
+.cmcs-dialog__field:focus {
+  outline: none;
+  border-color: var(--cmcs-mint);
+}
+
+.cmcs-dialog__field::placeholder {
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.cmcs-dialog__btn {
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--cmcs-text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.cmcs-dialog__btn--primary {
+  color: var(--cmcs-mint);
+  font-weight: 600;
+}
+
+/* ── 手动裁边编辑器（Kotlin 1645–1872） ── */
+
+.cmcs-cropsheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px
+    calc(16px + env(safe-area-inset-bottom, 0px));
+  /* Kotlin 1689 `background(Color(0xEE000000))` */
+  background: rgba(0, 0, 0, 0.933);
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-cropsheet__head {
+  display: flex;
+  align-items: center;
+}
+
+.cmcs-cropsheet__title {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--cmcs-text-primary);
+}
+
+.cmcs-cropsheet__spacer {
+  flex: 1 1 auto;
+}
+
+.cmcs-cropsheet__btn {
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  color: var(--cmcs-text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.cmcs-cropsheet__btn--primary {
+  color: var(--cmcs-mint);
+  font-weight: 600;
+}
+
+.cmcs-cropsheet__hint {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-cropsheet__gap8 {
+  height: 8px;
+}
+.cmcs-cropsheet__gap12 {
+  height: 12px;
+}
+
+.cmcs-cropsheet__readout {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--cmcs-text-secondary);
+}
+
+.cmcs-cropstage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.cmcs-cropstage--loading {
+  align-items: center;
+}
+
+.cmcs-cropstage__box {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  /* Kotlin 1743 `aspectRatio(0.75f)` */
+  aspect-ratio: 0.75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cmcs-cropstage__img {
+  width: 100%;
+  height: 100%;
+  /* Kotlin 1762 `contentScale = ContentScale.Fit` */
+  object-fit: contain;
+}
+
+.cmcs-cropcanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* Kotlin 1843 `val dim = Color(0x99000000)` */
+.cmcs-cropdim {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Kotlin 1849–1853 `drawRect(Color(0xFFF0D9C0), style = Stroke(2.dp))` */
+.cmcs-cropframe {
+  position: absolute;
+  border: 2px solid var(--cmcs-accent);
+}
+
+/* Kotlin 1858–1859 `drawLine(Color(0x66FFFFFF), strokeWidth = 1f)` */
+.cmcs-cropgrid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cmcs-cropgrid__v {
+  position: absolute;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.cmcs-cropgrid__h {
+  position: absolute;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Kotlin 1867–1868 `drawCircle(Color.White, 5.dp)` + `drawCircle(AccentColor, 3.dp)` */
+.cmcs-crophandle {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.cmcs-crophandle__outer {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.cmcs-crophandle__inner {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* ── 图标通用 ── */
+
+.cmcs-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — **本文件（漫画设置弹层全家桶）同样无需夜间模式变体**
+   ══════════════════════════════════════════════════════════════
+   任务书预判「弹层覆盖在画面上、Android 侧用 colorScheme.surface/scrim/
+   onSurface，所以要跟随夜间模式」—— 逐行核对源码后这个预判不成立，
+   按 Kotlin 实际写法处理，故本块一条 `[data-theme='dark']` 规则不加。
+
+   ── 核对依据（只读源 novel-reader/）─────────────────────────────
+   1. `ui/comic/ComicReaderSheets.kt`（85 KB，1872 行）全文
+      **`MaterialTheme.colorScheme` 出现 0 次**。37 处颜色全部是
+      `Color(0x…)` 字面量 / `Color.White` 派生，本文件头部注释
+      引用的 Kotlin 行号逐条对应如下：
+        · L134  `AccentColor = Color(0xFFF0D9C0)` → `.cmcs-preset__apply`
+          底 `#f0d9c0` + 字 `#0e1512`（L1480 / L1484）、`.cmcs-cropframe` 边
+        · L196  `Color(0x2EFFFFFF)` 拖动条 → `.cmcs-sheet__grab`
+        · L464 / L498  `Color(0xFFE58B8B)` → `--cmcs-danger`
+        · L966  `Color(0x22FFFFFF)` → `.cmcs-filterpreview__frame` 底
+        · L986-990 底色卡 5 档（`BLACK 0xFF0A0A0C` / `WHITE 0xFFFAFAF7` /
+          `GRAY 0xFF2A2A2E` / `PAPER 0xFFE9E2D0` / `DYNAMIC 0xFF35323A`）
+          → `.cmcs-bgswatch__dot` 内部色块，是**画面底色本身**，与主题无关
+        · L1177 `unfocusedBorderColor = Color(0x22FFFFFF)` →
+          `.cmcs-textfield__input` 框线
+        · L1324 / L1364 / L1379 目录行 `Color(0xCCFFFFFF)` /
+          `PanelChipActiveBg` / `Color(0x1FFFFFFF)` → `.cmcs-toc__row`
+        · L1434 / L1449 / L1457 / L1467 预设卡 `Color(0x2AF0D9C0)` /
+          星标 `Color(0xFFFFD27D)` / 两处 `Color(0x1FFFFFFF)`
+        · L1557 删除图标 `Color(0xFFFF9A9A)` → `.cmcs-preset__act--danger`
+        · L1632 `unfocusedBorderColor = Color(0x33FFFFFF)` +
+          **L1639 `AlertDialog(containerColor = Color(0xFF232327))`**
+          → `.cmcs-dialog` 底 `#232327`（本文件 L1292 注释已写明）
+        · L1689 裁边全屏 `.background(Color(0xEE000000))` → `.cmcs-cropsheet`
+        · L1843 `Color(0x99000000)` / L1850 `Color(0xFFF0D9C0)` /
+          L1858-1859 `Color(0x66FFFFFF)` / L1867-1868 `Color.White` +
+          `AccentColor` → 裁边遮罩 / 取景框 / 网格线 / 手柄
+   2. `ui/comic/ComicReaderChrome.kt` 同样 **0 次**
+      `MaterialTheme.colorScheme`（只 import 了 `MintPrimary` / `GodGold`），
+      面板令牌见 L92-99（见 comic.css 末尾的留档）。
+   3. `ui/comic/ComicPanelDesign.kt` 同样 **0 次**：
+      L63 `PanelCardBg = Color(0x0DFFFFFF)`、L64 `PanelCardStroke = Color(0x26FFFFFF)`、
+      L149/L155/L251/L274/L297/L307 全是 `Color(0x99|AA|2E|33|FFFFFFFF)` 白系，
+      L69/L72 `MintPrimary.copy(0.18f/0.55f)`。
+      → 本文件 `--cmcs-chip-bg: #16ffffff` / `--cmcs-card-bg: #0dffffff` 等
+        一整批自定义属性全是**白蒙版**，白蒙版在黑面板上恒定成立。
+   4. 本文件唯一跟随主题的 token 是
+      `--cmcs-mint: var(--color-primary, #059669)`（本文件 L27）。
+      `ui/theme/Color.kt` L9-11 `MintPrimary = MaterialTheme.colorScheme.primary`，
+      而 `Theme.kt` L59（浅）与 L69（深）**都**是 `primary = primaryColor`
+      —— 同一个调色板索引，`--color-primary` 在 theme.css 里也没有随
+      `[data-theme='dark']` 翻转（对比 theme.css L107-125：只翻了
+      background/surface/onBackground/onSurface/medium-gray/divider-gray）。
+      同理所有 `rgba(5, 150, 105, …)`（默认主题色 #059669 的派生档位）。
+      → 翻过去值不变，不需要覆盖。
+   5. 唯一的 `MaterialTheme` 导入是 `material3.{AlertDialog, Icon,
+      OutlinedTextField, Text, TextButton}`（Sheets.kt L93-97），它们的默认
+      contentColor/cursor 全部落在 `colorScheme.primary` / `onSurface` 上，
+      要么同上（primary 两套同值），要么已被本文件的
+      `.cmcs-dialog` / `.cmcs-cropsheet` / `.cmcs-textfield__input`
+      显式写成暗色常量 + `caret-color: var(--cmcs-mint)`。
+
+   ── 顺带说明：`.cmcs-overlay` / `.cmcs-dialog-overlay` 的黑遮罩也不动 ──
+   遮罩的职责是压暗它下面的**画面**，而画面底色由用户选的
+   `bgType`（Sheets.kt L986-990：纯黑 / 纯白 / 深灰 / 纸张 / 沉浸）决定，
+   与应用夜间模式无关。把它改成别的值会破坏「白纸画面 + 黑遮罩」的读法
+   （纯黑底时本来就压不动，那正是遮罩的语义）。
+
+   ══════════════════════════════════════════════════════════════ */

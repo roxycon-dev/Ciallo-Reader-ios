@@ -1,0 +1,2796 @@
+/* library.css — line-by-line visual port of LibraryScreen.kt (3535 lines, 3441 non-blank)
+ * plus NovelBookUi.kt (288), DownloadGlassCard.kt (367), FormatPickerDialog.kt (232),
+ * KeywordSearchPreview.kt (160), LibraryLoginDialog.kt (265).
+ *
+ * Every rule below carries its Kotlin origin in a comment. The Kotlin UI is a Material3
+ * light theme (Color.kt / DesignTokens.kt), so the surfaces are WHITE with dark ink:
+ *   background / surface        → #FFFFFF (MaterialTheme.colorScheme.surface / background)
+ *   onSurface (primary ink)     → #18191C (DarkCharcoal, DesignTokens.color.darkCharcoal)
+ *   onSurfaceVariant (secondary)→ #61666D (MediumGray, DesignTokens.color.mediumGray)
+ *   outlineVariant (hairlines)  → #E3E5E7 (dividerGray, DesignTokens.color.dividerGray)
+ *   primary                     → #059669 (app shell primary green; DesignTokens.mintPrimary
+ *                                in the TS token file is the legacy #4CAF50, so the
+ *                                dynamic-palette index 2 value from home.css is used —
+ *                                see the "primary green" note in the report)
+ *   secondary                   → #10B981 (app shell secondary)
+ *   error                       → #DC2626 (app shell destructive)
+ *
+ * Animated Compose primitives (spring/tween/AnimatedVisibility/consistentShadow/
+ * liquidGlass/haze/filmGrain/iridescentBorder) are replaced by CSS transitions and
+ * `backdrop-filter`; the durations below are the exact Kotlin millisecond values.
+ *
+ * @media (prefers-reduced-motion: reduce) disables the transitions that map
+ * Compose `ANIMATOR_DURATION_SCALE == 0` (LibraryScreen.kt:1884-1893 reduceEffects).
+ */
+
+:root {
+  --lib-primary: #059669;
+  --lib-primary-rgb: 5, 150, 105;
+  --lib-secondary: #10b981;
+  --lib-secondary-rgb: 16, 185, 129;
+  --lib-error: #dc2626;
+  --lib-error-rgb: 220, 38, 38;
+  --lib-title: #18191c;
+  --lib-body: #61666d;
+  --lib-divider: #e3e5e7;
+  --lib-bg: #ffffff;
+  --lib-surface: #ffffff;
+  --lib-surface-glass: rgba(255, 255, 255, 0.82);
+  --lib-surface-variant: rgba(97, 102, 109, 0.12);
+  --lib-outline: rgba(227, 229, 231, 0.7);
+  --lib-font-sans: "Noto Sans SC", "PingFang SC", "Helvetica Neue", sans-serif;
+  --lib-font-serif: "Noto Serif SC", "Songti SC", Georgia, serif;
+  --lib-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── Page shell (LibraryScreen.kt:571-577 Column fillMaxSize) ── */
+.lib-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: calc(100dvh - 80px);
+  background: var(--lib-bg);
+  color: var(--lib-title);
+  font-family: var(--lib-font-sans);
+}
+
+/* LibraryScreen.kt:632 `.windowInsetsPadding(WindowInsets.imeAnimationTarget)` —
+ * the animated keyboard inset.
+ *
+ * ⚠️ 2026-10-08 更正：这里**曾经**只靠 `dvh` + sticky footer「凑出同样的最终布局」，
+ * 那是假的等价 —— `dvh` 只在部分浏览器里让视口收缩，WKWebView / iOS Safari 上
+ * 键盘弹出时视口高度不变，结果就是搜索框被键盘盖住。现已接`keyboard` 端口
+ * （iOS = `@capacitor/keyboard` 的 `keyboardWillShow/Hide`，恰好是「动画目标值」
+ * 语义 = Android 的 `imeAnimationTarget`），由 `LibraryPage.tsx` 的
+ * `useKeyboardInset()` 把高度写进 inline `padding-bottom`（inline 里保留了
+ * 下面的 `env(safe-area-inset-bottom)`，避免覆盖掉安全区）。
+ * 下面的 `calc(16px + env(...))` 是键盘未弹出时的静态基线。 */
+.lib-page__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── LibraryCollapsingHeader (LibraryScreen.kt:1242-1333) ──
+ * `outerV = 10 * (1-collapse)^2`, `innerV = 12 - 8*compact`,
+ * `alpha = 1-fade`, `titleSize = 24 - 5*compact` — all set inline by
+ * `headerCollapseMetrics()`; these rules carry the static shape only. */
+.lib-header-slot {
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+}
+
+.lib-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--lib-surface-glass);
+  border-radius: 24px; /* RoundedCornerShape(24.dp) */
+  box-shadow:
+    0 8px 24px rgba(var(--lib-primary-rgb), 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(24px) saturate(140%);
+  transition:
+    padding 120ms cubic-bezier(0, 0, 0.2, 1),
+    opacity 120ms linear;
+}
+
+.lib-header--focus {
+  transition:
+    padding 260ms cubic-bezier(0, 0, 0.2, 1),
+    opacity 260ms linear;
+}
+
+.lib-header__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 20px;
+}
+
+.lib-header__title {
+  margin: 0;
+  font-family: var(--lib-font-serif); /* AppFonts.Serif (LibraryScreen.kt:1312) */
+  font-weight: 700;
+  color: var(--lib-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: font-size 120ms linear;
+}
+
+.lib-header__subtitle {
+  margin: 0;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--lib-title);
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+.lib-header__trailing {
+  display: flex;
+  align-items: center;
+  padding-right: 12px;
+}
+
+/* LibraryScreen.kt:593-618 the download IconButton + CircularProgressIndicator overlay. */
+.lib-icon-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--lib-title);
+  cursor: pointer;
+}
+
+.lib-icon-button--sm {
+  width: 32px;
+  height: 32px;
+}
+
+.lib-icon-button--xs {
+  width: 28px;
+  height: 28px;
+}
+
+.lib-icon-button:active {
+  background: rgba(24, 25, 28, 0.06);
+}
+
+.lib-icon-button--active {
+  color: var(--lib-secondary);
+}
+
+.lib-icon-button__spinner {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(var(--lib-secondary-rgb), 0.25);
+  border-top-color: var(--lib-secondary);
+  animation: lib-spin 900ms linear infinite;
+}
+
+@keyframes lib-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── UnifiedSearchField (LibraryScreen.kt:1342-1492) ──
+ * `heightIn(min = 56.dp)`, capsule RoundedCornerShape(50), glassEdge hairline. */
+.lib-search {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.62); /* surface.copy(alpha = 0.62f) */
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 8px 24px rgba(var(--lib-primary-rgb), 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(24px) saturate(140%);
+  overflow: hidden;
+  transition:
+    border-color 200ms cubic-bezier(0, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.lib-search--focused {
+  border: 1.5px solid rgba(var(--lib-primary-rgb), 0.9);
+  transform: scale(1.02); /* focusScale 1.02f (LibraryScreen.kt:1366) */
+}
+
+.lib-search__source {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 96px; /* widthIn(max = 96.dp) */
+  padding: 14px 12px 14px 16px;
+  border: 0;
+  border-radius: 50px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lib-title);
+  cursor: pointer;
+}
+
+.lib-search__source-label {
+  max-width: 96px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-search__divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 24px;
+  margin: 14px 0;
+  background: var(--lib-divider); /* dividerColor = outlineVariant */
+}
+
+.lib-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 15px;
+  color: var(--lib-title);
+  caret-color: var(--lib-primary); /* cursorBrush = SolidColor(primary) */
+}
+
+.lib-search__input::placeholder {
+  color: var(--lib-body);
+}
+
+.lib-search__clear {
+  flex: 0 0 auto;
+}
+
+.lib-search__go {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 6px 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--lib-primary);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.lib-search__wrap {
+  padding: 0 16px; /* DesignTokens.SpacePage */
+}
+
+/* LibraryScreen.kt:650-672 the errorContainer GlassCard + "去管理/登录". */
+.lib-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(254, 226, 226, 0.85); /* errorContainer.copy(alpha = 0.85f) */
+}
+
+.lib-error-banner__text {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 13px;
+  color: #7f1d1d; /* onErrorContainer */
+}
+
+.lib-error-banner__action {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #7f1d1d;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── SearchHistoryPanel (LibraryScreen.kt:1525-1659 + HistoryChips 1676-1833) ── */
+.lib-history {
+  width: calc(100% - 32px);
+  margin: 4px 16px;
+  padding: 16px;
+  box-sizing: border-box;
+  border-radius: 24px;
+  background: var(--lib-surface-glass);
+  box-shadow:
+    0 8px 24px rgba(var(--lib-primary-rgb), 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  /* enter: expandVertically + fadeIn tween(320, CubicBezierEasing(0,0,0.2,1)) */
+  animation: lib-history-in 320ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+/* LibraryScreen.kt:709 `lightweight = !historyPanelSettled` — GlassKitCard's blur-only
+ * path: the backdrop blur is deferred until the expand animation has settled. */
+.lib-history[data-settled="false"] {
+  backdrop-filter: none;
+  box-shadow:
+    0 8px 24px rgba(var(--lib-primary-rgb), 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.lib-history[data-settled="true"] {
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+@keyframes lib-history-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.lib-history__head {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.lib-history__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lib-title);
+}
+
+.lib-history__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 50px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lib-error);
+  cursor: pointer;
+}
+
+.lib-history__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* HistoryChip.kt equivalent: height 32, horizontal padding 14, 13sp, primary@10%. */
+.lib-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 50px;
+  background: rgba(var(--lib-primary-rgb), 0.1);
+  font-size: 13px;
+  color: var(--lib-title);
+  cursor: pointer;
+  max-width: 140px; /* widthIn(max = 140.dp) */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lib-chip--muted {
+  background: rgba(var(--lib-primary-rgb), 0.06);
+}
+
+.lib-chip:active {
+  transform: scale(0.92); /* pressScale 0.92f */
+}
+
+/* LibraryScreen.kt:1788-1792 the editing-mode shake. */
+.lib-chip--editing {
+  animation: lib-chip-shake 340ms linear infinite;
+}
+
+@keyframes lib-chip-shake {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(1.6px) rotate(0.75deg);
+  }
+}
+
+.lib-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(24, 25, 28, 0.14);
+  color: var(--lib-body);
+  cursor: pointer;
+}
+
+/* LibraryScreen.kt:1627-1658 the AlertDialog confirm-clear copy. */
+.lib-confirm-text {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--lib-body);
+}
+
+/* ── KeywordSearchPreview (KeywordSearchPreview.kt:53-137) ── */
+.lib-keyword {
+  width: 100%;
+  margin: 8px 16px 0;
+  padding: 16px;
+  box-sizing: border-box;
+  border-radius: 24px;
+  background: var(--lib-surface-glass);
+  box-shadow:
+    0 8px 24px rgba(var(--lib-primary-rgb), 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+.lib-keyword__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px; /* heightIn(min = SpaceXxl * 2) */
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lib-keyword__icon {
+  flex: 0 0 auto;
+  color: var(--lib-primary);
+}
+
+.lib-keyword__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lib-keyword__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lib-keyword__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lib-title);
+}
+
+.lib-keyword__count {
+  margin: 0;
+  font-size: 11px;
+  color: var(--lib-primary);
+}
+
+.lib-keyword__status {
+  margin: 0;
+  font-size: 11px;
+  color: var(--lib-body);
+}
+
+.lib-keyword__status--busy {
+  color: var(--lib-primary);
+}
+
+.lib-keyword__words {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  overflow-x: auto; /* horizontalScroll(rememberScrollState()) */
+  -webkit-overflow-scrolling: touch;
+}
+
+.lib-keyword__word {
+  flex: 0 0 auto;
+  max-width: 216px; /* widthIn(max = SpaceXxl * 9) */
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 8px; /* DesignTokens.RadiusXs */
+  background: rgba(var(--lib-primary-rgb), 0.08);
+  font-size: 11px;
+  color: var(--lib-body);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-keyword__detail {
+  margin-top: 8px;
+}
+
+.lib-keyword__detail-row {
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 12px; /* DesignTokens.RadiusSm */
+  background: var(--lib-surface-variant);
+}
+
+.lib-keyword__detail-word {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lib-title);
+}
+
+.lib-keyword__detail-meta {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--lib-body);
+}
+
+.lib-keyword__note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--lib-body);
+}
+
+.lib-keyword__provider {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--lib-body);
+}
+
+.lib-keyword__retry {
+  margin-top: 4px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--lib-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* ── Result list (LibraryScreen.kt:913-1043) ── */
+.lib-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px 16px 16px;
+}
+
+/* LibraryBookCard.kt (LibraryScreen.kt:2693-2958) — GlassCard 16dp, row padding 12. */
+.lib-book-card {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 16px;
+  background: var(--lib-surface-glass);
+  box-shadow:
+    0 12px 32px rgba(var(--lib-primary-rgb), 0.1),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(24px) saturate(140%);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 120ms linear;
+}
+
+.lib-book-card:active {
+  transform: scale(0.985);
+}
+
+.lib-book-card__cover {
+  position: relative;
+  flex: 0 0 auto;
+  width: 80px;
+  height: 110px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(97, 102, 109, 0.2); /* Color.Gray.copy(alpha = 0.2f) */
+}
+
+.lib-book-card__cover img,
+.lib-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* ContentScale.Crop */
+  display: block;
+}
+
+/* BookCoverPlaceholder.kt (LibraryScreen.kt:2961-2994) — title-hash hue gradient. */
+.lib-cover-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.lib-cover-placeholder__glyph {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-cover-placeholder__format {
+  margin: 4px 0 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--lib-primary);
+}
+
+.lib-book-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lib-book-card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lib-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-book-card__author {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--lib-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-book-card__desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(97, 102, 109, 0.8);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lib-book-card__meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lib-primary);
+}
+
+.lib-book-card__action {
+  margin-top: 8px;
+}
+
+/* Download-state rows (LibraryScreen.kt:2799-2954). */
+.lib-dl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lib-dl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(var(--lib-secondary-rgb), 0.1);
+  font-size: 12px;
+  color: var(--lib-secondary);
+}
+
+.lib-dl-pill--error {
+  background: rgba(var(--lib-error-rgb), 0.4);
+  color: var(--lib-error);
+}
+
+.lib-dl-pill--done {
+  background: rgba(var(--lib-secondary-rgb), 0.15);
+  font-weight: 700;
+}
+
+.lib-dl-progress {
+  width: 100%;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(var(--lib-secondary-rgb), 0.2);
+  overflow: hidden;
+}
+
+.lib-dl-progress__fill {
+  height: 100%;
+  background: var(--lib-secondary);
+  transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lib-progress-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lib-surface-variant);
+  overflow: hidden;
+}
+
+.lib-progress-track__fill {
+  height: 100%;
+  background: var(--lib-primary);
+  transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lib-spinner-inline {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--lib-secondary-rgb), 0.25);
+  border-top-color: var(--lib-secondary);
+  animation: lib-spin 900ms linear infinite;
+  flex: 0 0 auto;
+}
+
+/* SearchResultFavoriteButton.kt (LibraryScreen.kt:2651-2690). */
+.lib-fav {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.38); /* Color.Black.copy(alpha = 0.38f) */
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lib-fav:active {
+  transform: scale(0.84); /* scale 0.84f */
+}
+
+.lib-fav--on {
+  color: var(--lib-primary);
+}
+
+/* ── NovelSearchCard / NovelDetailContent (NovelBookUi.kt:90-129, 132-192) ── */
+.lib-novel-card {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  padding: 14px;
+  box-sizing: border-box;
+  border: 1px solid rgba(227, 229, 231, 0.45); /* outlineVariant.copy(alpha = .45f) */
+  border-radius: 20px;
+  background: var(--lib-surface);
+  box-shadow: 0 1px 2px rgba(24, 25, 28, 0.06);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.lib-novel-card__cover {
+  flex: 0 0 auto;
+  width: 86px;
+  height: 124px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    rgba(var(--lib-primary-rgb), 0.22),
+    rgba(var(--lib-secondary-rgb), 0.18)
+  );
+}
+
+.lib-novel-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lib-novel-card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--lib-title);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lib-novel-card__byline {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--lib-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* NovelLabels.kt (NovelBookUi.kt:79-87) — FlowRow of primary@8% pills. */
+.lib-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.lib-label {
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: rgba(var(--lib-primary-rgb), 0.08);
+  font-size: 11px;
+  color: var(--lib-primary);
+}
+
+.lib-novel-card__line {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--lib-body);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lib-novel-card__facts {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--lib-body);
+}
+
+.lib-novel-card__dl {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--lib-primary);
+}
+
+/* ── Aggregate grid (LibraryScreen.kt:739-891) ── */
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 8px 16px 16px;
+  align-content: start;
+}
+
+/* LibraryScreen.kt:740-748 — phone 2 / medium 3 / expanded 4 columns. */
+@media (min-width: 600px) {
+  .lib-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 840px) {
+  .lib-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.lib-grid__full {
+  grid-column: 1 / -1;
+}
+
+/* AggregateSourceHeader.kt (LibraryScreen.kt:3204-3276) — height 40, radius 20. */
+.lib-source-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid rgba(227, 229, 231, 0.35);
+  border-radius: 20px;
+  background: var(--lib-surface);
+  color: inherit;
+  cursor: pointer;
+}
+
+.lib-source-header__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lib-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-source-header__count {
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(var(--lib-primary-rgb), 0.12);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lib-primary);
+}
+
+.lib-source-header__more {
+  margin-left: auto;
+  color: rgba(97, 102, 109, 0.55);
+}
+
+/* SourceAvatar.kt — 24dp (header) / 16dp (card) hash-coloured initial disc. */
+.lib-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lib-avatar--24 {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+
+.lib-avatar--16 {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
+
+.lib-avatar--32 {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+
+.lib-avatar--28 {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+
+/* StaggeredComicCard.kt (LibraryScreen.kt:3027-3201). */
+.lib-stagger {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(97, 102, 109, 0.15); /* Color.Gray.copy(alpha = 0.15f) */
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 120ms linear;
+  animation: lib-card-in 260ms ease both;
+}
+
+.lib-stagger:active {
+  transform: scale(0.97); /* pressScale 0.97f */
+}
+
+@keyframes lib-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lib-stagger__cover {
+  position: relative;
+  width: 100%;
+}
+
+.lib-stagger__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* LibraryScreen.kt:3129-3139 — bottom scrim covering 40% of the cover. */
+.lib-stagger__scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40%;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.85));
+  pointer-events: none;
+}
+
+.lib-stagger__text {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  right: 8px;
+  text-align: left;
+}
+
+.lib-stagger__title {
+  margin: 0;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lib-stagger__author {
+  margin: 2px 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-stagger__badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lib-stagger__avatar {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+}
+
+.lib-stagger__fav {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+}
+
+.lib-stagger .lib-fav--stagger {
+  top: 26px;
+}
+
+/* AggregateExpandButton.kt (LibraryScreen.kt:3283-3330). */
+.lib-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--lib-primary-rgb), 0.35);
+  border-radius: 20px;
+  background: rgba(var(--lib-primary-rgb), 0.08);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lib-primary);
+  cursor: pointer;
+  transition: transform 120ms linear;
+}
+
+.lib-expand:active {
+  transform: scale(0.97);
+}
+
+/* AggregateSourceError.kt (LibraryScreen.kt:3497-3535). */
+.lib-source-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: rgba(97, 102, 109, 0.12);
+  color: var(--lib-body);
+  font-size: 13px;
+}
+
+/* Skeleton shimmer (ShimmerBox.kt) for loading groups. */
+.lib-skeleton {
+  width: 100%;
+  border-radius: 14px;
+  background: linear-gradient(
+    100deg,
+    rgba(97, 102, 109, 0.08) 30%,
+    rgba(97, 102, 109, 0.18) 50%,
+    rgba(97, 102, 109, 0.08) 70%
+  );
+  background-size: 200% 100%;
+  animation: lib-shimmer 1.2s linear infinite;
+}
+
+@keyframes lib-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* LibraryScreen.kt:864-890 the "回到顶部" FAB. */
+.lib-top-fab {
+  position: absolute;
+  right: 20px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--lib-surface);
+  color: var(--lib-primary);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+  animation: lib-fab-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes lib-fab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Empty / error states (MascotEmptyState.kt call sites) ── */
+.lib-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.lib-state__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-state__desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lib-body);
+}
+
+.lib-state__action {
+  margin-top: 4px;
+}
+
+/* ChasingDots.kt — the 52dp searching indicator (LibraryScreen.kt:930). */
+.lib-chasing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lib-chasing__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lib-secondary);
+  animation: lib-dot 1.2s ease-in-out infinite;
+}
+
+.lib-chasing__dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.lib-chasing__dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes lib-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+/* ── LibraryWelcomeScreen (LibraryScreen.kt:2483-2628) ── */
+.lib-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: calc(100dvh - 80px);
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--lib-bg);
+  text-align: center;
+  overflow-y: auto;
+}
+
+.lib-welcome__mascot {
+  width: 120px;
+  height: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(var(--lib-primary-rgb), 0.1);
+  font-size: 40px;
+}
+
+.lib-welcome__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--lib-primary);
+}
+
+.lib-welcome__desc {
+  margin: 8px 0 0;
+  font-size: 16px;
+  color: var(--lib-body);
+}
+
+.lib-welcome__card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 16px;
+  background: var(--lib-surface-glass);
+  box-shadow:
+    0 12px 32px rgba(var(--lib-primary-rgb), 0.1),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(24px) saturate(140%);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.lib-welcome__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(var(--lib-primary-rgb), 0.12);
+  color: var(--lib-primary);
+}
+
+.lib-welcome__icon--secondary {
+  background: rgba(var(--lib-secondary-rgb), 0.14);
+  color: var(--lib-secondary);
+}
+
+.lib-welcome__icon--tertiary {
+  background: rgba(97, 102, 109, 0.12);
+  color: var(--lib-body);
+}
+
+.lib-welcome__card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-welcome__card-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lib-body);
+}
+
+/* ── Dialogs: shared shell (DialogLiquidGlass / Dialog surface 86→76% gradient) ── */
+.lib-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  box-sizing: border-box;
+  background: rgba(24, 25, 28, 0.28); /* radialGlassScrim() */
+  animation: lib-fade-in 160ms ease both;
+}
+
+@keyframes lib-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.lib-dialog {
+  width: 100%;
+  max-width: 560px; /* AdaptiveSpec.dialogMaxWidth */
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 20px;
+  box-sizing: border-box;
+  border-radius: 24px; /* RoundedCornerShape(24.dp) */
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.86) 0%,
+    rgba(255, 255, 255, 0.76) 100%
+  );
+  border: 1px solid rgba(var(--lib-primary-rgb), 0.22); /* iridescentBorder 2dp @ .22 */
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px) saturate(140%);
+  animation: lib-dialog-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes lib-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82); /* panelScale 0.82f */
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.lib-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.lib-dialog__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-dialog__subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--lib-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-dialog__body {
+  margin-top: 16px;
+}
+
+/* FormatRow.kt (FormatPickerDialog.kt:183-232) — radius 14, padding 14×10. */
+.lib-format-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(97, 102, 109, 0.1); /* surfaceVariant.copy(alpha = 0.35f) */
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.lib-format-row + .lib-format-row {
+  margin-top: 8px;
+}
+
+.lib-format-row__icon {
+  flex: 0 0 auto;
+  color: var(--lib-primary);
+}
+
+.lib-format-row__name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lib-title);
+}
+
+.lib-format-row__size {
+  margin: 0;
+  font-size: 11px;
+  color: var(--lib-body);
+}
+
+/* ── LibraryLoginDialog (LibraryLoginDialog.kt:53-265) — radius 28, padding 24 ── */
+.lib-login {
+  width: 100%;
+  max-width: 560px;
+  padding: 24px;
+  box-sizing: border-box;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.9); /* surface.copy(alpha = 0.90f) */
+  border: 2px solid rgba(var(--lib-primary-rgb), 0.22);
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(22px) saturate(140%);
+  animation: lib-dialog-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.lib-login__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-login__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(var(--lib-secondary-rgb), 0.15);
+  color: var(--lib-secondary);
+}
+
+.lib-login__field {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border: 1px solid rgba(24, 25, 28, 0.3); /* outline.copy(alpha = 0.3f) */
+  border-radius: 16px;
+  background: #ffffff;
+  font-size: 15px;
+  color: var(--lib-title);
+  outline: 0;
+}
+
+.lib-login__field:focus {
+  border-color: var(--lib-secondary);
+}
+
+.lib-login__field--password {
+  margin-top: 14px;
+}
+
+.lib-login__message {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lib-error);
+}
+
+.lib-login__message--ok {
+  color: var(--lib-secondary); /* message.contains("成功") */
+}
+
+.lib-login__progress {
+  width: 100%;
+  height: 4px;
+  margin-top: 16px;
+  border-radius: 2px;
+  background: rgba(var(--lib-secondary-rgb), 0.2);
+  overflow: hidden;
+}
+
+.lib-login__progress__fill {
+  height: 100%;
+  background: var(--lib-secondary);
+  animation: lib-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes lib-indeterminate {
+  from {
+    width: 10%;
+  }
+  50% {
+    width: 70%;
+  }
+  to {
+    width: 10%;
+  }
+}
+
+.lib-login__submit {
+  width: 100%;
+  margin-top: 24px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--lib-primary);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lib-login__submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lib-login__register {
+  display: block;
+  margin: 10px auto 0;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  color: var(--lib-secondary);
+  cursor: pointer;
+}
+
+/* ── SourcePickerSheet (LibraryScreen.kt:1837-2113) ──
+ * bottom sheet, topStart/End 28dp radius, surface@66%, blur 24. */
+.lib-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(24, 25, 28, 0.28);
+  animation: lib-fade-in 160ms ease both;
+}
+
+.lib-sheet {
+  width: 100%;
+  max-width: 720px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px 28px 0 0;
+  background: rgba(255, 255, 255, 0.66); /* surface.copy(alpha = 0.66f) */
+  border-top: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 32px 48px rgba(var(--lib-primary-rgb), 0.12),
+    0 8px 16px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(24px) saturate(140%);
+  animation: lib-sheet-in 340ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+@keyframes lib-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.lib-sheet__grip {
+  width: 36px;
+  height: 4px;
+  margin: 12px auto 6px;
+  border-radius: 2px;
+  background: rgba(24, 25, 28, 0.35);
+}
+
+.lib-sheet__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+}
+
+.lib-sheet__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-sheet__manage {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 50px;
+  background: rgba(var(--lib-primary-rgb), 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lib-primary);
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.lib-sheet__manage:active {
+  transform: scale(0.96);
+}
+
+.lib-sheet__list {
+  overflow-y: auto;
+  max-height: 420px; /* heightIn(max = 420.dp) */
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.lib-sheet__label {
+  padding: 12px 20px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.48px;
+  color: var(--lib-body);
+}
+
+.lib-sheet__divider {
+  height: 1px;
+  margin: 0 20px;
+  background: rgba(24, 25, 28, 0.08);
+}
+
+.lib-sheet__option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 24px);
+  height: 56px;
+  margin: 0 12px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: transform 120ms linear;
+}
+
+.lib-sheet__option:active {
+  transform: scale(0.97);
+}
+
+.lib-sheet__option--selected {
+  background: rgba(var(--lib-primary-rgb), 0.08);
+}
+
+.lib-sheet__option--aggregate-selected {
+  background: rgba(var(--lib-primary-rgb), 0.12);
+}
+
+.lib-sheet__option-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lib-title);
+}
+
+.lib-sheet__option-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--lib-body);
+}
+
+.lib-sheet__option-id {
+  margin: 0;
+  font-family: var(--lib-font-mono);
+  font-size: 11px;
+  color: var(--lib-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-sheet__option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lib-sheet__check {
+  flex: 0 0 auto;
+  color: var(--lib-primary);
+}
+
+.lib-sheet__check--secondary {
+  color: var(--lib-secondary);
+}
+
+/* KeywordSearchOptions.kt (KeywordSearchPreview.kt:141-160). */
+.lib-option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 20px;
+  box-sizing: border-box;
+}
+
+.lib-option-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lib-option-row__headline {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lib-title);
+}
+
+.lib-option-row__support {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--lib-body);
+}
+
+.lib-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(97, 102, 109, 0.3);
+  cursor: pointer;
+  transition: background 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.lib-switch--on {
+  background: var(--lib-primary);
+}
+
+.lib-switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.lib-switch--on .lib-switch__knob {
+  transform: translateX(18px);
+}
+
+/* ── DownloadGlassCard (DownloadGlassCard.kt:68-358) ── */
+.lib-download-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  background: rgba(24, 25, 28, 0.28);
+  animation: lib-fade-in 160ms ease both;
+}
+
+.lib-download-card {
+  width: 100%;
+  max-width: 520px;
+  padding: 22px;
+  box-sizing: border-box;
+  border-radius: 28px; /* cardShape = RoundedCornerShape(28.dp) */
+  background: #ffffff; /* 大尺寸、完全不透明卡片 */
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.24);
+  animation: lib-download-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes lib-download-in {
+  from {
+    opacity: 0;
+    transform: scale(0.55); /* panelScale 0.55f */
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.lib-download-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.lib-download-card__cover {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: rgba(var(--lib-secondary-rgb), 0.15);
+}
+
+.lib-download-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(var(--lib-secondary-rgb), 0.15);
+  color: var(--lib-secondary);
+}
+
+.lib-download-card__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-download-card__book-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--lib-title);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lib-download-card__status {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lib-secondary);
+}
+
+.lib-download-card__status--error {
+  color: var(--lib-error);
+}
+
+.lib-download-card__bar {
+  width: 100%;
+  height: 12px;
+  margin-top: 18px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(var(--lib-secondary-rgb), 0.12);
+}
+
+.lib-download-card__bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--lib-secondary-rgb), 0.7),
+    var(--lib-secondary),
+    rgba(var(--lib-secondary-rgb), 0.7)
+  );
+  background-size: 200% 100%;
+  animation: lib-flow 1.6s linear infinite;
+  transition: width 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes lib-flow {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.lib-download-card__stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.lib-download-card__percent {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lib-secondary);
+}
+
+.lib-download-card__speed {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lib-body);
+}
+
+.lib-download-card__remaining {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--lib-body);
+}
+
+.lib-download-card__note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--lib-body);
+}
+
+.lib-download-card__note--error {
+  color: var(--lib-error);
+}
+
+.lib-download-card__done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--lib-secondary);
+}
+
+.lib-download-card__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.lib-download-card__actions > * {
+  flex: 1 1 0;
+}
+
+.lib-download-card__empty-desc {
+  margin: 16px 0 20px;
+  font-size: 14px;
+  color: var(--lib-body);
+  text-align: center;
+}
+
+/* ComicDownloadGlassCard / ComicDownloadTaskRow (LibraryScreen.kt:2308-2480). */
+.lib-comic-tasks {
+  width: 100%;
+}
+
+.lib-comic-tasks__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-comic-tasks__empty {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--lib-body);
+}
+
+.lib-comic-task {
+  padding: 14px 16px;
+  margin-top: 10px;
+  border-radius: 14px;
+  background: rgba(97, 102, 109, 0.1); /* surfaceVariant.copy(alpha = 0.55f) */
+}
+
+.lib-comic-task__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.lib-comic-task__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lib-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lib-comic-task__status {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lib-primary);
+}
+
+.lib-comic-task__status--paused {
+  font-weight: 400;
+  color: var(--lib-body);
+}
+
+.lib-comic-task__status--failed {
+  color: var(--lib-error);
+}
+
+.lib-comic-task__status--success {
+  color: var(--lib-secondary);
+}
+
+.lib-comic-task__error {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--lib-error);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lib-comic-tasks__more {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--lib-body);
+}
+
+/* ── NovelDetailSheet / NovelUpdateSheet (NovelBookUi.kt:196-273) ── */
+.lib-sheet__actions {
+  padding: 14px 22px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: var(--lib-surface);
+  box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lib-sheet__scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 22px;
+}
+
+.lib-sheet__full-button {
+  width: 100%;
+  min-height: 50px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--lib-primary);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lib-sheet__outline-button {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--lib-divider);
+  border-radius: 22px;
+  background: #ffffff;
+  color: var(--lib-title);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.lib-sheet__text-button {
+  border: 0;
+  background: transparent;
+  color: var(--lib-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lib-detail__hero {
+  display: flex;
+  gap: 18px;
+}
+
+.lib-detail__cover {
+  flex: 0 0 auto;
+  width: 106px;
+  height: 150px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    rgba(var(--lib-primary-rgb), 0.22),
+    rgba(var(--lib-secondary-rgb), 0.18)
+  );
+}
+
+.lib-detail__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-detail__author {
+  margin: 10px 0 0;
+  font-size: 16px;
+  color: var(--lib-body);
+}
+
+.lib-detail__source {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--lib-primary);
+}
+
+.lib-detail__error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lib-error);
+}
+
+.lib-detail__facts {
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--lib-surface-variant);
+}
+
+.lib-detail__fact-row {
+  display: flex;
+  gap: 12px;
+}
+
+.lib-detail__fact-row + .lib-detail__fact-row {
+  margin-top: 14px;
+}
+
+.lib-detail__fact {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lib-detail__fact-label {
+  margin: 0;
+  font-size: 11px;
+  color: var(--lib-body);
+}
+
+.lib-detail__fact-value {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lib-title);
+}
+
+.lib-detail__section-title {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lib-title);
+}
+
+.lib-detail__section-line {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lib-title);
+}
+
+.lib-detail__section-sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lib-body);
+}
+
+.lib-detail__synopsis {
+  margin: 0;
+  font-size: 15px;
+  line-height: 23px;
+  color: var(--lib-title);
+}
+
+.lib-detail__synopsis--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 7;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lib-detail__notice {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(var(--lib-secondary-rgb), 0.12);
+  font-size: 13px;
+  color: var(--lib-body);
+}
+
+/* ── AggregateJumpSheet (LibraryScreen.kt:3369-3494) ── */
+.lib-jump-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 56px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.lib-jump-head__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--lib-title);
+}
+
+.lib-jump-divider {
+  height: 1px;
+  background: rgba(227, 229, 231, 0.5);
+}
+
+.lib-jump-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 16px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.lib-jump-row__name {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lib-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* LibraryScreen.kt:1884-1893 reduceEffects (ANIMATOR_DURATION_SCALE == 0). */
+@media (prefers-reduced-motion: reduce) {
+  .lib-header,
+  .lib-search,
+  .lib-chip,
+  .lib-fav,
+  .lib-stagger,
+  .lib-sheet__manage,
+  .lib-sheet__option,
+  .lib-book-card,
+  .lib-expand,
+  .lib-dl-progress__fill,
+  .lib-progress-track__fill,
+  .lib-switch,
+  .lib-switch__knob,
+  .lib-download-card__bar-fill {
+    transition-duration: 0ms;
+    animation-duration: 0ms;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   ══════════════════════════════════════════════════════════════
+   触发：`<html data-theme="dark">`（App.tsx L153，设置 → 护眼与提醒 → 夜间模式，
+   Android `auto_night_mode`）→ MainActivity.kt L213
+   `MyApplicationTheme(darkTheme = autoNightMode)`。
+   绝不用 `@media (prefers-color-scheme: dark)`：`isSystemInDarkTheme()` 只是
+   Theme.kt L35 的**参数默认值**，已被 MainActivity 覆盖（theme.css L97-106）。
+
+   Android 侧的依据：LibraryScreen.kt 早就把硬编码的 Color.White / DarkGray / Gray
+   全部换成了 `MaterialTheme.colorScheme.*`（见 L1354-1356 的原注释：
+   「原先硬编码 Color.White / DarkGray / Gray，并用 isSystemInDarkTheme() 判断，
+   与 App 自己的 autoNightMode 主题开关不同步……改走 MaterialTheme 语义色，
+   自动跟随 App 主题」），所以本文件的深色值 = darkColorScheme 的直接读数，
+   不需要猜。
+
+   本块只追加，既有规则一行未改、未删（浅色态零回归）。
+   底座 token 直接复用 theme.css L107-125：
+     --color-light-bg #18191c ｜ --color-surface #222428 ｜ --color-on-light #d4d4d4
+     --color-medium-gray #9aa0a6 ｜ --color-divider-gray #2f3238
+   需要「同一个 token 加透明度」的地方统一写
+   `color-mix(in srgb, var(--token, <浅色值>) N%, transparent)`。
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 1. 本文件私有 token 的翻面 ──────────────────────────────────
+   library.css L26-44 的 `:root` 块把这些值声明在 `<html>` 上，浅色端口把它们
+   烤死成了 #18191c / #61666d / #e3e5e7 / #ffffff。在 `.lib-page` 元素上重新
+   声明一遍 ——「元素自身的声明」永远压过「从 :root 继承来的同名声明」，
+   整棵子树的 `var(--lib-*)` 消费者一次翻好。
+   `LibraryPage.tsx` 里所有弹层（`.lib-dialog-backdrop` L679/L1848/L1908、
+   `.lib-sheet-backdrop` L1306/L1420/L1639/L1712、`.lib-download-overlay` L2031/L2061/L3389）
+   与欢迎页（`.lib-welcome` L2311）都在 `.lib-page`（L2975）之内且没有 portal，
+   所以它们一并被覆盖。
+   一次翻好的消费者：`.lib-page`(L47/L55-56)、`.lib-header`(L84)、
+   `.lib-header__title`(L111)、`.lib-header__subtitle`(L123)、`.lib-icon-button`(L149)、
+   `.lib-search__source`(L223)、`.lib-search__divider`(L239)、`.lib-search__input`(L250)、
+   `.lib-history`(L316)、`.lib-chip`(L394)、`.lib-confirm-text`(L445)、
+   `.lib-keyword`(L455) 及其 `__title/__status/__word/__note/__provider`、
+   `.lib-book-card`(L601)、`.lib-cover-placeholder__glyph`(L648)、`.lib-novel-card`(L808)、
+   `.lib-source-header`(L929)、`.lib-progress-track`(L751)、`.lib-detail__*`、
+   `.lib-top-fab`(L1175)、`.lib-welcome`(L1267/L1305)、`.lib-dialog`(L1381)、`.lib-login`(L1476)、
+   `.lib-sheet`(L1610)、`.lib-sheet__actions`(L2087)、`.lib-sheet__outline-button`(L2115)。
+   `--lib-outline`(L40) 全文件零引用 → 不补夜间值（凭空发明）。 */
+[data-theme='dark'] .lib-page {
+  --lib-title: var(--color-on-light, #d4d4d4);
+  --lib-body: var(--color-medium-gray, #9aa0a6);
+  --lib-divider: var(--color-divider-gray, #2f3238);
+  --lib-bg: var(--color-light-bg, #18191c);
+  --lib-surface: var(--color-surface, #222428);
+  --lib-surface-glass: color-mix(in srgb, var(--color-surface, #ffffff) 82%, transparent);
+  --lib-surface-variant: color-mix(in srgb, var(--color-medium-gray, #61666d) 12%, transparent);
+}
+
+/* ── 2. 页头折叠栏（L78-93）── 玻璃面已在第 1 节翻好，这里只处理投影 ──
+   `0 2px 8px rgba(0,0,0,0.08)` 的接触层在 #18191c 上等于没有；surface@0.82 的
+   面（落点 rgb(31,33,36)）本身已经比页面底亮一档，这是第一层分离，
+   投影加深成 0.45 负责第二层（落在 header 后面的滚动内容上时有效）。 */
+[data-theme='dark'] .lib-header {
+  box-shadow:
+    0 8px 24px color-mix(in srgb, var(--color-primary, #059669) 16%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+/* ⚠️ `.lib-header__title` 的 `color` 是 LibraryPage.tsx L493 传下来的**内联 style**
+   （`style={{ fontSize, color: props.titleColor }}`，而 titleColor 写死
+   "#18191C"：L2928 与 L2982）。内联 style 只有 !important 能压，
+   否则书库页大标题会在 #18191c 上变成「深墨压深墨」直接看不见。
+   这是 CSS-only 约束下唯一的出路，不改动任何 TS。 */
+[data-theme='dark'] .lib-header__title {
+  color: var(--color-on-light, #d4d4d4) !important;
+}
+
+/* 下载/历史两枚 IconButton 的按压底：墨色在深色底上等于「没按」。 */
+[data-theme='dark'] .lib-icon-button:active {
+  background: color-mix(in srgb, var(--color-on-light, #d4d4d4) 10%, transparent);
+}
+
+/* ── 3. 统一搜索胶囊（L188-210）── Kotlin L1373-1383 ──
+   L1383 `tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)`：
+   浅色端口写死 rgba(255,255,255,0.62)，深色换成 #222428@0.62。
+   L1381 的 `border: 1px solid rgba(255,255,255,0.7)` 是 `glassEdge` 的
+   「左上白 70% → 右下白 10%」渐变高光，写死的白、与主题无关，**刻意保留** ——
+   它正是深色下搜索胶囊与页面底之间那条可见的边界。
+   ⚠️ `.lib-search--focused`(L207) 是 (0,1,0) 变体、自带 1.5px primary 描边，
+   裸选择器 (0,2,0) 会把它刷掉 → :not() 排除。 */
+[data-theme='dark'] .lib-search:not(.lib-search--focused) {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 62%, transparent);
+  box-shadow:
+    0 8px 24px color-mix(in srgb, var(--color-primary, #059669) 14%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+/* ── 4. 错误横幅（L282-307）── Kotlin L650-672 ──
+   `errorContainer.copy(alpha = 0.85f)` + `onErrorContainer`。深色下浅红面
+   (#FEE2E2) 会变成整页唯一一块刺眼的白斑，且 #7F1D1D 深红压在上面也读不出；
+   theme.css 没有 errorContainer 槽位，这里用同族的 --color-danger 染一个
+   深红蒙版（#DC2626@20% 落在 #18191c 上是 rgb(60,32,34)），文字按
+   favorite.css L1252-1257 已立的规矩抬到 --gradient-danger 头一档 #F87171。 */
+[data-theme='dark'] .lib-error-banner {
+  background: color-mix(in srgb, var(--color-danger, #dc2626) 20%, transparent);
+}
+
+[data-theme='dark'] .lib-error-banner__text,
+[data-theme='dark'] .lib-error-banner__action {
+  color: #f87171;
+}
+
+/* ── 5. 历史面板 / 关键词预览 / 结果卡（L310-610）—— 玻璃面已在第 1 节翻好 ──
+   这里只统一把三层浅色投影里的黑色层加深（黑投影在 #18191c 上失效），
+   并保留各层的主题绿环境光（Kotlin Layer 7A，深浅两种底上都成立）。 */
+[data-theme='dark'] .lib-history,
+[data-theme='dark'] .lib-keyword {
+  box-shadow:
+    0 8px 24px color-mix(in srgb, var(--color-primary, #059669) 16%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .lib-book-card {
+  box-shadow:
+    0 12px 32px color-mix(in srgb, var(--color-primary, #059669) 16%, transparent),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* 搜索历史 chip 上的「×」：墨色 14% 在深色胶囊上等于没有按钮。 */
+[data-theme='dark'] .lib-chip__remove {
+  background: color-mix(in srgb, var(--color-on-light, #d4d4d4) 16%, transparent);
+}
+
+/* 小说卡（L800-813）：`outlineVariant.copy(alpha = .45f)` 的描边在深色下算出来
+   （#2F3238@0.45 叠 #18191c）是 rgb(34,36,40)，与页面底同色 → 用满量
+   --color-divider-gray（仍是 outlineVariant 系、仍是「比 surface 略亮」，
+   只是不再乘 0.45；settings.css L1254-1259 的 `.page-turn-android-row` 同款理由）。 */
+[data-theme='dark'] .lib-novel-card {
+  border-color: var(--color-divider-gray, #2f3238);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* 结果卡简介：rgba(97,102,109,0.8) 就是浅色 MediumGray@0.8（Kotlin 的
+   onSurfaceVariant 家族），深色 MediumGray → #9AA0A6，alpha 原样保留。 */
+[data-theme='dark'] .lib-book-card__desc {
+  color: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 80%, transparent);
+}
+
+/* ── 6. 聚合网格（L892-1152）──────────────────────────────────────────
+   书源分组头（L919-932）的 `outlineVariant.copy(alpha = .35f)` 描边 —— 与
+   `.lib-novel-card` 同理，满量 token 才能在 #18191c 上读出书源分组的边界。
+   书源错误条（L1127-1138）的 `surfaceVariant` 灰底：换成 medium-gray@0.14，
+   深色底上约 rgb(52,54,58)，从页面底里浮出来（statistics.css 的同类抬档）。 */
+[data-theme='dark'] .lib-source-header {
+  border-color: var(--color-divider-gray, #2f3238);
+}
+
+[data-theme='dark'] .lib-source-header__more {
+  color: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 55%, transparent);
+}
+
+[data-theme='dark'] .lib-source-error {
+  background: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 14%, transparent);
+}
+
+/* 骨架屏扫光（ShimmerBox.kt L39-40 `surfaceVariant.copy(0.55f/0.95f)`）：
+   浅色端口写死 rgba(97,102,109,α)，深色换成 medium-gray 家族的浅档，
+   落点 rgb(38,40,43) → rgb(52,54,57)，在 #18191c 上能读出「正在加载」的呼吸，
+   又不至于亮成 statistics.css 那种「白条闪」（那里的浅灰比本处更亮）。 */
+[data-theme='dark'] .lib-skeleton {
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 10%, transparent) 30%,
+    color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 22%, transparent) 50%,
+    color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 10%, transparent) 70%
+  );
+}
+
+/* ── 7. 回到顶部 FAB（L1164-1180）── surface 面已在第 1 节翻好 ──
+   深色下 40px 的圆完全靠填充亮度与页面底区分，再补一圈 1px 亮色发丝线
+   （任务第 7 条），并把 0 3px 8px rgba(0,0,0,0.16) 加深成 0.5。 */
+[data-theme='dark'] .lib-top-fab {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ── 8. 欢迎页（L1258-1348）── 底色/面已在第 1 节翻好 ──
+   第三枚入口图标是 `surfaceVariant` 灰底（L1333），深色下换成 medium-gray@0.14
+   才能和 primary/secondary 两枚彩色圆底保持同一条「略亮的填充」读法。 */
+[data-theme='dark'] .lib-welcome__icon--tertiary {
+  background: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 14%, transparent);
+}
+
+[data-theme='dark'] .lib-welcome__card {
+  box-shadow:
+    0 12px 32px color-mix(in srgb, var(--color-primary, #059669) 16%, transparent),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* ── 9. 对话框外壳（L1351-1445）────────────────────────────────────────
+   L1381-1385 的白→白渐变逐值对应 Kotlin FormatPickerDialog.kt L103-104
+   `surface.copy(alpha = 0.86f) → surface.copy(alpha = 0.76f)`，深色换成
+   #222428 的同 alpha 渐变；`border: 1px solid rgba(var(--lib-primary-rgb), 0.22)`
+   （iridescentBorder 2dp@.22）两个主题都成立，保留；`0 28px 56px rgba(0,0,0,0.24)`
+   在深色上失效 → 加深到 0.55。
+   格式行（L1432-1445）的 `surfaceVariant.copy(alpha = 0.35f)`
+   （FormatPickerDialog.kt L187）—— 深色的 --color-divider-gray(#2F3238) 满量
+   落在 #222428 的对话框上是 rgb(47,50,56)，与 M3 深色 surfaceVariant#43474E@0.35
+   落在 surface 上的结果几乎一致，所以这里正好用满量 token。 */
+[data-theme='dark'] .lib-dialog {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface, #ffffff) 86%, transparent) 0%,
+    color-mix(in srgb, var(--color-surface, #ffffff) 76%, transparent) 100%
+  );
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='dark'] .lib-format-row {
+  background: var(--color-divider-gray, #2f3238);
+}
+
+/* ── 10. 登录对话框（L1470-1588）── Kotlin LibraryLoginDialog.kt ──
+   L121 `surfaceColor = surface.copy(alpha = 0.90f)`；L177
+   `unfocusedBorderColor = outline.copy(alpha = 0.3f)`。
+   深色下 #222428@0.90 的输入框与对话框几乎同色（M3 的 OutlinedTextField 本来
+   就是透明容器 + 描边定位），所以边界靠描边给：--color-medium-gray@0.40
+   落点 rgb(86,89,92)，40px 输入框边界清楚；框内再加 6% 的白填充做出
+   「凹进去」的层次（settings.css L1376-1378 的 `.minutes-input` 同款）。 */
+[data-theme='dark'] .lib-login {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 90%, transparent);
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='dark'] .lib-login__field {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 40%, transparent);
+}
+
+/* ── 11. 底部 Sheet（L1592-1815）───────────────────────────────────────
+   L1610 `background: rgba(255,255,255,0.66)` = Kotlin L1837-2113 SourcePickerSheet
+   的 `surface@66%`；`border-top: 1px solid rgba(255,255,255,0.7)` 是白聚光棱
+   （写死的白、与主题无关），在深色下正是 sheet 与页面底之间的分隔，保留。
+   阴影：primary@0.12 的环境光两个主题都成立，黑色 0.2 那层加深到 0.5。
+   拖柄 grip 用的是墨色 35%（Kotlin 侧的底部把手），深色下墨=没有 → 翻成
+   onSurface@0.35。分隔线 `.lib-sheet__divider`（L1683）墨色 8% 是深色下最先
+   消失的东西之一，改成 1px 等效的白 10%（0.08 的墨在 #18191c 上是 rgb(26,27,29)，
+   与底色差 2 个色阶，肉眼等于没有）。 */
+[data-theme='dark'] .lib-sheet {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 66%, transparent);
+  box-shadow:
+    0 32px 48px color-mix(in srgb, var(--color-primary, #059669) 18%, transparent),
+    0 8px 16px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='dark'] .lib-sheet__grip {
+  background: color-mix(in srgb, var(--color-on-light, #d4d4d4) 35%, transparent);
+}
+
+[data-theme='dark'] .lib-sheet__divider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .lib-switch {
+  background: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 32%, transparent);
+}
+
+/* `.lib-switch__knob`(L1801) 的白色圆片**刻意不动**：白旋钮在深色轨道上
+   反而更清楚（settings.css L1234-1236 的 `.app-switch__thumb` 同理）。 */
+
+/* ── 12. 下载进度大卡（L1831-1839）────────────────────────────────────
+   Kotlin DownloadGlassCard 的卡片是「大尺寸、完全不透明」，深色就是
+   surface(#222428)。但它浮在 `rgba(24,25,28,0.28)` 的遮罩上 —— 深色底上
+   「更深的遮罩」和「更深的卡片」区分不开，所以补一条 1px 白色发丝线
+   （任务第 7 条）把卡片边界钉出来，并加深投影。 */
+[data-theme='dark'] .lib-download-card {
+  background: var(--color-surface, #222428);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.55);
+}
+
+/* ── 13. 漫画下载任务行（L2006-2082）─────────────────────────────────
+   `surfaceVariant.copy(alpha = 0.55f)` 的行底换成 medium-gray@0.14，
+   与 `.lib-source-error` 同一档读法（行底要在 #18191c 上浮得出来）。 */
+[data-theme='dark'] .lib-comic-task {
+  background: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 14%, transparent);
+}
+
+/* ── 14. 小说详情 / 跳章（L2085-2299）────────────────────────────────
+   `.lib-sheet__actions`(L2085) 的面已在第 1 节翻成 surface；它上方的
+   0 -8px 16px rgba(0,0,0,0.08) 用来把底部的操作条从滚动内容上「抬」起来，
+   深色下加深到 0.5。`.lib-sheet__outline-button`(L2112) 的白底换成
+   surface —— 它是次要按钮，靠 1px --lib-divider-gray 描边定位；
+   `.lib-jump-head`(L2251) 的 surface@0.80 与 `.lib-jump-divider`(L2271) 的
+   DividerGray@0.5 同理（后者是分区分隔线，满量 token 才读得出）。 */
+[data-theme='dark'] .lib-sheet__actions {
+  box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='dark'] .lib-sheet__outline-button {
+  background: var(--color-surface, #222428);
+}
+
+[data-theme='dark'] .lib-jump-head {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 80%, transparent);
+}
+
+[data-theme='dark'] .lib-jump-divider {
+  background: var(--color-divider-gray, #2f3238);
+}
+
+/* ── 15. 错误 / 危险文字（L703-2176）─────────────────────────────────
+   #DC2626 在 #18191c 上对比只有 3.5:1，11–15px 的小字不够读；
+   favorite.css L1252-1257 已把同类文字抬到 theme.css `--gradient-danger`
+   的头一档 #F87171，这里沿用同一个值，不新造颜色。
+   实心红底上的白字、primary/secondary 的强调文字一律不动。 */
+[data-theme='dark'] .lib-dl-pill--error,
+[data-theme='dark'] .lib-login__message:not(.lib-login__message--ok),
+[data-theme='dark'] .lib-comic-task__status--failed,
+[data-theme='dark'] .lib-comic-task__error,
+[data-theme='dark'] .lib-download-card__status--error,
+[data-theme='dark'] .lib-download-card__note--error,
+[data-theme='dark'] .lib-detail__error {
+  color: #f87171;
+}
+
+/* ── 16. 以下刻意不覆盖（两套主题取值相同，逐条给出依据）──────────────────
+ * · `.lib-stagger__*`（L1035-1101）：`__scrim` 的 `transparent → black@0.85`
+ *   封面遮罩、`__title` 的 #fff + `text-shadow`（0 1px 2px black@0.55）、
+ *   `__author` 的白 70%、`__badge` 的 black@0.40 + 白字 ——
+ *   全部是「压在漫画封面上」的白色标题体系（LibraryScreen.kt L3129-3139 的
+ *   bottom scrim + L3060-3119 的标题排版）。封面图片在两个主题里是同一张，
+ *   所以白字对比度完全一致，**这正是任务第 9 条要保住的东西，绝不能翻**。
+ * · `.lib-fav`(L773) 的 `rgba(0,0,0,0.38)` + 白字、`--on` 的 primary 心形、
+ *   `.lib-avatar`(L959) 的 #ffffff（压在哈希彩色圆盘上）：同上，压在封面上。
+ * · `.lib-book-card__cover`(L616) 的 `rgba(97,102,109,0.2)`、
+ *   `.lib-stagger`(L995) 的 `rgba(97,102,109,0.15)`：缺图占位底，
+ *   灰蒙版压在 #222428 的卡片上落点 rgb(45,47,51) / rgb(42,44,47)，
+ *   深浅两个主题都读得出方块，不动。
+ * · `.lib-novel-card__cover`(L815) / `.lib-detail__cover`(L2136) 的
+ *   primary@0.22 → secondary@0.18 渐变、`.lib-welcome__mascot`(L1279) 的
+ *   primary@0.10、`.lib-expand`(L1104)、`.lib-chip`(L384)/`--muted`(L403)、
+ *   `.lib-keyword__word`(L523)、`.lib-source-header__count`(L944)、
+ *   `.lib-sheet__manage`(L1651)、`.lib-sheet__option--selected`(L1711)/
+ *   `--aggregate-selected`(L1715)、`.lib-label`(L861)：
+ *   全是主题色/secondary 染体，primary #059669 在 #18191c 与 #222428 上
+ *   对比都过 4.5:1，与主题无关。
+ * · `.lib-search__go`(L262)、`.lib-login__submit`(L1562)、
+ *   `.lib-sheet__full-button`(L2100) 的实心 primary + 白字：两种底色上都够。
+ * · `.lib-dialog-backdrop`(L1351)、`.lib-sheet-backdrop`(L1592)、
+ *   `.lib-download-overlay`(L1818) 的 `rgba(24,25,28,0.28)`
+ *   （Kotlin `radialGlassScrim()`）：遮罩的作用是压暗背景，深色下压不压
+ *   都成立，保持原值才不会在浅色主题里变浓；对话框/卡片与遮罩之间靠
+ *   白棱镜描边 + 第 9/10/12 节的实心深投影分层。
+ * · `.lib-search` 的 `1px solid rgba(255,255,255,0.7)`（glassEdge 高光）、
+ *   `.lib-login` / `.lib-dialog` / `.lib-sheet` 的白描边、`.lib-sheet` 的
+ *   `border-top: 1px solid rgba(255,255,255,0.7)`：都是写死的白聚光棱，
+ *   与主题无关，而且在深色下正是弹层与页面底之间的分隔，刻意保留。
+ * · 一切 `var(--lib-title|--lib-body|--lib-divider|--lib-bg|--lib-surface|
+ *   --lib-surface-glass|--lib-surface-variant)` 的消费者：第 1 节已整体翻好，
+ *   不写冗余覆盖。
+ * ⚠️ 已知限制（CSS-only 改不动，需要改 TSX，超出本次范围）：
+ *   · `.lib-search` 聚焦时的缩放（`transform: scale(1.02)`）与
+ *     `.lib-header` 的折叠度量（headerCollapseMetrics 内联字号）不受主题影响，
+ *     无需变体。
+ *   · `LibraryPage.tsx` L493 给 `.lib-header__title` 传的内联 `titleColor` 已用
+ *     `!important` 兜住（见第 2 节），但 TS 侧那两处 "#18191C" 字面量仍在，
+ *     改 TS 才是根治，属于本次范围外。 */
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   iOS 16.0 降级块 —— `color-mix()` 是 **Safari 16.2** 才支持的
+   ══════════════════════════════════════════════════════════════════════════════
+   部署目标是 iOS 16.0（`ios/App/App.xcodeproj/project.pbxproj` 的
+   `IPHONEOS_DEPLOYMENT_TARGET = 16.0`），WKWebView = Safari 16.0 引擎。
+   `color-mix()` 在 16.0/16.1 上是**解析期就 invalid at parse time** → 整条声明
+   被丢弃（不是「算错」），于是上面所有 `background` / `box-shadow` /
+   `border-color` / `color` 回落成 `unset` —— 深色模式下的面板、对话框、开关
+   轨道、滑条轨道、骨架屏会直接消失或变透明，**夜间模式看起来就是「没生效」**。
+
+   修法：**只追加**这一个 `@supports not` 兜底块（既有规则一行未改、未删），
+   选择器与特异度逐条对齐上面的夜间块，所以同特异度下靠「在后面」取胜。
+
+   折叠公式（CSS Color 4 §color-mix，两个操作数都先预乘 alpha）：
+
+       color-mix(in srgb, C P%, transparent)  ≡  rgba(R_C, G_C, b_C, P%)
+
+   token 取值按 `[data-theme='dark']` 下的真实值解（theme.css L142-160
+   `darkColorScheme`）：
+
+       --color-surface #222428 ｜ --color-on-light #d4d4d4
+       --color-medium-gray #9aa0a6 ｜ --color-divider-gray #2f3238
+       --color-primary #059669 ｜ --color-secondary #10b981 ｜ --color-danger #dc2626
+
+   ⚠️ `--color-primary` 全仓没有任何写入点（`grep -rn "setProperty('--color" src/`
+   只有 App.tsx 的两个 `--app-bottom-inset*`），换主题色那一项只改内联
+   `--home-primary`（HomePage.tsx L2019）。所以这里的静态绿与 16.2+ 的
+   **逐位相同**，不存在「用户换色后退色」的问题。
+   ══════════════════════════════════════════════════════════════════════════ */
+@supports not (color: color-mix(red, blue)) {
+  [data-theme='dark'] .lib-page {
+    --lib-surface-glass: rgba(34, 36, 40, 82%)
+    --lib-surface-variant: rgba(154, 160, 166, 12%)
+  }
+  [data-theme='dark'] .lib-header {
+    box-shadow: 0 8px 24px rgba(5, 150, 105, 16%), 0 2px 8px rgba(0, 0, 0, 0.45)
+  }
+  [data-theme='dark'] .lib-icon-button:active {
+    background: rgba(212, 212, 212, 10%)
+  }
+  [data-theme='dark'] .lib-search:not(.lib-search--focused) {
+    background: rgba(34, 36, 40, 62%)
+    box-shadow: 0 8px 24px rgba(5, 150, 105, 14%), 0 2px 8px rgba(0, 0, 0, 0.45)
+  }
+  [data-theme='dark'] .lib-error-banner {
+    background: rgba(220, 38, 38, 20%)
+  }
+  [data-theme='dark'] .lib-history, [data-theme='dark'] .lib-keyword {
+    box-shadow: 0 8px 24px rgba(5, 150, 105, 16%), 0 2px 8px rgba(0, 0, 0, 0.45)
+  }
+  [data-theme='dark'] .lib-book-card {
+    box-shadow: 0 12px 32px rgba(5, 150, 105, 16%), 0 4px 12px rgba(0, 0, 0, 0.45)
+  }
+  [data-theme='dark'] .lib-chip__remove {
+    background: rgba(212, 212, 212, 16%)
+  }
+  [data-theme='dark'] .lib-book-card__desc {
+    color: rgba(154, 160, 166, 80%)
+  }
+  [data-theme='dark'] .lib-source-header__more {
+    color: rgba(154, 160, 166, 55%)
+  }
+  [data-theme='dark'] .lib-source-error {
+    background: rgba(154, 160, 166, 14%)
+  }
+  [data-theme='dark'] .lib-skeleton {
+    background: linear-gradient( 100deg, rgba(154, 160, 166, 10%) 30%, rgba(154, 160, 166, 22%) 50%, rgba(154, 160, 166, 10%) 70% )
+  }
+  [data-theme='dark'] .lib-welcome__icon--tertiary {
+    background: rgba(154, 160, 166, 14%)
+  }
+  [data-theme='dark'] .lib-welcome__card {
+    box-shadow: 0 12px 32px rgba(5, 150, 105, 16%), 0 4px 12px rgba(0, 0, 0, 0.45)
+  }
+  [data-theme='dark'] .lib-dialog {
+    background: linear-gradient( 180deg, rgba(34, 36, 40, 86%) 0%, rgba(34, 36, 40, 76%) 100% )
+  }
+  [data-theme='dark'] .lib-login {
+    background: rgba(34, 36, 40, 90%)
+  }
+  [data-theme='dark'] .lib-login__field {
+    border-color: rgba(154, 160, 166, 40%)
+  }
+  [data-theme='dark'] .lib-sheet {
+    background: rgba(34, 36, 40, 66%)
+    box-shadow: 0 32px 48px rgba(5, 150, 105, 18%), 0 8px 16px rgba(0, 0, 0, 0.5)
+  }
+  [data-theme='dark'] .lib-sheet__grip {
+    background: rgba(212, 212, 212, 35%)
+  }
+  [data-theme='dark'] .lib-switch {
+    background: rgba(154, 160, 166, 32%)
+  }
+  [data-theme='dark'] .lib-comic-task {
+    background: rgba(154, 160, 166, 14%)
+  }
+  [data-theme='dark'] .lib-jump-head {
+    background: rgba(34, 36, 40, 80%)
+  }
+}

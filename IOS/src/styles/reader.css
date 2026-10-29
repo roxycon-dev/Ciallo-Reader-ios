@@ -1,0 +1,1920 @@
+/*
+ * reader.css — 视觉逐行移植自 novel-reader ReaderScreen.kt。
+ * 所有 dp/sp 按 1:1 转 px；颜色取自 Color.kt / ReaderScreen.kt 的字面量。
+ * Material 图标 → 文本字形（项目无图标字体），Companion 组件 → CSS 等价物。
+ */
+
+/* ── 根容器（ReaderScreen.kt:1142 Box(fillMaxSize).background(bgColor)）── */
+.reader-page {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  /* bgAlpha 380ms（ReaderScreen.kt:1130 animateFloatAsState tween(380, EaseOut)）*/
+  transition: background-color 380ms var(--ease-out), color 380ms var(--ease-out);
+
+  /* MaterialTheme.colorScheme → iOS 主题令牌的映射 */
+  --rd-surface: var(--color-surface, #ffffff);
+  --rd-surface-93: rgba(255, 255, 255, 0.93);
+  --rd-surface-variant: #e3e5e7;
+  --rd-surface-variant-35: rgba(227, 229, 231, 0.35);
+  --rd-outline-variant: #e3e5e7;
+  --rd-on-surface: #18191c;
+  --rd-on-surface-variant: #61666d;
+  --rd-error: var(--color-danger, #dc2626);
+  --rd-primary: var(--color-primary, #059669);
+  --rd-gold: var(--color-mint-gold, #e8c97a);
+}
+
+/* ── 正文层（BoxWithConstraints：contentAlpha 420ms + translationX (1-α)*20dp）── */
+.rd-content-layer {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* safeDrawingPadding()：状态栏/导航栏留白 */
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  animation: rd-content-in 420ms var(--ease-out) both;
+}
+
+@keyframes rd-content-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 常驻占位版页眉/页脚（ReaderScreen.kt:1884/2794，菜单开合只切透明度）── */
+.rd-overlay-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px var(--rd-margin, 16px);
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--rd-overlay-color, #18191c);
+  opacity: 1;
+  /* B5：透明度过渡，与顶/底栏动画同步（animateAlpha）*/
+  transition: opacity 240ms var(--ease-out);
+}
+
+.rd-overlay-row--hidden {
+  opacity: 0;
+}
+
+.rd-overlay-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 页面容器（Box(weight(1f))）── */
+.rd-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* ── 滚动模式正文（verticalScroll(scrollState)）── */
+.rd-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 滚动正文外层内边距（padding horizontal=marginHorizontal / vertical=16dp，
+   ReaderScreen.kt:2074）*/
+.rd-scroll-inner-pad {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* 越界拉动跟手位移（overscrollOffset，ReaderScreen.kt:1954）*/
+.rd-scroll-inner {
+  min-height: 100%;
+  will-change: transform;
+}
+
+.rd-scroll-inner--spring {
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rd-scroll-inner--switching {
+  /* 拉穿动画：tween(110)（ReaderScreen.kt:582）*/
+  transition: transform 110ms var(--ease-out);
+}
+
+/* 新章节入场（alpha tween(220) + 42dp 弹簧滑入，ReaderScreen.kt:642-682）*/
+.rd-chapter-entry {
+  animation: rd-chapter-entry 480ms cubic-bezier(0.22, 1.24, 0.36, 1) both;
+}
+
+@keyframes rd-chapter-entry {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rd-entry-offset, 42px));
+  }
+  46% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 滚动正文块（BasicText bodyLarge 样式：fontSize/lineHeight/0.92α）── */
+.rd-body {
+  color: var(--rd-text-92, inherit);
+}
+
+.rd-text {
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.rd-pull-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 18px;
+  color: inherit;
+  opacity: 0.45;
+}
+
+.rd-chapter-heading {
+  margin: 12px 0 20px;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.rd-spacer-20 {
+  height: 20px;
+}
+
+.rd-chapter-end {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+  opacity: 0.5;
+}
+
+/* 搜索页内高亮（SpanStyle background=MintPrimary 0.45 + Bold，ReaderScreen.kt:999）*/
+.rd-search-hl {
+  background: rgba(5, 150, 105, 0.45);
+  font-weight: 700;
+}
+
+/* ── 翻页模式单页（RenderSinglePage：padding h=margin v=12dp）── */
+.rd-page {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 12px var(--rd-margin, 16px);
+}
+
+.rd-page-title {
+  flex: none;
+  overflow: hidden;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+
+/* 标题预留盒（ReaderScreen.kt:4897-4926：height = titleReservePx, clipToBounds）*/
+.rd-page-title-box {
+  flex: none;
+  overflow: hidden;
+}
+
+.rd-page-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 16px; /* PAGE_TEXT_BOTTOM_PADDING_DP */
+}
+
+/* 图片块占位：iOS 无 NovelInlineImage 资源解析器，保留 Android 的占位高度 */
+.rd-img-slot {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ── 插图块（NovelInlineImages.kt:293-331 NovelInlineImage → <img>）──
+   背景 Color.Black.copy(alpha = 0.04f)；ContentScale.Fit；
+   失败文案「图片读取失败」用 Gray。 */
+.rd-img-holder {
+  width: 100%;
+  overflow: hidden;
+}
+
+.rd-img-box {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.rd-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.rd-img-fail {
+  font-size: 14px;
+  color: #808080;
+}
+
+/* ── 翻页宿主（PageTurnContainer / PageCurlReaderContainer 的 DOM 适配）── */
+.rd-turn-host {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.rd-layer {
+  overflow: hidden;
+}
+
+.rd-layer--next,
+.rd-layer--prev {
+  pointer-events: none;
+}
+
+.rd-curl-inner {
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+/* ── 下拉书签指示条（PageTurnContainer.kt:346-417）── */
+.rd-pull-bookmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 6px 16px;
+  pointer-events: none;
+}
+
+.rd-pull-bookmark-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 8px 16px;
+  border: 1px solid rgba(227, 229, 231, 0.5);
+  border-radius: 24px;
+  background: rgba(240, 241, 243, 0.92);
+  color: #1a1a1e;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+}
+
+.rd-pull-bookmark-chip--charged {
+  border-width: 2px;
+  border-color: var(--rd-gold, #e8c97a);
+  color: var(--rd-gold, #e8c97a);
+  font-weight: 700;
+}
+
+.rd-pull-bookmark-icon {
+  font-size: 18px;
+  line-height: 18px;
+}
+
+/* ── 串珠快速翻页遮罩（PageScrubberOverlay 的紧凑 DOM 改写）── */
+.rd-scrubber-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 12px 12px calc(12px + var(--safe-bottom));
+  background: rgba(24, 25, 28, 0.92);
+  animation: rd-fade-in 200ms var(--ease-out);
+}
+
+.rd-scrubber-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.rd-scrubber-strip {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+}
+
+.rd-scrubber-page {
+  flex: 0 0 auto;
+  width: 25%;
+  height: 100%;
+  scroll-snap-align: center;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.rd-scrubber-page .rd-page {
+  font-size: 0.4em;
+}
+
+/* ── 排版面板的小工具类 ── */
+.rd-block {
+  display: block;
+}
+
+.rd-left {
+  text-align: left;
+}
+
+.rd-glyph {
+  display: inline-block;
+  text-align: center;
+  user-select: none;
+}
+
+.rd-font-trailing {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 4px 0;
+}
+
+.rd-bookmark-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+/* ── 共享封面转场（ReaderScreen.kt:1142-1216：cover 1→0.06 over 480ms）── */
+.rd-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px 12px 12px 4px;
+  opacity: 1;
+  transition: opacity 480ms var(--ease-out);
+  pointer-events: none;
+}
+
+.rd-cover--settled {
+  opacity: 0.06;
+}
+
+/* ── 插图全屏查看器（NovelImageFullscreenViewer）── */
+.rd-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #000000;
+}
+
+.rd-fullscreen-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.rd-fullscreen-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
+}
+
+.rd-fullscreen-error {
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.rd-fullscreen-bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.rd-fullscreen-btn {
+  border: 0;
+  padding: 10px 14px;
+  background: transparent;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* ── Ciallo Easter Egg（ReaderScreen.kt:4538-4608）── */
+.rd-easter-egg {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  animation: rd-fade-in 400ms var(--ease-out);
+}
+
+.rd-easter-egg-bubble {
+  position: absolute;
+  right: 120px;
+  bottom: 160px;
+  max-width: 220px;
+  padding: 8px 16px;
+  border-radius: 16px;
+  background: var(--rd-surface-variant, rgba(5, 150, 105, 0.16));
+  color: var(--rd-on-surface, inherit);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
+  animation: rd-rise-in 400ms var(--ease-out);
+}
+
+.rd-easter-egg-mascot {
+  position: absolute;
+  right: 24px;
+  bottom: 48px;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(5, 150, 105, 0.18);
+  color: var(--rd-primary, #059669);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ── 书签吊坠挂点（AnimatedVisibility TopEnd + padding end 20dp）── */
+.rd-ribbon-slot {
+  position: absolute;
+  top: 0;
+  right: 20px;
+  z-index: 8;
+  pointer-events: none;
+}
+
+/* ── 翻页点击区（PageTurnContainer.kt:286-312 左 0.35 / 中 / 右 0.35）
+     Android 的 PageCurl 画布与边缘滑动手势 → 点击区 + CSS 过渡近似 ── */
+.rd-tapzones {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+}
+
+.rd-tapzone {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rd-page-anim-cover {
+  animation: rd-page-cover 320ms var(--ease-out);
+}
+
+.rd-page-anim-slide {
+  animation: rd-page-slide 320ms var(--ease-out);
+}
+
+.rd-page-anim-fade {
+  animation: rd-page-fade 320ms var(--ease-out);
+}
+
+@keyframes rd-page-cover {
+  from {
+    opacity: 0.4;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rd-page-slide {
+  from {
+    opacity: 0.6;
+    transform: translateX(48px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rd-page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── 切章拉动提示 chip（Surface RoundedCornerShape(16.dp) MintPrimary 0.92）── */
+.rd-pull-chip {
+  position: absolute;
+  left: 50%;
+  z-index: 6;
+  transform: translateX(-50%);
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(5, 150, 105, 0.92);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  animation: rd-fade-in 120ms var(--ease-out);
+}
+
+.rd-pull-chip--bottom {
+  bottom: 16px;
+}
+
+.rd-pull-chip--top {
+  top: 16px;
+}
+
+.rd-pull-chip-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 18px;
+}
+
+.rd-pull-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rd-pull-chip-icon {
+  font-size: 16px;
+  line-height: 16px;
+}
+
+.rd-pull-chip-bar {
+  width: 120px;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+}
+
+.rd-pull-chip-fill {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* ── 书签吊坠（BookmarkHangingRibbon：20x34dp，V 缺口 8dp）── */
+.rd-ribbon {
+  position: absolute;
+  top: 0;
+  right: 20px;
+  z-index: 4;
+  line-height: 0;
+  animation: rd-ribbon-in 260ms var(--ease-out);
+}
+
+@keyframes rd-ribbon-in {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── TTS 播放条（Card RoundedCornerShape(20.dp) surfaceVariant）── */
+.rd-tts-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  padding: 16px;
+  animation: rd-rise-in 240ms var(--ease-out);
+}
+
+@keyframes rd-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(33%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rd-tts-card {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--rd-surface-variant);
+  box-shadow: 0 8px 24px rgba(24, 25, 28, 0.18);
+}
+
+.rd-tts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rd-tts-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--rd-on-surface);
+}
+
+.rd-tts-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  margin-top: 8px;
+}
+
+.rd-tts-play {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--rd-primary);
+  color: #ffffff;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+/* ── 返回上次处气泡（Surface RoundedCornerShape(20.dp) MintPrimary）── */
+.rd-return-chip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 8;
+  margin-top: calc(var(--safe-top) + 56px);
+  transform: translateX(-50%);
+}
+
+.rd-return-chip-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--rd-primary);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  animation: rd-return-in 280ms var(--ease-out);
+  white-space: nowrap;
+}
+
+@keyframes rd-return-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 自动滚屏指示器（Surface RoundedCornerShape(20.dp) MintPrimary 0.9）── */
+.rd-autoscroll {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 7;
+  margin-bottom: calc(var(--safe-bottom) + 56px);
+  transform: translateX(-50%);
+  animation: rd-rise-in 200ms var(--ease-out);
+}
+
+.rd-autoscroll-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 20px;
+  background: rgba(5, 150, 105, 0.9);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+
+/* ── 回到顶部（Surface CircleShape 44dp，border 1dp MintPrimary 0.5）── */
+.rd-backtop {
+  position: absolute;
+  right: 20px;
+  bottom: 80px;
+  z-index: 7;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(5, 150, 105, 0.5);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--rd-primary);
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  animation: rd-fade-in 200ms var(--ease-out);
+}
+
+/* ── 亮度遮罩（(1f - readerBrightness) * 0.6f 黑色，tween 160ms）── */
+.rd-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: #000000;
+  pointer-events: none;
+  transition: opacity 160ms var(--ease-out);
+}
+
+/* ── 菜单遮罩（Color.Black 0.6f，fadeIn 300ms）── */
+.rd-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.6);
+  animation: rd-fade-in 300ms var(--ease-out);
+}
+
+@keyframes rd-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── 顶栏（bgColor 0.97 + 底部 0.8f 发丝线 + statusBarsPadding）── */
+.rd-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  padding-top: var(--safe-top);
+  background: var(--rd-bar-bg);
+  border-bottom: 0.8px solid var(--rd-bar-line);
+  animation: rd-bar-in-top 260ms var(--ease-out);
+}
+
+@keyframes rd-bar-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 底栏（同顶栏风格，发丝线在顶部，navigationBarsPadding）── */
+.rd-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  padding-bottom: var(--safe-bottom);
+  background: var(--rd-bar-bg);
+  border-top: 0.8px solid var(--rd-bar-line);
+  animation: rd-bar-in-bottom 260ms var(--ease-out);
+}
+
+@keyframes rd-bar-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rd-bar-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 4px;
+}
+
+/* AppIconButton：Material3 IconButton 40dp */
+.rd-icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rd-icon-btn:active {
+  background: rgba(128, 128, 128, 0.18);
+}
+
+.rd-bar-text {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+.rd-bar-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 22px;
+}
+
+.rd-bar-sub {
+  margin: 1px 0 0;
+  font-size: 11px;
+  line-height: 15px;
+  color: inherit;
+  opacity: 0.55;
+}
+
+/* ── 顶栏“更多”下拉（DropdownMenu / DropdownMenuItem）── */
+.rd-menu-wrap {
+  position: relative;
+}
+
+.rd-menu {
+  position: absolute;
+  top: 44px;
+  right: 4px;
+  z-index: 40;
+  min-width: 168px;
+  padding: 8px 0;
+  border-radius: 8px;
+  background: var(--rd-surface);
+  color: var(--rd-on-surface);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+  animation: rd-menu-in 160ms var(--ease-out);
+}
+
+@keyframes rd-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rd-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rd-menu-item:active {
+  background: rgba(24, 25, 28, 0.08);
+}
+
+.rd-menu-item-icon {
+  width: 18px;
+  font-size: 16px;
+  text-align: center;
+}
+
+/* ── 底栏内容（padding horizontal 16 / vertical 4）── */
+.rd-bottom-inner {
+  padding: 4px 16px;
+}
+
+.rd-chapter-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* TextButton */
+.rd-text-btn {
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rd-text-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.rd-text-btn--inline {
+  height: 34px;
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+/* ── FluidSlider 复刻（FluidSliderCompose.kt：barHeightDp=26）
+     容器高 = barH*2.5=65，轨道 top = barH*1.5=39，气泡直径 = barH=26，
+     松手升起量 = barH*1.1=28.6（Overshoot 回弹）── */
+.rd-fluid {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 65px;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.rd-fluid-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 39px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--rd-bar-fg);
+}
+
+.rd-fluid-bubble {
+  position: absolute;
+  top: 42px;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 700;
+  box-shadow: 0 1.5px 2px rgba(0, 0, 0, 0.1);
+  transition: top 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.rd-fluid--dragging .rd-fluid-bubble {
+  top: 13.4px; /* 42 - 28.6 */
+}
+
+/* ── 底栏进度行 ── */
+.rd-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.rd-progress-text {
+  flex: 1;
+  min-width: 0;
+  padding-right: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+/* FilledTonalButton（RoundedCornerShape(20.dp)，padding h14 v6）*/
+.rd-tonal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── 底部面板（ModalBottomSheet：内容宽 560dp，AdaptiveSpec.sheetMaxWidth）── */
+.rd-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(24, 25, 28, 0.4);
+  animation: rd-fade-in 200ms ease;
+}
+
+.rd-sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 86dvh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 16px 16px calc(32px + var(--safe-bottom));
+  border-radius: 28px 28px 0 0;
+  background: var(--rd-surface);
+  color: var(--rd-on-surface);
+  animation: rd-sheet-up 280ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.rd-sheet--settings {
+  background: var(--rd-surface-93);
+  padding: 0 20px calc(32px + var(--safe-bottom));
+}
+
+@keyframes rd-sheet-up {
+  from {
+    opacity: 0.6;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rd-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 18px;
+}
+
+.rd-sheet-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.rd-sheet-title--sm {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.rd-spacer-10 {
+  height: 10px;
+}
+
+.rd-spacer-12 {
+  height: 12px;
+}
+
+.rd-spacer-18 {
+  height: 18px;
+}
+
+/* OutlinedTextField（单行搜索框）*/
+.rd-field {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--rd-outline-variant);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.rd-field:focus {
+  outline: none;
+  border-color: var(--rd-primary);
+}
+
+.rd-field::placeholder {
+  color: var(--rd-on-surface-variant);
+  opacity: 0.7;
+}
+
+/* ── 排版面板分组（Surface RoundedCornerShape(18.dp) surfaceVariant 0.35）── */
+.rd-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--rd-on-surface-variant);
+}
+
+.rd-group {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: var(--rd-surface-variant-35);
+}
+
+.rd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.rd-row--tall {
+  min-height: 40px;
+}
+
+.rd-row--font {
+  min-height: 44px;
+}
+
+.rd-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.rd-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.rd-sublabel {
+  font-size: 11px;
+  color: var(--rd-on-surface-variant);
+  opacity: 0.75;
+}
+
+.rd-value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rd-value--gold {
+  color: var(--rd-gold);
+}
+
+.rd-value--primary {
+  color: var(--rd-primary);
+}
+
+.rd-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--rd-outline-variant);
+  opacity: 0.25;
+}
+
+/* ── Slider（Material3 Slider 近似：复用 iOS 现有滑杆几何）── */
+.rd-slider {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rd-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rd-slider-track, var(--rd-surface-variant));
+}
+
+.rd-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--rd-slider-color, var(--rd-primary));
+  box-shadow: 0 1px 4px rgba(24, 25, 28, 0.3);
+}
+
+.rd-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rd-slider-track, var(--rd-surface-variant));
+}
+
+.rd-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--rd-slider-color, var(--rd-primary));
+  box-shadow: 0 1px 4px rgba(24, 25, 28, 0.3);
+}
+
+/* ── 字号步进器（Surface RoundedCornerShape(10.dp)）── */
+.rd-stepper {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.rd-stepper-value {
+  min-width: 30px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--rd-primary);
+}
+
+/* ── 字体候选项行（ReaderFontOptionRow：min 44dp，radius 12dp）── */
+.rd-font-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rd-font-row--selected {
+  background: rgba(5, 150, 105, 0.1);
+}
+
+.rd-font-icon {
+  width: 18px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.rd-font-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.rd-font-sample {
+  font-size: 11px;
+  color: var(--rd-on-surface-variant);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-font-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: rd-expand 200ms var(--ease-out);
+}
+
+@keyframes rd-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 阅读主题预览卡（ReaderThemePreviewCard：66dp，radius 14dp）── */
+.rd-theme-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rd-theme-row {
+  display: flex;
+  gap: 8px;
+}
+
+.rd-theme-card {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 66px;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid rgba(227, 229, 231, 0.4);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+}
+
+.rd-theme-card--selected {
+  border: 2px solid var(--rd-primary);
+  padding: 6px 8px;
+}
+
+.rd-theme-sample {
+  margin: 0;
+  font-size: 10px;
+  line-height: 14px;
+  white-space: pre-line;
+}
+
+.rd-theme-name {
+  position: absolute;
+  left: 9px;
+  bottom: 7px;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.rd-theme-check {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+/* ── 翻页方式选择卡（ReaderPageModeChip：min 40dp，radius 12dp）── */
+.rd-mode-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rd-mode-row {
+  display: flex;
+  gap: 8px;
+}
+
+.rd-mode-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 10px 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(227, 229, 231, 0.45);
+  color: rgba(24, 25, 28, 0.85);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rd-mode-chip--selected {
+  border: 1px solid rgba(5, 150, 105, 0.8);
+  background: rgba(5, 150, 105, 0.14);
+  color: var(--rd-primary);
+  font-weight: 600;
+}
+
+.rd-mode-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── 目录列表（TextButton 行，当前章 MintPrimary Bold）── */
+.rd-toc-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.rd-toc-item {
+  display: block;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--rd-on-surface);
+  font-family: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-toc-item--current {
+  color: var(--rd-primary);
+  font-weight: 700;
+}
+
+/* ── 书签记录行 ── */
+.rd-bookmark-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.rd-bookmark-main {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rd-bookmark-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rd-bookmark-snippet {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--rd-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-empty {
+  margin: 0;
+  color: var(--rd-on-surface-variant);
+  font-size: 14px;
+}
+
+/* ── 搜索结果卡（Card surfaceVariant）── */
+.rd-search-results {
+  display: flex;
+  flex-direction: column;
+  height: 240px;
+  overflow-y: auto;
+}
+
+.rd-search-card {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 4px 0;
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--rd-surface-variant);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rd-search-card-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rd-primary);
+}
+
+.rd-search-card-snippet {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rd-search-hit {
+  color: var(--rd-primary);
+  font-weight: 700;
+}
+
+/* ── 通用对话框（AlertDialog / 定时休息提醒）── */
+.rd-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(24, 25, 28, 0.5);
+  animation: rd-fade-in 200ms ease;
+}
+
+.rd-dialog {
+  width: 100%;
+  max-width: 560px;
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--rd-surface);
+  color: var(--rd-on-surface);
+  animation: rd-dialog-in 240ms var(--ease-out);
+}
+
+@keyframes rd-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rd-dialog-title {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.rd-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* 定时休息提醒（Surface RoundedCornerShape(16.dp) + 2dp MintPrimary 呼吸描边）*/
+.rd-rest-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 560px;
+  padding: 16px;
+  border: 2px solid var(--rd-primary);
+  border-radius: 16px;
+  background: var(--rd-surface);
+  color: var(--rd-on-surface);
+  animation: rd-rest-in 280ms var(--ease-out), rd-rest-glow 1500ms linear infinite alternate;
+}
+
+@keyframes rd-rest-in {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rd-rest-glow {
+  from {
+    border-color: rgba(5, 150, 105, 0.4);
+  }
+  to {
+    border-color: rgba(5, 150, 105, 0.9);
+  }
+}
+
+.rd-rest-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rd-rest-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.rd-rest-icon {
+  font-size: 28px;
+  line-height: 28px;
+  color: var(--rd-primary);
+}
+
+.rd-rest-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.rd-rest-body {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--rd-on-surface-variant);
+}
+
+/* 加载态（CircularProgressIndicator MintPrimary）*/
+.rd-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(5, 150, 105, 0.25);
+  border-top-color: var(--rd-primary);
+  border-radius: 50%;
+  animation: rd-spin 900ms linear infinite;
+}
+
+@keyframes rd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 空/错误态文案（padding 32dp，颜色 textColor 0.75）*/
+.rd-state {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-sizing: border-box;
+  padding: 32px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--rd-text-75, inherit);
+}
+
+.rd-state-message {
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* 隐藏的文件选择器（自定义字体导入）*/
+.rd-file-input {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   夜间模式 —— Android `Theme.kt` L68-76 darkColorScheme
+   触发：设置 → 护眼与提醒 → 夜间模式（`auto_night_mode`），`MainActivity.kt`
+   L213 `MyApplicationTheme(darkTheme = autoNightMode)` 写 `<html data-theme="dark">`。
+
+   ⚠️ 阅读器**不跟随** App 夜间模式。
+   `ReaderScreen.kt` L952-966 的 `when (readerTheme)` 返回**字面量** bgColor/textColor
+   （0 纯白 / 1 默认白 / 2 羊皮纸 / 3 夜间 / 4 护眼绿 / 5 OLED），由 `ReaderPage.tsx`
+   L3946-3966 内联成 `--rd-surface / --rd-on-surface / --rd-bar-bg / --rd-text-*`。
+   顶栏 / 底栏（L3220 与 L3419 `.background(bgColor.copy(alpha = 0.97f))`，
+   栏内文字 L3196 `bgColor.onColor()`）也吃阅读主题 —— 一律不在本块里改。
+
+   本块只处理「浮在阅读面之上、但颜色取自 `MaterialTheme.colorScheme.*`
+   （= App 级配色，跟 autoNightMode 走）」的 App 外壳：
+     · 目录 ModalBottomSheet      L3700 `containerColor = surface`
+     · 阅读排版 ModalBottomSheet   L3809 `surface.copy(alpha = 0.93f)`
+     · 书签记录 ModalBottomSheet   L4320 `containerColor = surface`
+     · 全文搜索 AlertDialog        L4172
+     · 定时休息提醒                L4445-4452
+     · 顶栏「更多」DropdownMenu    M3 默认 `surfaceContainer`
+     · TTS 播放条                  L2859 `cardColors(containerColor = surfaceVariant)`
+     · 回到顶部                    L3090 `surface.copy(alpha = 0.9f)`
+     · 下拉书签指示条              `PageTurnContainer.kt` L364 / L369 / L412
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ① App 外壳容器：把 MaterialTheme 语义别名重新接到夜间令牌。
+      这里在**容器自身**重新声明 --rd-*，覆盖的是从 `.reader-page` 内联继承下来的
+      「阅读主题」值；自定义属性的内联值写在祖先上，本层声明天然优先，
+      所以不需要 `!important`，也不需要改 TSX。 */
+[data-theme='dark'] .rd-sheet,
+[data-theme='dark'] .rd-menu,
+[data-theme='dark'] .rd-dialog,
+[data-theme='dark'] .rd-rest-card,
+[data-theme='dark'] .rd-tts-card {
+  /* Theme.kt L73 `surface = Color(0xFF222428)` */
+  --rd-surface: var(--color-surface);
+  /* L3809 `surface.copy(alpha = 0.93f)` */
+  --rd-surface-93: rgba(34, 36, 40, 0.93);
+  /* surfaceVariant：Theme.kt L68-76 没有显式给这一槽（走 M3 darkColorScheme 默认档），
+     复用本项目已落地的同族深色令牌 --color-divider-gray（L118）。 */
+  --rd-surface-variant: var(--color-divider-gray);
+  /* L3857 / L3914 `surfaceVariant.copy(alpha = 0.35f)`：深色底上「加白」才抬得起来 */
+  --rd-surface-variant-35: rgba(255, 255, 255, 0.07);
+  /* outlineVariant → --color-divider-gray（L5032 / L3962 / FaqExpandableItem.kt L46 同款） */
+  --rd-outline-variant: var(--color-divider-gray);
+  /* Theme.kt L75 `onSurface = NightText = Color(0xFFD4D4D4)` */
+  --rd-on-surface: var(--color-on-light);
+  /* onSurfaceVariant（L3852 / L3909 / L4130） */
+  --rd-on-surface-variant: var(--color-medium-gray);
+}
+
+/* ② 深色浮层脱层。
+      原投影是给「白底 + 深字」调的（rgba(24,25,28,0.18~0.24)），底色翻成 #222428
+      之后投影和面几乎同色，等于没有层次；这里加深黑投影，让浮层压住下层内容。 */
+[data-theme='dark'] .rd-sheet {
+  /* ModalBottomSheet 的 tonalElevation，底部面板向上投影 */
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='dark'] .rd-dialog,
+[data-theme='dark'] .rd-rest-card {
+  /* AlertDialog 居中浮层，四向投影 */
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='dark'] .rd-menu {
+  /* DropdownMenu 浮在顶栏上，同样要靠投影与阅读面脱开 */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+}
+
+/* ③ DropdownMenuItem 的按下反馈：M3 用主题色做叠加层，深色下必须是白叠加。 */
+[data-theme='dark'] .rd-menu-item:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ④ TTS 播放条（L2859 containerColor = surfaceVariant → App 级）。
+      .rd-tts-head 里的 `.rd-icon-btn` 是 `color: inherit`，必须跟卡片一起翻。 */
+[data-theme='dark'] .rd-tts-card {
+  color: var(--color-on-light);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ⑤ 回到顶部（L3090 `surface.copy(alpha = 0.9f)`）。
+      它浮在阅读页正中，而阅读页可能是纯白（reader_theme 0/1），深色圆钮需要更硬的投影。 */
+[data-theme='dark'] .rd-backtop {
+  background: var(--color-surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+}
+
+/* ⑥ 下拉书签指示条：`PageTurnContainer.kt` L364 `surfaceContainerHigh.copy(alpha = 0.92f)`
+      / L369 `outlineVariant.copy(alpha = 0.5f)` / L412 `onSurface` —— 三者都是
+      MaterialTheme 派生色，因此浮在纯白阅读页上时也必须整体转深。 */
+[data-theme='dark'] .rd-pull-bookmark-chip {
+  /* surfaceContainerHigh 的深色档 ≈ --color-surface (#222428) */
+  background: rgba(34, 36, 40, 0.92);
+  border-color: var(--color-divider-gray);
+  color: var(--color-on-light);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
+}
+
+/* ⑦ 字号步进器（L3924 `surface.copy(alpha = 0.9f)`）。
+      它落在 `.rd-group`（surfaceVariant 0.35）里，深色下变成「比分组更深的药丸」，
+      层次方向与 Android 一致。 */
+[data-theme='dark'] .rd-stepper {
+  background: rgba(34, 36, 40, 0.9);
+}
+
+/* ⑧ 翻页方式卡（L5083 `surfaceVariant.copy(alpha = 0.45f)` /
+      L5106 `onSurface.copy(alpha = 0.85f)`）。 */
+[data-theme='dark'] .rd-mode-chip {
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(212, 212, 212, 0.85);
+}
+
+/* ⑨ 选中态必须补回主色：`[data-theme='dark'] .rd-mode-chip` 权重
+      （属性选择器 0-2-0）高于 `.rd-mode-chip--selected`（0-1-0），
+      否则 L5081 `MintPrimary.copy(alpha = 0.14f)` 的淡底会被基础规则吃掉。
+      深色底上 0.14 太闷，抬到 0.16。 */
+[data-theme='dark'] .rd-mode-chip--selected {
+  background: rgba(5, 150, 105, 0.16);
+  color: var(--rd-primary);
+}
+
+/* ⑩ 阅读主题预览卡描边（L5032 `outlineVariant.copy(alpha = 0.4f)`）。 */
+[data-theme='dark'] .rd-theme-card {
+  border-color: var(--color-divider-gray);
+}
+
+/* ⑪ 同 ⑨ 的权重陷阱：选中描边 L5030 `BorderStroke(2.dp, MintPrimary)`，
+      会被 ⑩ 的 0-2-0 覆盖掉，这里补回。 */
+[data-theme='dark'] .rd-theme-card--selected {
+  border-color: var(--rd-primary);
+}
+
+/* ⑫ 同 ⑨ 的权重陷阱：蓄满态 `.rd-pull-bookmark-chip--charged`
+      （Kotlin PageTurnContainer.kt L369 描边 MintGold + L412 文字 MintGold）
+      会被 ⑥ 的 0-2-0 覆盖掉，这里补回。 */
+[data-theme='dark'] .rd-pull-bookmark-chip--charged {
+  border-color: var(--rd-gold, #e8c97a);
+  color: var(--rd-gold, #e8c97a);
+}
+
+/* ⑬ 彩蛋气泡（ReaderScreen.kt L4597/L4615：M3 Surface +
+      color = MaterialTheme.colorScheme.primaryContainer / onPrimaryContainer ——
+      App 级配色，跟 autoNightMode 走）。但本文件的 `.rd-easter-egg-bubble`
+      用的是 `var(--rd-surface-variant)` / `var(--rd-on-surface)`，这两个变量
+      从 `.reader-page`（阅读主题）继承，浅色阅读主题下深夜里仍是浅灰底深字。
+      这里把两枚变量接回夜间令牌（primaryContainer 深色档 ≈ --color-divider-gray，
+      与上面 ① 里 surfaceVariant 的取法一致）。 */
+[data-theme='dark'] .rd-easter-egg-bubble {
+  background: var(--color-divider-gray);
+  color: var(--color-on-light);
+}

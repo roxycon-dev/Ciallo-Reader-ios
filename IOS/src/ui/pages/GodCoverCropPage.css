@@ -1,0 +1,194 @@
+/*
+ * GodCoverCropPage.css — 神回封面裁剪全屏页（深色，Android GodCoverCropScreen.kt 同款）。
+ *
+ * Kotlin 行号映射：
+ *   - 141  `Box(fillMaxSize().background(Color(0xFF0B0C0E)))` → .gocc-root
+ *   - 143-149 加载态：居中、白 0.7、14sp                      → .gocc-empty
+ *   - 151-155 舞台 padding(top 56 / bottom 84 / start 12 / end 12) → .gocc-stage-wrap
+ *   - 170-182 `Image(ContentScale.Fit)` + graphicsLayer          → .gocc-image
+ *   - 322-350 Canvas 覆盖层（由 JS 绘制，本文件只定位）           → .gocc-canvas
+ *   - 368-430 手柄（44dp 触摸目标 / 24dp 视觉）                 → .gocc-handle
+ *   - 202-208 顶栏 `0xFF0B0C0E@0.88` + padding(h 4, v 4)        → .gocc-topbar
+ *   - 213-219 标题白 17sp SemiBold                             → .gocc-title
+ *   - 210-233 IconButton                                        → .gocc-icon-btn
+ *   - 237-244 底栏 `0xFF0B0C0E@0.92` + padding(h 16, v 12)
+ *              + `spacedBy(12.dp)`                              → .gocc-bottombar
+ *   - 247     「取消」白 0.75                                   → .gocc-text-btn
+ *   - 291     「完成」`#F5B942` Bold                            → .gocc-text-btn--primary
+ */
+
+/* 根容器（Kotlin 141）：背景 #0B0C0E，铺满，安全区内缩 */
+.gocc-root {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  background: #0b0c0e;
+  color: #ffffff;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 加载态（Kotlin 143-149） */
+.gocc-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gocc-empty span {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+/* 舞台外框（Kotlin 154 的 padding 56/84/12/12） */
+.gocc-stage-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 56px 12px 84px;
+}
+
+/* 舞台（Kotlin 151-169） */
+.gocc-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* 图片（Kotlin 170-182：ContentScale.Fit + graphicsLayer 变换） */
+.gocc-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  transform-origin: center center;
+}
+
+/* 裁剪覆盖层（Kotlin 322-350 的 Canvas） */
+.gocc-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 手柄触摸目标（Kotlin 313：44dp；视觉手柄 24dp 画在正中） */
+.gocc-handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  cursor: pointer;
+}
+
+/* 手柄视觉（Kotlin 411-427） */
+.gocc-handle__mark {
+  display: block;
+  width: 40%;
+  height: 40%;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.92);
+}
+/* 角手柄 = 十字线（Kotlin 416-419：两条 2.5px 白线，跨度 0.545） */
+.gocc-handle__mark--corner {
+  width: auto;
+  height: auto;
+  background: none;
+  border-radius: 0;
+  position: relative;
+}
+.gocc-handle__mark--corner::before,
+.gocc-handle__mark--corner::after {
+  content: '';
+  position: absolute;
+  background: #ffffff;
+  border-radius: 2.5px;
+}
+.gocc-handle__mark--corner::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2.5px;
+  transform: translateY(-50%);
+  width: 54.5%;
+  margin: 0 auto;
+}
+.gocc-handle__mark--corner::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2.5px;
+  transform: translateX(-50%);
+  height: 54.5%;
+  margin: 0 auto;
+}
+
+/* 顶栏（Kotlin 202-208） */
+.gocc-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(11, 12, 14, 0.88);
+}
+.gocc-title {
+  flex: 1 1 auto;
+  text-align: center;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 600;
+}
+.gocc-icon-btn {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.gocc-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 底栏（Kotlin 237-244） */
+.gocc-bottombar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(11, 12, 14, 0.92);
+}
+.gocc-text-btn {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  padding: 8px 0;
+  font-family: inherit;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+.gocc-text-btn--primary {
+  color: #f5b942;
+  font-weight: 700;
+}
