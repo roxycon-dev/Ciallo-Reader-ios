@@ -14,6 +14,7 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "journal", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "undo", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "promote", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resource", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "journalSelfTest", returnType: CAPPluginReturnPromise),
@@ -216,6 +217,31 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
             } catch { call.reject(error.localizedDescription) }
         }
     }
+    @objc func undo(_ call: CAPPluginCall) {
+        guard let action = call.getString("action") else { call.reject("撤回操作缺失"); return }
+        queue.async {
+            do {
+                let journal = TransferImportJournal(documents: self.documents)
+                if action == "available" {
+                    if let record = try journal.undoSnapshot() { call.resolve(["record": try JSONSerialization.jsonObject(with: JSONEncoder().encode(record))]) }
+                    else { call.resolve(["record": NSNull()]) }; return
+                }
+                if action == "pending" {
+                    if let record = try journal.pendingUndo() { call.resolve(["record": try JSONSerialization.jsonObject(with: JSONEncoder().encode(record))]) }
+                    else { call.resolve(["record": NSNull()]) }; return
+                }
+                guard let operationId = call.getString("operationId") else { throw TransferNativeError.invalid("撤回身份缺失") }
+                switch action {
+                case "begin":
+                    guard let snapshotId = call.getString("snapshotId") else { throw TransferNativeError.invalid("快照身份缺失") }
+                    let record = try journal.beginUndo(operationId, snapshotId: snapshotId); call.resolve(["record": try JSONSerialization.jsonObject(with: JSONEncoder().encode(record))])
+                case "restore": try journal.restoreUndo(operationId); call.resolve()
+                case "finish": try journal.finishUndo(operationId); call.resolve()
+                default: throw TransferNativeError.invalid("未知撤回操作")
+                }
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
     @objc func journal(_ call: CAPPluginCall) {
         guard let action = call.getString("action") else { call.reject("导入日志操作无效"); return }
         queue.async {
@@ -314,11 +340,27 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
                 try manager.moveItem(at: root.appendingPathComponent("transfer/journal/" + next), to: undo)
                 try journal.finish(next)
                 guard try journal.pending() == nil, manager.fileExists(atPath: undo.appendingPathComponent("source_configs/private.json").path) else { throw TransferNativeError.invalid("Interrupted undo rotation was not recovered") }
+                guard try journal.undoSnapshot()?.id == next else { throw TransferNativeError.invalid("Undo snapshot unavailable") }
+                let operation = UUID().uuidString.lowercased()
+                var mismatch = false
+                do { _ = try journal.beginUndo(operation, snapshotId: id) } catch { mismatch = true }
+                guard mismatch, try journal.pendingUndo() == nil else { throw TransferNativeError.invalid("Wrong undo snapshot was accepted") }
+                _ = try journal.beginUndo(operation, snapshotId: next)
+                try Data("changed-after-replace".utf8).write(to: config)
+                try journal.restoreUndo(operation)
+                guard try String(contentsOf: config, encoding: .utf8) == "old-definition", try journal.pendingUndo()?.operationId == operation else { throw TransferNativeError.invalid("Undo definition restoration failed") }
+                var blocked = false
+                do { try journal.prepare(record) } catch { blocked = true }
+                guard blocked else { throw TransferNativeError.invalid("Import overwrote pending undo") }
+                // Simulate cleanup interruption after the committed operation
+                // deleted its backups; pending metadata must still finalize.
+                try manager.removeItem(at: undo); try journal.finishUndo(operation)
+                guard try journal.pendingUndo() == nil, try journal.undoSnapshot() == nil else { throw TransferNativeError.invalid("Committed undo cleanup did not recover") }
                 try manager.createSymbolicLink(at: configs.appendingPathComponent("link"), withDestinationURL: config)
                 var refused = false
                 do { try journal.prepare(TransferJournalRecord(version: 1, id: id, stageId: id, keepUndo: false, createdAt: 3, settings: [:])) } catch { refused = true }
                 guard refused, try journal.pending() == nil, try String(contentsOf: config, encoding: .utf8) == "old-definition" else { throw TransferNativeError.invalid("Unsafe source snapshot was accepted or changed the original") }
-                call.resolve(["detail": "Private source snapshot restore, nullable preferences, interrupted undo rotation and symlink rejection verified"])
+                call.resolve(["detail": "Private source snapshot restore, nullable preferences, interrupted undo rotation, durable undo restore/cleanup and symlink rejection verified"])
             } catch { call.reject(error.localizedDescription) }
         }
         #else

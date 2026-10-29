@@ -3,6 +3,7 @@ import { SETTINGS_TABLE_SQL, SettingsRepository } from '@core/settings/settingsR
 import type { PortableArchivePreview, PortableEnvelope } from '@core/transfer/portableFormat';
 import { TransferStagingRows } from '@core/transfer/stagingRows';
 import { TransferImportJournal, type ImportJournalRecord } from '@core/transfer/importJournal';
+import { TransferUndoJournal, type PendingImportUndo } from '@core/transfer/undoJournal';
 import { importPortableArchive } from '@core/transfer/archiveImporter';
 import { ArchiveResources } from '@core/transfer/archiveResources';
 import { BookContentFingerprint } from '@core/transfer/bookFingerprint';
@@ -15,7 +16,7 @@ import { applyNativeArchiveSettings } from './archiveSettings';
 export async function probeNativeArchiveImport(nonce: string): Promise<void> {
   const name = `ci_transfer_${nonce}`, id = `00000000-0000-4000-8000-${nonce.slice(0, 12)}`, database = withExclusiveDatabase(new CapacitorSqliteDatabase());
   const staging = new TransferStagingRows(database, id), reader = new Map<string, string>([['comic_reader_store:global_config', '{"theme":"old"}']]);
-  let pending: ImportJournalRecord | null = null, promoted = false, failSettings = true, promotions = 0;
+  let pending: ImportJournalRecord | null = null, snapshot: ImportJournalRecord | null = null, undoPending: PendingImportUndo | null = null, promoted = false, failSettings = true, promotions = 0;
   const check = (value: unknown, message: string) => { if (!value) throw new Error(message); };
   const storage = { get length() { return reader.size; }, key: (index: number) => [...reader.keys()][index] ?? null, getItem: (key: string) => reader.get(key) ?? null, setItem: (key: string, value: string) => { reader.set(key, value); }, removeItem: (key: string) => { reader.delete(key); } };
   try {
@@ -32,9 +33,10 @@ export async function probeNativeArchiveImport(nonce: string): Promise<void> {
     async function* rows() { yield* source; } await staging.build(rows());
     const preview: PortableArchivePreview = { packageId: id, version: 2, categories: ['BOOKS', 'ANNOTATIONS', 'HISTORY', 'SETTINGS'], counts: { books: 1, chapters: 1, bookmarks: 1, reading_records: 1 }, expandedBytes: 0, warnings: [], containsProtected: false, protectedFavorites: false };
     const resources = new ArchiveResources(new Map(), 'probe/files');
-    const journal = new TransferImportJournal(database, { pending: async () => pending, prepare: async (record) => { pending = record; }, restore: async () => { promoted = false; }, finish: async () => { pending = null; }, discard: async () => { pending = null; } }, { snapshot: () => Object.fromEntries(reader), restore: (snapshot) => { reader.clear(); for (const [key, value] of Object.entries(snapshot)) if (value !== null) reader.set(key, value); } });
+    const preferences = { snapshot: () => Object.fromEntries(reader), restore: (values: Record<string, string | null>) => { reader.clear(); for (const [key, value] of Object.entries(values)) if (value !== null) reader.set(key, value); } };
+    const journal = new TransferImportJournal(database, { pending: async () => pending, prepare: async (record) => { pending = record; }, restore: async () => { promoted = false; }, finish: async () => { snapshot = pending; pending = null; }, discard: async () => { pending = null; } }, preferences);
     const settings = { novel_reader_prefs: { font_size: { type: 'float' as const, value: 22 } }, comic_reader_store: { global_config: { type: 'string' as const, value: '{"theme":"new"}' } } };
-    const run = () => journal.run(id, id, false, (tx) => importPortableArchive(tx, preview, settings, {
+    const run = () => journal.run(id, id, true, (tx) => importPortableArchive(tx, preview, settings, {
       stageId: id, mode: 'REPLACE', privacyEnabled: false, resources, staging,
       localFingerprint: new BookContentFingerprint(async () => null), localOriginal: async () => null,
       promoteResources: async () => { promoted = true; promotions++; },
@@ -54,6 +56,15 @@ export async function probeNativeArchiveImport(nonce: string): Promise<void> {
     check(bookmarks.length === 1 && bookmarks[0]!.bookId !== 1, 'Native archive receiver id remapping failed');
     check(await new SettingsRepository(database).getFloat('font_size') === 22 && reader.get('comic_reader_store:global_config') === '{"theme":"new"}', 'Native archive settings not committed');
     check((await database.query("SELECT name FROM sqlite_temp_master WHERE name LIKE '_ciallo_chapters_%'")).length === 0, 'Native archive chapter index leaked');
+    const undo = new TransferUndoJournal(database, {
+      available: async () => snapshot, pending: async () => undoPending,
+      begin: async (operationId, snapshotId) => { check(snapshot?.id === snapshotId, 'Native undo snapshot differs'); undoPending = { version: 1, operationId, snapshot: snapshot! }; return undoPending; },
+      restore: async () => { promoted = false; }, finish: async () => { snapshot = null; undoPending = null; },
+    }, preferences);
+    check((await undo.available())?.id === id, 'Native undo SQL/file receipt not matched');
+    await undo.run(`10000000-0000-4000-8000-${nonce.slice(0, 12)}`, id);
+    check((await database.query<{ title: string }>('SELECT title FROM books'))[0]?.title === 'receiver' && (await database.query('SELECT * FROM bookmarks')).length === 0, 'Native whole archive undo SQL restore failed');
+    check(!promoted && reader.get('comic_reader_store:global_config') === '{"theme":"old"}' && await undo.available() === null, 'Native whole archive undo preference restore failed');
   } finally {
     await staging.dispose().catch(() => {});
     const { CapacitorSQLite } = await import('@capacitor-community/sqlite');

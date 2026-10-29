@@ -31,7 +31,7 @@ export async function snapshotImportUndo(database: SqliteExecutor): Promise<void
     await database.execute(`CREATE TABLE "${undoName(table)}" AS SELECT * FROM "${table}"`);
   }
 }
-export async function restoreImportUndo(database: SqliteExecutor): Promise<void> {
+export async function validateImportUndo(database: SqliteExecutor): Promise<void> {
   // Check all layouts before deleting anything; an undo from another schema
   // must fail without producing a partially restored library.
   for (const table of IMPORT_SNAPSHOT_TABLES) {
@@ -39,6 +39,9 @@ export async function restoreImportUndo(database: SqliteExecutor): Promise<void>
     const backup = await database.query<{ name: string; type: string }>(`PRAGMA table_info("${undoName(table)}")`);
     requireTransfer(current.length > 0 && current.length === backup.length && current.every((column, index) => column.name === backup[index]?.name && affinity(column.type) === affinity(backup[index]!.type)), '回退快照缺失或版本不兼容');
   }
+}
+export async function restoreImportUndo(database: SqliteExecutor): Promise<void> {
+  await validateImportUndo(database);
   for (const table of [...IMPORT_SNAPSHOT_TABLES].reverse()) await database.execute(`DELETE FROM "${table}"`);
   for (const table of IMPORT_SNAPSHOT_TABLES) await database.execute(`INSERT INTO "${table}" SELECT * FROM "${undoName(table)}"`);
 }
@@ -82,6 +85,10 @@ export class TransferImportJournal {
           await this.files.prepare(record);
           try {
             const result = await operation(tx);
+            if (keepUndo) {
+              await tx.execute("DELETE FROM transfer_receipts WHERE packageId LIKE 'undo-snapshot:%'");
+              await tx.execute('INSERT INTO transfer_receipts (packageId,importedAt) VALUES (?,?)', [`undo-snapshot:${id}`, Date.now()]);
+            }
             await tx.execute('INSERT OR REPLACE INTO transfer_receipts (packageId,importedAt) VALUES (?,?)', [marker(id), Date.now()]);
             return result;
           } catch (error) {

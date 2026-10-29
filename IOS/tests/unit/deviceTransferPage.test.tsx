@@ -1,23 +1,29 @@
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { DeviceTransferPage } from '@ui/pages/DeviceTransferPage';
+import { DeviceTransferPage, type TransferUndoUi } from '@ui/pages/DeviceTransferPage';
 import type { DeviceTransferController, DeviceTransferState } from '@platform/ios-native/deviceTransferController';
 vi.mock('@platform/privacyRuntime', () => ({ getPrivacyService: () => ({ ready: async () => ({ enabled: false }), getSnapshot: () => ({ enabled: false }), subscribe: () => () => {} }) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mounted: { root: Root; host: HTMLElement }[] = [];
 afterEach(async () => { for (const { root, host } of mounted.splice(0)) { await act(async () => root.unmount()); host.remove(); } });
 afterAll(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false; });
-async function fixture(values: Partial<DeviceTransferState> = {}) {
+async function fixture(values: Partial<DeviceTransferState> = {}, undoIO?: TransferUndoUi) {
   const state: DeviceTransferState = { phase: 'DISCOVERING', importMode: 'MERGE', peers: [], progress: null, error: '', prepared: null, pairing: null, preview: null, result: null, warnings: [], requiresReload: false, ...values };
   const controller = { getSnapshot: () => state, subscribe: () => () => {}, start: vi.fn(async () => {}), stop: vi.fn(async () => state.requiresReload), prepare: vi.fn(async () => {}), sendTo: vi.fn(async () => {}), pair: vi.fn(), import: vi.fn(), forgetResume: vi.fn(async () => {}) };
   const onBack = vi.fn(), reload = vi.fn(), host = document.createElement('div'); document.body.append(host); const root = createRoot(host); mounted.push({ root, host });
-  await act(async () => root.render(<DeviceTransferPage controller={controller as unknown as DeviceTransferController} nativeAvailable onBack={onBack} reload={reload} />));
+  await act(async () => root.render(<DeviceTransferPage controller={controller as unknown as DeviceTransferController} nativeAvailable onBack={onBack} reload={reload} {...(undoIO ? { undoIO } : {})} />));
   const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === text || item.getAttribute('aria-label') === text)!;
   return { controller, onBack, reload, host, button };
 }
 const click = (element: HTMLElement) => act(async () => element.click());
 describe('device transfer visible human consent', () => {
+  it('does not restore the replacement snapshot until the user confirms its rollback scope', async () => {
+    const restore = vi.fn<TransferUndoUi['restore']>(async () => ({ finalizationPending: false }));
+    const { button, controller, host, reload } = await fixture({}, { info: async () => ({ snapshotId: 'reviewed-snapshot', createdAt: 1, needsPin: false }), restore });
+    expect(restore).not.toHaveBeenCalled(); await click(button('撤回上次替换')); expect(host.querySelector('[role="dialog"]')?.textContent).toContain('之后的修改会回退'); expect(restore).not.toHaveBeenCalled();
+    await click(button('恢复并重新载入')); expect(controller.stop).toHaveBeenCalledOnce(); expect(restore).toHaveBeenCalledWith('reviewed-snapshot', ''); expect(reload).toHaveBeenCalledOnce();
+  });
   it('shows the persisted replacement mode before a resumed archive can mutate the receiver', async () => {
     const { controller, host, button } = await fixture({ phase: 'AWAITING_IMPORT', importMode: 'REPLACE', preview: { packageId: 'package', version: 2, categories: ['BOOKS'], counts: { books: 2, chapters: 20 }, expandedBytes: 100, warnings: [], containsProtected: false, protectedFavorites: false } });
     expect(host.querySelector('[role="dialog"]')).not.toBeNull(); expect(host.textContent).toContain('将替换本机对应类别'); expect(host.textContent).not.toContain('确认合并并导入'); expect(controller.import).not.toHaveBeenCalled();

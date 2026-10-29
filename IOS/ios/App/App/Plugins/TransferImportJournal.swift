@@ -12,6 +12,15 @@ private struct TransferJournalMetadata: Codable {
     let record: TransferJournalRecord
     let presence: [String: Bool]
 }
+struct TransferUndoPending: Codable {
+    let version: Int
+    let operationId: String
+    let snapshot: TransferJournalRecord
+}
+private struct TransferUndoMetadata: Codable {
+    let pending: TransferUndoPending
+    let presence: [String: Bool]
+}
 
 /// Device-private external-state undo log. The SQLite commit marker decides
 /// whether these snapshots are restored or finalized; this class never copies
@@ -24,6 +33,7 @@ final class TransferImportJournal {
     private var pendingURL: URL { root.appendingPathComponent("pending.json") }
     private var undo: URL { documents.appendingPathComponent("transfer/undo", isDirectory: true) }
     private var previousUndo: URL { documents.appendingPathComponent("transfer/undo.previous", isDirectory: true) }
+    private var undoPendingURL: URL { root.appendingPathComponent("undo.pending.json") }
     private func validate(_ record: TransferJournalRecord) throws {
         guard record.version == 1, UUID(uuidString: record.id)?.uuidString.lowercased() == record.id,
               UUID(uuidString: record.stageId)?.uuidString.lowercased() == record.stageId,
@@ -73,6 +83,7 @@ final class TransferImportJournal {
     }
     func prepare(_ record: TransferJournalRecord) throws {
         try validate(record)
+        guard !FileManager.default.fileExists(atPath: undoPendingURL.path) else { throw TransferNativeError.invalid("上次撤回需要先完成") }
         guard try pending() == nil else { throw TransferNativeError.invalid("上次导入需要先恢复") }
         let directory = try self.directory(record); try safe(directory)
         guard !FileManager.default.fileExists(atPath: directory.path) else { throw TransferNativeError.invalid("导入日志身份已存在") }
@@ -93,6 +104,10 @@ final class TransferImportJournal {
     func restore(_ expectedId: String) throws {
         let value = try metadata(pendingURL); guard value.record.id == expectedId else { throw TransferNativeError.invalid("导入恢复身份不符") }
         let directory = try self.directory(value.record)
+        try restoreDefinitions(value, directory: directory)
+        try remove(documents.appendingPathComponent("restored_transfer_" + value.record.stageId, isDirectory: true))
+    }
+    private func restoreDefinitions(_ value: TransferJournalMetadata, directory: URL) throws {
         for name in names where value.presence[name] == true {
             guard FileManager.default.fileExists(atPath: directory.appendingPathComponent(name).path) else { throw TransferNativeError.invalid("本机源恢复快照缺失") }
         }
@@ -106,7 +121,44 @@ final class TransferImportJournal {
             if value.presence[name] == true { try FileManager.default.moveItem(at: candidate, to: target) }
             try remove(displaced)
         }
-        try remove(documents.appendingPathComponent("restored_transfer_" + value.record.stageId, isDirectory: true))
+    }
+    func undoSnapshot() throws -> TransferJournalRecord? {
+        guard FileManager.default.fileExists(atPath: undo.path) else { return nil }
+        return try metadata(undo.appendingPathComponent("metadata.json")).record
+    }
+    private func undoMetadata() throws -> TransferUndoMetadata? {
+        guard FileManager.default.fileExists(atPath: undoPendingURL.path) else { return nil }
+        try safe(undoPendingURL)
+        let count = (try FileManager.default.attributesOfItem(atPath: undoPendingURL.path)[.size] as? NSNumber)?.intValue ?? Int.max
+        guard count <= 8 * 1024 * 1024 else { throw TransferNativeError.invalid("撤回记录过大") }
+        let value = try JSONDecoder().decode(TransferUndoMetadata.self, from: Data(contentsOf: undoPendingURL))
+        try validate(value.pending.snapshot)
+        guard value.pending.version == 1, UUID(uuidString: value.pending.operationId)?.uuidString.lowercased() == value.pending.operationId,
+              value.pending.snapshot.keepUndo, Set(value.presence.keys) == Set(names) else { throw TransferNativeError.invalid("撤回记录无效") }; return value
+    }
+    func pendingUndo() throws -> TransferUndoPending? { try undoMetadata()?.pending }
+    func beginUndo(_ operationId: String, snapshotId: String) throws -> TransferUndoPending {
+        guard UUID(uuidString: operationId)?.uuidString.lowercased() == operationId,
+              try pending() == nil, try pendingUndo() == nil else { throw TransferNativeError.invalid("上次恢复尚未完成或撤回身份无效") }
+        let snapshot = try metadata(undo.appendingPathComponent("metadata.json"))
+        guard snapshot.record.id == snapshotId, snapshot.record.keepUndo else { throw TransferNativeError.invalid("恢复快照已经改变") }
+        let intent = TransferUndoPending(version: 1, operationId: operationId, snapshot: snapshot.record)
+        try atomic(JSONEncoder().encode(TransferUndoMetadata(pending: intent, presence: snapshot.presence)), to: undoPendingURL); return intent
+    }
+    func restoreUndo(_ operationId: String) throws {
+        guard let value = try undoMetadata(), value.pending.operationId == operationId,
+              try metadata(undo.appendingPathComponent("metadata.json")).record.id == value.pending.snapshot.id else { throw TransferNativeError.invalid("撤回快照身份不符") }
+        try restoreDefinitions(TransferJournalMetadata(record: value.pending.snapshot, presence: value.presence), directory: undo)
+    }
+    func finishUndo(_ operationId: String) throws {
+        guard let value = try undoMetadata(), value.pending.operationId == operationId else { throw TransferNativeError.invalid("撤回记录身份不符") }
+        if FileManager.default.fileExists(atPath: undo.path) {
+            guard try metadata(undo.appendingPathComponent("metadata.json")).record.id == value.pending.snapshot.id else { throw TransferNativeError.invalid("撤回快照已经改变") }
+        }
+        // The complete pending record survives backup deletion. After a crash,
+        // the committed SQLite marker can finish this cleanup without backups.
+        try remove(documents.appendingPathComponent("restored_transfer_" + value.pending.snapshot.stageId, isDirectory: true))
+        try remove(undo); try remove(undoPendingURL)
     }
     func discard(_ expectedId: String) throws {
         guard let record = try pending(), record.id == expectedId else { throw TransferNativeError.invalid("导入日志身份不符") }

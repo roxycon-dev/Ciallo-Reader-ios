@@ -601,11 +601,11 @@ export function bootstrapLibrary(): Promise<void> {
       await openAppDatabase({ db: platform.db });
       if (getPlatformKind() === 'ios-native') {
         const { SETTINGS_TABLE_SQL } = await import('@core/settings/settingsRepository');
-        const { createNativeTransferJournal } = await import('@platform/ios-native/transferJournalRuntime');
+        const { recoverNativeTransferState } = await import('@platform/ios-native/transferJournalRuntime');
         await platform.db.execute(SETTINGS_TABLE_SQL);
         // Recover before publishing a repository, restoring downloads, or
         // constructing source caches that could observe a partial import.
-        await createNativeTransferJournal(platform).recover();
+        await recoverNativeTransferState(platform);
       }
       performance.mark('app-database-ready');
       await reportStartup('starting', new Error('database: schema ready'));
