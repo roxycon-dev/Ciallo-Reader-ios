@@ -43,6 +43,13 @@ public class ReaderHttpPlugin: CAPPlugin, CAPBridgedPlugin {
                 let server = NativeHttpFixture(queue: self.queue); self.testServer = server
                 server.start { result in switch result { case .success(let url): call.resolve(["url": url]); case .failure(let error): self.testServer = nil; call.reject(error.localizedDescription) } }
             case "status": call.resolve(["cancelledSlowConnections": self.testServer?.cancelledSlowConnections ?? 0, "slowStarted": self.testServer?.slowStarted ?? 0, "activeRequests": self.requests.count])
+            case "policy":
+                var request = URLRequest(url: URL(string: "https://example.com:443/next")!)
+                for field in ["Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key"] { request.setValue("isolated-test", forHTTPHeaderField: field) }
+                let same = Self.redirectRequest(request, from: URL(string: "https://EXAMPLE.com/start"))
+                let cross = Self.redirectRequest(request, from: URL(string: "https://other.example/start"))
+                guard same.value(forHTTPHeaderField: "Authorization") == "isolated-test", ["Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key"].allSatisfy({ cross.value(forHTTPHeaderField: $0) == nil }) else { call.reject("Native redirect credential policy differs"); return }
+                call.resolve(["detail": "same-origin normalization and cross-origin credential removal verified"])
             case "stop": self.testServer?.stop(); self.testServer = nil; call.resolve()
             default: call.reject("Unknown HTTP test action")
             }
@@ -58,8 +65,8 @@ public class ReaderHttpPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let id = id(call), let raw = call.getString("url"), raw.utf8.count <= 16384,
               let url = URL(string: raw), Self.remote(url), let method = call.getString("method"),
               ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].contains(method) else { call.reject("HTTP 请求参数无效"); return }
-        let timeout = call.getDouble("timeoutMs") ?? 30000, policy = call.getString("redirect") ?? "follow"
-        guard timeout.isFinite, timeout >= 1, timeout <= 3600000, ["follow", "manual", "error"].contains(policy) else { call.reject("HTTP 超时或重定向设置无效"); return }
+        let timeout = call.getDouble("timeoutMs") ?? 30000, policy = call.getString("redirect") ?? "follow", maximum = call.getDouble("maxBytes") ?? 512 * 1024 * 1024
+        guard timeout.isFinite, timeout >= 1, timeout <= 3600000, maximum.isFinite, maximum >= 1, maximum <= 512 * 1024 * 1024, maximum.rounded(.down) == maximum, ["follow", "manual", "error"].contains(policy) else { call.reject("HTTP 超时、大小或重定向设置无效"); return }
         let headers = call.getObject("headers") ?? [:]
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout / 1000)
         request.httpMethod = method
@@ -84,7 +91,7 @@ public class ReaderHttpPlugin: CAPPlugin, CAPBridgedPlugin {
                 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
                 guard root.resolvingSymlinksInPath().path == root.path else { throw httpFailure("HTTP 缓存目录无效") }
                 let file = root.appendingPathComponent(id + ".body")
-                let operation = try NativeByteRequest(request: request, file: file, queue: self.queue, timeout: timeout / 1000, redirect: policy) { [weak self] result in
+                let operation = try NativeByteRequest(request: request, file: file, queue: self.queue, timeout: timeout / 1000, maximum: Int64(maximum), redirect: policy) { [weak self] result in
                     switch result {
                     case .success(let response):
                         call.resolve(response)
@@ -123,6 +130,17 @@ public class ReaderHttpPlugin: CAPPlugin, CAPBridgedPlugin {
         queue.async { self.requests.removeValue(forKey: id)?.dispose(); self.cancelled.removeValue(forKey: id); call.resolve() }
     }
     fileprivate static func remote(_ url: URL) -> Bool { ["http", "https"].contains(url.scheme?.lowercased() ?? "") && url.host != nil && url.user == nil && url.password == nil }
+    fileprivate static func redirectRequest(_ request: URLRequest, from previous: URL?) -> URLRequest {
+        func origin(_ value: URL?) -> String {
+            guard let value = value else { return "" }; let scheme = value.scheme?.lowercased() ?? ""
+            return "\(scheme)://\(value.host?.lowercased() ?? ""):\(value.port ?? (scheme == "https" ? 443 : 80))"
+        }
+        var next = request
+        if origin(request.url) != origin(previous) {
+            for field in ["Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key"] { next.setValue(nil, forHTTPHeaderField: field) }
+        }
+        return next
+    }
 }
 
 #if DEBUG && targetEnvironment(simulator)
@@ -210,7 +228,9 @@ private final class NativeByteRequest: NSObject, URLSessionDataDelegate, @unchec
     private var session: URLSession?, task: URLSessionDataTask?, timer: DispatchSourceTimer?
     private var response: HTTPURLResponse?
     private var redirects = 0
-    init(request: URLRequest, file: URL, queue: DispatchQueue, timeout: TimeInterval, redirect: String, complete: @escaping (Result<[String: Any], Error>) -> Void) throws {
+    private let maximum: Int64
+    init(request: URLRequest, file: URL, queue: DispatchQueue, timeout: TimeInterval, maximum: Int64, redirect: String, complete: @escaping (Result<[String: Any], Error>) -> Void) throws {
+        self.maximum = maximum
         self.request = request; self.file = file; self.queue = queue; self.timeout = timeout; self.redirect = redirect; self.complete = complete
         super.init()
         guard FileManager.default.createFile(atPath: file.path, contents: nil, attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]) else { throw httpFailure("无法创建 HTTP 缓存") }
@@ -233,13 +253,13 @@ private final class NativeByteRequest: NSObject, URLSessionDataDelegate, @unchec
     func dispose() { abort(httpFailure("HTTP 请求已释放")); try? output?.close(); output = nil; timer?.cancel(); timer = nil; session?.invalidateAndCancel(); try? FileManager.default.removeItem(at: file) }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard !completed, let response = response as? HTTPURLResponse else { completionHandler(.cancel); abort(httpFailure("HTTP 响应无效")); return }
-        guard request.httpMethod == "HEAD" || response.expectedContentLength <= 512 * 1024 * 1024 else { completionHandler(.cancel); abort(httpFailure("HTTP 响应超过 512MiB")); return }
+        guard request.httpMethod == "HEAD" || response.expectedContentLength <= maximum else { completionHandler(.cancel); abort(httpFailure("HTTP 响应超过大小限制")); return }
         self.response = response; completionHandler(.allow)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         guard !completed else { return }
         do {
-            guard Int64(data.count) <= 512 * 1024 * 1024 - size else { throw httpFailure("HTTP 响应超过 512MiB") }
+            guard Int64(data.count) <= maximum - size else { throw httpFailure("HTTP 响应超过大小限制") }
             try output?.write(contentsOf: data); size += Int64(data.count)
         } catch { abort(error) }
     }
@@ -260,11 +280,6 @@ private final class NativeByteRequest: NSObject, URLSessionDataDelegate, @unchec
         guard !completed else { completionHandler(nil); return }
         if redirect == "manual" { completionHandler(nil); return }
         guard redirect != "error", let url = request.url, ReaderHttpPlugin.remote(url), redirects < 20 else { completionHandler(nil); abort(httpFailure("HTTP 重定向被拒绝或次数过多")); return }
-        redirects += 1; var next = request
-        let previous = response.url
-        if url.scheme != previous?.scheme || url.host != previous?.host || url.port != previous?.port {
-            next.setValue(nil, forHTTPHeaderField: "Authorization"); next.setValue(nil, forHTTPHeaderField: "Proxy-Authorization"); next.setValue(nil, forHTTPHeaderField: "Cookie")
-        }
-        completionHandler(next)
+        redirects += 1; completionHandler(ReaderHttpPlugin.redirectRequest(request, from: response.url))
     }
 }

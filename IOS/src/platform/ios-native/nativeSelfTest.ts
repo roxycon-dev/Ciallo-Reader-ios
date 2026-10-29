@@ -121,6 +121,7 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
   for (const key of keys) await check(`Native Worker original source: ${key}`, async () => {
     const prefsKey = `${prefix}.worker.${key}`, prefs = new EnginePreferences(platform.secure, prefsKey);
     const engine = new SourceWorkerEngine(platform, { sourceKey: key, script: assets[`js_extra/${key}.js`]!, runtimeJs: assets['venera/_venera_.js']!, assets, insecureTls: false }, prefs, async () => { throw new Error('Unexpected interactive prompt'); });
+    engine.setInitializationCode('globalThis.cialloInitializationProbe = 41');
     try {
       const raw = await engine.call(`({html:new HtmlDocument('<p>漫画 &amp; 小说</p>').querySelector('p').text, hash:Convert.hexEncode(Convert.md5(Convert.encodeUtf8('abc'))), charset:Convert.decodeGbk(Convert.encodeGbk('中文')), storage:(src.saveData('acceptance','持久化'),src.loadData('acceptance')), isolated:typeof document==='undefined' && typeof postMessage==='undefined' && typeof fetch==='undefined', search:typeof src.search?.load})`);
       const result = JSON.parse(raw ?? '{}') as { ok?: boolean; error?: string; data?: Record<string, unknown> };
@@ -128,6 +129,10 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
       const stored = await platform.secure.get(prefsKey); assert(stored?.includes('持久化'), 'Worker storage was not committed');
       const catalog = JSON.parse(await engine.call(`(() => { ${assets['venera/discover_bridge.js']}; return __cialloDiscover(src,{catalogOnly:true,resolveDynamic:false}); })()`) ?? '{}') as { ok?: boolean; data?: { feeds?: unknown; categories?: unknown } };
       assert(catalog.ok && Array.isArray(catalog.data?.feeds) && Array.isArray(catalog.data?.categories), 'Native discovery bridge failed');
+      if (key === 'bilimanga') {
+        engine.dispose(); const restored = JSON.parse(await engine.call('globalThis.cialloInitializationProbe') ?? '{}') as { ok?: boolean; data?: number };
+        assert(restored.ok && restored.data === 41, 'Native Worker initialization was not replayed after disposal');
+      }
     } finally { engine.dispose(); await prefs.flush(); await platform.secure.remove(prefsKey); }
   });
   const failed = checks.filter((item) => !item.passed);

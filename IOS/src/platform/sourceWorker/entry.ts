@@ -88,7 +88,9 @@ const receive = (event: MessageEvent<SourceWorkerRequest>): void => {
       runtime: createWorkerLocalRuntime(), readAsset: (path) => boot.assets[path] ?? '',
       elapsedRealtime: () => performance.now(), handler,
     }, boot.insecureTls);
-    send({ type: 'ready' });
+    if (boot.initializationCode) {
+      operations = engine.call(boot.initializationCode).then(() => { send({ type: 'ready' }); }, (error: unknown) => { send({ type: 'bootError', error: error instanceof Error ? error.message : '书源恢复初始化失败' }); });
+    } else send({ type: 'ready' });
     return;
   }
   if (message.type !== 'operation') return;

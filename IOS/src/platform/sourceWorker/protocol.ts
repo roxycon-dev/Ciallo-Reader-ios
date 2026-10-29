@@ -1,6 +1,7 @@
 import type { HttpRequestSpec, HttpResponseSpec } from '@core/source/js/jsPlatform';
 
 export interface SourceWorkerBoot {
+  initializationCode?: string;
   sourceKey: string; runtimeJs: string; script: string; insecureTls: boolean;
   assets: Record<string, string>; preferences: Record<string, string>;
 }
@@ -20,6 +21,7 @@ export type SourceWorkerRequest =
   | { type: 'hostResult'; id: number; ok: boolean; value?: HttpResponseSpec | string; error?: string };
 export type SourceWorkerResponse =
   | { type: 'ready' }
+  | { type: 'bootError'; error: string }
   | { type: 'result'; id: number; ok: boolean; value?: unknown; error?: string; logged: boolean }
   | { type: 'host'; id: number; request: HostRequest }
   | { type: 'preferences'; values: Record<string, string> };

@@ -11,14 +11,19 @@ let loginSource: BookSource | null = null;
 export function showSourceLogin(source: BookSource): void { loginSource = source; changed(); }
 function changed(): void { for (const listener of listeners) listener(); }
 
-export function showSourceInput(title: string, image: string | null): Promise<string> {
-  return new Promise((resolve) => {
+export function showSourceInput(title: string, image: string | null, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) return Promise.reject(new DOMException('书源操作已取消', 'AbortError'));
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      const index = requests.indexOf(request); if (index < 0) return;
+      requests.splice(index, 1); signal?.removeEventListener('abort', abort); reject(new DOMException('书源操作已取消', 'AbortError')); changed();
+    };
     const request: InputRequest = { id: ++sequence, title, image, finish(value) {
       const index = requests.indexOf(request);
       if (index < 0) return;
-      requests.splice(index, 1); resolve(value); changed();
+      requests.splice(index, 1); signal?.removeEventListener('abort', abort); resolve(value); changed();
     } };
-    requests.push(request); changed();
+    requests.push(request); signal?.addEventListener('abort', abort, { once: true }); changed();
   });
 }
 

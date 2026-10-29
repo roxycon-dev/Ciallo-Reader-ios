@@ -37,6 +37,14 @@ describe('byte-preserving native HTTP adapter', () => {
     const { native, transport } = fixture(), controller = new AbortController(); controller.abort();
     await expect(transport.request({ url: 'https://source.test/a', method: 'GET', signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' }); expect(native.begin).not.toHaveBeenCalled();
   });
+  it('applies the call deadline while waiting for a busy host without opening another socket', async () => {
+    const { native, transport } = fixture(), controls = Array.from({ length: 4 }, () => new AbortController());
+    vi.mocked(native.begin).mockImplementation(() => new Promise(() => {}));
+    const running = controls.map((controller) => transport.request({ url: 'https://busy-source.test/a', method: 'GET', signal: controller.signal }).catch(() => null));
+    await new Promise((resolve) => setTimeout(resolve, 0)); expect(native.begin).toHaveBeenCalledTimes(4);
+    await expect(transport.request({ url: 'https://busy-source.test/queued', method: 'GET', readTimeout: 10 })).rejects.toThrow('HTTP 请求超时（10ms）'); expect(native.begin).toHaveBeenCalledTimes(4);
+    controls.forEach((controller) => controller.abort()); await Promise.all(running);
+  });
   it('still delivers its deadline when a broken native cleanup promise does not settle', async () => {
     const { native, transport } = fixture(); vi.mocked(native.begin).mockImplementationOnce(() => new Promise(() => {})); vi.mocked(native.release).mockImplementationOnce(() => new Promise(() => {}));
     await expect(transport.request({ url: 'https://source.test/a', method: 'GET', readTimeout: 10 })).rejects.toThrow('HTTP 请求超时（10ms）'); expect(native.cancel).toHaveBeenCalledOnce(); expect(native.release).toHaveBeenCalledOnce();
@@ -45,5 +53,9 @@ describe('byte-preserving native HTTP adapter', () => {
     const { native, transport } = fixture(); vi.mocked(native.begin).mockResolvedValueOnce({ status: 200, headers: {}, url: 'https://source.test', size: 512 * 1024 * 1024 + 1 });
     await expect(transport.request({ url: 'https://source.test', method: 'GET' })).rejects.toThrow('信息无效');
     vi.mocked(native.read).mockResolvedValueOnce({ data: '' }); await expect(transport.request({ url: 'https://source.test', method: 'GET' })).rejects.toThrow('分块不完整'); expect(native.release).toHaveBeenCalledTimes(2);
+  });
+  it('passes a source response budget to native code and refuses allocation when metadata exceeds it', async () => {
+    const { native, transport } = fixture(); await expect(transport.request({ url: 'https://source.test/a', method: 'GET', maxResponseBytes: 4 })).rejects.toThrow('信息无效');
+    expect(vi.mocked(native.begin).mock.calls[0]![0].maxBytes).toBe(4); expect(native.read).not.toHaveBeenCalled(); expect(native.release).toHaveBeenCalledOnce();
   });
 });

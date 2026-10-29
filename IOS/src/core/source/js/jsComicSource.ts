@@ -255,7 +255,7 @@ export class JsComicSource extends ComicSource {
   /** Kotlin `private suspend fun applyVerifiedUserAgent(runtime, userAgent)`. */
   private async applyVerifiedUserAgent(runtime: JsSourceEngine, userAgent: string): Promise<void> {
     if (this.sourceKey !== 'mycomic' || userAgent.trim() === '') return;
-    await runtime.call(`
+    const code = `
             (()=>{
                 if (typeof headers !== 'undefined') {
                     headers['User-Agent'] = ${jsonQuote(userAgent)};
@@ -264,7 +264,9 @@ export class JsComicSource extends ComicSource {
                     }
                 }
             })()
-        `);
+        `;
+    runtime.setInitializationCode?.(code);
+    await runtime.call(code);
   }
 
   /** Kotlin `private fun invalidateChapterCache()`. */

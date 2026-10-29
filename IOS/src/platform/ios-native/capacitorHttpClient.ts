@@ -3,6 +3,7 @@
  * preview use fetch. Legacy transport encoding helpers remain for injected
  * adapters; production native responses carry bytes directly. */
 import type { HttpClient, HttpHeader, HttpRequest, HttpResponse } from '@platform/interfaces';
+import { httpResponseLimit, readHttpResponseBytes } from '@platform/httpResponseBytes';
 
 /** Android `SharedHttpTransport` 的默认 `Accept`。 */
 export const DEFAULT_HEADERS: HttpHeader = {
@@ -11,6 +12,7 @@ export const DEFAULT_HEADERS: HttpHeader = {
 
 /** Transport adapter options; AbortSignal remains inside JavaScript. */
 export interface NativeHttpRequestOptions {
+  maxResponseBytes?: number;
   signal?: AbortSignal;
   redirect?: 'follow' | 'manual' | 'error';
   disableRedirects?: boolean;
@@ -127,6 +129,7 @@ export class CapacitorHttpClient implements HttpClient {
   }
 
   async request(req: HttpRequest): Promise<HttpResponse> {
+    httpResponseLimit(req.maxResponseBytes);
     // Bundled assets are served by WKWebView's capacitor:// URL handler, not
     // NSURLSession. Native HTTP only handles absolute remote HTTP(S) requests.
     if (req.url.startsWith('/') && !req.url.startsWith('//')) return this.fetchRequest(req);
@@ -159,6 +162,7 @@ export class CapacitorHttpClient implements HttpClient {
       responseType: 'arraybuffer',
       ...(req.signal ? { signal: req.signal } : {}),
       ...(req.redirect ? { redirect: req.redirect } : {}),
+      ...(req.maxResponseBytes === undefined ? {} : { maxResponseBytes: req.maxResponseBytes }),
       ...(req.redirect === 'manual' || req.redirect === 'error' ? { disableRedirects: true } : {}),
     };
     if (req.body !== undefined) Object.assign(options, encodeNativeBody(req.body));
@@ -177,10 +181,12 @@ export class CapacitorHttpClient implements HttpClient {
     for (const [name, value] of Object.entries(response.headers ?? {})) {
       headers[name.toLowerCase()] = value;
     }
+    const body = response.body ?? decodeNativeBody(response.data);
+    if (body.length > (req.maxResponseBytes ?? 512 * 1024 * 1024)) throw new Error('HTTP 响应超过大小限制');
     return {
       status: response.status,
       headers,
-      body: response.body ?? decodeNativeBody(response.data),
+      body,
       url: response.url != null && response.url !== '' ? response.url : req.url,
     };
   }
@@ -209,7 +215,7 @@ export class CapacitorHttpClient implements HttpClient {
 
     try {
       const res = await fetch(req.url, init);
-      const body = new Uint8Array(await res.arrayBuffer());
+      const body = await readHttpResponseBytes(res, httpResponseLimit(req.maxResponseBytes), controller.signal);
       const responseHeaders: HttpHeader = {};
       res.headers.forEach((value, name) => {
         responseHeaders[name.toLowerCase()] = value;

@@ -6,6 +6,7 @@ import type { PlatformBundle } from '@platform/index';
 import type { SourceWorkerBoot, SourceWorkerOperation, SourceWorkerRequest, SourceWorkerResponse, WorkerBitmap } from './protocol';
 import { verifySourceWebsite } from '@platform/ios-native/websiteVerification';
 import SourceWorker from './entry.ts?worker&inline';
+import { sourceWorkerPool } from './pool';
 
 export class EnginePreferences {
   values: Record<string, string> = {};
@@ -54,31 +55,44 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
   private sequence = 0;
   private logged = false;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private bootTimer: ReturnType<typeof setTimeout> | null = null;
+  private bootReject: ((reason: Error) => void) | null = null;
+  private revision = 0;
+  private executions = 0;
+  private hostLifetime = new AbortController();
+  private lifecycle = new AbortController();
+  private initializationCode = '';
   private pending = new Map<number, { resolve(value: unknown): void; reject(reason: Error): void; timer: ReturnType<typeof setTimeout> }>();
 
   constructor(private readonly platform: PlatformBundle, private readonly boot: Omit<SourceWorkerBoot, 'preferences'>,
-    readonly preferences: EnginePreferences, private readonly input: (title: string, image: string | null) => Promise<string>) {
+    readonly preferences: EnginePreferences, private readonly input: (title: string, image: string | null, signal?: AbortSignal) => Promise<string>) {
     this.logged = preferences.values[`logged_${boot.sourceKey}`] === 'true';
   }
 
   private start(): Promise<void> {
     if (this.ready) return this.ready;
+    const revision = this.revision;
     this.ready = this.preferences.load().then(() => {
+      if (revision !== this.revision) throw new Error('书源引擎已释放');
       this.logged = this.preferences.values[`logged_${this.boot.sourceKey}`] === 'true';
       return this.startLoaded();
-    }).catch((error: unknown) => { this.reset(); throw error; });
+    }).catch((error: unknown) => { if (revision === this.revision) this.reset(error instanceof Error ? error : new Error('书源引擎初始化失败')); throw error; });
     return this.ready;
   }
 
   private startLoaded(): Promise<void> {
     const worker = new SourceWorker();
     this.worker = worker;
+    this.hostLifetime = new AbortController();
     this.ready = new Promise<void>((resolve, reject) => {
-      const bootTimeout = setTimeout(() => { reject(new Error('书源引擎初始化超时')); this.reset(); }, 15_000);
-      worker.onerror = (event) => { clearTimeout(bootTimeout); reject(new Error(event.message)); this.reset(); };
+      this.bootReject = reject;
+      const bootTimeout = setTimeout(() => this.reset(new Error('书源引擎初始化超时')), 15_000); this.bootTimer = bootTimeout;
+      worker.onerror = (event) => { if (worker !== this.worker) return; clearTimeout(bootTimeout); this.reset(new Error(event.message)); };
       worker.onmessage = (event: MessageEvent<SourceWorkerResponse>) => {
+        if (worker !== this.worker) return;
         const message = event.data;
-        if (message.type === 'ready') { clearTimeout(bootTimeout); resolve(); return; }
+        if (message.type === 'ready') { clearTimeout(bootTimeout); this.bootTimer = null; this.bootReject = null; resolve(); return; }
+        if (message.type === 'bootError') { this.reset(new Error(message.error)); return; }
         if (message.type === 'preferences') { this.preferences.update(message.values); return; }
         if (message.type === 'host') { void this.handleHost(worker, message); return; }
         if (message.type !== 'result') return;
@@ -89,16 +103,18 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
         if (message.ok) void this.preferences.flush().then(() => pending.resolve(message.value), pending.reject);
         else pending.reject(new Error(message.error ?? '书源脚本执行失败'));
       };
-      worker.postMessage({ type: 'boot', boot: { ...this.boot, preferences: this.preferences.values } } satisfies SourceWorkerRequest);
+      worker.postMessage({ type: 'boot', boot: { ...this.boot, preferences: this.preferences.values, initializationCode: this.initializationCode } } satisfies SourceWorkerRequest);
     });
     return this.ready;
   }
 
   private async handleHost(worker: Worker, message: Extract<SourceWorkerResponse, { type: 'host' }>): Promise<void> {
+    if (worker !== this.worker) return;
+    const signal = this.hostLifetime.signal;
     try {
       let value: HttpResponseSpec | string;
       if (message.request.method === 'input') {
-        value = await this.input(message.request.title, message.request.image);
+        value = await this.input(message.request.title, message.request.image, signal);
       } else if (message.request.method === 'verify') {
         checkSourceUrl(message.request.url);
         value = JSON.stringify(await verifySourceWebsite(message.request.url, message.request.userAgent));
@@ -108,13 +124,13 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
         if (!/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/i.test(request.method)) throw new Error('无效的书源请求方法');
         const response = await this.platform.http.request({
           url: request.url, method: request.method.toUpperCase() as NonNullable<HttpRequest['method']>, headers: request.headers,
-          ...(request.body == null ? {} : { body: request.body }), timeoutMs: request.timeouts?.callMs ?? 60_000,
+          ...(request.body == null ? {} : { body: request.body }), timeoutMs: request.timeouts?.callMs ?? 60_000, signal, maxResponseBytes: 32 * 1024 * 1024,
         });
         const cookie = Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'set-cookie')?.[1];
         value = { status: response.status, finalUrl: response.url, headers: response.headers,
           body: response.body, setCookies: cookie ? cookie.split(/,(?=\s*[^;,=\s]+\s*=)/) : [] };
       }
-      worker.postMessage({ type: 'hostResult', id: message.id, ok: true, value } satisfies SourceWorkerRequest);
+      if (worker === this.worker && !signal.aborted) worker.postMessage({ type: 'hostResult', id: message.id, ok: true, value } satisfies SourceWorkerRequest);
     } catch (error) {
       if (worker === this.worker) worker.postMessage({ type: 'hostResult', id: message.id, ok: false,
         error: error instanceof Error ? error.message : '书源宿主调用失败' } satisfies SourceWorkerRequest);
@@ -124,29 +140,50 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
   private async run(operation: SourceWorkerOperation, signal: CancellationSignal = null): Promise<unknown> {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    await this.start();
-    const id = ++this.sequence;
+    this.executions++;
+    const revision = this.revision, lifecycle = this.lifecycle.signal;
+    let cancelled!: (reason: Error) => void;
+    const cancellation = new Promise<never>((_resolve, reject) => { cancelled = reject; });
+    const released = () => cancelled(lifecycle.reason as Error);
+    lifecycle.addEventListener('abort', released, { once: true });
     const abort = (): void => this.reset(new DOMException('Aborted', 'AbortError'));
     signal?.addEventListener('abort', abort, { once: true });
+    let release: (() => void) | undefined;
     try {
-      if (signal?.aborted) { abort(); throw new DOMException('Aborted', 'AbortError'); }
-      return await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => this.reset(new Error('书源脚本执行超过 45 秒')), 46_000);
-        this.pending.set(id, { resolve, reject, timer });
-        this.worker!.postMessage({ type: 'operation', id, operation } satisfies SourceWorkerRequest);
-      });
+      if (signal?.aborted) abort();
+      const execute = async () => {
+        if (revision !== this.revision) throw new Error('书源引擎已释放');
+        release = await sourceWorkerPool.acquire(this, () => this.reset(), signal);
+        if (revision !== this.revision) throw new Error('书源引擎已释放');
+        await this.start();
+        if (revision !== this.revision || signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const id = ++this.sequence;
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => this.reset(new Error('书源脚本执行超过 45 秒')), 46_000);
+          this.pending.set(id, { resolve, reject, timer });
+          this.worker!.postMessage({ type: 'operation', id, operation } satisfies SourceWorkerRequest);
+        });
+      };
+      return await Promise.race([execute(), cancellation]);
     } finally {
       signal?.removeEventListener('abort', abort);
-      if (this.pending.size === 0) this.idleTimer = setTimeout(() => this.reset(), 30_000);
+      lifecycle.removeEventListener('abort', released);
+      this.executions--; release?.();
+      if (this.executions === 0 && this.worker) this.idleTimer = setTimeout(() => this.reset(), 30_000);
     }
   }
 
   private reset(reason = new Error('书源引擎已释放')): void {
+    this.revision++; const lifecycle = this.lifecycle; this.lifecycle = new AbortController(); lifecycle.abort(reason); this.hostLifetime.abort();
     this.worker?.terminate(); this.worker = null; this.ready = null;
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.bootTimer) clearTimeout(this.bootTimer); this.bootTimer = null;
+    const rejectBoot = this.bootReject; this.bootReject = null; rejectBoot?.(reason);
     for (const item of this.pending.values()) { clearTimeout(item.timer); item.reject(reason); }
     this.pending.clear();
+    sourceWorkerPool.drop(this, reason);
   }
+  setInitializationCode(code: string): void { this.initializationCode = code; }
   async call(code: string, signal: CancellationSignal = null): Promise<string | null> {
     const result = await this.run({ method: 'call', code }, signal);
     return typeof result === 'string' ? result : null;

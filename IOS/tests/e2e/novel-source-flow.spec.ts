@@ -2,9 +2,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 
+test.afterEach(async ({ page }, result) => {
+  if (result.status === result.expectedStatus || page.isClosed()) return;
+  console.error('[novel-source-state]', await page.locator('body').innerText({ timeout: 5000 }).catch((error: unknown) => String(error)));
+  await page.screenshot({ path: '.tmp/novel-source-failure.png' }).catch((error: unknown) => console.error('[novel-source-screenshot]', String(error)));
+});
+
 test('Xbook discovery opens its real text chapter and downloads a complete EPUB to the shelf', async ({ page }) => {
+  page.on('crash', () => console.error('[novel-source-crash] WebKit page crashed'));
   test.setTimeout(90_000);
-  const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
+  const errors: string[] = []; page.on('pageerror', (error) => { errors.push(error.message); console.error('[novel-source-flow]', error.stack ?? error.message); });
   const snapshot = (name: string) => readFileSync(resolve('tests/fixtures/xbookcn', `${name}.html`), 'utf8');
   await page.route(/^https?:\/\//, async (route) => {
     const url = new URL(route.request().url()); if (['localhost', '127.0.0.1'].includes(url.hostname)) { await route.continue(); return; }

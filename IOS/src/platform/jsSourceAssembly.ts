@@ -50,7 +50,8 @@ export async function installAppJsSources(manager: SourceManager, platform: Plat
     if (request.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const response = await platform.http.request({ url: request.url,
       method: request.method as 'GET' | 'POST', headers: request.headers,
-      ...(request.body == null ? {} : { body: request.body }), timeoutMs: request.timeouts?.callMs ?? 30_000 });
+      ...(request.body == null ? {} : { body: request.body }), timeoutMs: request.timeouts?.callMs ?? 30_000,
+      maxResponseBytes: 32 * 1024 * 1024, ...(request.signal ? { signal: request.signal } : {}) });
     if (request.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const setCookie = Object.entries(response.headers).find(([key]) => key.toLowerCase() === 'set-cookie')?.[1];
     return { status: response.status, finalUrl: response.url, headers: response.headers, body: response.body,

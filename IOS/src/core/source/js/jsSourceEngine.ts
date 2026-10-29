@@ -63,6 +63,7 @@ import { NATIVE_SYNC_OVERRIDE } from './nativeSyncBootstrap';
 
 /** Public engine API; the production implementation may live wholly in a Worker. */
 export interface JsSourceEngineApi {
+  setInitializationCode?(code: string): void;
   call(code: string, signal?: CancellationSignal): Promise<string | null>;
   setLoggedIn(logged: boolean): void;
   isLoggedIn(): boolean;

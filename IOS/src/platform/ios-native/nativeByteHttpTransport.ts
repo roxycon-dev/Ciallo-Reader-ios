@@ -1,10 +1,11 @@
 import { registerPlugin } from '@capacitor/core';
 import { nonThenablePlugin } from './pluginProxy';
 import { base64ToBytes, bytesToBase64, type NativeHttpRequestOptions, type NativeHttpResponse, type NativeHttpTransport } from './capacitorHttpClient';
+import { nativeHttpScheduler } from './httpRequestScheduler';
 
 const MAX_BYTES = 512 * 1024 * 1024, CHUNK_BYTES = 512 * 1024;
 export interface ByteHttpNative {
-  begin(options: { id: string; url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; redirect: 'follow' | 'manual' | 'error' }): Promise<{ status: number; headers: Record<string, string>; url: string; size: number }>;
+  begin(options: { id: string; url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; maxBytes: number; redirect: 'follow' | 'manual' | 'error' }): Promise<{ status: number; headers: Record<string, string>; url: string; size: number }>;
   read(options: { id: string; offset: number; length: number }): Promise<{ data: string }>;
   cancel(options: { id: string }): Promise<void>;
   release(options: { id: string }): Promise<void>;
@@ -20,26 +21,31 @@ export class NativeByteHttpTransport implements NativeHttpTransport {
   constructor(private readonly native: ByteHttpNative = nonThenablePlugin(registerPlugin<ByteHttpNative>('ReaderHttp'))) {}
   async request(options: NativeHttpRequestOptions): Promise<NativeHttpResponse> {
     const timeoutMs = options.readTimeout ?? options.connectTimeout ?? 30_000;
+    const maxBytes = options.maxResponseBytes ?? MAX_BYTES;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BYTES) throw new Error('HTTP 响应大小限制无效');
     if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 3_600_000) throw new Error('HTTP 超时设置无效');
     if (options.signal?.aborted) throw new DOMException('HTTP 请求已取消', 'AbortError');
-    const id = requestId(), native = this.native;
-    let body: string | undefined;
-    if (options.data !== undefined) {
-      if (typeof options.data !== 'string') throw new Error('HTTP 请求体必须为文本或原始字节');
-      const bytes = options.dataType === 'file' ? base64ToBytes(options.data) : new TextEncoder().encode(options.data);
-      if (bytes.length > 32 * 1024 * 1024) throw new Error('HTTP 请求体超过 32MiB'); body = bytesToBase64(bytes);
-    }
+    const id = requestId(), native = this.native, waiting = new AbortController(), host = new URL(options.url).hostname.toLowerCase();
     let stopped = false, abort!: (error: Error) => void;
     const cancelled = new Promise<never>((_resolve, reject) => { abort = reject; });
-    const stop = (error: Error) => { stopped = true; abort(error); void native.cancel({ id }).catch(() => {}); };
+    const stop = (error: Error) => { stopped = true; waiting.abort(); abort(error); void native.cancel({ id }).catch(() => {}); };
     const onAbort = () => stop(new DOMException('HTTP 请求已取消', 'AbortError'));
     options.signal?.addEventListener('abort', onAbort, { once: true });
     const timer = setTimeout(() => stop(new Error(`HTTP 请求超时（${timeoutMs}ms）`)), timeoutMs);
+    let permit: (() => void) | undefined;
     const work = async (): Promise<NativeHttpResponse> => {
-      const response = await native.begin({ id, url: options.url, method: options.method, headers: options.headers ?? {}, timeoutMs,
+      permit = await nativeHttpScheduler.acquire(host, waiting.signal);
+      if (stopped) throw new DOMException('HTTP 请求已取消', 'AbortError');
+      let body: string | undefined;
+      if (options.data !== undefined) {
+        if (typeof options.data !== 'string') throw new Error('HTTP 请求体必须为文本或原始字节');
+        if (options.dataType === 'file') { if (options.data.length > 44739244) throw new Error('HTTP 请求体超过 32MiB'); body = options.data; }
+        else { const bytes = new TextEncoder().encode(options.data); if (bytes.length > 32 * 1024 * 1024) throw new Error('HTTP 请求体超过 32MiB'); body = bytesToBase64(bytes); }
+      }
+      const response = await native.begin({ id, url: options.url, method: options.method, headers: options.headers ?? {}, timeoutMs, maxBytes,
         redirect: options.redirect ?? (options.disableRedirects ? 'manual' : 'follow'), ...(body === undefined ? {} : { body }) });
       if (stopped) throw new DOMException('HTTP 请求已取消', 'AbortError');
-      if (!Number.isSafeInteger(response.size) || response.size < 0 || response.size > MAX_BYTES || !Number.isInteger(response.status) || response.status < 100 || response.status > 599 || typeof response.url !== 'string' || !response.headers || typeof response.headers !== 'object' || Object.values(response.headers).some((value) => typeof value !== 'string')) throw new Error('原生 HTTP 响应信息无效');
+      if (!Number.isSafeInteger(response.size) || response.size < 0 || response.size > maxBytes || !Number.isInteger(response.status) || response.status < 100 || response.status > 599 || typeof response.url !== 'string' || !response.headers || typeof response.headers !== 'object' || Array.isArray(response.headers) || Object.values(response.headers).some((value) => typeof value !== 'string')) throw new Error('原生 HTTP 响应信息无效');
       const bytes = new Uint8Array(response.size);
       for (let offset = 0; offset < response.size; offset += CHUNK_BYTES) {
         if (stopped || options.signal?.aborted) throw new DOMException('HTTP 请求已取消', 'AbortError');
@@ -50,6 +56,6 @@ export class NativeByteHttpTransport implements NativeHttpTransport {
       return { data: null, body: bytes, status: response.status, headers: response.headers, url: response.url };
     };
     try { return await Promise.race([work(), cancelled]); }
-    finally { clearTimeout(timer); options.signal?.removeEventListener('abort', onAbort); void native.release({ id }).catch(() => {}); }
+    finally { clearTimeout(timer); options.signal?.removeEventListener('abort', onAbort); void native.release({ id }).catch(() => {}); permit?.(); }
   }
 }

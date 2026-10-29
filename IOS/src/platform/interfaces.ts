@@ -210,6 +210,7 @@ export interface HttpHeader {
 }
 
 export interface HttpRequest {
+  maxResponseBytes?: number;
   signal?: AbortSignal | undefined;
   redirect?: 'follow' | 'manual' | 'error';
   url: string;
