@@ -85,6 +85,10 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
     const transfer = registerPlugin<{ selfTest(): Promise<{ detail: string }> }>('ReaderTransfer');
     const result = await transfer.selfTest(); assert(result.detail.includes('streamed bytes verified'), result.detail);
   }, 40_000);
+  await check('Native file-provider archive copy is bounded, cancellable and isolated', async () => {
+    const documents = registerPlugin<{ transferFileSelfTest(): Promise<{ detail: string }> }>('ReaderDocuments');
+    const result = await documents.transferFileSelfTest(); assert(result.detail.includes('symlink rejection verified'), result.detail);
+  }, 40_000);
   await check('Native streamed ZIP imports Android and preserves archive bytes', async () => {
     const fixture = await platform.http.request({ url: '/native-fixtures/transfer-deflated.zip', method: 'GET', timeoutMs: 10_000 });
     assert(fixture.status === 200, 'Missing actual JDK ZIP fixture');

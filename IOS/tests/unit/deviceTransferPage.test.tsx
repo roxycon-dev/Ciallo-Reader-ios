@@ -10,7 +10,7 @@ afterEach(async () => { for (const { root, host } of mounted.splice(0)) { await 
 afterAll(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false; });
 async function fixture(values: Partial<DeviceTransferState> = {}, undoIO?: TransferUndoUi) {
   const state: DeviceTransferState = { phase: 'DISCOVERING', importMode: 'MERGE', peers: [], progress: null, error: '', prepared: null, pairing: null, preview: null, result: null, warnings: [], requiresReload: false, ...values };
-  const controller = { getSnapshot: () => state, subscribe: () => () => {}, start: vi.fn(async () => {}), stop: vi.fn(async () => state.requiresReload), prepare: vi.fn(async () => {}), sendTo: vi.fn(async () => {}), pair: vi.fn(), import: vi.fn(), forgetResume: vi.fn(async () => {}) };
+  const controller = { getSnapshot: () => state, subscribe: () => () => {}, start: vi.fn(async () => {}), stop: vi.fn(async () => state.requiresReload), prepare: vi.fn(async () => {}), sendTo: vi.fn(async () => {}), openFile: vi.fn(async () => {}), sharePrepared: vi.fn(async () => {}), chooseImportMode: vi.fn(), pair: vi.fn(), import: vi.fn(), forgetResume: vi.fn(async () => {}) };
   const onBack = vi.fn(), reload = vi.fn(), host = document.createElement('div'); document.body.append(host); const root = createRoot(host); mounted.push({ root, host });
   await act(async () => root.render(<DeviceTransferPage controller={controller as unknown as DeviceTransferController} nativeAvailable onBack={onBack} reload={reload} {...(undoIO ? { undoIO } : {})} />));
   const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === text || item.getAttribute('aria-label') === text)!;
@@ -18,6 +18,10 @@ async function fixture(values: Partial<DeviceTransferState> = {}, undoIO?: Trans
 }
 const click = (element: HTMLElement) => act(async () => element.click());
 describe('device transfer visible human consent', () => {
+  it('opens the native file picker and forwards an explicit local replacement selection', async () => {
+    const { controller, button } = await fixture(); await click(button('打开迁移包')); expect(controller.openFile).toHaveBeenCalledOnce();
+    const imported = await fixture({ localImport: true, phase: 'AWAITING_IMPORT' }); await click(imported.host.querySelectorAll<HTMLInputElement>('input[name="file-import-mode"]')[1]!); expect(imported.controller.chooseImportMode).toHaveBeenCalledWith('REPLACE'); expect(imported.controller.import).not.toHaveBeenCalled();
+  });
   it('does not restore the replacement snapshot until the user confirms its rollback scope', async () => {
     const restore = vi.fn<TransferUndoUi['restore']>(async () => ({ finalizationPending: false }));
     const { button, controller, host, reload } = await fixture({}, { info: async () => ({ snapshotId: 'reviewed-snapshot', createdAt: 1, needsPin: false }), restore });

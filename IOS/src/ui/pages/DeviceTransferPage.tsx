@@ -16,7 +16,7 @@ import '../../styles/device-transfer.css';
 const empty: DeviceTransferState = { importMode: 'MERGE', phase: 'IDLE', peers: [], progress: null, error: '', prepared: null, pairing: null, preview: null, result: null, warnings: [], requiresReload: false };
 const noSubscribe = () => () => {}, emptySnapshot = () => empty;
 const goBack = () => useAppStore.getState().setRoute('main'), reloadApp = () => window.location.reload();
-const labels: Record<DeviceTransferState['phase'], string> = { IDLE: '互传已暂停', DISCOVERING: '等待附近设备', PREPARING: '正在整理所选数据', CONNECTING: '正在连接设备', AWAITING_CONFIRMATION: '请核对两台设备的配对码', AWAITING_IMPORT: '数据已收到，请确认导入', TRANSFERRING: '正在传输', VERIFYING: '正在校验完整数据', RECEIVED: '对方已收到，等待导入', IMPORTING: '正在导入，请稍候', COMPLETED: '迁移完成', FAILED: '互传未完成' };
+const labels: Record<DeviceTransferState['phase'], string> = { IDLE: '互传已暂停', DISCOVERING: '等待附近设备', PREPARING: '正在整理所选数据', PICKING_FILE: '正在选择并读取迁移包', SHARING_FILE: '正在分享迁移包', CONNECTING: '正在连接设备', AWAITING_CONFIRMATION: '请核对两台设备的配对码', AWAITING_IMPORT: '数据已收到，请确认导入', TRANSFERRING: '正在传输', VERIFYING: '正在校验完整数据', RECEIVED: '对方已收到，等待导入', IMPORTING: '正在导入，请稍候', COMPLETED: '迁移完成', FAILED: '互传未完成' };
 export interface TransferUndoUi { info(): Promise<NativeUndoInfo | null>; restore(snapshotId: string, pin?: string): Promise<{ finalizationPending: boolean }>; }
 const nativeUndo: TransferUndoUi = { info: getNativeUndoInfo, restore: undoNativeArchive };
 export interface DeviceTransferPageProps { controller?: DeviceTransferController; nativeAvailable?: boolean; onBack?: () => void; reload?: () => void; undoIO?: TransferUndoUi; }
@@ -49,7 +49,7 @@ export function DeviceTransferPage({ controller: injected, nativeAvailable = get
     if (!controller || !nativeAvailable || injected) return;
     let paused = false;
     return getPlatform().appLifecycle.subscribe((foreground) => {
-      if (!foreground) { paused = true; void controller.stop().catch(() => {}); }
+      if (!foreground) { controller.lockAuthorization(); if (controller.systemFileSheetOpen) return; paused = true; void controller.stop().catch(() => {}); }
       else if (paused) { paused = false; void (async () => { if (await controller.stop()) reload(); else await controller.start(); })().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '恢复互传失败')); }
     });
   }, [controller, nativeAvailable, injected, reload]);
@@ -76,10 +76,15 @@ export function DeviceTransferPage({ controller: injected, nativeAvailable = get
           {TRANSFER_CATEGORIES.map((category) => <label key={category}><input type="checkbox" checked={categories.includes(category)} onChange={() => toggle(category)} /><span>{TRANSFER_CATEGORY_LABELS[category]}</span></label>)}
         </fieldset>
           <label className="transfer-check"><input type="checkbox" checked={includeProtected} disabled={busy || !privacyEnabled} onChange={(event) => setIncludeProtected(event.currentTarget.checked)} />包含受保护内容</label>
-          {(includeProtected || state.prepared?.requiresPin) && <label className="transfer-field">{state.prepared?.requiresPin ? '续传前验证本机隐私 PIN' : '本机隐私 PIN'}<input aria-label="发送受保护内容的 PIN" type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={pin} onChange={(event) => setPin(event.currentTarget.value)} disabled={busy} /></label>}
+          {(includeProtected || state.prepared?.requiresPin) && <label className="transfer-field">{state.prepared?.requiresPin ? '发送或分享前验证本机隐私 PIN' : '本机隐私 PIN'}<input aria-label="发送受保护内容的 PIN" type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={pin} onChange={(event) => setPin(event.currentTarget.value)} disabled={busy} /></label>}
           <div className="transfer-actions"><AppButton disabled={!controller || busy || !categories.length || leaving} onClick={() => { if (controller) { run(controller.prepare({ categories, protectedAuthorized: includeProtected }, includeProtected ? pin : undefined)); setPin(''); } }}>准备发送</AppButton>
             <AppButton variant="secondary" disabled={!controller || busy || leaving} onClick={() => { if (controller) run(controller.forgetResume()); }}>清除续传</AppButton></div>
           {state.prepared && <div className="transfer-summary"><strong>{state.prepared.resumed ? '上次发送可继续' : '数据已准备好'} · {formatByteSize(state.prepared.size)}</strong><p>{Object.entries(state.prepared.counts).map(([table, count]) => `${tableLabel(table)} ${count}`).join(' · ')}</p><Warnings values={state.prepared.warnings} /></div>}
+        </GlassCard>
+        <GlassCard><h2>通过文件迁移</h2><p>可从“文件”打开 Ciallo 迁移包，也可将准备好的数据保存到文件或通过系统分享发送。导入前会展示类别与数量，供你确认。</p>
+          <div className="transfer-actions"><AppButton variant="secondary" disabled={!controller || busy || leaving} onClick={() => { if (controller) run(controller.openFile()); }}>打开迁移包</AppButton>
+            <AppButton variant="secondary" disabled={!controller || !state.prepared || busy || leaving} onClick={() => { if (controller) { run(controller.sharePrepared(pin)); setPin(''); } }}>保存或分享迁移包</AppButton></div>
+          {state.prepared && includeProtected && <p>包含受保护内容的迁移包应保存在你信任的位置。</p>}
         </GlassCard>
         <GlassCard><h2>附近设备</h2>{!state.peers.length ? <p>正在寻找附近设备，请在另一台设备打开互传并允许本地网络访问。</p> : <ul className="transfer-peers">{state.peers.map((peer) => <li key={peer.id}><span>{peer.name}</span><AppButton size="sm" disabled={!state.prepared || busy || leaving} onClick={() => { if (controller) { run(controller.sendTo(peer.id, pin)); setPin(''); } }}>发送到此设备</AppButton></li>)}</ul>}</GlassCard>
         <GlassCard><h2 role="status" aria-live="polite">{leaving ? '正在结束当前操作' : labels[state.phase]}</h2>{state.progress && <><progress aria-label="迁移进度" max={100} value={percent} /><p>{percent}% · {state.progress.phase === 'IMPORTING' ? `${state.progress.completed} / ${state.progress.total} 项` : `${formatByteSize(state.progress.completed)} / ${formatByteSize(state.progress.total)}`}</p></>}
@@ -100,6 +105,7 @@ export function DeviceTransferPage({ controller: injected, nativeAvailable = get
         {state.pairing.incoming && <fieldset className="transfer-mode"><legend>导入方式</legend><label><input type="radio" name="transfer-mode" checked={mode === 'MERGE'} onChange={() => setMode('MERGE')} />合并到本机</label><label><input type="radio" name="transfer-mode" checked={mode === 'REPLACE'} onChange={() => setMode('REPLACE')} />替换所选类别</label></fieldset>}
         <div className="transfer-actions"><AppButton variant="secondary" onClick={() => controller?.pair(false, mode)}>拒绝</AppButton><AppButton onClick={() => controller?.pair(true, mode)}>配对码一致</AppButton></div>
       </> : <><h2 id="transfer-dialog-title">确认导入数据</h2><p>{state.importMode === 'REPLACE' ? '将替换本机对应类别，导入前会保存恢复快照。' : '将合并到本机，保留现有内容并匹配书籍版本。'}</p><p>{state.preview?.categories.map((category) => TRANSFER_CATEGORY_LABELS[category]).join('、')}</p><p>{Object.entries(state.preview?.counts ?? {}).map(([table, count]) => `${tableLabel(table)} ${count}`).join(' · ')}</p><Warnings values={state.preview?.warnings ?? []} />
+        {state.localImport && <fieldset className="transfer-mode"><legend>导入方式</legend><label><input type="radio" name="file-import-mode" checked={state.importMode === 'MERGE'} onChange={() => controller?.chooseImportMode('MERGE')} />合并到本机</label><label><input type="radio" name="file-import-mode" checked={state.importMode === 'REPLACE'} onChange={() => controller?.chooseImportMode('REPLACE')} />替换所选类别</label></fieldset>}
         {state.preview?.containsProtected && !privacyEnabled && <fieldset className="transfer-pin"><legend>先为本机设置隐私 PIN</legend><p>这份数据包含受保护内容。</p><input aria-label="新隐私 PIN" type="password" inputMode="numeric" maxLength={6} autoComplete="new-password" value={setupPin} onChange={(event) => setSetupPin(event.currentTarget.value)} /><input aria-label="再次输入隐私 PIN" type="password" inputMode="numeric" maxLength={6} autoComplete="new-password" value={setupConfirm} onChange={(event) => setSetupConfirm(event.currentTarget.value)} /><AppButton size="sm" onClick={() => run(setup())}>设置本机 PIN</AppButton></fieldset>}
         <div className="transfer-actions"><AppButton variant="secondary" onClick={() => controller?.import(false)}>暂不导入</AppButton><AppButton disabled={!!state.preview?.containsProtected && !privacyEnabled} onClick={() => controller?.import(true)}>{state.importMode === 'REPLACE' ? '确认替换并导入' : '确认合并并导入'}</AppButton></div>
       </>}

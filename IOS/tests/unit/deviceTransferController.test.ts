@@ -61,6 +61,36 @@ async function paired(scenario: ReturnType<typeof fixture>) {
   return { sent };
 }
 describe('visible device transfer controller and actual streaming protocol', () => {
+  it('inspects picked files before consent, supports explicit replace and leaves network resume untouched', async () => {
+    const { receiver } = fixture(); receiver.deps.files = { pick: vi.fn(async () => ({ sessionId: id, path: `transfer/${id}.incoming`, name: 'backup.ciallo', size: 3, sha256: transferHash(new Uint8Array([0, 128, 255])) })), share: vi.fn(async () => {}), cancel: vi.fn(async () => {}) };
+    await receiver.controller.start(); const importing = receiver.controller.openFile();
+    await until(() => receiver.controller.getSnapshot().phase === 'AWAITING_IMPORT'); expect(receiver.importArchive).not.toHaveBeenCalled();
+    receiver.controller.chooseImportMode('REPLACE'); receiver.controller.import(true); await importing;
+    expect(receiver.importArchive.mock.calls[0]![1]).toBe('REPLACE'); expect(receiver.controller.getSnapshot().requiresReload).toBe(true); expect(receiver.checkpoints.size).toBe(0); expect(receiver.deps.discard).toHaveBeenCalledWith(stage); expect(receiver.files.size).toBe(0); await receiver.controller.stop();
+  });
+  it('stopping a file import waits for committed work and retains its reload requirement', async () => {
+    const { receiver } = fixture(); receiver.deps.files = { pick: async () => ({ sessionId: id, path: `transfer/${id}.incoming`, name: 'backup.zip', size: 3, sha256: 'a'.repeat(64) }), share: async () => {}, cancel: vi.fn(async () => {}) };
+    let finish!: (value: Awaited<ReturnType<DeviceTransferDependencies['importArchive']>>) => void;
+    receiver.importArchive.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await receiver.controller.start(); const importing = receiver.controller.openFile(); await until(() => receiver.controller.getSnapshot().phase === 'AWAITING_IMPORT'); receiver.controller.import(true); await until(() => receiver.importArchive.mock.calls.length === 1);
+    let stopped = false; const stopping = receiver.controller.stop().then((reload) => { stopped = true; return reload; }); await Promise.resolve(); expect(stopped).toBe(false);
+    finish({ result: { added: 1, merged: 0, skipped: 0, warnings: [], duplicate: false, recordedSeconds: null }, finalizationPending: false, requiresReload: true }); await importing; expect(await stopping).toBe(true);
+  });
+  it('refuses file imports on rejection and requires PIN again to share protected caches after backgrounding', async () => {
+    const { sender } = fixture(), share = vi.fn(async () => {});
+    sender.deps.files = { pick: async () => ({ sessionId: id, path: `transfer/${id}.incoming`, name: 'backup.zip', size: 3, sha256: 'a'.repeat(64) }), share, cancel: async () => {} };
+    await sender.controller.start(); const opening = sender.controller.openFile(); await until(() => sender.controller.getSnapshot().phase === 'AWAITING_IMPORT'); sender.controller.import(false); await opening; expect(sender.importArchive).not.toHaveBeenCalled();
+    const prepare = vi.mocked(sender.deps.prepare).getMockImplementation()!; vi.mocked(sender.deps.prepare).mockImplementationOnce(async (...args) => { const value = await prepare(...args); return { ...value, manifest: { ...value.manifest, containsProtected: true } }; });
+    await sender.controller.prepare({ categories: ['BOOKS'], protectedAuthorized: true }, '123456'); sender.controller.lockAuthorization(); sender.deps.verifyProtected = vi.fn(async (pin) => pin === '123456');
+    await sender.controller.sharePrepared('bad'); expect(share).not.toHaveBeenCalled(); await sender.controller.sharePrepared('123456'); expect(share).toHaveBeenCalledOnce(); await sender.controller.stop();
+  });
+  it('preserves a valid prior sending archive and checkpoint if preparing its replacement fails', async () => {
+    const { sender } = fixture(); await sender.controller.start(); await sender.controller.prepare({ categories: ['BOOKS'], protectedAuthorized: false });
+    const checkpoint = structuredClone(sender.checkpoints.get(false)), before = sender.files.get(`transfer/${id}.outgoing`)!.slice();
+    vi.mocked(sender.deps.prepare).mockRejectedValueOnce(new Error('disk full'));
+    await sender.controller.prepare({ categories: ['BOOKS', 'HISTORY'], protectedAuthorized: false });
+    expect(sender.controller.getSnapshot().phase).toBe('FAILED'); expect(sender.controller.getSnapshot().prepared?.size).toBe(3); expect(sender.checkpoints.get(false)).toEqual(checkpoint); expect(sender.files.get(`transfer/${id}.outgoing`)).toEqual(before); await sender.controller.stop();
+  });
   it('serializes a rapid stop/reopen with an unfinished native discovery start', async () => {
     const { sender } = fixture(), original = sender.deps.port.start; let ready!: () => void;
     const start = vi.spyOn(sender.deps.port, 'start').mockImplementationOnce(async (...args) => { await new Promise<void>((resolve) => { ready = resolve; }); await original(...args); });
