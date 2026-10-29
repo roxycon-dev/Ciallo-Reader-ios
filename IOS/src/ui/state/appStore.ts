@@ -594,10 +594,18 @@ export function bootstrapLibrary(): Promise<void> {
       performance.mark('app-bootstrap-start');
       const { reportStartup } = await import('@platform/ios-native/startupDiagnostics');
       await reportStartup('starting');
-      const { getPlatform } = await import('@platform/index');
+      const { getPlatform, getPlatformKind } = await import('@platform/index');
       const { openAppDatabase } = await import('@core/db/openDatabase');
       const platform = getPlatform();
       await openAppDatabase({ db: platform.db });
+      if (getPlatformKind() === 'ios-native') {
+        const { SETTINGS_TABLE_SQL } = await import('@core/settings/settingsRepository');
+        const { createNativeTransferJournal } = await import('@platform/ios-native/transferJournalRuntime');
+        await platform.db.execute(SETTINGS_TABLE_SQL);
+        // Recover before publishing a repository, restoring downloads, or
+        // constructing source caches that could observe a partial import.
+        await createNativeTransferJournal(platform).recover();
+      }
       performance.mark('app-database-ready');
       await reportStartup('starting', new Error('database: schema ready'));
       const repository = new BookRepository(platform.db);

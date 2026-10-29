@@ -49,6 +49,17 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
     assert(platform.fs.writeFileAtomic, 'Native atomic configuration writer not installed');
     try { await platform.fs.writeFileAtomic(path, new Uint8Array([0, 255, 128])); await platform.fs.writeFileAtomic(path, new Uint8Array([128, 0, 1, 255])); assert(Array.from(await platform.fs.readFile(path)).join(',') === '128,0,1,255', 'Native atomic replacement changed bytes'); }
     finally { await platform.fs.delete(path); }
+    const { NativePortableArchivePort } = await import('./portableArchivePort');
+    const resources = new NativePortableArchivePort();
+    try {
+      await platform.fs.writeFile(path, new Uint8Array([128, 0, 1, 255]));
+      const descriptor = await resources.resource(prefix);
+      assert(descriptor.kind === 'directory' && descriptor.files.length === 1 && descriptor.files[0]!.path === path && descriptor.files[0]!.size === 4, 'Native resource directory enumeration failed');
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const file = await resources.resource((await Filesystem.getUri({ path, directory: Directory.Documents })).uri);
+      assert(file.kind === 'file' && file.files[0]!.sha256 === descriptor.files[0]!.sha256, 'Native absolute resource hashing differs');
+      assert((await resources.resource('/etc/hosts')).kind === 'missing', 'Native resource escaped Documents');
+    } finally { await platform.fs.delete(path); }
   });
   await check('PDFKit renders actual PDF bytes to a readable JPEG', async () => {
     const path = `${prefix}/input.pdf`; let pages: string[] = [];

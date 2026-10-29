@@ -178,9 +178,10 @@ enum TransferZip {
         }
         guard ended else { throw TransferNativeError.invalid("压缩分块已截断") }
     }
-    static func hashFile(_ url: URL) throws -> TransferZipEntry {
+    static func hashFile(_ url: URL, cancelled: () -> Bool = { false }) throws -> TransferZipEntry {
         let input = try FileHandle(forReadingFrom: url); defer { try? input.close() }; var hash = SHA256(), size: UInt64 = 0
         while true {
+            guard !cancelled() else { throw TransferNativeError.invalid("资源校验已取消") }
             let bytes = try input.read(upToCount: 65536) ?? Data(); if bytes.isEmpty { break }
             size += UInt64(bytes.count); guard size <= entryMaximum else { throw TransferNativeError.invalid("单个归档资源超过 512MiB") }; hash.update(data: bytes)
         }

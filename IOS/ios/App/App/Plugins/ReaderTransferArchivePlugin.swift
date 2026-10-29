@@ -15,6 +15,7 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "journal", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "promote", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "resource", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "journalSelfTest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selfTest", returnType: CAPPluginReturnPromise)
     ]
@@ -176,6 +177,42 @@ public class ReaderTransferArchivePlugin: CAPPlugin, CAPBridgedPlugin {
                 let source = try self.stage(id), destination = try self.documentURL("restored_transfer_" + id)
                 guard !FileManager.default.fileExists(atPath: destination.path) else { throw TransferNativeError.invalid("导入资源目录已存在") }
                 try FileManager.default.moveItem(at: source, to: destination); call.resolve(["filesRoot": "restored_transfer_\(id)/files"])
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
+    @objc func resource(_ call: CAPPluginCall) {
+        guard let path = call.getString("path"), !path.isEmpty, path.utf8.count <= 4096 else { call.reject("本地资源路径无效"); return }
+        let epoch = epoch()
+        queue.async {
+            do {
+                let root = self.documents, source: URL
+                if path.hasPrefix("file://") {
+                    guard let url = URL(string: path), url.isFileURL else { throw TransferNativeError.invalid("文件 URI 无效") }; source = url.standardizedFileURL.resolvingSymlinksInPath()
+                } else if path.hasPrefix("/") { source = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath() }
+                else { source = try self.documentURL(path) }
+                var isDirectory: ObjCBool = false
+                guard source.path.hasPrefix(root.path + "/"), FileManager.default.fileExists(atPath: source.path, isDirectory: &isDirectory) else { call.resolve(["kind": "missing", "files": []]); return }
+                let cancelled = { self.epoch() != epoch }
+                var files = [[String: Any]](), total: UInt64 = 0
+                let add: (URL) throws -> Void = { file in
+                    guard !cancelled(), files.count < 50000, file.standardizedFileURL.resolvingSymlinksInPath().path.hasPrefix(root.path + "/") else { throw TransferNativeError.invalid("资源操作取消、文件过多或路径越界") }
+                    let values = try file.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
+                    guard values.isSymbolicLink != true, values.isRegularFile == true else { throw TransferNativeError.invalid("归档资源不是普通文件") }
+                    let hash = try TransferZip.hashFile(file, cancelled: cancelled); total += hash.size
+                    guard total <= TransferZip.maximum else { throw TransferNativeError.invalid("资源总量超过 4GiB") }
+                    files.append(["path": String(file.path.dropFirst(root.path.count + 1)), "size": hash.size, "sha256": hash.sha256])
+                }
+                if isDirectory.boolValue {
+                    guard let entries = FileManager.default.enumerator(at: source, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey], options: []) else { throw TransferNativeError.invalid("资源目录无法读取") }
+                    var count = 0
+                    for case let file as URL in entries {
+                        count += 1; guard count <= 100000, !cancelled() else { throw TransferNativeError.invalid("资源操作取消或目录条目过多") }
+                        let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                        guard values.isSymbolicLink != true else { throw TransferNativeError.invalid("资源目录包含符号链接") }
+                        if values.isRegularFile == true && !file.lastPathComponent.hasSuffix(".part") && !file.lastPathComponent.hasSuffix(".tmp") { try add(file) }
+                    }
+                } else { try add(source) }
+                call.resolve(["kind": isDirectory.boolValue ? "directory" : "file", "path": String(source.path.dropFirst(root.path.count + 1)), "files": files])
             } catch { call.reject(error.localizedDescription) }
         }
     }

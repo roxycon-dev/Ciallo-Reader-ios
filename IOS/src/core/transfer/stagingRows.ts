@@ -9,20 +9,21 @@ import { isTransferSessionId, requireTransfer } from './transferWire';
 export class TransferStagingRows {
   private readonly name: string;
   private ready = false;
-  constructor(private readonly db: DatabaseLike, sessionId: string) {
+  constructor(private readonly db: DatabaseLike, private readonly sessionId: string) {
     requireTransfer(isTransferSessionId(sessionId), '暂存数据库身份无效'); this.name = `_ciallo_transfer_${sessionId.replace(/-/g, '')}`;
   }
   async build(source: AsyncIterable<PortableEnvelope>, manifest?: PortableManifest, signal?: AbortSignal): Promise<void> {
     requireTransfer(!this.ready, '暂存数据已建立');
-    await this.db.execute(`CREATE TEMP TABLE "${this.name}" (ordinal INTEGER PRIMARY KEY, tableName TEXT NOT NULL, envelope TEXT NOT NULL, byteEnd INTEGER NOT NULL)`);
+    await this.db.execute(`CREATE TEMP TABLE "${this.name}" (ordinal INTEGER PRIMARY KEY, tableName TEXT NOT NULL, envelope TEXT NOT NULL, byteEnd INTEGER NOT NULL, bookId INTEGER, chapterOrder INTEGER)`);
     try {
       await this.db.execute(`CREATE INDEX "${this.name}_table" ON "${this.name}" (tableName,ordinal)`);
+      await this.db.execute(`CREATE INDEX "${this.name}_book" ON "${this.name}" (tableName,bookId,chapterOrder,ordinal)`);
       const inspector = new PortableRowsInspector(), encoder = new TextEncoder();
-      let ordinal = 0, byteEnd = 0, batchBytes = 0, batch: { ordinal: number; table: string; text: string; byteEnd: number }[] = [];
+      let ordinal = 0, byteEnd = 0, batchBytes = 0, batch: { ordinal: number; table: string; text: string; byteEnd: number; bookId: number | null; chapterOrder: number | null }[] = [];
       const flush = async () => {
         if (!batch.length) return;
         requireTransfer(!signal?.aborted, '导入暂存已取消');
-        await this.db.execute(`INSERT INTO "${this.name}" (ordinal,tableName,envelope,byteEnd) VALUES ${batch.map(() => '(?,?,?,?)').join(',')}`, batch.flatMap((row) => [row.ordinal, row.table, row.text, row.byteEnd]));
+        await this.db.execute(`INSERT INTO "${this.name}" (ordinal,tableName,envelope,byteEnd,bookId,chapterOrder) VALUES ${batch.map(() => '(?,?,?,?,?,?)').join(',')}`, batch.flatMap((row) => [row.ordinal, row.table, row.text, row.byteEnd, row.bookId, row.chapterOrder]));
         batch = []; batchBytes = 0;
       };
       for await (const value of source) {
@@ -31,7 +32,7 @@ export class TransferStagingRows {
         inspector.add(row);
         if (batchBytes + bytes > 512 * 1024 || batch.length >= 128) await flush();
         byteEnd += bytes; requireTransfer(byteEnd <= 512 * 1024 * 1024, '数据库行文件超过 512MiB');
-        batch.push({ ordinal: ++ordinal, table: row.table, text, byteEnd }); batchBytes += bytes;
+        batch.push({ ordinal: ++ordinal, table: row.table, text, byteEnd, bookId: row.table === 'chapters' ? row.row.bookId as number : null, chapterOrder: row.table === 'chapters' ? row.row.chapterOrder as number : null }); batchBytes += bytes;
       }
       await flush(); inspector.finish(manifest); this.ready = true;
     } catch (error) { await this.dispose(); throw error; }
@@ -48,4 +49,18 @@ export class TransferStagingRows {
     }
   }
   async dispose(): Promise<void> { this.ready = false; await this.db.execute(`DROP TABLE IF EXISTS "${this.name}"`); }
+  using(database: DatabaseLike): TransferStagingRows {
+    requireTransfer(this.ready, '暂存数据未就绪');
+    const view = new TransferStagingRows(database, this.sessionId); view.ready = true; return view;
+  }
+  async *chapters(bookId: number): AsyncGenerator<PortableEnvelope> {
+    requireTransfer(this.ready && Number.isSafeInteger(bookId), '暂存数据未就绪或书籍身份无效');
+    let order: number | null = null, ordinal = 0;
+    while (true) {
+      // Two rows cap even maximum-size chapter bodies below a 4MiB bridge batch.
+      const rows: { chapterOrder: number; ordinal: number; envelope: string }[] = await this.db.query(`SELECT chapterOrder,ordinal,envelope FROM "${this.name}" WHERE tableName='chapters' AND bookId=? AND (? IS NULL OR chapterOrder>? OR (chapterOrder=? AND ordinal>?)) ORDER BY chapterOrder,ordinal LIMIT 2`, [bookId, order, order, order, ordinal]);
+      if (!rows.length) return;
+      for (const row of rows) { order = row.chapterOrder; ordinal = row.ordinal; yield parsePortableRow(row.envelope); }
+    }
+  }
 }

@@ -18,6 +18,8 @@ function fixture() {
     extract: vi.fn(async () => extracted),
     rows: vi.fn<PortableArchiveNative['rows']>(async () => ({ lines: [text('database.rows').trimEnd()], cursor: files['database.rows']!.length, done: true })),
     discard: vi.fn(async () => {}), cancel: vi.fn(async () => {}),
+    resource: vi.fn<PortableArchiveNative['resource']>(async () => ({ kind: 'missing', files: [] })),
+    promote: vi.fn(async () => ({ filesRoot: `restored_transfer_${stageId}/files` })),
   } satisfies PortableArchiveNative;
   return { port: new NativePortableArchivePort(native), native, extracted, files };
 }
@@ -63,5 +65,14 @@ describe('native portable archive receive pipeline', () => {
     expect(native.write).toHaveBeenCalledTimes(2);
     const calls = native.write.mock.calls.map(([call]) => call); expect(calls.map((call) => call.reset)).toEqual([true, false]);
     expect(calls.map((call) => new TextDecoder().decode(new TextEncoder().encode(call.text))).join('')).toBe(text);
+  });
+  it('validates native resource descriptors and the promoted destination before exposing paths', async () => {
+    const { port, native } = fixture();
+    native.resource.mockResolvedValueOnce({ kind: 'directory', path: 'books', files: [{ path: 'books/中文.png', size: 2, sha256: digest(new Uint8Array([1, 2])) }] });
+    expect((await port.resource('books')).files).toHaveLength(1);
+    native.resource.mockResolvedValueOnce({ kind: 'directory', path: 'books', files: [{ path: 'source_configs/private.json', size: 0, sha256: digest(new Uint8Array()) }] });
+    await expect(port.resource('books')).rejects.toThrow('超出');
+    expect(await port.promote(stageId)).toBe(`restored_transfer_${stageId}/files`);
+    native.promote.mockResolvedValueOnce({ filesRoot: 'source_configs' }); await expect(port.promote(stageId)).rejects.toThrow('路径错误');
   });
 });
