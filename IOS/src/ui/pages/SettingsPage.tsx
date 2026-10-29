@@ -2195,6 +2195,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
 
         {/* ── Section: 数据备份 ── */}
         <SettingsSectionHeader text="数据备份" />
+        <GlassCard><h3 style={{ margin: '0 0 8px' }}>设备互传</h3><p style={{ margin: '0 0 12px', fontSize: 14 }}>向附近设备迁移书籍、收藏、标注和设置。</p><AppButton size="sm" onClick={() => setRoute('deviceTransfer')}>打开设备互传</AppButton></GlassCard>
         <GlassCard>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>

@@ -47,6 +47,7 @@ describe('ROUTES', () => {
     expect(Object.values(ROUTES).sort()).toEqual(
       [
         'cache_management',
+        'device_transfer',
         'comic_chapters',
         'comic_reader',
         'comic_reader_online',

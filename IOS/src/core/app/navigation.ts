@@ -29,6 +29,7 @@ export const ROUTES = {
   novelReaderOnline: 'novel_reader_online',
   comicReaderOnline: 'comic_reader_online',
   cacheManagement: 'cache_management',
+  deviceTransfer: 'device_transfer',
 } as const;
 
 export type RouteName = (typeof ROUTES)[keyof typeof ROUTES];

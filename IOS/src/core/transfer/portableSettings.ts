@@ -53,6 +53,10 @@ export function validatePortableSettings(input: unknown): PortableSettings {
     for (const [key, raw] of Object.entries(entries)) {
       requireTransfer(portableNovelKey(key), '包含不可迁移设置');
       const item = setting(raw, settingType(key)!);
+      if (key === 'js_source_repo_url') {
+        const url = new URL(item.value as string);
+        requireTransfer(['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && ![...url.searchParams.keys()].some((key) => SENSITIVE.test(key)), '源仓库地址含认证信息或协议无效');
+      }
       if (item.type === 'float') requireTransfer(isAcceptableFloat(key, item.value as number), '浮点设置超出范围');
       if (item.type === 'int') { const range = intRangeFor(key); requireTransfer((item.value as number) >= range.min && (item.value as number) <= range.max, '整数设置超出范围'); }
       settings[key] = item;

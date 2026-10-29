@@ -7,6 +7,8 @@ describe('portable settings trust boundary and merge', () => {
     { novel_reader_prefs: { privacy_pin: { type: 'string', value: '123456' } } }, { novel_reader_prefs: { font_size: { type: 'float', value: 300 } } },
     { novel_reader_prefs: { reader_theme: { type: 'int', value: 99 } } }, { novel_reader_prefs: { keep_screen_on: { type: 'boolean', value: 'false' } } },
     { sources: { source: { headers: { Authorization: 'Bearer private' } } } }, { sources: { source: { url: 'https://user:private@example.com' } } },
+    { novel_reader_prefs: { js_source_repo_url: { type: 'string', value: 'https://user:secret@example.org/index.json' } } },
+    { novel_reader_prefs: { js_source_repo_url: { type: 'string', value: 'https://example.org/index.json?access_token=secret' } } },
     { source_states: { source: 'false' } }, { comic_reader_store: { presets: { type: 'string', value: '{}' } } },
   ])('rejects private stores, invalid values and credential-bearing source definitions', (value) => {
     expect(() => validatePortableSettings(value)).toThrow();

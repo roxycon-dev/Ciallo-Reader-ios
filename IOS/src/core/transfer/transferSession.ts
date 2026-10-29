@@ -236,11 +236,12 @@ export async function receiveTransferPayload<Preview>(wire: TransferWire, authen
   progress(options, 'VERIFYING', size, size);
   requireTransfer(await options.file.size() === size && await options.file.hash() === session.sha256, '完整文件校验失败，请重新发送');
   try {
-    const preview = await options.inspect(options.file);
+    wire.setTimeout(15 * 60 * 1000);
+    const preview = await wire.withDeadline(() => options.inspect(options.file));
     await wire.send({ type: 'received' });
     progress(options, 'RECEIVED', size, size);
     progress(options, 'IMPORTING', size, size);
-    const result = importResult({ type: 'imported', ...await options.importArchive(options.file, preview, session.mode ?? 'MERGE') });
+    const result = importResult({ type: 'imported', ...await wire.withDeadline(() => options.importArchive(options.file, preview, session.mode ?? 'MERGE')) });
     // Persist the receipt before notifying the peer; retries replay it without
     // importing twice, even when the final socket write is lost.
     await options.saveCheckpoint({ ...session, result });

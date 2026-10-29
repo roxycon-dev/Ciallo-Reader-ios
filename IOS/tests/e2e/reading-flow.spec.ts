@@ -23,6 +23,17 @@ async function enterApp(page: Page): Promise<void> {
   await expect(page.locator('.main-shell')).toBeVisible({ timeout: 15_000 });
 }
 
+test('device transfer is reachable from settings and explains native nearby access in browser preview', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
+  await enterApp(page); await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('button', { name: '打开设备互传' }).click();
+  await expect(page.locator('[data-route="deviceTransfer"]')).toBeVisible();
+  await expect(page.getByText('附近设备互传需要安装后的 iOS 应用和本地网络权限。')).toBeVisible();
+  expect(await page.locator('.device-transfer-page').evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: `.tmp/device-transfer-${page.context().browser()?.browserType().name()}.png`, animations: 'disabled' });
+  await page.getByRole('button', { name: '返回设置' }).click(); await expect(page.locator('.main-shell')).toBeVisible(); expect(errors).toEqual([]);
+});
+
 test('local TXT picker imports actual chapters and opens the reader', async ({ page }) => {
   test.setTimeout(60_000);
   const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));

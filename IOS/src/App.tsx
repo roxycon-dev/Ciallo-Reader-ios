@@ -62,6 +62,7 @@ import { ReaderPage, setInlineImageDecoder } from '@ui/pages/ReaderPage';
 import { createFileInlineImageDecoder } from '@platform/readerImageResolver';
 import { getPlatform } from '@platform/index';
 import { SettingsPage } from '@ui/pages/SettingsPage';
+import { DeviceTransferPage } from '@ui/pages/DeviceTransferPage';
 import { SourceManagementPage } from '@ui/pages/SourceManagementPage';
 import { SplashPage } from '@ui/pages/SplashPage';
 import { StatisticsPage } from '@ui/pages/StatisticsPage';
@@ -117,6 +118,7 @@ const ROUTE_NAME_BY_KEY: Readonly<Record<AppRoute, RouteName | null>> = {
   comicReaderOnline: ROUTES.comicReaderOnline,
   godEditor: ROUTES.godEditor,
   cacheManagement: ROUTES.cacheManagement,
+  deviceTransfer: ROUTES.deviceTransfer,
   godCoverCrop: null,
 };
 
@@ -396,6 +398,7 @@ export function App() {
         {route === 'godEditor' ? <GodEditorPage /> : null}
         {route === 'godCoverCrop' ? <GodCoverCropRoute /> : null}
         {route === 'cacheManagement' ? <CacheManagementPage /> : null}
+        {route === 'deviceTransfer' ? <DeviceTransferPage /> : null}
       </div>
       <Toast />
       <SourceDialogs />

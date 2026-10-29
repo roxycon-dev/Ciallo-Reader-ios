@@ -46,7 +46,8 @@ export type RouteKey =
   | 'comicChapters'
   | 'novelReaderOnline'
   | 'comicReaderOnline'
-  | 'cacheManagement';
+  | 'cacheManagement'
+  | 'deviceTransfer';
 
 /**
  * 神回封面裁剪信标（对应 Android GodCoverCropScreen 的入参 + 返回值）。
