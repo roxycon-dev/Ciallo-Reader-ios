@@ -28,7 +28,7 @@ export function DeviceTransferPage({ controller: injected, nativeAvailable = get
   const state = useSyncExternalStore(controller?.subscribe ?? noSubscribe, controller?.getSnapshot ?? emptySnapshot), dialog = useRef<HTMLDivElement>(null);
   const available = nativeAvailable || injected !== undefined;
   const undo = undoIO ?? nativeUndo;
-  const busy = !['IDLE', 'DISCOVERING', 'FAILED', 'COMPLETED'].includes(state.phase), pendingImport = state.phase === 'AWAITING_IMPORT', modal = state.pairing !== null || pendingImport || undoConfirm;
+  const busy = !['IDLE', 'DISCOVERING', 'FAILED', 'COMPLETED'].includes(state.phase) || state.requiresReload, pendingImport = state.phase === 'AWAITING_IMPORT', modal = state.pairing !== null || pendingImport || undoConfirm;
   const run = (work: Promise<unknown>) => { void work.catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '操作未完成')); };
   useEffect(() => {
     if (!available) return;
@@ -40,6 +40,7 @@ export function DeviceTransferPage({ controller: injected, nativeAvailable = get
     return () => { mounted = false; if (current) void current.stop().then((needsReload) => { if (needsReload) reload(); }); };
   }, [available, injected, reload]);
   useEffect(() => { const service = getPrivacyService(); void service.ready().then((value) => setPrivacyEnabled(value.enabled)).catch(() => {}); return service.subscribe(() => setPrivacyEnabled(service.getSnapshot().enabled)); }, []);
+  useEffect(() => { if (controller && !injected && !busy) void controller.openFile(true); }, [controller, injected, busy, state]);
   useEffect(() => {
     if (!nativeAvailable || injected && !undoIO) return;
     let mounted = true; void undo.info().then((info) => { if (mounted) setUndoInfo(info); }).catch((reason: unknown) => { if (mounted) setError(reason instanceof Error ? reason.message : '无法读取恢复快照'); });

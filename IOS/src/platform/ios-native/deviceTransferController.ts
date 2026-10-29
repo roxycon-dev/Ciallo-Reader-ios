@@ -7,6 +7,7 @@ import type { PreparedNativeArchive } from './archiveExportRuntime';
 import type { InspectedPortableArchive } from './portableArchivePort';
 import type { NativeArchiveImportResult } from './archiveImportRuntime';
 import type { ArchiveFilePort, PickedTransferArchive } from './archiveFilePort';
+import { ImportRecoveryPendingError } from '@core/transfer/importJournal';
 
 type Phase = 'IDLE' | 'DISCOVERING' | 'PREPARING' | 'PICKING_FILE' | 'SHARING_FILE' | 'CONNECTING' | 'AWAITING_CONFIRMATION' | 'AWAITING_IMPORT' | 'FAILED' | TransferProgress['phase'];
 type PendingOutgoing = OutgoingTransfer & { protected?: boolean };
@@ -56,7 +57,10 @@ export class DeviceTransferController {
   readonly getSnapshot = (): DeviceTransferState => this.state;
   readonly subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   private update(values: Partial<DeviceTransferState>): void { this.state = { ...this.state, ...values }; for (const listener of [...this.listeners]) listener(); }
-  private failure(error: unknown): void { if (this.running) this.update({ phase: 'FAILED', error: error instanceof Error ? error.message.slice(0, 1000) : '设备互传失败', pairing: null }); }
+  private failure(error: unknown): void {
+    if (error instanceof ImportRecoveryPendingError) this.update({ requiresReload: true });
+    if (this.running) this.update({ phase: 'FAILED', error: error instanceof Error ? error.message.slice(0, 1000) : '设备互传失败', pairing: null });
+  }
   async start(): Promise<void> {
     if (this.stopping) await this.stopping;
     if (this.starting) return this.starting;
@@ -77,7 +81,7 @@ export class DeviceTransferController {
     } catch (error) { this.failure(error); }
   }
   async prepare(selection: ArchiveExportSelection, pin?: string): Promise<void> {
-    if (!this.running || this.active || this.fileWork || this.exportWork || this.connecting) return;
+    if (!this.running || this.state.requiresReload || this.active || this.fileWork || this.exportWork || this.connecting) return;
     const revision = this.revision, previous = this.outgoing;
     this.abort = new AbortController(); this.update({ phase: 'PREPARING', error: '', progress: null, result: null });
     try {
@@ -102,7 +106,7 @@ export class DeviceTransferController {
     finally { this.exportWork = null; }
   }
   async sendTo(peerId: string, pin?: string): Promise<void> {
-    if (!this.running || this.active || this.fileWork || this.connecting || this.exportWork || this.state.phase === 'PREPARING') return;
+    if (!this.running || this.state.requiresReload || this.active || this.fileWork || this.connecting || this.exportWork || this.state.phase === 'PREPARING') return;
     const revision = this.revision;
     try {
       requireTransfer(this.outgoing, '请先选择数据并准备发送');
@@ -127,16 +131,19 @@ export class DeviceTransferController {
   /** iOS sheets legitimately background the app. Keep only that operation alive;
    * later sends still require fresh protected-data authorization. */
   get systemFileSheetOpen(): boolean { return this.state.phase === 'PICKING_FILE' || this.state.phase === 'SHARING_FILE'; }
-  async openFile(): Promise<void> {
-    if (!this.running || !this.deps.files || this.active || this.fileWork || this.exportWork || this.connecting) return;
-    this.abort = new AbortController(); const signal = this.abort.signal;
-    const work = this.openFileNow(signal).catch((error: unknown) => this.failure(error)).finally(() => { this.fileWork = null; }); this.fileWork = work; await work;
+  async openFile(pending = false): Promise<void> {
+    if (!this.running || this.state.requiresReload || !this.deps.files || this.active || this.fileWork || this.exportWork || this.connecting) return;
+    this.abort = new AbortController(); const signal = this.abort.signal, before = this.state;
+    const work = this.openFileNow(signal, pending).catch((error: unknown) => this.failure(error)).finally(() => { this.fileWork = null; if (this.state !== before) this.update({}); }); this.fileWork = work; await work;
   }
-  private async openFileNow(signal: AbortSignal): Promise<void> {
+  private async openFileNow(signal: AbortSignal, pending: boolean): Promise<void> {
     let file: PickedTransferArchive | null = null, archive: InspectedPortableArchive | null = null;
-    this.update({ phase: 'PICKING_FILE', localImport: true, error: '', progress: null, preview: null, result: null, warnings: [], importMode: 'MERGE' });
     try {
-      file = await this.deps.files!.pick();
+      // An empty system inbox must not change phase: the page checks again only
+      // when a real operation finishes or a new OS notification arrives.
+      if (pending) { file = await this.deps.files!.takeOpened?.() ?? null; if (!file) return; }
+      this.update({ phase: 'PICKING_FILE', localImport: true, error: '', progress: null, preview: null, result: null, warnings: [], importMode: 'MERGE' });
+      if (!pending) file = await this.deps.files!.pick();
       if (!file || signal.aborted) { if (!signal.aborted) this.update({ phase: 'DISCOVERING' }); return; }
       this.update({ phase: 'VERIFYING' }); archive = await this.deps.inspect(file.path, file.sha256);
       requireTransfer(!signal.aborted, '已取消导入');
@@ -151,11 +158,11 @@ export class DeviceTransferController {
       this.confirmImport = null;
       if (archive) await this.deps.discard(archive.stageId).catch(() => {});
       if (file) await this.deps.port.file(file.sessionId, true).remove().catch(() => {});
-      this.update({ localImport: false });
+      if (this.state.localImport) this.update({ localImport: false });
     }
   }
   async sharePrepared(pin?: string): Promise<void> {
-    if (!this.running || !this.deps.files || this.active || this.fileWork || this.exportWork || this.connecting) return;
+    if (!this.running || this.state.requiresReload || !this.deps.files || this.active || this.fileWork || this.exportWork || this.connecting) return;
     const revision = this.revision;
     const work = (async () => {
       requireTransfer(this.outgoing, '请先选择数据并准备迁移包');
@@ -164,7 +171,7 @@ export class DeviceTransferController {
       requireTransfer(this.running && revision === this.revision, '已取消分享');
       await this.deps.files!.share(`transfer/${this.outgoing.sessionId}.outgoing`, `Ciallo-${new Date().toISOString().slice(0, 10)}.ciallo`);
       if (this.running && revision === this.revision) this.update({ phase: 'DISCOVERING' });
-    })().catch((error: unknown) => { if (revision === this.revision) this.failure(error); }).finally(() => { this.fileWork = null; });
+    })().catch((error: unknown) => { if (revision === this.revision) this.failure(error); }).finally(() => { this.fileWork = null; this.update({}); });
     this.fileWork = work; await work;
   }
   private accept(stream: TransferStream): Promise<void> {
@@ -185,11 +192,13 @@ export class DeviceTransferController {
         local: this.deps.local, nonce: this.deps.randomHex(24), ...(this.outgoing?.peerId ? { outgoing: this.outgoing } : {}),
         loadIncoming: () => port.loadCheckpoint(true), saveCheckpoint: (checkpoint, incoming) => port.saveCheckpoint(checkpoint, incoming),
         confirm: async (pairing) => {
+          requireTransfer(!this.state.requiresReload, '请先重新载入已更新的书库');
           this.update({ phase: 'AWAITING_CONFIRMATION', pairing });
           return new Promise((resolve) => { this.confirmPairing = resolve; });
         },
       });
       this.confirmPairing = null; this.update({ pairing: null });
+      requireTransfer(!this.state.requiresReload || authenticated.incoming && authenticated.checkpoint.result, '请先重新载入已更新的书库');
       if (authenticated.incoming) this.update({ importMode: authenticated.checkpoint.mode ?? 'MERGE' });
       if (!authenticated.incoming && this.outgoing) this.outgoing = { ...this.outgoing, ...authenticated.checkpoint };
       const incoming = authenticated.incoming, file = port.file(authenticated.checkpoint.sessionId, incoming);
@@ -238,13 +247,14 @@ export class DeviceTransferController {
     this.confirmPairing = null; this.confirmImport = null; this.update({ phase: 'IDLE', pairing: null }); return this.state.requiresReload;
   }
   async forgetResume(): Promise<void> {
-    if (this.active || this.fileWork || this.exportWork || this.connecting) return;
+    if (this.state.requiresReload || this.active || this.fileWork || this.exportWork || this.connecting) return;
     const restart = this.running, expectedRevision = this.revision + 1; await this.stop();
     for (const incoming of [false, true]) {
       const checkpoint: TransferCheckpoint | null = await this.deps.port.loadCheckpoint(incoming).catch(() => null);
       if (checkpoint && isTransferSessionId(checkpoint.sessionId)) await this.deps.port.file(checkpoint.sessionId, incoming).remove();
       await this.deps.port.removeCheckpoint(incoming);
     }
+    await this.deps.files?.clearOpened?.();
     this.outgoing = null; this.update({ prepared: null, error: '', preview: null, result: null, phase: this.running ? 'DISCOVERING' : 'IDLE' });
     if (restart && this.revision === expectedRevision) await this.start();
   }

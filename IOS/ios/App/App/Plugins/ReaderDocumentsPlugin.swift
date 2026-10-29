@@ -58,6 +58,63 @@ private enum TransferDocumentIO {
     }
 }
 
+/// Only SceneDelegate can enqueue OS-provided URLs. JavaScript may claim a
+/// completed private copy, but cannot ask native code to read arbitrary URLs.
+enum ReaderTransferOpenInbox {
+    static let changed = Notification.Name("ReaderTransferOpenInboxChanged")
+    private static let queue = DispatchQueue(label: "ciallo.transfer.opened-files", qos: .userInitiated)
+    private static var root: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL.resolvingSymlinksInPath() }
+    private static var metadata: URL { root.appendingPathComponent("transfer/opened.json") }
+    static func accept(_ url: URL, notify: Bool = true) {
+        guard url.isFileURL, ["ciallo", "zip"].contains(url.pathExtension.lowercased()) else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        queue.async {
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                guard !FileManager.default.fileExists(atPath: metadata.path) else { throw TransferDocumentIO.failure("已有迁移包等待处理，请先确认当前文件") }
+                let file = try TransferDocumentIO.copy(url, root: root, cancelled: { false })
+                do {
+                    let bytes = try JSONSerialization.data(withJSONObject: file)
+                    try bytes.write(to: metadata, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                    let handle = try FileHandle(forWritingTo: metadata); defer { try? handle.close() }; try handle.synchronize()
+                } catch { if let path = file["path"] as? String { try? FileManager.default.removeItem(at: root.appendingPathComponent(path)) }; throw error }
+                if notify { DispatchQueue.main.async { NotificationCenter.default.post(name: changed, object: nil) } }
+            } catch { if notify { DispatchQueue.main.async { NotificationCenter.default.post(name: changed, object: nil, userInfo: ["error": error.localizedDescription]) } } }
+        }
+    }
+    static func read(take: Bool, completion: @escaping (Result<[String: Any]?, Error>) -> Void) {
+        queue.async {
+            let result = Result { () throws -> [String: Any]? in
+                guard FileManager.default.fileExists(atPath: metadata.path) else { return nil }
+                let values = try metadata.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+                guard metadata.resolvingSymlinksInPath().path == metadata.path, values.isRegularFile == true, values.isSymbolicLink != true, (values.fileSize ?? 0) <= 4096,
+                      let file = try JSONSerialization.jsonObject(with: Data(contentsOf: metadata)) as? [String: Any],
+                      let id = file["sessionId"] as? String, UUID(uuidString: id)?.uuidString.lowercased() == id,
+                      file["path"] as? String == "transfer/\(id).incoming" else { throw TransferDocumentIO.failure("待打开的迁移文件记录损坏") }
+                let path = root.appendingPathComponent("transfer/\(id).incoming")
+                guard path.standardizedFileURL.resolvingSymlinksInPath().path == path.path, FileManager.default.isReadableFile(atPath: path.path) else { throw TransferDocumentIO.failure("待打开的迁移文件已不可用") }
+                if take { try FileManager.default.removeItem(at: metadata) }
+                return file
+            }
+            completion(result)
+        }
+    }
+    static func clear(completion: @escaping (Result<Void, Error>) -> Void) {
+        queue.async {
+            completion(Result {
+                guard metadata.deletingLastPathComponent().resolvingSymlinksInPath().path == metadata.deletingLastPathComponent().path else { throw TransferDocumentIO.failure("迁移缓存目录无效") }
+                guard FileManager.default.fileExists(atPath: metadata.path) else { return }
+                if let values = try? metadata.resourceValues(forKeys: [.isSymbolicLinkKey, .fileSizeKey]), values.isSymbolicLink != true, (values.fileSize ?? 0) <= 4096,
+                   let bytes = try? Data(contentsOf: metadata), let file = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+                   let id = file["sessionId"] as? String, UUID(uuidString: id)?.uuidString.lowercased() == id, file["path"] as? String == "transfer/\(id).incoming" {
+                    try? FileManager.default.removeItem(at: root.appendingPathComponent("transfer/\(id).incoming"))
+                }
+                try FileManager.default.removeItem(at: metadata)
+            })
+        }
+    }
+}
+
 @objc(ReaderDocumentsPlugin)
 public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate {
     public let identifier = "ReaderDocumentsPlugin"
@@ -71,6 +128,7 @@ public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPicke
         CAPPluginMethod(name: "shareTransfer", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelTransfer", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "transferFileSelfTest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openedTransfer", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "writeAtomic", returnType: CAPPluginReturnPromise)
     ]
     private var pending: CAPPluginCall?
@@ -80,6 +138,22 @@ public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPicke
     private var transferShareCall: CAPPluginCall?
     private let transferLock = NSLock()
     private var transferGeneration = 0
+    private var openedObserver: NSObjectProtocol?
+    public override func load() {
+        openedObserver = NotificationCenter.default.addObserver(forName: ReaderTransferOpenInbox.changed, object: nil, queue: .main) { [weak self] event in
+            var data: [String: Any] = [:]; if let error = event.userInfo?["error"] as? String { data["error"] = error }
+            self?.notifyListeners("transferFileOpened", data: data, retainUntilConsumed: true)
+        }
+    }
+    deinit { if let observer = openedObserver { NotificationCenter.default.removeObserver(observer) } }
+    @objc func openedTransfer(_ call: CAPPluginCall) {
+        if call.getBool("discard") == true {
+            ReaderTransferOpenInbox.clear { result in switch result { case .success: call.resolve(["file": NSNull()]); case .failure(let error): call.reject(error.localizedDescription) } }; return
+        }
+        ReaderTransferOpenInbox.read(take: call.getBool("take") ?? false) { result in
+            switch result { case .success(let file): call.resolve(["file": file as Any? ?? NSNull()]); case .failure(let error): call.reject(error.localizedDescription) }
+        }
+    }
     private func generation() -> Int { transferLock.lock(); defer { transferLock.unlock() }; return transferGeneration }
     private func cancelGeneration() { transferLock.lock(); transferGeneration += 1; transferLock.unlock() }
 
@@ -176,7 +250,17 @@ public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPicke
                 guard rejected, try FileManager.default.contentsOfDirectory(atPath: privateDirectory.path).isEmpty else { throw TransferDocumentIO.failure("Symlink cache redirected transfer") }
                 let names = try FileManager.default.contentsOfDirectory(atPath: documents.appendingPathComponent("transfer").path)
                 guard names.count == 1, !names.contains(where: { $0.hasSuffix(".part") }) else { throw TransferDocumentIO.failure("Cancelled archive leaked temporary files") }
-                call.resolve(["detail": "streamed copy, digest, cancellation, limits and symlink rejection verified"])
+                func readOpened(_ take: Bool) throws -> [String: Any]? {
+                    let semaphore = DispatchSemaphore(value: 0); var result: Result<[String: Any]?, Error>?
+                    ReaderTransferOpenInbox.read(take: take) { result = $0; semaphore.signal() }
+                    guard semaphore.wait(timeout: .now() + 15) == .success, let value = result else { throw TransferDocumentIO.failure("Opened archive inbox timed out") }; return try value.get()
+                }
+                ReaderTransferOpenInbox.accept(source, notify: false)
+                guard let pending = try readOpened(false), pending["sha256"] as? String == copied["sha256"] as? String,
+                      let claimed = try readOpened(true), claimed["sessionId"] as? String == pending["sessionId"] as? String, try readOpened(false) == nil,
+                      let path = claimed["path"] as? String else { throw TransferDocumentIO.failure("Persisted OS archive handoff failed") }
+                let appDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]; try FileManager.default.removeItem(at: appDocuments.appendingPathComponent(path))
+                call.resolve(["detail": "streamed copy, digest, cancellation, limits, OS inbox and symlink rejection verified"])
             } catch { call.reject(error.localizedDescription) }
         }
         #else

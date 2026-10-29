@@ -46,6 +46,9 @@ export async function restoreImportUndo(database: SqliteExecutor): Promise<void>
   for (const table of IMPORT_SNAPSHOT_TABLES) await database.execute(`INSERT INTO "${table}" SELECT * FROM "${undoName(table)}"`);
 }
 const marker = (id: string): string => `journal:${id}`;
+export class ImportRecoveryPendingError extends AggregateError {
+  constructor(errors: unknown[]) { super(errors, '导入失败且恢复待完成，请重新载入以恢复本机数据'); this.name = 'ImportRecoveryPendingError'; }
+}
 
 /** SQLite automatically rolls back an interrupted transaction. Its unique
  * receipt is committed with the library, letting startup distinguish a committed
@@ -76,7 +79,8 @@ export class TransferImportJournal {
   async run<T>(id: string, stageId: string, keepUndo: boolean, operation: (database: SqliteExecutor) => Promise<T>): Promise<{ value: T; finalizationPending: boolean }> {
     requireTransfer(isTransferSessionId(id) && isTransferSessionId(stageId) && this.database.transaction, '受管导入事务不可用');
     return contentMutationGate.mutex.withLock(() => this.operations.withLock(async () => {
-      await this.recoverLocked(); contentMutationGate.invalidatePendingWrites();
+      try { await this.recoverLocked(); } catch (error) { throw new ImportRecoveryPendingError([error]); }
+      contentMutationGate.invalidatePendingWrites();
       const record: ImportJournalRecord = { version: 1, id, stageId, keepUndo, createdAt: Date.now(), settings: await this.preferences.snapshot() };
       let value: T;
       try {
@@ -98,7 +102,7 @@ export class TransferImportJournal {
           }
         });
       } catch (error) {
-        try { await this.recoverLocked(); } catch (recovery) { throw new AggregateError([error, recovery], '导入失败且恢复待完成'); }
+        try { await this.recoverLocked(); } catch (recovery) { throw new ImportRecoveryPendingError([error, recovery]); }
         throw error;
       }
       try { await this.finalize(record); return { value, finalizationPending: false }; }

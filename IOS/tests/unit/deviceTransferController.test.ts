@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DeviceTransferController, type DeviceTransferDependencies } from '@platform/ios-native/deviceTransferController';
+import { ImportRecoveryPendingError } from '@core/transfer/importJournal';
 import type { NativeTransferEvents } from '@platform/ios-native/transferPort';
 import { transferHash, type TransferStream } from '@core/transfer/transferWire';
 import type { TransferCheckpoint, TransferPeer } from '@core/transfer/transferSession';
@@ -61,6 +62,17 @@ async function paired(scenario: ReturnType<typeof fixture>) {
   return { sent };
 }
 describe('visible device transfer controller and actual streaming protocol', () => {
+  it('checks an empty OS inbox without changing the visible snapshot or prompting', async () => {
+    const { receiver } = fixture(), pick = vi.fn(async () => null), takeOpened = vi.fn(async () => null);
+    receiver.deps.files = { pick, takeOpened, share: async () => {}, cancel: async () => {} }; await receiver.controller.start();
+    const before = receiver.controller.getSnapshot(); await receiver.controller.openFile(true); expect(receiver.controller.getSnapshot()).toBe(before); expect(takeOpened).toHaveBeenCalledOnce(); expect(pick).not.toHaveBeenCalled(); await receiver.controller.stop();
+  });
+  it('requires reload before more mutations if file import external recovery remains pending', async () => {
+    const { receiver } = fixture(); receiver.deps.files = { pick: async () => ({ sessionId: id, path: `transfer/${id}.incoming`, name: 'backup.zip', size: 3, sha256: 'a'.repeat(64) }), share: async () => {}, cancel: async () => {} };
+    receiver.importArchive.mockRejectedValueOnce(new ImportRecoveryPendingError([new Error('cannot restore files')]));
+    await receiver.controller.start(); const importing = receiver.controller.openFile(); await until(() => receiver.controller.getSnapshot().phase === 'AWAITING_IMPORT'); receiver.controller.import(true); await importing;
+    expect(receiver.controller.getSnapshot().requiresReload).toBe(true); await receiver.controller.prepare({ categories: ['BOOKS'], protectedAuthorized: false }); expect(receiver.deps.prepare).not.toHaveBeenCalled(); expect(await receiver.controller.stop()).toBe(true);
+  });
   it('inspects picked files before consent, supports explicit replace and leaves network resume untouched', async () => {
     const { receiver } = fixture(); receiver.deps.files = { pick: vi.fn(async () => ({ sessionId: id, path: `transfer/${id}.incoming`, name: 'backup.ciallo', size: 3, sha256: transferHash(new Uint8Array([0, 128, 255])) })), share: vi.fn(async () => {}), cancel: vi.fn(async () => {}) };
     await receiver.controller.start(); const importing = receiver.controller.openFile();

@@ -39,9 +39,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        for context in connectionOptions.urlContexts { ReaderTransferOpenInbox.accept(context.url) }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts { ReaderTransferOpenInbox.accept(context.url) }
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
     }
 

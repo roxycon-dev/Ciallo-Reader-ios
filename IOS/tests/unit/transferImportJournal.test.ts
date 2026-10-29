@@ -3,7 +3,7 @@ import { createV12Database, type MemorySqlite } from '../port/data/support/andro
 import { MIGRATION_12_13 } from '@core/db/roomMigrations';
 import { SETTINGS_TABLE_SQL } from '@core/settings/settingsRepository';
 import { withExclusiveDatabase } from '@platform/exclusiveDatabase';
-import { TransferImportJournal, restoreImportUndo, type ImportJournalFiles, type ImportJournalRecord } from '@core/transfer/importJournal';
+import { TransferImportJournal, ImportRecoveryPendingError, restoreImportUndo, type ImportJournalFiles, type ImportJournalRecord } from '@core/transfer/importJournal';
 import type { SQLiteDatabase } from '@platform/interfaces';
 
 const id = '01234567-89ab-cdef-0123-456789abcdef', secondId = '11234567-89ab-cdef-0123-456789abcdef';
@@ -26,6 +26,12 @@ async function setup() {
   return { db, raw, files, journal, preferences, get theme() { return theme; }, get definitions() { return definitions; }, setTheme: (value: string) => { theme = value; }, setDefinitions: (value: string) => { definitions = value; }, setFinishFailure: (value: boolean) => { failFinish = value; }, get pending() { return pending; }, setPending: (value: ImportJournalRecord) => { pending = value; } };
 }
 describe('portable import commit markers and crash recovery on real SQLite', () => {
+  it('retains a durable recovery record and signals reload if external rollback cannot finish', async () => {
+    const fixture = await setup(); vi.mocked(fixture.files.restore).mockRejectedValue(new Error('file provider unavailable'));
+    await expect(fixture.journal.run(id, id, false, async (tx) => { await tx.execute("UPDATE categories SET name='失败导入'"); fixture.setDefinitions('partial'); throw new Error('import interrupted'); })).rejects.toBeInstanceOf(ImportRecoveryPendingError);
+    expect(fixture.pending?.id).toBe(id); expect(await fixture.db.query('SELECT name FROM categories')).toEqual([{ name: '原有隐私分类' }]);
+    vi.mocked(fixture.files.restore).mockImplementation(async () => fixture.setDefinitions('old')); await fixture.journal.recover(); expect(fixture.definitions).toBe('old'); expect(fixture.pending).toBeNull();
+  });
   it('rolls back the library and restores private preferences/definitions after a failed import', async () => {
     const fixture = await setup();
     await expect(fixture.journal.run(id, id, false, async (tx) => { await tx.execute("UPDATE categories SET name='部分导入'"); await tx.execute("UPDATE app_settings SET value='30'"); fixture.setTheme('new'); fixture.setDefinitions('new'); throw new Error('Import failed'); })).rejects.toThrow('Import failed');

@@ -231,6 +231,23 @@ export function App() {
   }), []);
 
   useEffect(() => {
+    let disposed = false, remove: (() => void) | undefined;
+    void (async () => {
+      const { getPlatformKind } = await import('@platform/index'); if (disposed || getPlatformKind() !== 'ios-native') return;
+      const { listenForOpenedTransfer } = await import('@platform/ios-native/archiveFilePort');
+      const opened = () => { void (async () => {
+        await bootstrapLibrary(); if (disposed) return;
+        useAppStore.getState().setRoute('deviceTransfer');
+        const { getDeviceTransferController } = await import('@platform/ios-native/deviceTransferRuntime');
+        if (disposed) return; const controller = await getDeviceTransferController(); await controller.start(); if (!disposed) await controller.openFile(true);
+      })().catch((error: unknown) => { if (!disposed) showToast(error instanceof Error ? error.message : '无法打开迁移包'); }); };
+      const cleanup = await listenForOpenedTransfer(opened, (message) => { if (!disposed) showToast(message); });
+      if (disposed) cleanup(); else remove = cleanup;
+    })().catch((error: unknown) => { if (!disposed) showToast(error instanceof Error ? error.message : '无法接收系统迁移文件'); });
+    return () => { disposed = true; remove?.(); };
+  }, []);
+
+  useEffect(() => {
     let disposed = false;
     let listener: { remove(): Promise<void> } | undefined;
     let last = '', lastAt = 0;
