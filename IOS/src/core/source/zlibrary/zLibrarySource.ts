@@ -1,3 +1,4 @@
+import { shouldRetryZLibraryDownload, uniqueZLibraryEdition, zLibraryApiKey, zLibraryBookUrl } from './zLibraryBookReference';
 /**
  * Kotlin → TS: `source/zlibrary/ZLibrarySource.kt` (740 lines, 682 non-blank)
  *             → `src/core/source/zlibrary/zLibrarySource.ts`
@@ -237,6 +238,7 @@ export class ZLibrarySource extends BookSource {
   });
 
   private readonly deps: ZLibrarySourceDeps;
+  private readonly downloadBooks = new Map<string, { book: SearchBook; domain: string }>();
 
   constructor(deps: ZLibrarySourceDeps) {
     super();
@@ -466,6 +468,17 @@ export class ZLibrarySource extends BookSource {
     return new NetworkError(`网络连接失败，请检查网络: ${errorMessage(e)}`);
   }
 
+  private rememberSearch(books: SearchBook[], domain: string): SourceResultType<SearchBook[]> {
+    for (const book of books) this.rememberDownloadBook(book.id, book, domain);
+    return SourceResult.Success(books);
+  }
+
+  private rememberDownloadBook(id: string, book: SearchBook, domain: string): void {
+    this.downloadBooks.delete(id);
+    this.downloadBooks.set(id, { book, domain });
+    while (this.downloadBooks.size > 300) this.downloadBooks.delete(this.downloadBooks.keys().next().value!);
+  }
+
   override async search(keyword: string): Promise<SourceResultType<SearchBook[]>> {
     try {
       const domain = await this.domainResolver.resolveDomain();
@@ -538,7 +551,7 @@ export class ZLibrarySource extends BookSource {
         const eapiBooks = await this.eapiClient.search(keyword, finalHost);
         if (eapiBooks.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_EAPI', eapiBooks.length, 'eapi fallback');
-          return SourceResult.Success(eapiBooks);
+          return this.rememberSearch(eapiBooks, finalHost);
         }
         // 513/529/500 等 HTTP 层全被挡（eapi 也被挡时返回空）：WebView
         // （Chromium TLS 指纹 + 会话 Cookie）是唯一能进的入口，再兜一次。
@@ -550,7 +563,7 @@ export class ZLibrarySource extends BookSource {
         await this.syncWebViewCookiesToHttp(webBooks.cookies, finalHost);
         if (webBooks.books.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'HTTP error fallback');
-          return SourceResult.Success(webBooks.books);
+          return this.rememberSearch(webBooks.books, finalHost);
         }
         return SourceResult.Error(new NetworkError(`搜索请求失败 HTTP ${response.code}`));
       }
@@ -596,7 +609,7 @@ export class ZLibrarySource extends BookSource {
           retryResponse.close();
           if (retryBooks.length > 0) {
             ZLibraryNetworkLogger.logParserResult('SUCCESS_FALLBACK', retryBooks.length, 'fallback domain retry');
-            return SourceResult.Success(retryBooks);
+            return this.rememberSearch(retryBooks, retryFinalUrl.host);
           }
           return SourceResult.Error(
             new NetworkError('搜索结果与关键词无关（节点返回了无关推荐），请更换节点后重试'),
@@ -617,7 +630,7 @@ export class ZLibrarySource extends BookSource {
           const eapiBooks = await this.eapiClient.search(keyword, finalHost);
           if (eapiBooks.length > 0) {
             ZLibraryNetworkLogger.logParserResult('SUCCESS_EAPI', eapiBooks.length, 'eapi empty fallback');
-            return SourceResult.Success(eapiBooks);
+            return this.rememberSearch(eapiBooks, finalHost);
           }
           return SourceResult.Success([]);
         }
@@ -630,7 +643,7 @@ export class ZLibrarySource extends BookSource {
         await this.syncWebViewCookiesToHttp(webBooks.cookies, finalHost);
         if (webBooks.books.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'HTML empty, WebView fallback');
-          return SourceResult.Success(webBooks.books);
+          return this.rememberSearch(webBooks.books, finalHost);
         }
         if (webBooks.stillChallenged) {
           ZLibraryNetworkLogger.logParserResult('FAILED', 0, 'captcha challenge');
@@ -643,7 +656,7 @@ export class ZLibrarySource extends BookSource {
         books.length > 0 ? 'SUCCESS' : 'EMPTY',
         books.length,
       );
-      return SourceResult.Success(books);
+      return this.rememberSearch(books, finalHost);
     } catch (e) {
       if (e instanceof SourceException) {
         const challengeDomain = await this.domainResolver.resolveDomain();
@@ -655,7 +668,7 @@ export class ZLibrarySource extends BookSource {
         await this.syncWebViewCookiesToHttp(webBooks.cookies, challengeDomain);
         if (webBooks.books.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'Challenge fallback');
-          return SourceResult.Success(webBooks.books);
+          return this.rememberSearch(webBooks.books, challengeDomain);
         }
         ZLibraryNetworkLogger.logParserResult('FAILED', 0, e.message);
         return SourceResult.Error(e);
@@ -669,7 +682,7 @@ export class ZLibrarySource extends BookSource {
       await this.syncWebViewCookiesToHttp(webBooks.cookies, challengeDomain);
       if (webBooks.books.length > 0) {
         ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'Exception fallback');
-        return SourceResult.Success(webBooks.books);
+        return this.rememberSearch(webBooks.books, challengeDomain);
       }
       const translated = this.translateException(e);
       ZLibraryNetworkLogger.logParserResult('FAILED', 0, translated.message);
@@ -677,18 +690,19 @@ export class ZLibrarySource extends BookSource {
     }
   }
 
-  override async getDetail(bookId: string): Promise<SourceResultType<SearchBook>> {
+  override async getDetail(bookId: string, pinnedDomain?: string): Promise<SourceResultType<SearchBook>> {
     try {
-      const domain = await this.domainResolver.resolveDomain();
+      const domain = pinnedDomain ?? await this.domainResolver.resolveDomain();
       await this.deps.sessionManager.ensureSessionInitialized(domain);
 
       const cleanBookId = trimStartSlash(bookId);
-      const detailUrl = cleanBookId.startsWith('http') ? cleanBookId : `https://${domain}/${cleanBookId}`;
+      const detailUrl = pinnedDomain ? zLibraryBookUrl(bookId, domain) : cleanBookId.startsWith('http') ? cleanBookId : `https://${domain}/${cleanBookId}`;
 
       let response: ZLibraryResponseLike;
       try {
         response = await this.deps.httpClient.get(detailUrl, `https://${domain}/`);
-      } catch {
+      } catch (error) {
+        if (pinnedDomain) throw error;
         const fallbackDomain = await this.domainResolver.resolveDomain(true);
         await this.deps.sessionManager.ensureSessionInitialized(fallbackDomain, true);
         const fallbackDetailUrl = cleanBookId.startsWith('http')
@@ -747,14 +761,14 @@ export class ZLibrarySource extends BookSource {
       // 兜底：HTML 详情异常时尝试 eapi
       if (e instanceof SourceException) {
         const eapiBook = await this.eapiBookForDetail(
-          await this.domainResolver.resolveDomain(),
+          pinnedDomain ?? await this.domainResolver.resolveDomain(),
           bookId,
         );
         return eapiBook !== null ? SourceResult.Success(eapiBook) : SourceResult.Error(e);
       }
       const translated = this.translateException(e);
       const eapiBook = await this.eapiBookForDetail(
-        await this.domainResolver.resolveDomain(),
+        pinnedDomain ?? await this.domainResolver.resolveDomain(),
         bookId,
       );
       return eapiBook !== null ? SourceResult.Success(eapiBook) : SourceResult.Error(translated);
@@ -781,17 +795,65 @@ export class ZLibrarySource extends BookSource {
    * - 默认格式（HTML 详情页主直链）直接走 /dl/；
    * - 其他格式通过 eapi（bipinkrish 方案）的 formats -> file 链路获取。
    */
-  override async getDownloadInfoWithFormat(
-    bookId: string,
-    preferredFormat: string | null = null,
-  ): Promise<SourceResultType<DownloadInfo>> {
-    if (!(await this.isLoggedIn())) {
-      return SourceResult.Error(new LoginRequired());
+  async getDownloadInfoForBook(book: SearchBook, format: string | null): Promise<SourceResultType<DownloadInfo>> {
+    const origin = this.downloadBooks.get(book.id)?.domain ?? await this.domainResolver.resolveDomain();
+    this.rememberDownloadBook(book.id, book, origin);
+    return this.downloadWithFailover(book.id, format, new Set());
+  }
+
+  override getDownloadInfoWithFormat(bookId: string, format: string | null = null): Promise<SourceResultType<DownloadInfo>> {
+    return this.downloadWithFailover(bookId, format, new Set());
+  }
+
+  recoverDownloadInfo(book: SearchBook, format: string | null, excluded: ReadonlySet<string>): Promise<SourceResultType<DownloadInfo>> {
+    const known = this.downloadBooks.get(book.id);
+    if (!known) this.rememberDownloadBook(book.id, book, '');
+    return this.downloadWithFailover(book.id, format, excluded);
+  }
+
+  private async downloadWithFailover(bookId: string, format: string | null, excludedInput: ReadonlySet<string>): Promise<SourceResultType<DownloadInfo>> {
+    if (!await this.isLoggedIn()) return SourceResult.Error(new LoginRequired());
+    const excluded = new Set([...excludedInput].map((domain) => domain.toLowerCase()));
+    let last: SourceResultType<DownloadInfo> = SourceResult.Error(new NetworkError('没有可用的下载节点'));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const known = this.downloadBooks.get(bookId);
+      const domain = excluded.size ? await this.domainResolver.resolveNextDomain?.(excluded) : known?.domain || await this.domainResolver.resolveDomain();
+      if (!domain || excluded.has(domain.toLowerCase())) return last;
+      let candidate = known?.book;
+      if (excluded.size && candidate) {
+        candidate = await this.refreshBookOnMirror(candidate, domain, format) ?? undefined;
+        if (!candidate) {
+          last = SourceResult.Error(new ParseError('备用节点未找到唯一匹配的书籍版本，请稍后重试'));
+          excluded.add(domain.toLowerCase());
+          continue;
+        }
+        this.rememberDownloadBook(bookId, candidate, domain);
+      }
+      last = await this.downloadAtDomain(candidate?.id ?? bookId, format, domain, candidate);
+      if (last.kind === 'success' || last.exception instanceof LoginRequired || !shouldRetryZLibraryDownload(last.exception.message)) return last;
+      excluded.add(domain.toLowerCase());
     }
+    return last;
+  }
 
+  private async refreshBookOnMirror(book: SearchBook, domain: string, format: string | null): Promise<SearchBook | null> {
     try {
-      const domain = await this.domainResolver.resolveDomain();
+      await this.deps.sessionManager.ensureSessionInitialized(domain);
+      const root = 'https://' + domain;
+      const response = await this.deps.httpClient.get(root + '/s/' + encodeURIComponent(book.title), root + '/');
+      try {
+        const final = new URL(response.url);
+        if (!response.isSuccessful || !final.pathname.startsWith('/s/')) return null;
+        return uniqueZLibraryEdition(ZLibraryParserManager.parseSearchPage(response.body, final.origin, this.id), book, format);
+      } finally { response.close(); }
+    } catch { return null; }
+  }
 
+  private async downloadAtDomain(
+    bookId: string, preferredFormat: string | null, domain: string, known?: SearchBook,
+  ): Promise<SourceResultType<DownloadInfo>> {
+    try {
+      await this.deps.sessionManager.ensureSessionInitialized(domain);
       // 前置拦截：今日下载额度已用尽时直接提示，避免白白走下载+校验流程
       // （新站 /dl/ 在额度用尽时会返回 HTML 限额页，旧逻辑会误报“HTML 错误页”）
       const limitInfo = await this.eapiClient.getDailyDownloadLimit(domain);
@@ -803,7 +865,7 @@ export class ZLibrarySource extends BookSource {
         );
       }
 
-      const detailResult = await this.getDetail(bookId);
+      const detailResult = known?.downloadUrl?.trim() ? SourceResult.Success(known) : await this.getDetail(bookId, domain);
       if (detailResult.kind === 'error') {
         return SourceResult.Error(detailResult.exception);
       }
@@ -823,7 +885,8 @@ export class ZLibrarySource extends BookSource {
       const effectiveWant =
         wantFormat !== null && wantFormat !== '' && wantFormat !== defaultFormat ? wantFormat : null;
 
-      const cookieHeader = (await this.deps.credentialStorage.getCookies()) ?? '';
+      const cookieHeader = (await this.deps.cookieJar.loadForRequest(new URL('https://' + domain + '/')))
+        .map((cookie) => cookie.name + '=' + cookie.value).join('; ');
 
       // 用户手动选择的非默认格式：走 eapi formats -> 变体 file 链路（多格式下载）
       if (effectiveWant !== null) {
@@ -873,8 +936,9 @@ export class ZLibrarySource extends BookSource {
       // eapi 失败/不可用时再回退详情页 /dl/ 链接 + 会话 Cookie
       // （/dl/ 会先返回 DiamWall 503 挑战页，DownloadWorker 的 DiamWallInterceptor
       // 会自动解 PoW 后重试）。
-      const detailUrl = `https://${domain}/${trimStartSlash(bookId)}`;
-      const eapiLink = await this.eapiDownloadLink(domain, bookId, book);
+      const detailUrl = zLibraryBookUrl(bookId, domain);
+      const apiKey = zLibraryApiKey(bookId);
+      const eapiLink = !apiKey && !book.eapiHash?.trim() && dlUrl?.trim() ? null : await this.eapiDownloadLink(domain, bookId, book);
       if (
         (eapiLink === null || eapiLink.url === null || eapiLink.url.trim() === '') &&
         eapiLink !== null &&
@@ -884,7 +948,7 @@ export class ZLibrarySource extends BookSource {
         // 每日额度用尽等明确限制：直接提示，避免白白走 /dl/ 后报“HTML 错误页”
         return SourceResult.Error(new NetworkError(eapiLink.disallowMessage as string));
       }
-      const finalUrl = eapiLink?.url ?? dlUrl;
+      const finalUrl = eapiLink?.url?.trim() || dlUrl;
       if (finalUrl === null || finalUrl.trim() === '') {
         return SourceResult.Error(new ParseError('未获取到下载链接，请稍后重试或切换节点'));
       }
@@ -893,7 +957,7 @@ export class ZLibrarySource extends BookSource {
           url: finalUrl,
           fileName: `${cleanTitle}.${defaultFormat}`,
           format: defaultFormat,
-          referer: detailUrl,
+          referer: known?.downloadUrl && !apiKey ? 'https://' + domain + '/s/' + encodeURIComponent(book.title) : detailUrl,
           headers: { Cookie: cookieHeader },
         }),
       );
@@ -982,9 +1046,10 @@ export class ZLibrarySource extends BookSource {
    * 详情页有 data-book_id（数字 id），再用 eapi 搜索书名匹配同 id 的书拿到短 hash。
    */
   private async resolveEapiBookKey(domain: string, bookId: string): Promise<[string, string] | null> {
+    const direct = zLibraryApiKey(bookId);
+    if (direct) return direct;
     try {
-      const cleanBookId = trimStartSlash(bookId);
-      const detailUrl = cleanBookId.startsWith('http') ? cleanBookId : `https://${domain}/${cleanBookId}`;
+      const detailUrl = zLibraryBookUrl(bookId, domain);
       const response = await this.deps.httpClient.get(detailUrl, `https://${domain}/`);
       const html = response.body;
       response.close();
@@ -1032,6 +1097,8 @@ export class ZLibrarySource extends BookSource {
    * （dwid / c_token / __diamwall / remix_*）回灌进 OkHttp 的 CookieJar，
    * 后续详情页与下载请求全程免挑战（2026-09-04 1lib.sk 实测）。
    */
+  syncDownloadCookies(cookies: string, domain: string): Promise<void> { return this.syncWebViewCookiesToHttp(cookies, domain); }
+
   private async syncWebViewCookiesToHttp(cookies: string | null, domain: string): Promise<void> {
     if (cookies === null || cookies.trim() === '' || domain.trim() === '') return;
     try {

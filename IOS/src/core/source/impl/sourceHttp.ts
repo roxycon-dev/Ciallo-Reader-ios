@@ -113,6 +113,7 @@ export function isSuccessful(response: HttpResponse): boolean {
 
 /** Kotlin `body.toRequestBody(mediaType)`. */
 export interface SourceRequestInit {
+  signal?: AbortSignal;
   method?: HttpRequest['method'];
   headers?: HttpHeader;
   body?: string | Uint8Array;
@@ -140,6 +141,8 @@ export async function executeSourceRequest(
   if (init.headers !== undefined) req.headers = init.headers;
   if (init.body !== undefined) req.body = init.body;
   if (init.timeoutMs !== undefined) req.timeoutMs = init.timeoutMs;
+  if (init.signal) req.signal = init.signal;
+  if (init.maxBytes !== undefined) req.maxResponseBytes = init.maxBytes;
   const response = await http.request(req);
   readBounded(response.body, init.maxBytes ?? MAX_SOURCE_BODY_BYTES);
   return response;

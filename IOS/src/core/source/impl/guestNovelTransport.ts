@@ -1,3 +1,4 @@
+import { abortable, throwIfAborted } from '@core/download/abortable';
 import type { HttpClient } from '@platform/interfaces';
 import { ParseError, NetworkError, BookNotFound } from '../sourceException';
 import { executeSourceRequest, decodeCharset, headerOf } from './sourceHttp';
@@ -27,32 +28,34 @@ export interface GuestVerification { (url: string, userAgent: string): Promise<{
 export class GuestNovelTransport {
   constructor(private readonly http: HttpClient, readonly home: string, readonly name: string,
     private readonly hosts: Set<string> = new Set([new URL(home).host]), private readonly verify?: GuestVerification) {}
-  async html(url: string, xbook = false): Promise<string> {
+  async html(url: string, xbook = false, signal?: AbortSignal): Promise<string> {
     const parsed = new URL(url), base = new URL(this.home);
     if (!this.hosts.has(parsed.host) || parsed.protocol !== base.protocol || parsed.username || parsed.password) throw new ParseError('源站页面地址异常');
     const userAgent = xbook ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' : 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/119.0.0.0 Mobile Safari/537.36';
     let cookie = '';
+    const wait = (ms: number) => abortable(new Promise<void>((resolve) => setTimeout(resolve, ms)), signal);
     for (let attempt = 0; attempt < 3; attempt++) {
+      throwIfAborted(signal);
       let response;
-      try { response = await executeSourceRequest(this.http, url, { headers: { 'User-Agent': userAgent, Referer: this.home, Accept: 'text/html', ...(cookie ? { Cookie: cookie } : {}) }, maxBytes: xbook ? 8 * 1024 * 1024 : 6 * 1024 * 1024, timeoutMs: 40_000 }); }
-      catch (error) { if (attempt === 2 || error instanceof Error && error.name === 'AbortError') throw error; await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 800)); continue; }
+      try { response = await executeSourceRequest(this.http, url, { headers: { 'User-Agent': userAgent, Referer: this.home, Accept: 'text/html', ...(cookie ? { Cookie: cookie } : {}) }, maxBytes: xbook ? 8 * 1024 * 1024 : 6 * 1024 * 1024, timeoutMs: 40_000, ...(signal ? { signal } : {}) }); }
+      catch (error) { if (attempt === 2 || signal?.aborted || error instanceof Error && error.name === 'AbortError') throw error; await wait((attempt + 1) * 800); continue; }
       if (response.status === 404) throw new BookNotFound();
-      if ((response.status === 429 || response.status >= 500) && attempt < 2) { await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 800)); continue; }
+      if ((response.status === 429 || response.status >= 500) && attempt < 2) { await wait((attempt + 1) * 800); continue; }
       if (response.status < 200 || response.status >= 300) throw new NetworkError(`${this.name} 暂时无法免登录访问（HTTP ${response.status}）`);
       const final = new URL(response.url ?? url);
       if (!this.hosts.has(final.host) || final.protocol !== parsed.protocol || final.username || final.password) throw new ParseError('源站跳转到了其他网站');
       const html = sourceResponseText(response.body, response.headers);
       const content = xbook && parseHtmlDocument(html).selectFirst('article.reading-text, #search-books, main header h1, section ol li a[href*="/book/"]');
       const problem = content ? null : sourceResponseProblem(html);
-      if (problem && xbook && this.verify && attempt === 0) { const solved = await this.verify(url, userAgent); cookie = solved.cookie ?? ''; if (cookie) continue; }
+      if (problem && xbook && this.verify && attempt === 0) { const solved = await abortable(this.verify(url, userAgent), signal); cookie = solved.cookie ?? ''; if (cookie) continue; }
       if (problem) throw new ParseError(problem);
       if (html.includes('\uFFFD')) throw new ParseError('源站文字编码异常，未导入不完整文本');
       return html;
     }
     throw new NetworkError('源站读取失败');
   }
-  async json(url: string, maxBytes = 6 * 1024 * 1024): Promise<Record<string, unknown>> {
-    const response = await executeSourceRequest(this.http, url, { headers: { Accept: 'application/json' }, timeoutMs: 40_000, maxBytes });
+  async json(url: string, maxBytes = 6 * 1024 * 1024, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    const response = await executeSourceRequest(this.http, url, { headers: { Accept: 'application/json' }, timeoutMs: 40_000, maxBytes, ...(signal ? { signal } : {}) });
     if (response.status < 200 || response.status >= 300) throw new NetworkError(`${this.name} 返回 HTTP ${response.status}`);
     const text = sourceResponseText(response.body, { ...response.headers, 'Content-Type': headerOf(response, 'content-type') ?? 'application/json;charset=utf-8' });
     const problem = sourceResponseProblem(text, true); if (problem) throw new ParseError(problem);

@@ -1,3 +1,6 @@
+import { ZLibrarySource } from '@core/source/zlibrary/zLibrarySource';
+import { SourceResult } from '@core/source/sourceResult';
+import { NetworkError } from '@core/source/sourceException';
 /**
  * `LibraryViewModel` 的宿主装配 —— 对应 Android
  * `com.example.library.LibraryViewModel` 的构造函数（`LibraryViewModel.kt:57-73`）：
@@ -32,7 +35,7 @@ import { SourceManager } from '@core/source/sourceManager';
 import type { SourceStorage } from '@core/source/sourceManager';
 import { SharedPreferencesSourceStorage } from '@core/source/storage/sharedPreferencesSourceStorage';
 import type { SourceConfigFilePort, SourcePrefsPort } from '@core/source/storage/sourceStorage';
-import { DownloadManager } from '@core/download/downloadManager';
+import { DownloadManager, originalBookId } from '@core/download/downloadManager';
 import { generatedNovelSource, writeSourceNovelEpub } from '@core/download/sourceNovelEpub';
 import type { DownloadTaskStore } from '@core/download/downloadTaskRepository';
 import { DownloadProgressBroadcaster } from '@core/download/downloadProgressBroadcaster';
@@ -44,7 +47,7 @@ import { createFavoriteRepository } from '@core/library/favoriteRepository';
 import type { FavoriteRepository } from '@core/library/favoriteRepository';
 import type { FavoriteDao } from '@core/library/favoriteDao';
 import type { ComicSourceResolver } from '@core/library/comicSourceTypes';
-import type { BookshelfApi } from '@core/download/downloadWorker';
+import type { BookshelfApi, DownloadWorkerDeps } from '@core/download/downloadWorker';
 import type { BackgroundBookDownload, NovelBookImporter } from '@core/download/downloadWorker';
 import { ReadingRecordMetadata } from '@core/library/libraryReadingRecords';
 import type {
@@ -90,6 +93,7 @@ export interface LibraryAssemblyPorts {
   readonly downloadsDir: string;
   readonly getUsableSpace?: () => Promise<number>;
   readonly backgroundBookDownload?: BackgroundBookDownload;
+  readonly resolveZLibraryChallenge?: NonNullable<DownloadWorkerDeps['resolveZLibraryChallenge']>;
   /** 内置书源注册（Android `AppDatabase.ensureBundledTitlesImported` 的近亲）。 */
   readonly registerBuiltinSources?: () => Promise<void>;
   /**
@@ -184,6 +188,14 @@ export function createLibraryAssembly(ports: LibraryAssemblyPorts): LibraryAssem
     books: bookshelf,
     broadcaster,
     worker: {
+      ...(ports.resolveZLibraryChallenge ? { resolveZLibraryChallenge: ports.resolveZLibraryChallenge } : {}),
+      recoverZLibraryDownload(task, excluded) {
+        const source = sourceManager.getSource(task.sourceId);
+        if (!(source instanceof ZLibrarySource)) return Promise.resolve(SourceResult.Error(new NetworkError('Z-Library 书源已停用')));
+        const book = createSearchBook({ id: originalBookId(task.id, task.sourceId), sourceId: task.sourceId,
+          title: task.title, author: task.author, format: task.format, cover: task.coverUrl });
+        return source.recoverDownloadInfo(book, task.format, excluded);
+      },
       ...(ports.backgroundBookDownload ? { background: ports.backgroundBookDownload } : {}),
       ...(ports.getUsableSpace ? { getUsableSpace: ports.getUsableSpace } : {}),
       ...(ports.novelImporter === undefined ? {} : { importer: ports.novelImporter }),

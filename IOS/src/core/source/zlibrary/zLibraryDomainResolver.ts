@@ -63,6 +63,10 @@ export class ZLibraryDomainResolver {
     return this.endpointProvider.getEndpoint(forceScan);
   }
 
+  async resolveNextDomain(excluded: ReadonlySet<string>): Promise<string | null> {
+    return this.endpointProvider.scanForLiveNode(undefined, excluded);
+  }
+
   async saveToCache(domain: string): Promise<void> {
     await this.endpointProvider.saveCache(domain);
   }

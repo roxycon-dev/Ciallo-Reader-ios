@@ -1,3 +1,8 @@
+import { abortable } from './abortable';
+import { shouldRetryZLibraryDownload } from '@core/source/zlibrary/zLibraryBookReference';
+import type { DownloadInfo } from '@core/source/downloadInfo';
+import type { SourceResult } from '@core/source/sourceResult';
+import { clearGuestNovelCheckpoint } from './guestNovelCheckpoint';
 /**
  * Download worker — port of Android `DownloadWorker.kt`.
  *
@@ -32,6 +37,7 @@ import type {
   DownloadTaskStore,
 } from './downloadTaskRepository';
 import {
+  DownloadStatePending,
   downloadingState,
   errorState,
   pausedState,
@@ -81,6 +87,8 @@ export interface DownloadWorkerDeps {
   /** Optional dedicated client for sourceId === 'zlibrary' (Android client vs publicClient). */
   zlibraryHttp?: HttpClient;
   background?: BackgroundBookDownload;
+  resolveZLibraryChallenge?: (task: DownloadTaskRecord, referer: string, cookie: string | null, signal?: AbortSignal) => Promise<DownloadInfo | null>;
+  recoverZLibraryDownload?: (task: DownloadTaskRecord, excluded: ReadonlySet<string>) => Promise<SourceResult<DownloadInfo>>;
   fs: FileSystemApi;
   secrets: SecureStore;
   dao: DownloadTaskStore;
@@ -437,6 +445,7 @@ function clamp01(n: number): number {
 export async function performDownloadTask(
   taskId: string,
   deps: DownloadWorkerDeps,
+  recovery: { count: number; excluded: ReadonlySet<string> } = { count: 0, excluded: new Set() },
 ): Promise<DownloadWorkerResult> {
   const { fs, dao, secrets, novels, broadcaster } = deps;
   const now = deps.now ?? (() => performance.now());
@@ -457,6 +466,8 @@ export async function performDownloadTask(
   const temp = joinPath(downloadsDir, `${nameWithoutExtension(finalFile)}.tmp`);
   const resume = joinPath(downloadsDir, `${nameWithoutExtension(finalFile)}.resume`);
   let total = task.totalBytes;
+  let generatedDone: number | undefined;
+  let validatingRemote = false;
 
   try {
     const savedHeadersRaw = await secrets.get(`download:${taskId}`);
@@ -488,10 +499,12 @@ export async function performDownloadTask(
       if (!completedLocal) {
         const generated = await deps.generateBook?.(task, temp, async (done, count) => {
           ensureActive(deps.signal);
+          generatedDone = done; total = count;
           broadcaster.updateState(taskId, downloadingState(done, count, count > 0 ? clamp01(done / count) : 0));
           await dao.updateProgressAndStatus(taskId, 'DOWNLOADING', done, count, null);
         }, deps.signal) ?? false;
         if (!generated) {
+        validatingRemote = true;
         let offset = tempLen > 0 ? tempLen : 0;
         const validator = metadata?.validator != null && metadata.validator !== '' ? metadata.validator : null;
         if (metadata?.url !== task.downloadUrl || validator == null) {
@@ -514,10 +527,15 @@ export async function performDownloadTask(
           }
         }
         const host = new URL(task.downloadUrl).host;
+        let cookieHost = host;
+        if (task.sourceId === 'zlibrary') {
+          const entry = headerValue(requestHeaders, 'Referer');
+          if (entry) { try { cookieHost = new URL(entry).host; } catch { cookieHost = ''; } }
+        }
         const cookie = headerValue(requestHeaders, 'Cookie');
         if (
           cookie != null &&
-          cookie.trim() !== '' &&
+          cookie.trim() !== '' && host === cookieHost &&
           !['ncdn', 'cdn-zlib', 's3proxy', 'dln'].some((h) => host.includes(h))
         ) {
           baseHeaders['Cookie'] = cookie;
@@ -686,6 +704,7 @@ export async function performDownloadTask(
         if (!integrity.valid) {
           throw new Error(integrity.htmlErrorHint ?? '下载文件格式校验失败');
         }
+        validatingRemote = false;
         const actualFormat = integrity.actualFormat ?? format;
         const actualFile = joinPath(
           downloadsDir,
@@ -784,6 +803,7 @@ export async function performDownloadTask(
         totalBytes: doneLen,
       } as DownloadTaskRecord);
       await secrets.remove(`download:${taskId}`);
+      if (generatedDone !== undefined) await clearGuestNovelCheckpoint(fs, temp).catch(() => {});
       broadcaster.updateState(taskId, successState(file));
       return 'success';
     }, deps.signal);
@@ -792,17 +812,58 @@ export async function performDownloadTask(
       // Explicit cancel deleted the row; never recreate or rebroadcast it.
       const latest = await dao.getTask(taskId);
       if (latest != null && (latest.status === 'DOWNLOADING' || latest.status === 'PAUSED')) {
-        const len = await fileLength(fs, temp);
+        const len = generatedDone ?? await fileLength(fs, temp);
         await dao.updateProgressAndStatus(taskId, 'PAUSED', len, total, null);
         broadcaster.updateState(taskId, pausedState(len, total));
       }
       throw e;
     }
     const rawMessage = e instanceof Error ? e.message : undefined;
-    const message =
+    let message =
       rawMessage != null && rawMessage.toUpperCase().includes('ENOSPC')
         ? '存储空间不足，请清理后重试'
         : (rawMessage ?? '下载或入库失败');
+    if (validatingRemote && task.sourceId === 'zlibrary' && recovery.count < 2 &&
+      deps.recoverZLibraryDownload && shouldRetryZLibraryDownload(message) && !deps.signal?.aborted) {
+      const excluded = new Set(recovery.excluded);
+      let referer: string | undefined, cookie: string | undefined;
+      try {
+        const stored = JSON.parse(await secrets.get(`download:${taskId}`) ?? '{}') as Record<string, string>;
+        referer = headerValue(stored, 'Referer'); cookie = headerValue(stored, 'Cookie');
+      } catch { /* An old job may have no usable header record. */ }
+      try { excluded.add(new URL(referer || task.downloadUrl).hostname.toLowerCase()); } catch { /* No valid previous host. */ }
+      broadcaster.updateState(taskId, DownloadStatePending);
+      try {
+        let fromBrowser: DownloadInfo | null = null;
+        if (recovery.count === 0 && referer && deps.resolveZLibraryChallenge && /验证或错误页|服务器未返回完整文件|HTTP 403/i.test(message)) {
+          fromBrowser = await abortable(deps.resolveZLibraryChallenge(task, referer, cookie ?? null, deps.signal), deps.signal);
+        }
+        const result = fromBrowser ? { kind: 'success' as const, data: fromBrowser }
+          : await abortable(deps.recoverZLibraryDownload(task, excluded), deps.signal);
+        ensureActive(deps.signal);
+        if (result.kind === 'success') {
+          const latest = await dao.getTask(taskId);
+          if (!latest) return 'skipped';
+          const next = { ...result.data.headers, ...(result.data.referer ? { Referer: result.data.referer } : {}) };
+          const raw = JSON.stringify(next);
+          if (raw.length > 32 * 1024) throw new Error('下载请求头过大');
+          if (Object.keys(next).length) await secrets.set(`download:${taskId}`, raw);
+          else await secrets.remove(`download:${taskId}`);
+          await dao.insertOrUpdate({ ...latest, downloadUrl: result.data.url, status: 'PENDING',
+            downloadedBytes: 0, totalBytes: 0, errorMessage: null });
+          return performDownloadTask(taskId, deps, { count: recovery.count + 1, excluded: fromBrowser ? recovery.excluded : excluded });
+        }
+        if (result.exception.message) message += '；' + result.exception.message;
+      } catch (error) {
+        if (isAbortError(error) || deps.signal?.aborted) {
+          const length = await fileLength(fs, temp);
+          await dao.updateProgressAndStatus(taskId, 'PAUSED', length, total, null);
+          broadcaster.updateState(taskId, pausedState(length, total));
+          throw abortError();
+        }
+        if (error instanceof Error && error.message) message += '；' + error.message;
+      }
+    }
     if ((await dao.getTask(taskId)) != null) {
       const len = await fileLength(fs, temp);
       await dao.updateProgressAndStatus(taskId, 'FAILED', len, total, message);

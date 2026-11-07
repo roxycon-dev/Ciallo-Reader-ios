@@ -1,3 +1,4 @@
+import { abortable, throwIfAborted } from '@core/download/abortable';
 import type { HttpClient } from '@platform/interfaces';
 import { ComicSource } from '../comicSource';
 import { createComicChapter, type ComicChapter } from '../comicChapter';
@@ -43,13 +44,14 @@ export class FanqieSource extends ComicSource {
   private async result<T>(block: () => Promise<T>): Promise<Result<T>> { try { return SourceResult.Success(await block()); } catch (error) { if (error instanceof Error && error.name === 'AbortError') throw error; return SourceResult.Error(error instanceof SourceException ? error : new ParseError(error instanceof Error ? error.message : '番茄数据读取失败')); } }
   private url(path: string, parameters: Record<string, string> = {}, home = this.home): string { const url = new URL(path, home); for (const [key, value] of Object.entries(parameters)) url.searchParams.set(key, value); return url.toString(); }
   private api(action: string, parameter: string, id: string): string { return this.url('https://biek.top/api/fq.php', { action, [parameter]: validId(id) }); }
-  private async json(url: string, gateway = true): Promise<ObjectData> {
+  private async json(url: string, gateway = true, signal?: AbortSignal): Promise<ObjectData> {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const data = await this.transport.json(url);
+        throwIfAborted(signal);
+        const data = await this.transport.json(url, undefined, signal);
         if (gateway && ![0, 200].includes(Number(data['code'] ?? -1))) { const error = new Error('番茄接口暂时无法提供此内容，请稍后重试或换源'); if (Number(data['code'] ?? -1) !== -1) throw new ParseError(error.message); throw error; }
         return data;
-      } catch (error) { if (attempt === 2 || error instanceof ParseError || error instanceof Error && error.name === 'AbortError') throw error; await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1))); }
+      } catch (error) { if (attempt === 2 || signal?.aborted || error instanceof ParseError || error instanceof Error && error.name === 'AbortError') throw error; await abortable(new Promise<void>((resolve) => setTimeout(resolve, 750 * (attempt + 1))), signal); }
     }
     throw new ParseError('番茄接口暂时不可用');
   }
@@ -105,9 +107,9 @@ export class FanqieSource extends ComicSource {
     if (!plain || hasMissingNovelContent(plain) || ['获取内容失败', '请登录后阅读', '本章未完', '购买本章'].some((marker) => plain.includes(marker))) throw new ParseError('番茄章节为空、缺失或未完整公开，未保存不完整正文');
     return lines.map((value) => ({ kind: 'text', value }));
   }
-  async getNovelParts(raw: string): Promise<NovelPart[]> {
+  async getNovelParts(raw: string, signal?: AbortSignal): Promise<NovelPart[]> {
     const url = new URL(raw); if (url.origin !== new URL(this.home).origin || url.username || url.password || url.search || url.hash || !/^\/reader\/[0-9]{18,20}$/.test(url.pathname)) throw new ParseError('番茄章节地址无效');
-    return this.parseParts(await this.json(this.api('content', 'item_id', url.pathname.split('/').at(-1)!)));
+    return this.parseParts(await this.json(this.api('content', 'item_id', url.pathname.split('/').at(-1)!), true, signal));
   }
   override async getChapterText(id: string) { return this.result(async () => (await this.getNovelParts(id)).map((part) => part.kind === 'text' ? part.value : '').join('\n\n')); }
   async getChapterImages() { return SourceResult.Error(new ParseError('请使用小说阅读器')); }

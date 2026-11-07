@@ -1610,9 +1610,9 @@ export class LibraryViewModel {
         catch { /* A source can supply the download even if detail is unavailable. */ }
       }
       if (!current()) return;
-      const result: SourceResult<DownloadInfo> = format !== null
-        ? await source.getDownloadInfoWithFormat(book.id, format)
-        : await source.getDownloadInfo(book.id);
+      const bookAware = source as BookSource & { getDownloadInfoForBook?: (book: SearchBook, format: string | null) => Promise<SourceResult<DownloadInfo>> };
+      const result = bookAware.getDownloadInfoForBook ? await bookAware.getDownloadInfoForBook(book, format)
+        : format !== null ? await source.getDownloadInfoWithFormat(book.id, format) : await source.getDownloadInfo(book.id);
       if (!current()) return;
       if (result.kind === 'error') throw result.exception;
       const finalFormat = result.data.format.trim() || book.format;

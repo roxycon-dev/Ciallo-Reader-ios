@@ -773,8 +773,8 @@ describe('ZLibrarySource.getDetail', () => {
     if (result.kind === 'success') {
       expect(result.data.title).toBe('eapi 详情');
     }
-    // resolveEapiBookKey scraped data-book_id="5" and matched the eapi search hit
-    expect(h.eapi.search).toHaveBeenCalledWith('书名', '1lib.sk');
+    // The book path already identifies the exact EAPI edition.
+    expect(h.eapi.search).not.toHaveBeenCalled();
     expect(h.eapi.getBookInfo).toHaveBeenCalledWith('5', 'e', '1lib.sk');
   });
 
@@ -936,8 +936,8 @@ describe('ZLibrarySource.getDownloadInfo', () => {
       },
     });
     const result = await h.source.getDownloadInfoWithFormat('book/1/b', 'MOBI');
-    // the eapi (id, hash) was resolved from data-book_id + an eapi search match
-    expect(h.eapi.getFormats).toHaveBeenCalledWith('1', 'h1', '1lib.sk');
+    // The original book reference provides the EAPI id and hash.
+    expect(h.eapi.getFormats).toHaveBeenCalledWith('1', 'b', '1lib.sk');
     expect(result.kind).toBe('success');
     if (result.kind === 'success') {
       expect(result.data).toMatchObject({

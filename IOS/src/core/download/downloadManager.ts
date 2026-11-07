@@ -1,3 +1,4 @@
+import { clearGuestNovelCheckpoint } from './guestNovelCheckpoint';
 /**
  * Download manager — line-by-line port of Android `download/DownloadManager.kt`.
  *
@@ -514,6 +515,7 @@ export class DownloadManager {
         const base = nameWithoutExtension(task.filePath);
         await deleteQuietly(this.fs, joinPath(this.downloadsDir, `${base}.tmp`));
         await deleteQuietly(this.fs, joinPath(this.downloadsDir, `${base}.resume`));
+        await clearGuestNovelCheckpoint(this.fs, task.filePath);
         if (!completed && !await this.bookExistsForTask(task)) await deleteQuietly(this.fs, task.filePath);
         await this.workerConfig.background?.discard(bookId);
         await this.dao.deleteTask(bookId);

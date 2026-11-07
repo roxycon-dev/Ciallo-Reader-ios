@@ -7,11 +7,12 @@ import { checkSourceUrl } from '@core/source/networkCalls';
 import { probeImageMime, probeImageSize } from '@core/parser/imageBytes';
 import { hasMissingNovelContent, validateNovelParts, type NovelPart } from '@core/source/impl/novelParts';
 import { abortable, throwIfAborted } from './abortable';
+import { GuestNovelCheckpoint, digestHex as hash } from './guestNovelCheckpoint';
 
 export interface GeneratedNovelSource extends BookSource {
   getChapters(id: string): Promise<SourceResult<ComicChapter[]>>;
   getEpubBookId(url: string): string;
-  getNovelParts(chapterId: string): Promise<NovelPart[]>;
+  getNovelParts(chapterId: string, signal?: AbortSignal): Promise<NovelPart[]>;
   invalidateBook?(id: string): void;
 }
 export function generatedNovelSource(source: BookSource | null): source is GeneratedNovelSource {
@@ -20,7 +21,7 @@ export function generatedNovelSource(source: BookSource | null): source is Gener
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 const xml = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 function value<T>(result: SourceResult<T>): T { if (result.kind === 'error') throw result.exception; return result.data; }
-async function hash(bytes: Uint8Array): Promise<string> { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>))].map((byte) => byte.toString(16).padStart(2, '0')).join(''); }
+
 
 /** Sequential, streamed EPUB assembly. A failed chapter, image or changed TOC deletes the partial file. */
 export async function writeSourceNovelEpub(source: GeneratedNovelSource, downloadUrl: string, path: string,
@@ -29,6 +30,10 @@ export async function writeSourceNovelEpub(source: GeneratedNovelSource, downloa
   const id = source.getEpubBookId(downloadUrl), book = value(await abortable(source.getDetail(id), signal));
   const toc = value(await abortable(source.getChapters(id), signal));
   if (!toc.length || toc.length > 30_000 || new Set(toc.map((c) => c.id)).size !== toc.length) throw new Error('源站目录为空、重复或过大');
+  const checkpoint = new GuestNovelCheckpoint(fs, path);
+  const restored = await checkpoint.initialize(path, source.id, downloadUrl, toc);
+  await options.progress(restored, toc.length);
+  throwIfAborted(signal);
   await fs.writeFile(path, new Uint8Array());
   let writes = Promise.resolve(), failure: Error | null = null, size = 0;
   const zip = new Zip((error, bytes) => {
@@ -53,7 +58,10 @@ export async function writeSourceNovelEpub(source: GeneratedNovelSource, downloa
     await text('mimetype', 'application/epub+zip');
     await text('META-INF/container.xml', '<?xml version="1.0" encoding="utf-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
     for (const [index, chapter] of toc.entries()) {
-      const parts = await abortable(source.getNovelParts(chapter.id), signal); validateNovelParts(parts);
+      throwIfAborted(signal);
+      const cached = await checkpoint.chapter(index);
+      const parts = cached ?? await abortable(source.getNovelParts(chapter.id, signal), signal);
+      validateNovelParts(parts);
       const plain = parts.filter((part) => part.kind === 'text').map((part) => part.value).join('\n\n');
       if (hasMissingNovelContent(plain)) throw new Error('章节内容缺失，未生成残缺电子书');
       let body = '';
@@ -63,20 +71,29 @@ export async function writeSourceNovelEpub(source: GeneratedNovelSource, downloa
         let asset = assets.get(part.url);
         if (!asset) {
           checkSourceUrl(part.url);
-          const response = await abortable(options.http.request({ url: part.url, headers: { Referer: chapter.id, 'User-Agent': 'Mozilla/5.0' } }), signal);
-          if (response.status < 200 || response.status >= 300 || response.body.length > 16 * 1024 * 1024) throw new Error('插图下载失败，未生成缺图电子书');
-          const probe = probeImageSize(response.body); const mime = probeImageMime(response.body);
-          const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' } as Record<string, string>)[mime ?? ''];
-          if (!probe || probe.width <= 0 || probe.height <= 0 || !extension || !mime) throw new Error('插图损坏，未生成缺图电子书');
-          asset = { path: `Images/${assets.size}.${extension}`, mime }; await entry(`OEBPS/${asset.path}`, response.body); assets.set(part.url, asset);
-          images.push({ url: part.url, path: asset.path, sha256: await hash(response.body) });
+          let image = await checkpoint.image(part.url);
+          if (!image) {
+            const response = await options.http.request({ url: part.url, headers: { Referer: chapter.id, 'User-Agent': 'Mozilla/5.0' },
+              maxResponseBytes: 16 * 1024 * 1024, ...(signal ? { signal } : {}) });
+            throwIfAborted(signal);
+            if (response.status < 200 || response.status >= 300 || response.body.length > 16 * 1024 * 1024) throw new Error('插图下载失败，未生成缺图电子书');
+            const probe = probeImageSize(response.body), mime = probeImageMime(response.body);
+            const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' } as Record<string, string>)[mime ?? ''];
+            if (!probe || probe.width <= 0 || probe.height <= 0 || !extension || !mime) throw new Error('插图损坏，未生成缺图电子书');
+            image = { bytes: response.body, mime, extension, sha256: await hash(response.body) };
+            await checkpoint.saveImage(part.url, image);
+          }
+          asset = { path: `Images/${assets.size}.${image.extension}`, mime: image.mime };
+          await entry(`OEBPS/${asset.path}`, image.bytes); assets.set(part.url, asset);
+          images.push({ url: part.url, path: asset.path, sha256: image.sha256 });
         }
         body += `<p><img src="${xml(asset.path)}" alt="插图"/></p>`;
       }
       await text(`OEBPS/chapter${index}.xhtml`, `<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${xml(chapter.title)}</title></head><body><h1>${xml(chapter.title)}</h1>${body}</body></html>`);
       records.push({ url: chapter.id, title: chapter.title, textSha256: await hash(encode(plain)), characters: plain.length, paragraphs: parts.filter((part) => part.kind === 'text').length, images: parts.filter((part) => part.kind === 'image').length });
-      await options.progress(index + 1, toc.length);
-      if ((options.delayMs ?? 200) > 0) await abortable(new Promise<void>((resolve) => setTimeout(resolve, options.delayMs ?? 200)), signal);
+      if (!cached) await checkpoint.saveChapter(index, parts);
+      await options.progress(Math.max(restored, index + 1), toc.length);
+      if (!cached && (options.delayMs ?? 200) > 0) await abortable(new Promise<void>((resolve) => setTimeout(resolve, options.delayMs ?? 200)), signal);
     }
     source.invalidateBook?.(id);
     const latest = value(await abortable(source.getChapters(id), signal));

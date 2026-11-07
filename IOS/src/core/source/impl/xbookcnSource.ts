@@ -92,15 +92,15 @@ export class XbookcnSource extends ComicSource {
     if (url.origin !== base.origin || url.username || url.password || url.search || url.hash !== `#${XBOOKCN_EPUB_MARKER}` || !match) throw new ParseError('书阁下载地址或标识无效');
     return match[1]!;
   }
-  async getNovelParts(chapterId: string): Promise<NovelPart[]> {
-    const result = await this.getChapterText(chapterId); if (result.kind === 'error') throw result.exception;
+  async getNovelParts(chapterId: string, signal?: AbortSignal): Promise<NovelPart[]> {
+    const result = await this.getChapterText(chapterId, signal); if (result.kind === 'error') throw result.exception;
     return result.data.split('\n\n').map((value) => value.trim()).filter(Boolean).map((value) => ({ kind: 'text', value }));
   }
   async search(keyword: string) { return this.result(async () => keyword.trim() ? XbookcnParser.books(await this.transport.html(`${this.home}/search?q=${encodeURIComponent(keyword.trim())}`, true)) : []); }
   async getDetail(id: string) { return this.result(async () => XbookcnParser.detail(await this.bookHtml(id), id)); }
   async refreshNovelDetail(id: string) { this.invalidateBook(id); return this.getDetail(id); }
   async getChapters(id: string) { return this.result(async () => XbookcnParser.chapters(await this.bookHtml(id), id)); }
-  override async getChapterText(id: string) { return this.result(async () => { const parsed = parseXbookChapter(id); return XbookcnParser.chapterText(await this.transport.html(`${this.home}/book/${parsed.bookId}/${parsed.number}`, true)); }); }
+  override async getChapterText(id: string, signal?: AbortSignal) { return this.result(async () => { const parsed = parseXbookChapter(id); return XbookcnParser.chapterText(await this.transport.html(`${this.home}/book/${parsed.bookId}/${parsed.number}`, true, signal)); }); }
   async getChapterImages() { return SourceResult.Error(new ParseError('书阁是文字小说源，请使用小说阅读器')); }
   override async getShareUrl(id: string) { requireXbookId(id); return `${this.home}/book/${id}`; }
   async getDownloadInfo(id: string) { return this.result(async () => { requireXbookId(id); const detail = await this.getDetail(id); const title = detail.kind === 'success' ? detail.data.title : id; return createDownloadInfo({ url: `${this.home}/book/${id}#${XBOOKCN_EPUB_MARKER}`, fileName: `${title.replace(/[\\/:*?"<>|]/g, '_').trim() || id}.epub`, format: 'epub', referer: this.home + '/' }); }); }

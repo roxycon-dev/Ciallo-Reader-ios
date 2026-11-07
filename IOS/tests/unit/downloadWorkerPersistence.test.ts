@@ -63,6 +63,29 @@ describe('download worker durable partial files and cancellation', () => {
     await scenario.dao.updateState('fixture', 'PENDING'); expect(await performDownloadTask('fixture', { ...deps, signal: new AbortController().signal })).toBe('success');
     expect(http.request).not.toHaveBeenCalled(); expect(seen[1]!.headers?.Range).toBe('bytes=65536-'); expect(await scenario.fs.readFile('downloads/book.txt')).toEqual(bytes); expect(scenario.rows.get('fixture')?.status).toBe('COMPLETED'); expect(scenario.fs.move).toHaveBeenCalledOnce(); expect(await scenario.fs.exists('downloads/book.tmp')).toBe(false);
   });
+  it('replaces an expired Z-Library link once using the failed mirror and the new credentials', async () => {
+    const scenario = fixture(), first = 'https://old.fixture.test/book.txt', second = 'https://new.fixture.test/book.txt';
+    const text = new TextEncoder().encode('新链接取得的小说正文');
+    scenario.rows.set('fixture', { ...scenario.task, sourceId: 'zlibrary', downloadUrl: first });
+    await scenario.secure.set('download:fixture', JSON.stringify({ Referer: 'https://old.fixture.test/', Cookie: 'old=1' }));
+    const http: HttpClient = { request: vi.fn(async (req) => {
+      if (req.url === first) return { status: 403, headers: {}, url: req.url, body: new Uint8Array() };
+      expect(req.url).toBe(second);
+      expect(req.headers).toMatchObject({ Referer: 'https://new.fixture.test/', Cookie: 'new=1' });
+      return { status: 200, headers: {}, url: req.url, body: text };
+    }) };
+    const recoverZLibraryDownload = vi.fn(async (_task: DownloadTaskRecord, excluded: ReadonlySet<string>) => {
+      expect([...excluded]).toEqual(['old.fixture.test']);
+      return { kind: 'success' as const, data: { url: second, headers: { Cookie: 'new=1' }, referer: 'https://new.fixture.test/',
+        fileName: 'book.txt', format: 'txt', size: text.length } };
+    });
+    const result = await performDownloadTask('fixture', { ...scenario, secrets: scenario.secure, http, recoverZLibraryDownload, downloadsDir: 'downloads' });
+    expect(result).toBe('success');
+    expect(recoverZLibraryDownload).toHaveBeenCalledOnce();
+    expect(new TextDecoder().decode(await scenario.fs.readFile(scenario.task.filePath))).toBe(new TextDecoder().decode(text));
+    expect(scenario.rows.get('fixture')).toMatchObject({ status: 'COMPLETED', downloadUrl: second });
+  });
+
   it('passes pause cancellation into a request that has not returned its body and records PAUSED', async () => {
     const scenario = fixture(), controller = new AbortController(); let started!: () => void;
     const ready = new Promise<void>((resolve) => { started = resolve; });

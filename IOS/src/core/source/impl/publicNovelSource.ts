@@ -47,8 +47,8 @@ export class PublicNovelSource extends ComicSource {
     const id = pattern.exec(url.pathname)?.[1]; if (!id) throw new ParseError('小说下载地址无效'); return this.validId(id);
   }
   getEpubBookId(raw: string): string { const url = new URL(raw); if (url.hash !== `#${PUBLIC_EPUB_MARKER}` || url.search) throw new ParseError('小说下载标识无效'); return this.bookId(raw); }
-  private async page(url: string): Promise<HtmlDocument> {
-    const doc = parseHtmlDocument(await this.transport.html(url));
+  private async page(url: string, signal?: AbortSignal): Promise<HtmlDocument> {
+    const doc = parseHtmlDocument(await this.transport.html(url, false, signal));
     if (/找不到|Redirecting/i.test(doc.title())) throw new ParseError('源站未返回小说页面'); return doc;
   }
   private async result<T>(block: () => Promise<T>): Promise<Result<T>> { try { return SourceResult.Success(await block()); } catch (error) { if (error instanceof Error && error.name === 'AbortError') throw error; return SourceResult.Error(error instanceof SourceException ? error : new ParseError(error instanceof Error ? error.message : `${this.name} 读取失败`)); } }
@@ -117,11 +117,11 @@ export class PublicNovelSource extends ComicSource {
     if (!chapters.length || chapters.length > 30_000 || new Set(chapters.map((c) => c.id)).size !== chapters.length) throw new ParseError('小说目录为空、过大或存在重复章节地址');
     return chapters.map((chapter, order) => ({ ...chapter, order }));
   }
-  async getNovelParts(chapterId: string): Promise<NovelPart[]> {
+  async getNovelParts(chapterId: string, signal?: AbortSignal): Promise<NovelPart[]> {
     const url = new URL(chapterId), home = new URL(this.home);
     const pattern = this.id === 'sfacg' ? /^\/c\/[0-9]+\/$/ : this.id === 'ihuaben' ? /^\/book\/[0-9]+\/[0-9]+\.html$/ : /^\/n\/[A-Za-z0-9_-]+\/[^/]+$/;
     if (url.origin !== home.origin || url.username || url.password || url.hash || !pattern.test(url.pathname)) throw new ParseError('小说章节地址无效');
-    const doc = await this.page(chapterId), root = doc.selectFirst(this.id === 'sfacg' ? '.yuedu' : this.id === 'ihuaben' ? '#contentsource[data-ssr-read=true]' : '#content');
+    const doc = await this.page(chapterId, signal), root = doc.selectFirst(this.id === 'sfacg' ? '.yuedu' : this.id === 'ihuaben' ? '#contentsource[data-ssr-read=true]' : '#content');
     if (!root) throw new ParseError('未找到章节正文，不能保存空章');
     const parts = extractNovelParts(root, chapterId, this.id === 'ihuaben'), text = parts.filter((part) => part.kind === 'text').map((part) => part.value).join('\n');
     if (hasMissingNovelContent(text) || ['请登录后阅读', '請登入後閱讀', '购买本章', '購買本章', '本章未完'].some((marker) => text.includes(marker))) throw new ParseError('章节未完整公开，下载已停止');

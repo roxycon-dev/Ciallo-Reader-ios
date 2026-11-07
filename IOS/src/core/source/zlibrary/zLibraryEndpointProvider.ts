@@ -204,7 +204,7 @@ export class ZLibraryEndpointProvider {
    * ——最多 3 个并发，首个搜索可用节点立即返回，整轮最多 25 秒；优先取“搜索可用”的节点（可达但搜索故障的只作
    * 下载兜底，否则搜到的全是主页推荐书）。全挂返回 null。
    */
-  async scanForLiveNode(signal?: AbortSignal | null): Promise<string | null> {
+  async scanForLiveNode(signal?: AbortSignal | null, excluded: ReadonlySet<string> = new Set()): Promise<string | null> {
     let remoteDomains: string[] = [];
     try {
       const remote = await withTimeout(
@@ -232,7 +232,7 @@ export class ZLibraryEndpointProvider {
       if (!candidates.has(it)) candidates.set(it, true);
     }
     for (const it of PRESET_DOMAINS) if (!candidates.has(it)) candidates.set(it, false);
-    const candidateList = Array.from(candidates.keys()).slice(0, MAX_SCAN_CANDIDATES);
+    const candidateList = Array.from(candidates.keys()).filter((domain) => !excluded.has(domain.toLowerCase())).slice(0, MAX_SCAN_CANDIDATES);
     if (candidateList.length === 0) return null;
 
     // Kotlin L129-146: `Channel<Pair<String, EndpointHealthResult>>(UNLIMITED)` fed by
