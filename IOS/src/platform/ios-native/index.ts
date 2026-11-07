@@ -91,6 +91,8 @@ export interface IosNativePlatform {
 }
 
 class FilesystemApiAdapter implements FileSystemApi {
+  async size(path: string): Promise<number> { const result = await Filesystem.stat({ path: normalizeFsPath(path), directory: Directory.Data }); if (result.type !== 'file') throw new Error('下载路径不是普通文件'); return result.size; }
+  async move(from: string, to: string): Promise<void> { await Filesystem.rename({ from: normalizeFsPath(from), to: normalizeFsPath(to), directory: Directory.Data, toDirectory: Directory.Data }); }
   async writeFileAtomic(path: string, data: Uint8Array): Promise<void> { await writeNativeFileAtomic(normalizeFsPath(path), data); }
   async readFile(path: string): Promise<Uint8Array> {
     const normalized = normalizeFsPath(path);

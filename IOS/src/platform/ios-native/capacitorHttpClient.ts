@@ -2,7 +2,7 @@
  * a bounded native spool and real cancellation. Bundled assets and browser
  * preview use fetch. Legacy transport encoding helpers remain for injected
  * adapters; production native responses carry bytes directly. */
-import type { HttpClient, HttpHeader, HttpRequest, HttpResponse } from '@platform/interfaces';
+import type { HttpClient, HttpHeader, HttpRequest, HttpResponse, HttpStreamResponse } from '@platform/interfaces';
 import { httpResponseLimit, readHttpResponseBytes } from '@platform/httpResponseBytes';
 
 /** Android `SharedHttpTransport` 的默认 `Accept`。 */
@@ -41,6 +41,7 @@ export interface NativeHttpResponse {
 export interface NativeHttpTransport {
   managesTimeouts?: boolean;
   request(options: NativeHttpRequestOptions): Promise<NativeHttpResponse>;
+  consume?<T>(options: NativeHttpRequestOptions, consumer: (response: HttpStreamResponse) => Promise<T>): Promise<T>;
 }
 
 /** 原生运行时下 `CapacitorHttp` 缺失时的显式错误（不静默降级到 fetch）。 */
@@ -137,6 +138,14 @@ export class CapacitorHttpClient implements HttpClient {
     if (transport === null) return this.fetchRequest(req);
     return this.nativeRequest(transport, req);
   }
+  async consume<T>(req: HttpRequest, consumer: (response: HttpStreamResponse) => Promise<T>): Promise<T> {
+    httpResponseLimit(req.maxResponseBytes);
+    const transport = req.url.startsWith('/') && !req.url.startsWith('//') ? null : await this.resolveTransport();
+    if (transport?.consume) return transport.consume(this.nativeOptions(req), consumer);
+    const response = await this.request(req);
+    async function* chunks() { yield response.body; }
+    return consumer({ status: response.status, headers: response.headers, url: response.url, size: response.body.length, chunks: chunks() });
+  }
 
   /**
    * 原生运行时必须拿到 ReaderHttp；拿不到就抛错。
@@ -151,10 +160,7 @@ export class CapacitorHttpClient implements HttpClient {
     return null;
   }
 
-  private async nativeRequest(
-    transport: NativeHttpTransport,
-    req: HttpRequest,
-  ): Promise<HttpResponse> {
+  private nativeOptions(req: HttpRequest): NativeHttpRequestOptions {
     const options: NativeHttpRequestOptions = {
       url: req.url,
       method: req.method ?? 'GET',
@@ -170,7 +176,10 @@ export class CapacitorHttpClient implements HttpClient {
       options.connectTimeout = req.timeoutMs;
       options.readTimeout = req.timeoutMs;
     }
-
+    return options;
+  }
+  private async nativeRequest(transport: NativeHttpTransport, req: HttpRequest): Promise<HttpResponse> {
+    const options = this.nativeOptions(req);
     const call = transport.request(options);
     const response =
       req.timeoutMs !== undefined && req.timeoutMs > 0 && !transport.managesTimeouts

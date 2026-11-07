@@ -121,7 +121,7 @@ function errorMessage(e: unknown): string | null {
 
 /** Android `e is kotlinx.coroutines.CancellationException` (worker pause/cancel aborts). */
 function isAbortError(e: unknown): boolean {
-  return e instanceof Error && e.name === 'AbortError';
+  return typeof e === 'object' && e !== null && 'name' in e && e.name === 'AbortError';
 }
 
 async function deleteQuietly(fs: FileSystemApi, path: string): Promise<void> {

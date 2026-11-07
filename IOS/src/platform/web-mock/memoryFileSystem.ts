@@ -18,6 +18,8 @@ export function normalizeFsPath(path: string): string {
 
 export class MemoryFileSystem implements FileSystemApi {
   private readonly files = new Map<string, Uint8Array>();
+  async size(path: string): Promise<number> { const data = this.files.get(normalizeFsPath(path)); if (!data) throw new Error('file not found'); return data.length; }
+  async move(from: string, to: string): Promise<void> { const source = normalizeFsPath(from), target = normalizeFsPath(to), data = this.files.get(source); if (!data) throw new Error('file not found'); if (source === target) return; this.files.set(target, data); this.files.delete(source); }
 
   async readFile(path: string): Promise<Uint8Array> {
     const key = normalizeFsPath(path);

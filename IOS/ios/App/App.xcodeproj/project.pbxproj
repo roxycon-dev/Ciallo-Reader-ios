@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
+		A1000000000000000000001D /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000001C /* onnxruntime */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
@@ -30,6 +31,7 @@
 		A10000000000000000000014 /* ReaderTransferArchivePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* ReaderTransferArchivePlugin.swift */; };
 		A10000000000000000000016 /* TransferImportJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* TransferImportJournal.swift */; };
 		A10000000000000000000018 /* ReaderHttpPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* ReaderHttpPlugin.swift */; };
+		A1000000000000000000001A /* ReaderMangaModelsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* ReaderMangaModelsPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +60,7 @@
 		A10000000000000000000013 /* ReaderTransferArchivePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderTransferArchivePlugin.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* TransferImportJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferImportJournal.swift; sourceTree = "<group>"; };
 		A10000000000000000000017 /* ReaderHttpPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHttpPlugin.swift; sourceTree = "<group>"; };
+		A10000000000000000000019 /* ReaderMangaModelsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderMangaModelsPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +69,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				A1000000000000000000001D /* onnxruntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -119,6 +123,7 @@
 				A10000000000000000000013 /* ReaderTransferArchivePlugin.swift */,
 				A10000000000000000000015 /* TransferImportJournal.swift */,
 				A10000000000000000000017 /* ReaderHttpPlugin.swift */,
+				A10000000000000000000019 /* ReaderMangaModelsPlugin.swift */,
 				A10000000000000000000007 /* ReaderDocumentsPlugin.swift */,
 				A10000000000000000000005 /* ReaderDevicePlugin.swift */,
 				A10000000000000000000003 /* ReaderKeychainPlugin.swift */,
@@ -145,6 +150,7 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+				A1000000000000000000001C /* onnxruntime */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -177,6 +183,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+				A1000000000000000000001B /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -222,6 +229,7 @@
 				A10000000000000000000014 /* ReaderTransferArchivePlugin.swift in Sources */,
 				A10000000000000000000016 /* TransferImportJournal.swift in Sources */,
 				A10000000000000000000018 /* ReaderHttpPlugin.swift in Sources */,
+				A1000000000000000000001A /* ReaderMangaModelsPlugin.swift in Sources */,
 				7A1B2C3D4E5F60718293A4C4 /* OrientationPlugin.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
@@ -435,7 +443,20 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A1000000000000000000001B /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager";
+			requirement = {kind = exactVersion; version = 1.24.2; };
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		A1000000000000000000001C /* onnxruntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1000000000000000000001B /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime;
+		};
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;

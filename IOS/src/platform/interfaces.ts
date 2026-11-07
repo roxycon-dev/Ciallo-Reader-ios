@@ -229,7 +229,9 @@ export interface HttpResponse {
 
 export interface HttpClient {
   request(req: HttpRequest): Promise<HttpResponse>;
+  consume?<T>(req: HttpRequest, consumer: (response: HttpStreamResponse) => Promise<T>): Promise<T>;
 }
+export interface HttpStreamResponse { status: number; headers: HttpHeader; url: string; size: number; chunks: AsyncIterable<Uint8Array>; }
 
 export type SqlValue = string | number | null | Uint8Array;
 
@@ -379,6 +381,8 @@ export interface SecureStore {
 }
 
 export interface FileSystemApi {
+  size?(path: string): Promise<number>;
+  move?(from: string, to: string): Promise<void>;
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, data: Uint8Array): Promise<void>;
   /** Atomic replacement for small, irreplaceable user configuration files. */

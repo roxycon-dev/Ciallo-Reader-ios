@@ -23,6 +23,7 @@ import type {
   HttpClient,
   HttpRequest,
   HttpResponse,
+  HttpStreamResponse,
   SecureStore,
 } from '@platform/interfaces';
 import type {
@@ -246,7 +247,7 @@ async function fileExists(fs: FileSystemApi, path: string): Promise<boolean> {
 async function fileLength(fs: FileSystemApi, path: string): Promise<number> {
   try {
     if (!(await fs.exists(path))) return 0;
-    return (await fs.readFile(path)).length;
+    return fs.size ? await fs.size(path) : (await fs.readFile(path)).length;
   } catch {
     return 0;
   }
@@ -263,16 +264,10 @@ async function deleteQuietly(fs: FileSystemApi, path: string): Promise<void> {
 }
 
 async function renameFile(fs: FileSystemApi, from: string, to: string): Promise<void> {
+  if (fs.move) { await fs.move(from, to); return; }
   const data = await fs.readFile(from);
   await fs.writeFile(to, data);
   await fs.delete(from);
-}
-
-function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
-  const out = new Uint8Array(a.length + b.length);
-  out.set(a, 0);
-  out.set(b, a.length);
-  return out;
 }
 
 interface ResumeMetadata {
@@ -297,7 +292,8 @@ async function writeResume(
   path: string,
   metadata: ResumeMetadata,
 ): Promise<void> {
-  await fs.writeFile(path, new TextEncoder().encode(JSON.stringify(metadata)));
+  const bytes = new TextEncoder().encode(JSON.stringify(metadata));
+  if (fs.writeFileAtomic) await fs.writeFileAtomic(path, bytes); else await fs.writeFile(path, bytes);
 }
 
 /* ------------------------------------------------------------------ */
@@ -355,6 +351,22 @@ export async function withResponse<T>(
   return block(response);
 }
 
+interface DownloadResponse extends HttpResponse { size: number; chunks: AsyncIterable<Uint8Array>; }
+async function withDownloadResponse<T>(http: HttpClient, zlibraryHttp: HttpClient | undefined, request: HttpRequest, sourceId: string, block: (response: DownloadResponse) => Promise<T>): Promise<T> {
+  const client = sourceId === 'zlibrary' ? zlibraryHttp ?? http : http;
+  const guarded = stripSensitiveHeadersOnCrossHost(request.url, request);
+  const consume = async (response: HttpStreamResponse): Promise<T> => {
+    const iterator = response.chunks[Symbol.asyncIterator](), first = await iterator.next();
+    async function* chunks() { if (!first.done) yield first.value; while (true) { const next = await iterator.next(); if (next.done) break; yield next.value; } }
+    try { return await block({ status: response.status, headers: response.headers, url: response.url, size: response.size, body: first.done ? new Uint8Array() : first.value.subarray(0, 4096), chunks: chunks() }); }
+    finally { await iterator.return?.(); }
+  };
+  if (client.consume) return client.consume(guarded, consume);
+  const response = await client.request(guarded);
+  async function* chunks() { yield response.body; }
+  return consume({ ...response, size: response.body.length, chunks: chunks() });
+}
+
 /** Android DownloadWorker.isHtmlError — peekBody(4096) + Content-Type check. */
 export function isHtmlError(response: HttpResponse, format: string): boolean {
   const sample = new TextDecoder()
@@ -386,7 +398,7 @@ function ensureActive(signal: AbortSignal | undefined): void {
 }
 
 function isAbortError(e: unknown): boolean {
-  return e instanceof Error && e.name === 'AbortError';
+  return typeof e === 'object' && e !== null && 'name' in e && e.name === 'AbortError';
 }
 
 async function sha256(data: Uint8Array): Promise<Uint8Array> {
@@ -503,11 +515,11 @@ export async function performDownloadTask(
           baseHeaders['If-Range'] = validator;
         }
 
-        let request: HttpRequest = { url: task.downloadUrl, method: 'GET', headers: baseHeaders };
+        let request: HttpRequest = { url: task.downloadUrl, method: 'GET', headers: baseHeaders, timeoutMs: 3_600_000, ...(deps.signal ? { signal: deps.signal } : {}) };
         let rangeRestarted = false;
 
         for (;;) {
-          const restart = await withResponse(
+          const restart = await withDownloadResponse(
             deps.http,
             deps.zlibraryHttp,
             request,
@@ -527,13 +539,13 @@ export async function performDownloadTask(
               if (isHtmlError(response, format)) {
                 throw new Error('服务器返回了验证或错误页，下载链接可能已过期，请重新获取链接');
               }
-              const body = response.body;
+              const bodyLength = response.size;
               const append = response.status === 206 && offset > 0;
               if (response.status === 206) {
                 if (!append) {
                   throw new Error('服务器意外返回部分文件');
                 }
-                total = validateTail(headerValue(response.headers, 'Content-Range') ?? null, offset, body.length);
+                total = validateTail(headerValue(response.headers, 'Content-Range') ?? null, offset, bodyLength);
                 const returned = transferValidator(
                   headerValue(response.headers, 'ETag') ?? null,
                   headerValue(response.headers, 'Last-Modified') ?? null,
@@ -550,7 +562,7 @@ export async function performDownloadTask(
                   throw new Error('服务器未返回完整文件');
                 }
                 offset = 0;
-                total = body.length;
+                total = bodyLength;
               }
               if (deps.getUsableSpace !== undefined) {
                 const usable = await deps.getUsableSpace();
@@ -565,6 +577,9 @@ export async function performDownloadTask(
                 headerValue(response.headers, 'ETag') ?? null,
                 headerValue(response.headers, 'Last-Modified') ?? null,
               );
+              // Native appends persist each chunk. Truncate before changing the
+              // validator so interruption cannot pair an old prefix with new metadata.
+              if (fs.appendFile && !append) await fs.writeFile(temp, new Uint8Array());
               await writeResume(fs, resume, {
                 url: task.downloadUrl,
                 validator: nextValidator ?? '',
@@ -572,7 +587,7 @@ export async function performDownloadTask(
                 complete: false,
               });
 
-              const existingTemp = append ? await fs.readFile(temp) : new Uint8Array(0);
+              const existingTemp = append && !fs.appendFile ? await fs.readFile(temp) : new Uint8Array(0);
               let downloaded = offset;
               let lastUi = 0;
               let lastDb = 0;
@@ -580,34 +595,37 @@ export async function performDownloadTask(
               if (append && existingTemp.length > 0) {
                 parts.push(existingTemp);
               }
-              for (let i = 0; i < body.length; i += 64 * 1024) {
-                ensureActive(deps.signal);
-                const end = Math.min(i + 64 * 1024, body.length);
-                const slice = body.subarray(i, end);
-                parts.push(slice);
-                downloaded += slice.length;
-                if (!(total <= 0 || downloaded <= total)) {
-                  throw new Error('下载数据超过声明长度');
-                }
-                const nowMs = now();
-                if (nowMs - lastUi >= 300) {
-                  lastUi = nowMs;
-                  broadcaster.updateState(
-                    taskId,
-                    downloadingState(downloaded, total, total > 0 ? clamp01(downloaded / total) : 0),
-                  );
-                }
-                if (nowMs - lastDb >= 2000) {
-                  lastDb = nowMs;
-                  await dao.updateProgressAndStatus(taskId, 'DOWNLOADING', downloaded, total, null);
+              for await (const body of response.chunks) {
+                for (let i = 0; i < body.length; i += 64 * 1024) {
+                  ensureActive(deps.signal);
+                  const end = Math.min(i + 64 * 1024, body.length);
+                  const slice = body.subarray(i, end);
+                  if (downloaded + slice.length > total) throw new Error('下载数据超过声明长度');
+                  if (fs.appendFile) await fs.appendFile(temp, slice); else parts.push(slice);
+                  downloaded += slice.length;
+                  ensureActive(deps.signal);
+                  const nowMs = now();
+                  if (nowMs - lastUi >= 300) {
+                    lastUi = nowMs;
+                    broadcaster.updateState(
+                      taskId,
+                      downloadingState(downloaded, total, total > 0 ? clamp01(downloaded / total) : 0),
+                    );
+                  }
+                  if (nowMs - lastDb >= 2000) {
+                    lastDb = nowMs;
+                    await dao.updateProgressAndStatus(taskId, 'DOWNLOADING', downloaded, total, null);
+                  }
                 }
               }
-              if (!(total <= 0 || downloaded === total)) {
+              if (downloaded !== total) {
                 throw new Error('文件下载不完整，请恢复下载');
               }
-              let merged: Uint8Array = new Uint8Array(0);
-              for (const p of parts) merged = concatBytes(merged, p);
-              await fs.writeFile(temp, merged);
+              if (!fs.appendFile) {
+                const merged = new Uint8Array(downloaded); let cursor = 0;
+                for (const part of parts) { merged.set(part, cursor); cursor += part.length; }
+                await fs.writeFile(temp, merged);
+              }
               return false;
             },
           );
