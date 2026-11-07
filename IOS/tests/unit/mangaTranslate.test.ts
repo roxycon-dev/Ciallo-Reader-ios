@@ -1,3 +1,5 @@
+import { MangaTranslationNetwork } from '@core/mangatranslate/translationNetwork';
+import type { HttpRequest } from '@platform/interfaces';
 /**
  * Tests for `src/core/mangatranslate/*` — Module C.
  *
@@ -340,6 +342,7 @@ describe('LlmBubbleTranslator wire protocol (LlmBubbleTranslator.kt)', () => {
   it('builds the OpenAI-compatible body with temperature 0.2', () => {
     const { url, body } = buildOpenAiCompatibleRequest(cfg, 'P', 'U');
     expect(url).toBe('https://api.x/v1/chat/completions');
+    expect(buildOpenAiCompatibleRequest({ ...cfg, apiUrl: url + '?region=1' }, 'P', 'U').url).toBe(url + '?region=1');
     expect(JSON.parse(body)).toEqual({
       model: 'gpt-x',
       messages: [
@@ -347,6 +350,8 @@ describe('LlmBubbleTranslator wire protocol (LlmBubbleTranslator.kt)', () => {
         { role: 'user', content: 'U' },
       ],
       temperature: 0.2,
+      stream: false,
+      max_tokens: 1024,
     });
   });
 
@@ -957,5 +962,27 @@ describe('PageRegionDetector pure helpers (PageRegionDetector.kt)', () => {
     const out = remapRectToPage(rectF(0, 0, 400, 500), tile, 800, 1000);
     expect(out.top).toBeCloseTo(1000, 6);
     expect(out.bottom).toBeCloseTo(1500, 6);
+  });
+});
+describe('production AI translation connection check', () => {
+  it('sends the fixed sample to the configured endpoint and honors privacy before making the request', async () => {
+    let allowed = false;
+    const sent: HttpRequest[] = [];
+    const network = new MangaTranslationNetwork({ async request(request) {
+      sent.push(request);
+      const body = new TextEncoder().encode(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+        items: [{ id: 0, translation: '你好，你好吗？' }],
+      }) } }] }));
+      return { status: 200, headers: {}, url: request.url, body };
+    } }, { get: () => null, set: () => {}, remove: () => {} }, async () => allowed);
+    const config = { apiUrl: 'https://ai.fixture.test/v1/chat/completions', apiKey: 'test', modelName: 'fixture', geminiFormat: false };
+    await expect(network.testConnection('ai', config)).rejects.toThrow('隐私');
+    expect(sent).toHaveLength(0);
+    allowed = true;
+    await expect(network.testConnection('ai', config)).resolves.toMatch(/^连接成功 · \d+ ms · 你好，你好吗？$/);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ url: config.apiUrl, method: 'POST', timeoutMs: 15_000 });
+    const payload = JSON.parse(String(sent[0]!.body));
+    expect(JSON.parse(payload.messages[1].content).items).toEqual([{ id: 0, text: 'Hello, how are you?' }]);
   });
 });

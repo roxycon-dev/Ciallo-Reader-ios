@@ -87,6 +87,7 @@ export interface DownloadWorkerDeps {
   /** Optional dedicated client for sourceId === 'zlibrary' (Android client vs publicClient). */
   zlibraryHttp?: HttpClient;
   background?: BackgroundBookDownload;
+  networkConnected?: () => Promise<boolean>;
   resolveZLibraryChallenge?: (task: DownloadTaskRecord, referer: string, cookie: string | null, signal?: AbortSignal) => Promise<DownloadInfo | null>;
   recoverZLibraryDownload?: (task: DownloadTaskRecord, excluded: ReadonlySet<string>) => Promise<SourceResult<DownloadInfo>>;
   fs: FileSystemApi;
@@ -497,6 +498,7 @@ export async function performDownloadTask(
         finalExists && metadata != null && metadata.url === task.downloadUrl && metadata.complete === true;
 
       if (!completedLocal) {
+        validatingRemote = true;
         const generated = await deps.generateBook?.(task, temp, async (done, count) => {
           ensureActive(deps.signal);
           generatedDone = done; total = count;
@@ -504,7 +506,6 @@ export async function performDownloadTask(
           await dao.updateProgressAndStatus(taskId, 'DOWNLOADING', done, count, null);
         }, deps.signal) ?? false;
         if (!generated) {
-        validatingRemote = true;
         let offset = tempLen > 0 ? tempLen : 0;
         const validator = metadata?.validator != null && metadata.validator !== '' ? metadata.validator : null;
         if (metadata?.url !== task.downloadUrl || validator == null) {
@@ -823,6 +824,15 @@ export async function performDownloadTask(
       rawMessage != null && rawMessage.toUpperCase().includes('ENOSPC')
         ? '存储空间不足，请清理后重试'
         : (rawMessage ?? '下载或入库失败');
+    if (validatingRemote && deps.networkConnected && !await deps.networkConnected().catch(() => true)) {
+      const latest = await dao.getTask(taskId);
+      if (latest && latest.status !== 'PAUSED' && latest.status !== 'CANCELLED') {
+        const length = generatedDone ?? await fileLength(fs, temp);
+        await dao.updateProgressAndStatus(taskId, 'PENDING', length, total, null);
+        broadcaster.updateState(taskId, DownloadStatePending);
+      }
+      return 'skipped';
+    }
     if (validatingRemote && task.sourceId === 'zlibrary' && recovery.count < 2 &&
       deps.recoverZLibraryDownload && shouldRetryZLibraryDownload(message) && !deps.signal?.aborted) {
       const excluded = new Set(recovery.excluded);

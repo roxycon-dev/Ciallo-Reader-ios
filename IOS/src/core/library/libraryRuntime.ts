@@ -28,6 +28,10 @@ export interface LibraryRuntime {
   sourceManager?: SourceManager;
   favorites?: FavoriteRepository;
   viewModel: LibraryViewModel;
+  /** Create an isolated LibraryViewModel for an Android-style detail search route. */
+  createSearchSession?: () => LibraryViewModel;
+  /** Release one route-scoped search ViewModel when its navigation entry is popped. */
+  disposeSearchSession?: (viewModel: LibraryViewModel) => void;
   novelDownloads?: DownloadManager;
   comicDownloads: ComicDownloadManager | null;
   shareHelper: BookShareHelper | null;
@@ -56,6 +60,7 @@ let runtime: LibraryRuntime | null = null;
 
 /** Install the wired runtime (idempotent). */
 export function setLibraryRuntime(next: LibraryRuntime | null): void {
+  if (runtime !== next) runtime?.dispose?.();
   runtime = next;
 }
 

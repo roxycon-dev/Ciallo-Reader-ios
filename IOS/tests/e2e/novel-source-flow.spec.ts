@@ -25,6 +25,11 @@ test('Xbook discovery opens its real text chapter and downloads a complete EPUB 
   const work = page.getByRole('button', { name: '打开 总裁X总裁', exact: true }); await expect(work).toBeVisible({ timeout: 20_000 }); await work.click();
   const directory = page.locator('[data-route="comicChapters"]'); await expect(directory).toContainText('总裁X总裁');
   await expect(directory).toContainText('001');
+  await directory.getByRole('button', { name: '搜索书名', exact: true }).click();
+  const scopedSearch = page.locator('[data-route^="librarySearch/"]');
+  await expect(scopedSearch.getByRole('textbox', { name: '搜索书名或作者' })).toHaveValue('总裁X总裁');
+  await scopedSearch.getByRole('button', { name: '返回上一层' }).click();
+  await expect(directory).toContainText('总裁X总裁');
   await directory.getByRole('button', { name: '整本下载', exact: true }).click();
   await expect(directory.getByRole('button', { name: '已下载 · 阅读', exact: true })).toBeVisible({ timeout: 30_000 });
   await directory.getByRole('button', { name: /继续阅读/ }).click();

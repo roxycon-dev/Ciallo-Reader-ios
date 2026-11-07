@@ -146,6 +146,13 @@ import {
 import type { LibraryAggregateGroup } from '@core/library/libraryTypes';
 import type { LibraryRuntime } from '@core/library/libraryRuntime';
 import { getLibraryRuntime } from '@core/library/libraryRuntime';
+import type { LibrarySearchRequest } from '@ui/state/appStore';
+import {
+  getLibraryPageMemory,
+  getLibrarySearchViewModel,
+  startLibrarySearchSession,
+  updateLibraryPageMemory,
+} from '@ui/pages/librarySearchSessions';
 import type { ComicDownloadTask } from '@core/library/libraryComicDownload';
 import { ReadingRecordMetadata } from '@core/library/libraryReadingRecords';
 import { useAppStore } from '@ui/state/appStore';
@@ -238,6 +245,14 @@ function IconArrowUpward() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8z" />
+    </svg>
+  );
+}
+
+function IconArrowBack() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z" />
     </svg>
   );
 }
@@ -488,6 +503,7 @@ function LibraryCollapsingHeader(props: {
   title: string;
   subtitle: string | null;
   titleColor: string;
+  leading?: ReactNode;
   trailing?: ReactNode;
 }) {
   const m: HeaderCollapseMetrics = useMemo(
@@ -507,6 +523,7 @@ function LibraryCollapsingHeader(props: {
           opacity: 1 - m.fade,
         }}
       >
+        {props.leading !== undefined ? <div className="lib-header__leading">{props.leading}</div> : null}
         <div
           className="lib-header__text"
           style={{ paddingTop: `${String(m.innerVertical)}px`, paddingBottom: `${String(m.innerVertical)}px` }}
@@ -2336,9 +2353,24 @@ function useKeyboardInset(): number {
   return inset;
 }
 
-export function LibraryPage() {
+export interface LibraryPageProps {
+  sessionId?: string;
+  searchRequest?: LibrarySearchRequest;
+  onBack?: () => void;
+  standalone?: boolean;
+}
+
+export function LibraryPage(props: LibraryPageProps = {}) {
   const runtime = useLibraryRuntime();
-  const vm = runtime?.viewModel ?? emptyRuntimeViewModel();
+  const sessionViewModel = useMemo(
+    () => props.sessionId !== undefined && runtime !== null
+      ? getLibrarySearchViewModel(props.sessionId, runtime)
+      : null,
+    [props.sessionId, runtime],
+  );
+  const vm = sessionViewModel ?? runtime?.viewModel ?? emptyRuntimeViewModel();
+  const pageKey = props.sessionId ?? 'main';
+  const savedPageMemory = getLibraryPageMemory(pageKey);
 
   const setRoute = useAppStore((s) => s.setRoute);
   /* ── L622-632 `WindowInsets.imeAnimationTarget` 键盘避让 ── */
@@ -2354,9 +2386,13 @@ export function LibraryPage() {
   const [novelDetailError, setNovelDetailError] = useState<string | null>(null);
   const [showSourceSheet, setShowSourceSheet] = useState(false);
   const [showJumpSheet, setShowJumpSheet] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(
+    () => savedPageMemory.searchQuery ?? props.searchRequest?.keyword ?? '',
+  );
   const [firstVisibleItem, setFirstVisibleItem] = useState(0);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
+    () => savedPageMemory.expandedGroups ?? {},
+  );
   const [availableSources, setAvailableSources] = useState<BookSource[]>([]);
   const [currentSource, setCurrentSource] = useState<BookSource | null>(null);
   const [downloadStates, setDownloadStates] = useState<Map<string, DownloadState>>(new Map());
@@ -2365,18 +2401,37 @@ export function LibraryPage() {
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  const didRestorePageMemory = useRef(false);
   const loginProbeTimer = useRef<number | null>(null);
   // LibraryScreen.kt:245 `var loginChecked by remember { mutableStateOf(false) }` — a
   // `remember` latch, so it survives recomposition but resets when the screen is re-entered.
   const loginCheckedRef = useRef(false);
 
+  const updateSearchQuery = useCallback((next: string) => {
+    setSearchQuery(next);
+    updateLibraryPageMemory(pageKey, { searchQuery: next });
+  }, [pageKey]);
+
+  const updateExpandedGroups = useCallback((next: Record<string, boolean>) => {
+    setExpandedGroups(next);
+    updateLibraryPageMemory(pageKey, { expandedGroups: next });
+  }, [pageKey]);
+
   /* ── ViewModel lifecycle (Android `viewModelScope` + `DisposableEffect(Unit)`) ── */
   useEffect(() => {
+    if (props.sessionId !== undefined) {
+      if (props.searchRequest !== undefined) {
+        startLibrarySearchSession(props.sessionId, vm, props.searchRequest);
+      }
+      // The session survives the LibraryPage while its comic detail is on top of it.
+      // App.tsx disposes it only after its last route-stack reference is popped.
+      return undefined;
+    }
     void vm.initialize();
     return () => {
       vm.dispose();
     };
-  }, [vm]);
+  }, [props.searchRequest, props.sessionId, vm]);
 
   /* ── L350-357 header collapse ──
    * ⚠️ 键盘收起瞬间卡顿的缓解：聚焦时立即收起；失焦时把「头部恢复」延后 120ms，
@@ -2413,7 +2468,8 @@ export function LibraryPage() {
   const scrollToTop = useCallback(() => {
     scrollElementIntoView(gridRef.current, { block: 'start' });
     scrollElementIntoView(resultsRef.current, { block: 'start' });
-  }, []);
+    updateLibraryPageMemory(pageKey, { gridScrollTop: 0, resultsScrollTop: 0 });
+  }, [pageKey]);
 
   /* ── L892-911 / L494-504 AggregateJumpSheet → scroll the target group's header into view ── */
   const pendingJumpSourceId = useRef<string | null>(null);
@@ -2452,19 +2508,19 @@ export function LibraryPage() {
    * Kotlin `LaunchedEffect(searchQuery) { when (lastQueryForExpandReset) { … } }`.
    * Handled in `onSearchQueryChange` (the only writer of `searchQuery` in the Kotlin
    * screen), which keeps the "restore state is never cleared" rule without an effect. */
-  const lastQueryForExpandReset = useRef<string | null>(null);
+  const lastQueryForExpandReset = useRef<string | null>(searchQuery);
   const onSearchQueryChange = useCallback(
     (next: string) => {
       const last = lastQueryForExpandReset.current;
       if (last === null) {
         lastQueryForExpandReset.current = next;
       } else if (last !== next) {
-        setExpandedGroups({});
+        updateExpandedGroups({});
         lastQueryForExpandReset.current = next;
       }
-      setSearchQuery(next);
+      updateSearchQuery(next);
     },
-    [],
+    [updateExpandedGroups, updateSearchQuery],
   );
 
   /* ── L1083-1100 opening the novel detail sheet sets its loading/error state ── */
@@ -2571,16 +2627,18 @@ export function LibraryPage() {
    * callback performs the work, so no setState runs synchronously in the effect body. */
   useEffect(() => {
     let lastToken = 0;
-    const off = vm.detailSearchRequestState.subscribe((request) => {
+    const dispatch = (request: typeof vm.detailSearchRequestState.value): void => {
       if (request === null) return;
       if (request.token === lastToken) return;
       lastToken = request.token;
-      setSearchQuery(request.keyword);
+      updateSearchQuery(request.keyword);
       performSearch(request.keyword);
       vm.consumeDetailSearch(request.token);
-    });
+    };
+    dispatch(vm.detailSearchRequestState.value);
+    const off = vm.detailSearchRequestState.subscribe(dispatch);
     return off;
-  }, [vm, performSearch]);
+  }, [vm, performSearch, updateSearchQuery]);
 
   /* ── Flows ── */
   const aggregateMode = useFlow(vm.aggregateModeState);
@@ -2678,6 +2736,23 @@ export function LibraryPage() {
     () => (uiState.kind === 'SearchResults' ? uiState.results : []),
     [uiState],
   );
+  useEffect(() => {
+    if (didRestorePageMemory.current || !hasSeenWelcome) return undefined;
+    const memory = getLibraryPageMemory(pageKey);
+    const frame = window.requestAnimationFrame(() => {
+      if (memory.gridScrollTop !== undefined && gridRef.current === null) return;
+      if (memory.resultsScrollTop !== undefined && resultsRef.current === null) return;
+      if (memory.gridScrollTop !== undefined && gridRef.current !== null) {
+        gridRef.current.scrollTop = memory.gridScrollTop;
+        setFirstVisibleItem(memory.gridScrollTop < 24 ? 0 : Math.max(1, Math.round(memory.gridScrollTop / 100)));
+      }
+      if (memory.resultsScrollTop !== undefined && resultsRef.current !== null) {
+        resultsRef.current.scrollTop = memory.resultsScrollTop;
+      }
+      didRestorePageMemory.current = true;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [aggResults, hasSeenWelcome, pageKey, searchResults]);
   /** L187-191 favoriteKeys: "sourceId::comicId" set from the favorites table. */
   const [favoriteKeys, setFavoriteKeys] = useState<string[]>(runtime?.favoriteKeys ?? []);
   const favoritesVisible = useFavoriteVisibility();
@@ -2751,13 +2826,18 @@ export function LibraryPage() {
   /* ── L527-554 the welcome gate / the no-runtime fallback ── */
   if (runtime === null) {
     return (
-      <div className="lib-page">
+      <div className={props.standalone ? 'lib-page lib-page--standalone' : 'lib-page'}>
         <LibraryCollapsingHeader
           fraction={0}
           focusDriven={false}
           title="书库"
           subtitle="LIBRARY & SEARCH"
           titleColor="#18191C"
+          leading={props.onBack === undefined ? null : (
+            <button type="button" className="lib-icon-button" aria-label="返回上一层" onClick={props.onBack}>
+              <IconArrowBack />
+            </button>
+          )}
         />
         <MascotEmptyState
           title="检索图书"
@@ -2774,7 +2854,7 @@ export function LibraryPage() {
 
   if (!hasSeenWelcome) {
     return (
-      <div className="lib-page">
+      <div className={props.standalone ? 'lib-page lib-page--standalone' : 'lib-page'}>
         <LibraryWelcomeScreen
           hasOnlineSource={visibleSources.length > 0}
           onImportLocal={() => {
@@ -2807,7 +2887,7 @@ export function LibraryPage() {
   const activeDownloads = visibleDownloads.filter((state) => state.kind === 'Pending' || state.kind === 'Downloading').length + comicDownloadingCount;
 
   return (
-    <div className="lib-page">
+    <div className={props.standalone ? 'lib-page lib-page--standalone' : 'lib-page'}>
       {/* L583-620 LibraryCollapsingHeader + the download-panel IconButton */}
       <LibraryCollapsingHeader
         fraction={fraction}
@@ -2815,6 +2895,11 @@ export function LibraryPage() {
         title="书库"
         subtitle="LIBRARY & SEARCH"
         titleColor="#18191C"
+        leading={props.onBack === undefined ? null : (
+          <button type="button" className="lib-icon-button" aria-label="返回上一层" onClick={props.onBack}>
+            <IconArrowBack />
+          </button>
+        )}
         trailing={
           <button
             type="button"
@@ -2885,7 +2970,7 @@ export function LibraryPage() {
           <SearchHistoryPanel
             history={searchHistory}
             onPick={(query) => {
-              setSearchQuery(query);
+              updateSearchQuery(query);
               performSearch(query);
             }}
             onDelete={(query) => {
@@ -2915,6 +3000,7 @@ export function LibraryPage() {
               onScroll={(event) => {
                 const el = event.currentTarget;
                 setFirstVisibleItem(el.scrollTop < 24 ? 0 : Math.max(1, Math.round(el.scrollTop / 100)));
+                updateLibraryPageMemory(pageKey, { gridScrollTop: el.scrollTop });
               }}
             >
               {aggResults.groups.map((group) => (
@@ -2930,7 +3016,7 @@ export function LibraryPage() {
 
 
                   onExpand={() => {
-                    setExpandedGroups((prev) => ({ ...prev, [group.sourceId]: true }));
+                    updateExpandedGroups({ ...expandedGroups, [group.sourceId]: true });
                   }}
                   onOpenHeader={() => {
                     setShowJumpSheet(true);
@@ -2999,7 +3085,7 @@ export function LibraryPage() {
 
         {/* L913-990 searching / error / empty state */}
         {!aggregateMode && (isSearching || uiState.kind === 'Error' || searchResults.length === 0) ? (
-          <div className="lib-results" ref={resultsRef}>
+          <div className="lib-results" ref={resultsRef} onScroll={(event) => updateLibraryPageMemory(pageKey, { resultsScrollTop: event.currentTarget.scrollTop })}>
             <KeywordSearchPreview
               key={keywordPreviewWords[0] ?? '__none__'}
               words={keywordPreviewWords}
@@ -3049,7 +3135,7 @@ export function LibraryPage() {
 
         {/* L992-1042 the single-source result list */}
         {!aggregateMode && !isSearching && uiState.kind !== 'Error' && searchResults.length > 0 ? (
-          <div className="lib-results" ref={resultsRef}>
+          <div className="lib-results" ref={resultsRef} onScroll={(event) => updateLibraryPageMemory(pageKey, { resultsScrollTop: event.currentTarget.scrollTop })}>
             <KeywordSearchPreview
               key={keywordPreviewWords[0] ?? '__none__'}
               words={keywordPreviewWords}

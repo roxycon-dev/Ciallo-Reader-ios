@@ -35,7 +35,7 @@ import { SourceManager } from '@core/source/sourceManager';
 import type { SourceStorage } from '@core/source/sourceManager';
 import { SharedPreferencesSourceStorage } from '@core/source/storage/sharedPreferencesSourceStorage';
 import type { SourceConfigFilePort, SourcePrefsPort } from '@core/source/storage/sourceStorage';
-import { DownloadManager, originalBookId } from '@core/download/downloadManager';
+import { DownloadManager, originalBookId, type DownloadConnectivity } from '@core/download/downloadManager';
 import { generatedNovelSource, writeSourceNovelEpub } from '@core/download/sourceNovelEpub';
 import type { DownloadTaskStore } from '@core/download/downloadTaskRepository';
 import { DownloadProgressBroadcaster } from '@core/download/downloadProgressBroadcaster';
@@ -93,6 +93,7 @@ export interface LibraryAssemblyPorts {
   readonly downloadsDir: string;
   readonly getUsableSpace?: () => Promise<number>;
   readonly backgroundBookDownload?: BackgroundBookDownload;
+  readonly downloadConnectivity?: DownloadConnectivity;
   readonly resolveZLibraryChallenge?: NonNullable<DownloadWorkerDeps['resolveZLibraryChallenge']>;
   /** 内置书源注册（Android `AppDatabase.ensureBundledTitlesImported` 的近亲）。 */
   readonly registerBuiltinSources?: () => Promise<void>;
@@ -127,6 +128,7 @@ export interface LibraryAssemblyPorts {
 /** 已装配好的对象图，宿主可按需取用（测试与调试用）。 */
 export interface LibraryAssembly {
   readonly viewModel: LibraryViewModel;
+  readonly createSearchSession: () => LibraryViewModel;
   readonly sourceManager: SourceManager;
   readonly downloadManager: DownloadManager;
   readonly repository: BookRepository;
@@ -180,6 +182,7 @@ export function createLibraryAssembly(ports: LibraryAssemblyPorts): LibraryAssem
   };
   const downloadManager = new DownloadManager({
     http: ports.http,
+    ...(ports.downloadConnectivity ? { connectivity: ports.downloadConnectivity } : {}),
     fs: ports.fs,
     secrets: ports.secrets,
     novels,
@@ -338,6 +341,7 @@ export function createLibraryAssembly(ports: LibraryAssemblyPorts): LibraryAssem
   const viewModel = new LibraryViewModel(deps);
   return {
     viewModel,
+    createSearchSession: () => new LibraryViewModel(deps),
     sourceManager,
     downloadManager,
     repository,
@@ -358,11 +362,28 @@ export function createLibraryAssembly(ports: LibraryAssemblyPorts): LibraryAssem
  */
 export function installLibraryRuntime(ports: LibraryAssemblyPorts): LibraryRuntime {
   const assembly = createLibraryAssembly(ports);
+  const searchSessions = new Set<LibraryViewModel>();
+  const createSearchSession = (): LibraryViewModel => {
+    const viewModel = assembly.createSearchSession();
+    searchSessions.add(viewModel);
+    return viewModel;
+  };
   const runtime: LibraryRuntime = {
     viewModel: assembly.viewModel,
+    createSearchSession,
+    disposeSearchSession: (viewModel) => {
+      if (!searchSessions.delete(viewModel)) return;
+      viewModel.dispose();
+    },
     sourceManager: assembly.sourceManager,
     favorites: assembly.favorites,
     novelDownloads: assembly.downloadManager,
+    dispose: () => {
+      for (const viewModel of searchSessions) viewModel.dispose();
+      searchSessions.clear();
+      assembly.viewModel.dispose();
+      assembly.downloadManager.dispose();
+    },
     comicDownloads: null,
     shareHelper: null,
   };

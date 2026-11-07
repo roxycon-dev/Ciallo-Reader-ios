@@ -27,10 +27,9 @@
  *   - L464 下载失败文案 → `downloadErrorLabel`。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isValidLlmConfig, type LlmConfig } from '@core/mangatranslate/llmTranslator';
 import {
   LLM_SAVE_ERROR,
-  OCR_MODEL_READY_LABEL,
-  OCR_MODEL_SIZE_HINT,
   TRANSLATION_LANG_SEGMENT,
   aiEngineState,
   downloadErrorLabel,
@@ -38,13 +37,13 @@ import {
   isAiConfigured,
   onlineEngineState,
   scaleToTranslationTextScale,
-  translationCacheLabel,
   translationLangByIndex,
   translationLangIndex,
   type ComicSheetsConfig,
 } from '@core/comic/comicReaderSheets';
 import {
   EngineCard,
+  PanelHint,
   PanelRow,
   PanelSectionCard,
   PanelTextField,
@@ -80,7 +79,8 @@ export interface TranslationBridge {
   /** Kotlin 492 `TranslationCache.clear(context)` */
   clearCache(): void | Promise<void>;
   /** Kotlin 316–319 `llmTranslator.loadConfig()` 的四个字段 */
-  loadLlmConfig(): { apiUrl: string; apiKey: string; modelName: string; geminiFormat: boolean };
+  loadLlmConfig(): LlmConfig;
+  testConnection?(engine: 'ai' | 'online', config: LlmConfig, signal?: AbortSignal): Promise<string>;
   /** Kotlin 328 `llmTranslator.saveConfig(...)`，失败时抛错（Kotlin 329 → Toast） */
   saveLlmConfig(cfg: {
     apiUrl: string;
@@ -102,6 +102,13 @@ export interface TranslationBridge {
  * 结构一致），只留一句明示不可用的话。
  */
 export const TRANSLATION_UNAVAILABLE_MESSAGE = '漫画翻译在 iOS 上不可用';
+
+const MODEL_READY_HINT = 'OCR 与气泡识别模型已就绪 · 约 34 MB';
+const MODEL_SIZE_HINT = '需要下载 OCR 与气泡识别模型（约 34 MB，仅一次）';
+
+function translationCacheHint(cacheBytes: number): string {
+  return `已缓存译文 ${(cacheBytes / (1024 * 1024)).toFixed(1)} MB / 64 MB`;
+}
 
 export const UNSUPPORTED_TRANSLATION_BRIDGE: TranslationBridge = {
   available: false,
@@ -138,6 +145,11 @@ export function TranslationTab(props: TranslationTabProps) {
   const [cacheBytes, setCacheBytes] = useState(() => bridge.totalCacheBytes());
   const [engineSubPage, setEngineSubPage] = useState<EngineSubPage>(null);
   const [llm, setLlm] = useState(() => bridge.loadLlmConfig());
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState<'ai' | 'online' | null>(null);
+  const [testResults, setTestResults] = useState<{ ai?: string; online?: string }>({});
+  const testAbort = useRef<AbortController | null>(null);
+  const draft = useRef<LlmConfig | null>(null);
 
   // Kotlin 295–308 startDownload。Kotlin 296 的 `if (downloading >= 0f) return`
   // 重入守卫用 ref 承担（闭包内读不到最新 state）。
@@ -159,7 +171,7 @@ export function TranslationTab(props: TranslationTabProps) {
       if (!active) return;
       setModelsReady(bridge.isModelsReady());
       setCacheBytes(bridge.totalCacheBytes());
-      setLlm(bridge.loadLlmConfig());
+      if (!draft.current) setLlm(bridge.loadLlmConfig());
     }).catch((error: unknown) => { if (active) bridge.showError(error instanceof Error ? error.message : String(error)); });
     return () => {
       active = false;
@@ -214,18 +226,58 @@ export function TranslationTab(props: TranslationTabProps) {
     onSubPageBack();
   }, [engineSubPage, onSubPageBack]);
 
-  // Kotlin 326–330 saveLlm
-  const saveLlm = useCallback(
-    (next: { apiUrl: string; apiKey: string; modelName: string; geminiFormat: boolean }) => {
-      setLlm(next);
-      try {
-        void Promise.resolve(bridge.saveLlmConfig(next)).catch((e: unknown) => bridge.showError(e instanceof Error ? e.message : LLM_SAVE_ERROR));
-      } catch (e) {
-        bridge.showError(e instanceof Error && e.message !== '' ? e.message : LLM_SAVE_ERROR);
-      }
-    },
-    [bridge],
-  );
+  const saveLlm = useCallback((next: LlmConfig) => {
+    draft.current = next;
+    setLlm(next);
+    setTestResults((previous) => previous.online === undefined ? {} : { online: previous.online });
+  }, []);
+
+  const persist = useCallback(async (next: LlmConfig) => {
+    if (JSON.stringify(bridge.loadLlmConfig()) !== JSON.stringify(next)) await bridge.saveLlmConfig(next);
+    if (draft.current === next) draft.current = null;
+  }, [bridge]);
+
+  useEffect(() => {
+    const next = draft.current;
+    if (!next) return;
+    const timer = setTimeout(() => {
+      void persist(next).catch(() => {
+        if (mountedRef.current && draft.current === next) {
+          setTestResults((previous) => ({ ...previous, ai: '配置未保存：系统安全存储不可用，请重新打开应用后再试' }));
+        }
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [llm, persist]);
+
+  useEffect(() => () => {
+    testAbort.current?.abort();
+    const next = draft.current;
+    if (next) void persist(next).catch(() => {});
+  }, [persist]);
+
+  const applyProvider = (apiUrl: string, modelName: string) => {
+    let sameHost = false;
+    try { sameHost = new URL(llm.apiUrl).hostname === new URL(apiUrl).hostname; } catch { /* no current provider */ }
+    saveLlm({ apiUrl, modelName, apiKey: sameHost ? llm.apiKey : '', geminiFormat: false });
+  };
+
+  const testEngine = (engine: 'ai' | 'online') => {
+    if (testAbort.current || !bridge.testConnection) return;
+    const controller = new AbortController();
+    testAbort.current = controller;
+    setTesting(engine);
+    void (async () => {
+      if (engine === 'ai') await persist(llm);
+      const result = await bridge.testConnection!(engine, llm, controller.signal);
+      if (!controller.signal.aborted) setTestResults((previous) => ({ ...previous, [engine]: result }));
+    })().catch((error: unknown) => {
+      if (!controller.signal.aborted) setTestResults((previous) => ({ ...previous, [engine]: error instanceof Error ? error.message : '请求超时，请检查网络和接口设置' }));
+    }).finally(() => {
+      if (testAbort.current === controller) testAbort.current = null;
+      if (!controller.signal.aborted) setTesting(null);
+    });
+  };
 
   const aiConfigured = isAiConfigured(llm.apiUrl, llm.modelName);
   const langIdx = translationLangIndex(props.config.translationLang);
@@ -247,16 +299,24 @@ export function TranslationTab(props: TranslationTabProps) {
         <PanelSectionCard title="自定义 AI 接口" icon="Cloud">
           <PanelRow label="返回引擎列表" icon="ArrowBack" onClick={() => setEngineSubPage(null)} />
           <div className="cmcs-card__gap6" />
+          <PanelHint text="仅发送识别文字；额度由服务商决定" />
+          <div className="cmcs-translation-providers">
+            <button type="button" className="cmcs-chiprow" onClick={() => applyProvider('https://api.siliconflow.cn/v1', 'Qwen/Qwen2.5-7B-Instruct')}>硅基流动</button>
+            <button type="button" className="cmcs-chiprow" onClick={() => applyProvider('https://api.deepseek.com/v1', 'deepseek-chat')}>DeepSeek</button>
+            <button type="button" className="cmcs-chiprow" onClick={() => applyProvider('https://dashscope.aliyuncs.com/compatible-mode/v1', 'qwen-plus')}>阿里百炼</button>
+          </div>
           <PanelTextField
-            label="API 地址（如 https://api.deepseek.com）"
+            label="API 地址（支持完整 chat/completions 地址）"
             value={llm.apiUrl}
             onValueChange={(v) => saveLlm({ ...llm, apiUrl: v })}
           />
           <PanelTextField
             label="API Key"
+            obscured={!showKey}
             value={llm.apiKey}
             onValueChange={(v) => saveLlm({ ...llm, apiKey: v })}
           />
+          <button type="button" className="cmcs-chiprow" onClick={() => setShowKey((value) => !value)}>{showKey ? '隐藏密钥' : '显示密钥'}</button>
           <PanelTextField
             label="模型名（如 deepseek-chat）"
             value={llm.modelName}
@@ -265,17 +325,21 @@ export function TranslationTab(props: TranslationTabProps) {
           <SwitchRow
             title="Gemini 接口格式"
             subtitle={
-              llm.geminiFormat ? '走 Google Gemini generateContent' : '走 OpenAI chat/completions'
+              llm.geminiFormat ? 'Gemini 接口' : 'OpenAI 兼容接口'
             }
             checked={llm.geminiFormat}
             onChange={(v) => saveLlm({ ...llm, geminiFormat: v })}
           />
+          <button type="button" className="cmcs-chiprow" disabled={testing !== null || !isValidLlmConfig(llm)} onClick={() => testEngine('ai')}>
+            {testing === 'ai' ? '正在检查…' : '测试 AI 翻译'}
+          </button>
+          {testResults.ai ? <PanelHint text={testResults.ai} /> : null}
         </PanelSectionCard>
       ) : null}
 
       {/* L352–366 二级页：在线翻译设置 */}
       {engineAvailable && engineSubPage === 'online' ? (
-        <PanelSectionCard title="在线翻译" icon="Public">
+        <PanelSectionCard title="免费免 Key 在线机翻" icon="Public">
           <PanelRow label="返回引擎列表" icon="ArrowBack" onClick={() => setEngineSubPage(null)} />
           <div className="cmcs-card__gap6" />
           <SegmentRow
@@ -286,6 +350,11 @@ export function TranslationTab(props: TranslationTabProps) {
               props.update((c) => ({ ...c, translationLang: translationLangByIndex(i) }))
             }
           />
+          <PanelHint text="手机 OCR · 腾讯机翻 · 免 Key" />
+          <button type="button" className="cmcs-chiprow" disabled={testing !== null} onClick={() => testEngine('online')}>
+            {testing === 'online' ? '正在检查…' : '测试在线翻译'}
+          </button>
+          {testResults.online ? <PanelHint text={testResults.online} /> : null}
         </PanelSectionCard>
       ) : null}
 
@@ -339,7 +408,7 @@ export function TranslationTab(props: TranslationTabProps) {
       {engineAvailable ? (
       <PanelSectionCard title="离线模型" icon="CloudDownload">
         {modelsReady ? (
-          <SwitchRow title={OCR_MODEL_READY_LABEL} checked onChange={() => {}} />
+          <PanelHint text={MODEL_READY_HINT} />
         ) : downloading >= 0 ? (
           <div className="cmcs-download">
             <span className="cmcs-download__text">{downloadProgressLabel(downloading)}</span>
@@ -353,7 +422,7 @@ export function TranslationTab(props: TranslationTabProps) {
           </div>
         ) : (
           <div className="cmcs-download">
-            <span className="cmcs-download__hint">{OCR_MODEL_SIZE_HINT}</span>
+            <span className="cmcs-download__hint">{MODEL_SIZE_HINT}</span>
             <div className="cmcs-download__gap8" />
             <button type="button" className="cmcs-chiprow" onClick={startDownload}>
               <span className="cmcs-chiprow__icon" aria-hidden="true">
@@ -390,11 +459,7 @@ export function TranslationTab(props: TranslationTabProps) {
 
       {/* L480–502 译文缓存 */}
       <PanelSectionCard title="译文缓存" icon="CleaningServices">
-        <SwitchRow
-          title={translationCacheLabel(cacheBytes)}
-          checked={cacheBytes > 0}
-          onChange={() => {}}
-        />
+        <PanelHint text={translationCacheHint(cacheBytes)} />
         <button
           type="button"
           className="cmcs-chiprow"

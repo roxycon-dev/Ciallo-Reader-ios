@@ -1,4 +1,5 @@
 import type { ComicBitmap, ComicReaderConfig } from '@core/comic/comicReaderCore';
+import { formatCacheSize } from '@core/cache/cacheManagement';
 import { AsyncMutex } from '@core/data/contentMutationGate';
 import type { LlmConfig } from '@core/mangatranslate/llmTranslator';
 import { MangaTranslationNetwork } from '@core/mangatranslate/translationNetwork';
@@ -14,6 +15,22 @@ import { NativeMangaOcr } from './nativeMangaOcr';
 const CONFIG_KEY = 'mangaTranslate.llm.v1';
 const defaultConfig: LlmConfig = { apiUrl: '', apiKey: '', modelName: '', geminiFormat: false };
 const check = (signal: AbortSignal) => { if (signal.aborted) throw new DOMException('已取消漫画翻译', 'AbortError'); };
+
+export type MangaTranslationStorageKey = 'manga_tr_cache' | 'manga_tr_models';
+
+/** Safe, runtime-owned rows used by CacheManagementPage instead of raw path deletion. */
+export interface MangaTranslationStorageEntry {
+  readonly file: string;
+  readonly size: number;
+  readonly label: string;
+  readonly sublabel: string;
+}
+
+function firstRegionText(region: unknown, key: 'original' | 'translated' | 'o' | 'c'): string {
+  if (typeof region !== 'object' || region === null) return '';
+  const value = (region as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : '';
+}
 
 export class MangaTranslationRuntime {
   readonly models: NativeMangaModels;
@@ -40,7 +57,8 @@ export class MangaTranslationRuntime {
     return TranslationPrivacy.allowed(privacy.enabled, incognito);
   }
 
-  async refresh(): Promise<void> { await Promise.all([this.models.refresh(), this.loadConfig(), this.refreshCache()]); }
+  async refreshStorage(): Promise<void> { await Promise.all([this.models.refresh(), this.refreshCache()]); }
+  async refresh(): Promise<void> { await Promise.all([this.refreshStorage(), this.loadConfig()]); }
   get config(): LlmConfig { return { ...this.llm }; }
   get totalCacheBytes(): number { return this.cacheBytes; }
 
@@ -59,10 +77,17 @@ export class MangaTranslationRuntime {
   }
 
   saveConfig(config: LlmConfig): Promise<void> {
-    this.configVersion++; this.configLoaded = true;
-    this.llm = { ...config };
-    this.configWrite = this.configWrite.catch(() => {}).then(() => this.platform.secure.set(CONFIG_KEY, JSON.stringify(config)));
+    const version = ++this.configVersion;
+    this.configLoaded = true;
+    this.configWrite = this.configWrite.catch(() => {}).then(async () => {
+      await this.platform.secure.set(CONFIG_KEY, JSON.stringify(config));
+      if (version === this.configVersion) this.llm = { ...config };
+    });
     return this.configWrite;
+  }
+
+  testConnection(engine: 'ai' | 'online', config: LlmConfig, signal?: AbortSignal): Promise<string> {
+    return this.network.testConnection(engine, config, signal);
   }
 
   private async cacheFiles(): Promise<{ name: string; bytes: number; used: number }[]> {
@@ -81,13 +106,83 @@ export class MangaTranslationRuntime {
     });
   }
 
+  /** Read cache metadata through the same runtime that owns its usage timestamps and byte count. */
+  async listCacheEntries(): Promise<MangaTranslationStorageEntry[]> {
+    return this.diskLock.withLock(async () => {
+      const files = await this.cacheFiles();
+      const entries = await Promise.all(files.map(async ({ name, bytes }) => {
+        let label = '未知页面';
+        let regionCount = 0;
+        try {
+          const raw = JSON.parse(new TextDecoder().decode(await this.platform.fs.readFile(`${TRANSLATION_CACHE_DIR}/${name}`))) as unknown;
+          if (typeof raw === 'object' && raw !== null) {
+            const record = raw as Record<string, unknown>;
+            const regions = Array.isArray(record.regions) ? record.regions : Array.isArray(record.r) ? record.r : [];
+            regionCount = regions.length;
+            const first = regions[0];
+            const source = firstRegionText(first, 'original') || firstRegionText(first, 'o');
+            const translated = firstRegionText(first, 'translated') || firstRegionText(first, 'c');
+            if (source.trim() !== '' && translated.trim() !== '') label = `${source.slice(0, 18)} → ${translated.slice(0, 18)}`;
+            else if (source.trim() !== '') label = source.slice(0, 18);
+            else if (regionCount > 0) label = '空译文';
+          }
+        } catch {
+          // Keep malformed rows visible so users can remove a broken cache entry.
+        }
+        return {
+          file: name,
+          size: bytes,
+          label: label.replace(/\n/g, ' '),
+          sublabel: `${String(regionCount)} 个气泡区域`,
+        };
+      }));
+      return entries.sort((a, b) => b.size - a.size);
+    });
+  }
+
+  /**
+   * One model bundle row: the native plugin removes the bundle as a unit so inference
+   * sessions and downloaded files stay in sync. The sublabel still reports each model.
+   */
+  listModelEntries(): MangaTranslationStorageEntry[] {
+    const total = this.models.totalBytes;
+    if (total <= 0) return [];
+    return [{
+      file: 'model-bundle',
+      size: total,
+      label: 'OCR 与气泡识别模型',
+      sublabel: this.models.ready
+        ? '文字检测、文字识别与气泡分割模型已下载'
+        : `部分模型已下载（${formatCacheSize(total)}）`,
+    }];
+  }
+
+  /** Delete cache files by validated names and update the LRU metadata/byte total atomically. */
+  async deleteCacheEntries(names: readonly string[]): Promise<void> {
+    await this.diskLock.withLock(() => this.deleteCacheEntriesLocked(names));
+  }
+
+  private async deleteCacheEntriesLocked(names: readonly string[]): Promise<void> {
+    const fs = this.platform.fs;
+    for (const name of new Set(names)) {
+      if (!/^[a-f0-9]{40}\.json$/.test(name)) continue;
+      const path = `${TRANSLATION_CACHE_DIR}/${name}`;
+      if (await fs.exists(path)) await fs.delete(path);
+      if (!await fs.exists(path)) this.platform.keyValue.remove(`mangaTranslate.used.${name}`);
+    }
+    this.cacheBytes = (await this.cacheFiles()).reduce((total, file) => total + file.bytes, 0);
+  }
+
+  /** Model deletion goes through NativeMangaModels, which waits on downloads and inference. */
+  async removeModels(): Promise<void> {
+    // Hold the page lock across the full OCR/translation sequence, not only one ONNX call.
+    await this.pageLock.withLock(() => this.models.remove());
+  }
+
   async clearCache(): Promise<void> {
     await this.diskLock.withLock(async () => {
-      for (const file of await this.cacheFiles()) {
-        await this.platform.fs.delete(TRANSLATION_CACHE_DIR + '/' + file.name);
-        this.platform.keyValue.remove('mangaTranslate.used.' + file.name);
-      }
-      this.cacheBytes = 0;
+      const files = await this.cacheFiles();
+      await this.deleteCacheEntriesLocked(files.map((file) => file.name));
     });
   }
 

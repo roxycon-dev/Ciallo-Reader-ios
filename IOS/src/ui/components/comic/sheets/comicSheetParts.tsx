@@ -308,6 +308,7 @@ export function PanelRow(props: { label: string; icon: string; onClick: () => vo
 /* ── PanelTextField（Kotlin ComicReaderSheets.kt 1156–1184） ── */
 
 export function PanelTextField(props: {
+  obscured?: boolean;
   label: string;
   value: string;
   onValueChange: (next: string) => void;
@@ -317,7 +318,7 @@ export function PanelTextField(props: {
       <span className="cmcs-textfield__label">{props.label}</span>
       <div className="cmcs-textfield__gap2" />
       <input
-        type="text"
+        type={props.obscured ? "password" : "text"}
         className="cmcs-textfield__input"
         value={props.value}
         aria-label={props.label}

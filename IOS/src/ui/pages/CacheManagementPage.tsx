@@ -101,6 +101,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getPlatform } from '@platform/index';
+import { getMangaTranslationRuntime, type MangaTranslationStorageEntry } from '@platform/ios-native/mangaTranslationRuntime';
 import { useAppStore } from '@ui/state/appStore';
 import {
   DETAIL_FIRST_KEYS,
@@ -123,7 +124,7 @@ import {
   type ClearResult,
   type StorageRow,
 } from '@core/cache/cacheManagement';
-import { StorageDetailDialog } from '@ui/components/cache/StorageDetailDialog';
+import { StorageDetailDialog, type ManagedTranslationStorage, type StorageFileEntry } from '@ui/components/cache/StorageDetailDialog';
 import { showToast } from '@ui/components/Toast';
 import { AppButton } from '@ui/components/AppButton';
 import '../../styles/statistics.css';
@@ -535,6 +536,21 @@ export function CacheManagementPage(props: CacheManagementPageProps) {
   const onBack = props.onBack ?? (() => goBack());
   const fs = useMemo(() => props.fs ?? createPlatformCacheFileSystem(), [props.fs]);
   const layout = props.layout ?? DEFAULT_CACHE_LAYOUT;
+  const translationRuntime = useMemo(() => getMangaTranslationRuntime(), []);
+  const managedTranslation = useMemo<ManagedTranslationStorage | undefined>(() => {
+    if (translationRuntime === null) return undefined;
+    const toEntry = (entry: MangaTranslationStorageEntry): StorageFileEntry => ({ ...entry, deletable: true });
+    return {
+      listEntries: async (key) =>
+        (key === 'manga_tr_cache'
+          ? await translationRuntime.listCacheEntries()
+          : translationRuntime.listModelEntries()).map(toEntry),
+      deleteEntries: (key, files) =>
+        key === 'manga_tr_cache'
+          ? translationRuntime.deleteCacheEntries(files)
+          : translationRuntime.removeModels(),
+    };
+  }, [translationRuntime]);
   // `System.currentTimeMillis()` 的测试注入口。默认值放进 useMemo 只是为了让引用稳定：
   // 否则 `now` 每次渲染都是新函数，会击穿下面 handleClearRow / handleClearAll 的 useCallback。
   // 取值逻辑（`props.now ?? Date.now()`）与原来逐字一致。
@@ -589,19 +605,67 @@ export function CacheManagementPage(props: CacheManagementPageProps) {
     const controller = new AbortController();
     scanAbortRef.current = controller;
     void (async () => {
+      let managedCacheEntries: readonly MangaTranslationStorageEntry[] = [];
+      let managedModelEntries: readonly MangaTranslationStorageEntry[] = [];
+      if (translationRuntime !== null) {
+        try {
+          await translationRuntime.refreshStorage();
+          [managedCacheEntries, managedModelEntries] = await Promise.all([
+            translationRuntime.listCacheEntries(),
+            translationRuntime.listModelEntries(),
+          ]);
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            showToast(error instanceof Error ? error.message : String(error));
+          }
+        }
+      }
+      const scanned = await scanStorage(fs, layout, now(), controller.signal);
+      // Managed iOS translation data lives behind the native model/cache runtime; do not
+      // trust Android-layout paths for its size or deletion. Replace those scanned rows.
+      const oldManagedBytes = scanned.rows
+        .filter((row) => row.key === 'manga_tr_cache' || row.key === 'manga_tr_models')
+        .reduce((sum, row) => sum + row.size, 0);
+      const cacheBytes = managedCacheEntries.reduce((sum, entry) => sum + entry.size, 0);
+      const modelBytes = managedModelEntries.reduce((sum, entry) => sum + entry.size, 0);
+      const rows = scanned.rows.filter(
+        (row) => row.key !== 'manga_tr_cache' && row.key !== 'manga_tr_models',
+      );
+      if (cacheBytes > 0) {
+        rows.push({
+          key: 'manga_tr_cache',
+          name: '漫画译文缓存',
+          desc: '已翻译页面；清理后需要重新翻译',
+          size: cacheBytes,
+          zone: 1,
+          deletable: true,
+          confirmTip: '清理后再次阅读这些页面需要重新翻译。',
+          countLabel: `共 ${String(managedCacheEntries.length)} 页`,
+        });
+      }
+      if (modelBytes > 0) {
+        rows.push({
+          key: 'manga_tr_models',
+          name: '漫画翻译模型',
+          desc: '离线模型；清理后需要重新下载',
+          size: modelBytes,
+          zone: 1,
+          deletable: true,
+          confirmTip: '清理后漫画翻译将不可用，直到重新下载模型。',
+        });
+      }
+      const total = Math.max(0, scanned.appTotalSize - oldManagedBytes + cacheBytes + modelBytes);
       const {
-        appTotalSize: total,
-        rows: scanned,
         systemMeasured: measured,
         otherSize: other,
         freeBytes: free,
         deviceTotalBytes: deviceTotal,
         hasActiveDownload: activeDownload,
         hasActiveComicDownload: activeComic,
-      } = await scanStorage(fs, layout, now(), controller.signal);
+      } = scanned;
       // 协程被取消（快速重扫/离开页面）时不落状态，避免旧扫描覆盖新扫描或闪空数据
       if (controller.signal.aborted) return;
-      setRows(scanned);
+      setRows(rows);
       setAppTotalSize(total);
       setSystemMeasured(measured);
       setOtherSize(other);
@@ -687,6 +751,13 @@ export function CacheManagementPage(props: CacheManagementPageProps) {
       const resolved = new Set<string>();
       for (const row of rows) {
         if (cancelled) return;
+        if (
+          managedTranslation !== undefined &&
+          (row.key === 'manga_tr_cache' || row.key === 'manga_tr_models')
+        ) {
+          resolved.add(row.key);
+          continue;
+        }
         const list = await targetsFor(fs, layout, row.key);
         if (list.length > 0) resolved.add(row.key);
       }
@@ -695,7 +766,7 @@ export function CacheManagementPage(props: CacheManagementPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [fs, layout, rows]);
+  }, [fs, layout, managedTranslation, rows]);
 
   const requestRowDeletion = useCallback(
     (row: StorageRow): void => {
@@ -705,11 +776,15 @@ export function CacheManagementPage(props: CacheManagementPageProps) {
       //   else clearRow(row.key)
       // 少了中间那个分支，漫画译文缓存 / 漫画翻译模型（zone 1 用户数据，都带
       // confirmTip）就会被静默删除 —— Kotlin 要求先弹确认框。
-      if (DETAIL_FIRST_KEYS.has(row.key)) openDetail(row);
+      if (
+        DETAIL_FIRST_KEYS.has(row.key) ||
+        (managedTranslation !== undefined &&
+          (row.key === 'manga_tr_cache' || row.key === 'manga_tr_models'))
+      ) openDetail(row);
       else if (row.confirmTip != null && row.confirmTip !== '') setConfirmRow(row);
       else handleClearRow(row.key);
     },
-    [handleClearRow, openDetail],
+    [handleClearRow, managedTranslation, openDetail],
   );
 
   return (
@@ -871,6 +946,7 @@ export function CacheManagementPage(props: CacheManagementPageProps) {
           }}
           fs={fs}
           layout={layout}
+          {...(managedTranslation === undefined ? {} : { managedTranslation })}
           books={props.books ?? []}
           tasks={props.tasks ?? []}
           now={now}

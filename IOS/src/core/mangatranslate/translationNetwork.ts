@@ -1,6 +1,6 @@
 import type { HttpClient, HttpRequest, KeyValueStore } from '@platform/interfaces';
 import {
-  LLM_MAX_RESPONSE_BYTES, LlmGlossary, buildGeminiRequest, buildLlmUserPayload, buildOpenAiCompatibleRequest,
+  LLM_MAX_RESPONSE_BYTES, LlmGlossary, PROMPT_FALLBACK, buildGeminiRequest, buildLlmUserPayload, buildOpenAiCompatibleRequest,
   llmBatchGuard, llmTranslateBuckets, parseGeminiContent, parseOpenAiContent, parseStrictLlmResponse,
   sanitizeLlmEndpoint, type LlmConfig, type LlmItem,
 } from './llmTranslator';
@@ -60,6 +60,36 @@ export class MangaTranslationNetwork {
     return out;
   }
 
+  private async requestAi(config: LlmConfig, instructions: string, batch: readonly LlmItem[],
+    glossary: LlmGlossary, timeoutMs: number, signal?: AbortSignal): Promise<Map<number, string>> {
+    let url: string, body: string;
+    try {
+      const payload = buildLlmUserPayload(batch, glossary.snapshot());
+      const request = config.geminiFormat ? buildGeminiRequest(config, instructions, payload) : buildOpenAiCompatibleRequest(config, instructions, payload);
+      url = sanitizeLlmEndpoint(request.url, config.geminiFormat); body = request.body;
+    } catch (error) { throw new TranslationRequestError(error instanceof Error ? error.message : 'API 地址无效', false); }
+    const raw = await this.request({ url, method: 'POST', body, redirect: 'error', timeoutMs,
+      maxResponseBytes: LLM_MAX_RESPONSE_BYTES, headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { Authorization: 'Bearer ' + config.apiKey } : {}) } }, signal);
+    const content = config.geminiFormat ? parseGeminiContent(raw) : parseOpenAiContent(raw);
+    const translations = content && parseStrictLlmResponse(content, batch, glossary);
+    if (!translations) throw new TranslationRequestError('大模型译文格式无效', true);
+    return translations;
+  }
+
+  async testConnection(engine: 'ai' | 'online', config: LlmConfig, signal?: AbortSignal): Promise<string> {
+    const text = 'Hello, how are you?', start = performance.now();
+    let translated: string | undefined;
+    if (engine === 'online') {
+      translated = (await this.onlineBatch([text], 'en', signal))[0];
+    } else {
+      const batch = [{ id: 0, text }];
+      if (llmBatchGuard(batch, true, config) !== 'proceed') throw new Error('请先配置 AI 地址和模型名');
+      translated = (await this.requestAi(config, PROMPT_FALLBACK, batch, LlmGlossary.fromJson(null), 15_000, signal)).get(0);
+    }
+    if (!translated?.trim()) throw new Error('未获得有效译文，请检查网络');
+    return '连接成功 · ' + Math.round(performance.now() - start) + ' ms · ' + translated.trim();
+  }
+
   private async ai(regions: readonly TranslatedRegion[], config: LlmConfig, signal?: AbortSignal): Promise<Map<number, string>> {
     const items = llmTranslateBuckets(regions);
     const gate = llmBatchGuard(items, await this.privacyAllowed(), config);
@@ -80,16 +110,7 @@ export class MangaTranslationNetwork {
         try {
           const remaining = deadline - Date.now();
           if (remaining <= 0) throw new TranslationRequestError('大模型翻译超时', true);
-          const payload = buildLlmUserPayload(batch, glossary.snapshot());
-          const req = config.geminiFormat ? buildGeminiRequest(config, prompt, payload) : buildOpenAiCompatibleRequest(config, prompt, payload);
-          let url: string;
-          try { url = sanitizeLlmEndpoint(req.url, config.geminiFormat); }
-          catch (error) { throw new TranslationRequestError(error instanceof Error ? error.message : 'API 地址无效', false); }
-          const raw = await this.request({ url, method: 'POST', body: req.body, redirect: 'error', timeoutMs: remaining,
-            maxResponseBytes: LLM_MAX_RESPONSE_BYTES, headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { Authorization: 'Bearer ' + config.apiKey } : {}) } }, signal);
-          const content = config.geminiFormat ? parseGeminiContent(raw) : parseOpenAiContent(raw);
-          const translations = content && parseStrictLlmResponse(content, batch, glossary);
-          if (!translations) throw new TranslationRequestError('大模型译文格式无效', true);
+          const translations = await this.requestAi(config, prompt, batch, glossary, remaining, signal);
           for (const [id, value] of translations) out.set(id, value);
           this.preferences.set(glossaryKey, glossary.toJson());
           break;

@@ -61,6 +61,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
+import { showToast } from '@ui/toast';
 import {
   fileExtensionOf,
   fileNameOf,
@@ -82,6 +83,14 @@ export interface StorageFileEntry {
   readonly sublabel: string;
   /** Kotlin default `true`. */
   readonly deletable: boolean;
+}
+
+export type ManagedTranslationStorageKey = 'manga_tr_cache' | 'manga_tr_models';
+
+/** Runtime-owned manga translation storage. Entries use logical names, never raw paths. */
+export interface ManagedTranslationStorage {
+  listEntries(key: ManagedTranslationStorageKey): Promise<readonly StorageFileEntry[]>;
+  deleteEntries(key: ManagedTranslationStorageKey, files: readonly string[]): Promise<void>;
 }
 
 /**
@@ -542,6 +551,8 @@ export interface StorageDetailDialogProps {
   tasks?: readonly StorageDownloadTaskRef[];
   /** Test seam; defaults to `Date.now()` (Android `System.currentTimeMillis()`). */
   now?: () => number;
+  /** Optional safe path for iOS native manga translation cache/model data. */
+  managedTranslation?: ManagedTranslationStorage;
 }
 
 export function StorageDetailDialog(props: StorageDetailDialogProps) {
@@ -556,6 +567,7 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
     fs,
     books = [],
     tasks = [],
+    managedTranslation,
   } = props;
   // `props.now ?? (() => Date.now())` 每次渲染都是新函数，会让依赖它的一串
   // useCallback 每次都失效。用 useMemo 固定身份，值不变。
@@ -567,30 +579,61 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
   const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set<string>());
   // Android L259 `pendingDeletion: List<File>?`
   const [pendingDeletion, setPendingDeletion] = useState<readonly string[] | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Android L97-101 `DownloadManager.sanitizeFileName(it.id)` — the Kotlin digest is
   // synchronous, ours is a promise, so the id→filename map has to be primed before the
   // scan or the "下载记录 · EPUB" label would never match a file whose `filePath` is gone.
 
-  const refresh = useCallback((): void => {
+  const scanEntries = useCallback(async (): Promise<readonly StorageFileEntry[]> => {
+    if (managedTranslation && (rowKey === 'manga_tr_cache' || rowKey === 'manga_tr_models')) {
+      return managedTranslation.listEntries(rowKey);
+    }
+    // Kotlin L265 `StorageDetailIndex.scan(key, targets, books, tasks)`：
+    // layout 已在宿主侧解析成绝对路径 `targets`（本文件不读 layout）。
+    await ensureSanitizeFileNames(tasks);
+    return scanStorageEntries(fs, rowKey, targets, books, tasks, now());
+  }, [books, fs, managedTranslation, now, rowKey, targets, tasks]);
+
+  const applyScanned = useCallback((scanned: readonly StorageFileEntry[]): void => {
+    setEntries(allowDelete ? scanned : scanned.map((e) => ({ ...e, deletable: false })));
+    setChecked((prev) => {
+      const alive = new Set(scanned.map((e) => e.file));
+      const next = new Set<string>();
+      for (const path of prev) if (alive.has(path)) next.add(path);
+      return next;
+    });
+    setScanning(false);
+  }, [allowDelete]);
+
+  const refresh = useCallback((): Promise<void> => {
     setScanning(true);
-    void (async () => {
-      // Kotlin L265 `StorageDetailIndex.scan(key, targets, books, tasks)`：
-      // layout 已在宿主侧解析成绝对路径 `targets`（本文件不读 layout）。
-      await ensureSanitizeFileNames(tasks);
-      const scanned = await scanStorageEntries(fs, rowKey, targets, books, tasks, now());
-      // Kotlin L277-279 `.map { if (allowDelete) it else it.copy(deletable = false) }`
-      setEntries(allowDelete ? scanned : scanned.map((e) => ({ ...e, deletable: false })));
-      // Kotlin L280 `checked.keys.retainAll(entries.map { it.file }.toSet())`
-      setChecked((prev) => {
-        const alive = new Set(scanned.map((e) => e.file));
-        const next = new Set<string>();
-        for (const path of prev) if (alive.has(path)) next.add(path);
-        return next;
+    return scanEntries()
+      .then(applyScanned)
+      .catch((error: unknown) => {
+        showToast(error instanceof Error ? error.message : String(error), { kind: 'error' });
+        setScanning(false);
       });
-      setScanning(false);
-    })();
-  }, [allowDelete, books, fs, now, rowKey, targets, tasks]);
+  }, [applyScanned, scanEntries]);
+
+  const deleteFiles = useCallback(async (files: readonly string[]): Promise<void> => {
+    if (files.length === 0 || deleting) return;
+    setDeleting(true);
+    try {
+      if (managedTranslation && (rowKey === 'manga_tr_cache' || rowKey === 'manga_tr_models')) {
+        await managedTranslation.deleteEntries(rowKey, files);
+      } else {
+        // Kotlin L286 `StorageDetailIndex.delete(files, key)`（targets 已含 layout 解析结果）
+        await deleteStorageEntries(fs, rowKey, files, now());
+      }
+      onChanged();
+      await refresh();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error), { kind: 'error' });
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleting, fs, managedTranslation, now, onChanged, refresh, rowKey]);
 
   const requestDeletion = useCallback(
     (files: readonly string[]): void => {
@@ -599,14 +642,9 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
         setPendingDeletion(files);
         return;
       }
-      void (async () => {
-        // Kotlin L286 `StorageDetailIndex.delete(files, key)`（targets 已含 layout 解析结果）
-        await deleteStorageEntries(fs, rowKey, files, now());
-        onChanged();
-        refresh();
-      })();
+      void deleteFiles(files);
     },
-    [confirmTip, fs, now, onChanged, refresh, rowKey],
+    [confirmTip, deleteFiles],
   );
 
   // Kotlin L298-301 LaunchedEffect(Unit) { refresh(); appeared = true }
@@ -616,18 +654,12 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
   if (!didInitialScan) {
     setDidInitialScan(true);
     setScanning(true);
-    void (async () => {
-      await ensureSanitizeFileNames(tasks);
-      const scanned = await scanStorageEntries(fs, rowKey, targets, books, tasks, now());
-      setEntries(allowDelete ? scanned : scanned.map((e) => ({ ...e, deletable: false })));
-      setChecked((prev) => {
-        const alive = new Set(scanned.map((e) => e.file));
-        const next = new Set<string>();
-        for (const path of prev) if (alive.has(path)) next.add(path);
-        return next;
+    void scanEntries()
+      .then(applyScanned)
+      .catch((error: unknown) => {
+        showToast(error instanceof Error ? error.message : String(error), { kind: 'error' });
+        setScanning(false);
       });
-      setScanning(false);
-    })();
   }
 
   // Kotlin L303-304
@@ -694,7 +726,9 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
                 <button
                   type="button"
                   className="cache-detail__row cache-detail__row--select-all"
+                  disabled={scanning || deleting}
                   onClick={() => {
+                    if (scanning || deleting) return;
                     const nextOn = !allOn;
                     setChecked((prev) => {
                       const next = new Set(prev);
@@ -727,7 +761,7 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
                     role={entry.deletable ? 'button' : undefined}
                     tabIndex={entry.deletable ? 0 : undefined}
                     onClick={(event) => {
-                      if (!entry.deletable) return;
+                      if (!entry.deletable || deleting) return;
                       const target = event.target as HTMLElement;
                       if (target.closest('button') !== null) return;
                       setChecked((prev) => {
@@ -738,7 +772,7 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
                       });
                     }}
                     onKeyDown={(event) => {
-                      if (!entry.deletable) return;
+                      if (!entry.deletable || deleting) return;
                       if (event.key !== 'Enter' && event.key !== ' ') return;
                       event.preventDefault();
                       setChecked((prev) => {
@@ -776,6 +810,7 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
                         type="button"
                         className="cache-detail__del"
                         aria-label="删除"
+                        disabled={scanning || deleting}
                         onClick={() => {
                           requestDeletion([entry.file]);
                         }}
@@ -797,7 +832,7 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
               <button
                 type="button"
                 className="cache-detail__action cache-detail__action--danger"
-                disabled={!anyDeletable || scanning}
+                disabled={!anyDeletable || scanning || deleting}
                 onClick={() => {
                   requestDeletion(entries.filter((e) => e.deletable).map((e) => e.file));
                 }}
@@ -811,7 +846,7 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
               <button
                 type="button"
                 className="cache-detail__action cache-detail__action--primary"
-                disabled={selectedFiles.length === 0}
+                disabled={selectedFiles.length === 0 || scanning || deleting}
                 onClick={() => {
                   requestDeletion(selectedFiles);
                 }}
@@ -856,22 +891,19 @@ export function StorageDetailDialog(props: StorageDetailDialogProps) {
               <button
                 type="button"
                 className="cache-dialog__action cache-dialog__action--primary"
+                disabled={deleting}
                 onClick={() => {
                   const files = pendingDeletion;
                   setPendingDeletion(null);
-                  void (async () => {
-                    // Kotlin L459 `StorageDetailIndex.delete(files, key)`
-                    await deleteStorageEntries(fs, rowKey, files, now());
-                    onChanged();
-                    refresh();
-                  })();
+                  void deleteFiles(files);
                 }}
               >
-                清理
+                {deleting ? '清理中…' : '清理'}
               </button>
               <button
                 type="button"
                 className="cache-dialog__action"
+                disabled={deleting}
                 onClick={() => {
                   setPendingDeletion(null);
                 }}

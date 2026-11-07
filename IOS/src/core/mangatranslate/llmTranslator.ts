@@ -151,9 +151,10 @@ export interface LlmConfig {
   geminiFormat: boolean;
 }
 
-/** `fun isValid(): Boolean = apiUrl.isNotBlank() && modelName.isNotBlank()`. */
 export function isValidLlmConfig(cfg: LlmConfig): boolean {
-  return cfg.apiUrl.trim() !== '' && cfg.modelName.trim() !== '';
+  if (!cfg.modelName.trim()) return false;
+  try { const url = new URL(cfg.apiUrl.trim()); return (url.protocol === 'http:' || url.protocol === 'https:') && !!url.hostname; }
+  catch { return false; }
 }
 
 /** Kotlin line 37. */
@@ -307,8 +308,12 @@ export function buildOpenAiCompatibleRequest(
     { role: 'system', content: prompt },
     { role: 'user', content: userPayload },
   ];
-  const body = JSON.stringify({ model: cfg.modelName, messages, temperature: 0.2 });
-  return { url: `${cfg.apiUrl.trim()}/chat/completions`, body };
+  const endpoint = new URL(cfg.apiUrl.trim());
+  const base = endpoint.pathname.replace(/\/+$/, '');
+  endpoint.pathname = base.endsWith('/chat/completions') ? base : base + '/chat/completions';
+  const body = JSON.stringify({ model: cfg.modelName, messages, temperature: 0.2,
+    stream: false, max_tokens: Math.min(8192, Math.max(1024, userPayload.length * 2 + 512)) });
+  return { url: endpoint.toString(), body };
 }
 
 /** Kotlin lines 177..191. */
@@ -323,14 +328,11 @@ export function buildGeminiRequest(
     ],
     generationConfig: { temperature: 0.2 },
   });
-  const base = cfg.apiUrl.trim().replace(/^https:\/\//, '');
-  const slash = base.indexOf('/');
-  const host = slash >= 0 ? base.slice(0, slash) : base;
-  const path = slash >= 0 ? base.slice(slash + 1) : 'v1beta';
-  return {
-    url: `https://${host}/${path}/models/${cfg.modelName}:generateContent?key=${cfg.apiKey}`,
-    body,
-  };
+  const endpoint = new URL(cfg.apiUrl.trim());
+  const base = endpoint.pathname.replace(/\/+$/, '') || '/v1beta';
+  endpoint.pathname = base + '/models/' + encodeURIComponent(cfg.modelName).replace(/%3A/gi, ':') + ':generateContent';
+  endpoint.searchParams.set('key', cfg.apiKey);
+  return { url: endpoint.toString(), body };
 }
 
 /**
@@ -427,8 +429,8 @@ export function parseStrictLlmResponse(
     const rec = o as Record<string, unknown>;
     if (!Object.prototype.hasOwnProperty.call(rec, 'id')) return null;
     if (!Object.prototype.hasOwnProperty.call(rec, 'translation')) return null;
-    const id = typeof rec['id'] === 'number' ? rec['id'] : Number(rec['id']);
-    if (!Number.isFinite(id)) return null;
+    const id = rec['id'];
+    if (typeof id !== 'number' || !Number.isInteger(id) || id < -2147483648 || id > 2147483647) return null;
     if (out.has(id)) return null; // 重复 id → 判失败重试
     out.set(id, optString(rec, 'translation'));
   }

@@ -1597,3 +1597,11 @@
    （纯黑底时本来就压不动，那正是遮罩的语义）。
 
    ══════════════════════════════════════════════════════════════ */
+
+.cmcs-translation-providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0;
+}
+.cmcs-translation-providers .cmcs-chiprow { width: auto; }

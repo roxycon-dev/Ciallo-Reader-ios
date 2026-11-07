@@ -33,8 +33,7 @@
  *   same chapter) is what the runner must honour.
  * - ComicDownloadManager.kt:45-49 `android.util.AtomicFile` +
  *   `File(context.filesDir, "comic_download_tasks.json")` → `FileSystemApi.readFile /
- *   writeFile` at `comic_download_tasks.json`; the AtomicFile guarantee is already
- *   provided by the platform `FileSystemApi` (see `chapterCatalog.ts` line 72 comment).
+ *   writeFileAtomic` when the platform provides it, with `writeFile` as the web/mock fallback.
  * - ComicDownloadManager.kt:139 `owned.deleteRecursively()` → injected
  *   `deleteTree(path)` (FileSystemApi has no recursive delete).
  * - ComicDownloadManager.kt:144-151 `source(context,id)` building a `SourceManager` and
@@ -474,7 +473,11 @@ export class ComicDownloadManager {
       error: t.error ?? '',
     }));
     const bytes = new TextEncoder().encode(JSON.stringify(a));
-    this.writes = this.writes.catch(() => {}).then(() => this.fs.writeFile(TASK_FILE, bytes));
+    this.writes = this.writes.catch(() => {}).then(() =>
+      this.fs.writeFileAtomic === undefined
+        ? this.fs.writeFile(TASK_FILE, bytes)
+        : this.fs.writeFileAtomic(TASK_FILE, bytes),
+    );
     void this.writes.catch(() => this.onFatalError('下载任务保存失败，请检查存储空间'));
   }
 
@@ -539,6 +542,10 @@ export class ComicDownloadManager {
         this.state = next;
         this.notifyTasks();
         this.persist();
+        // Android persists the descriptor before WorkManager can start the worker.
+        // A restart between enqueue and an unflushed FileSystem write would otherwise
+        // leave an active job with no durable chapter descriptor to restore.
+        await this.flush();
         await this.enqueue(id);
       });
     });
@@ -605,11 +612,13 @@ export class ComicDownloadManager {
           progress: 1,
           error: null,
         }));
+        await this.flush();
         this.setMessage(`已下载到书架：${task.book.title} · ${task.chapter.title}`);
         return 'success';
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
           this.updateNow(key, (it) => ({ ...it, status: ComicDownloadStatus.PAUSED }));
+          await this.flush();
           throw e;
         }
         const message = e instanceof Error ? (e.message ?? '章节下载失败') : '章节下载失败';
@@ -618,6 +627,7 @@ export class ComicDownloadManager {
           status: ComicDownloadStatus.FAILED,
           error: message,
         }));
+        await this.flush();
         this.setMessage(`下载失败：${message}`);
         return 'failure';
       }
@@ -646,8 +656,12 @@ export class ComicDownloadManager {
           this.notifyTasks();
           this.persist();
         }
+        // Persist the pause intent before signaling cancellation, then drain any
+        // worker status/progress write produced while its page requests are stopping.
+        await this.flush();
         await this.runner.cancelUniqueWork(comicDownloadWorkName(id));
         await this.taskLock(id, async () => {});
+        await this.flush();
       });
     });
   }
@@ -659,6 +673,7 @@ export class ComicDownloadManager {
         const id = this.resolve(chapterId, book);
         if (id === null) return;
         this.pauseState(id);
+        await this.flush();
         await this.runner.cancelUniqueWork(comicDownloadWorkName(id));
         await this.taskLock(id, async () => {
           const owned = await this.directory(id);
@@ -668,6 +683,7 @@ export class ComicDownloadManager {
           this.state = next;
           this.notifyTasks();
           this.persist();
+          await this.flush();
           if (registered === null) await this.deleteTree(owned);
         });
       });
@@ -712,8 +728,10 @@ export class ComicDownloadManager {
     for (const [id, task] of [...this.state.entries()]) {
       if (task.status !== ComicDownloadStatus.DOWNLOADING) continue;
       this.pauseState(id);
+      await this.flush();
       await this.runner.cancelUniqueWork(comicDownloadWorkName(id));
       await this.taskLock(id, async () => {});
+      await this.flush();
     }
   }
 
@@ -725,14 +743,14 @@ export class ComicDownloadManager {
       if ((await this.directory(id)) === path) ids.push(id);
     }
     for (const id of ids) {
-      this.pauseState(id);
+      const task = this.state.get(id);
+      if (task?.status === ComicDownloadStatus.DOWNLOADING) this.pauseState(id);
+      await this.flush();
       await this.runner.cancelUniqueWork(comicDownloadWorkName(id));
       await this.taskLock(id, async () => {});
-      const next = new Map(this.state);
-      next.delete(id);
-      this.state = next;
-      this.notifyTasks();
-      this.persist();
+      await this.flush();
+      // Android keeps task history when the shelf directory is removed. Only pause
+      // active work here; the caller owns the separate shelf-content deletion.
     }
   }
 

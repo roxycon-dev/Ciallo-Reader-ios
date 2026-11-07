@@ -57,6 +57,10 @@
   font-family: var(--lib-font-sans);
 }
 
+.lib-page--standalone {
+  min-height: 100dvh;
+}
+
 /* LibraryScreen.kt:632 `.windowInsetsPadding(WindowInsets.imeAnimationTarget)` —
  * the animated keyboard inset.
  *
@@ -111,6 +115,14 @@
   flex: 1 1 auto;
   min-width: 0;
   padding: 0 20px;
+}
+
+.lib-header__leading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding-left: 12px;
+  margin-right: -8px;
 }
 
 .lib-header__title {

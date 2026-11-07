@@ -47,7 +47,50 @@ export type RouteKey =
   | 'novelReaderOnline'
   | 'comicReaderOnline'
   | 'cacheManagement'
-  | 'deviceTransfer';
+  | 'deviceTransfer'
+  | `librarySearch/${string}`
+  | `comicChapters/${string}`;
+
+export interface LibrarySearchRequest {
+  keyword: string;
+  textMode: boolean;
+}
+
+const LIBRARY_SEARCH_ROUTE_PREFIX = 'librarySearch/';
+const SESSION_COMIC_CHAPTERS_ROUTE_PREFIX = 'comicChapters/';
+
+function createLibrarySessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function isLibrarySearchRoute(route: RouteKey): boolean {
+  return route.startsWith(LIBRARY_SEARCH_ROUTE_PREFIX);
+}
+
+export function isComicChaptersRoute(route: RouteKey): boolean {
+  return route === 'comicChapters' || route.startsWith(SESSION_COMIC_CHAPTERS_ROUTE_PREFIX);
+}
+
+export function librarySearchRoute(sessionId: string): RouteKey {
+  return `${LIBRARY_SEARCH_ROUTE_PREFIX}${sessionId}`;
+}
+
+export function sessionComicChaptersRoute(sessionId: string): RouteKey {
+  return `${SESSION_COMIC_CHAPTERS_ROUTE_PREFIX}${sessionId}`;
+}
+
+export function librarySessionIdFromRoute(route: RouteKey): string | null {
+  if (route.startsWith(LIBRARY_SEARCH_ROUTE_PREFIX)) {
+    return route.slice(LIBRARY_SEARCH_ROUTE_PREFIX.length) || null;
+  }
+  if (route.startsWith(SESSION_COMIC_CHAPTERS_ROUTE_PREFIX)) {
+    return route.slice(SESSION_COMIC_CHAPTERS_ROUTE_PREFIX.length) || null;
+  }
+  return null;
+}
 
 /**
  * 神回封面裁剪信标（对应 Android GodCoverCropScreen 的入参 + 返回值）。
@@ -181,6 +224,7 @@ export function bookFromRow(row: BookRow): Book {
 interface AppState {
   route: RouteKey;
   activeTab: TabKey;
+  librarySearchRequests: Readonly<Record<string, LibrarySearchRequest>>;
   readerTheme: number;
   primaryIndex: number;
   secondaryIndex: number;
@@ -207,6 +251,8 @@ interface AppState {
   libraryReady: boolean;
   ensureAniListSeeded: () => Promise<BootstrapAniListResult>;
   setRoute: (route: RouteKey) => void;
+  openLibrarySearch: (keyword: string, textMode?: boolean) => string | null;
+  pruneLibrarySearchRequests: (retainedSessionIds: ReadonlySet<string>) => void;
   routeHistory: readonly RouteKey[];
   goBack: (fallback?: RouteKey) => void;
   setTab: (tab: TabKey) => void;
@@ -281,6 +327,7 @@ function changePaperRoute(current: RouteKey, next: RouteKey, commit: () => void)
 export const useAppStore = create<AppState>((set, get) => ({
   route: 'splash',
   routeHistory: [],
+  librarySearchRequests: {},
   /**
    * BUG 修正：`MainActivity.kt` L418 `var selectedTab by rememberSaveable { mutableIntStateOf(1) }`。
    * index 1 = `HomeScreen`（书架）；index 0 = `LibraryScreen`（书库）。见文件头。
@@ -357,6 +404,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ route, routeHistory: history });
     };
     changePaperRoute(current, route, commit);
+  },
+  openLibrarySearch: (keyword, textMode = false) => {
+    const query = keyword.trim();
+    if (query === '') return null;
+    const sessionId = createLibrarySessionId();
+    set((state) => ({
+      librarySearchRequests: {
+        ...state.librarySearchRequests,
+        [sessionId]: { keyword: query, textMode },
+      },
+    }));
+    get().setRoute(librarySearchRoute(sessionId));
+    return sessionId;
+  },
+  pruneLibrarySearchRequests: (retainedSessionIds) => {
+    set((state) => {
+      const entries = Object.entries(state.librarySearchRequests).filter(([id]) => retainedSessionIds.has(id));
+      if (entries.length === Object.keys(state.librarySearchRequests).length) return state;
+      return { librarySearchRequests: Object.fromEntries(entries) };
+    });
   },
   goBack: (fallback = 'main') => {
     const { route: current, routeHistory } = get();
@@ -771,8 +838,22 @@ export function bootstrapLibrary(): Promise<void> {
         const nativeDownloads = getPlatformKind() === 'ios-native'
           ? new (await import('@platform/ios-native/nativeBackgroundDownloads')).NativeBackgroundDownloads()
           : undefined;
+        const nativeZLibraryHandoff = getPlatformKind() === 'ios-native'
+          ? (await import('@platform/ios-native/zLibraryDownloadWebView')).resolveZLibraryDownloadWithWebView
+          : undefined;
+        const downloadConnectivity = nativeDownloads ? (await import('@platform/ios-native/downloadConnectivity')).iosDownloadConnectivity : undefined;
         const runtime = installLibraryRuntime({
           ...(nativeDownloads ? { backgroundBookDownload: nativeDownloads } : {}),
+          ...(downloadConnectivity ? { downloadConnectivity } : {}),
+          ...(nativeZLibraryHandoff ? { async resolveZLibraryChallenge(task, referer, cookie, signal) {
+            const response = await nativeZLibraryHandoff(referer, task.downloadUrl, cookie, signal);
+            if (!response || signal?.aborted) return null;
+            const entry = new URL(referer), destination = new URL(response.url);
+            if (entry.protocol === 'https:' && destination.protocol !== 'https:') return null;
+            await zlibrary.source.syncDownloadCookies(response.cookies, entry.hostname);
+            return { url: response.url, headers: entry.origin === destination.origin ? { Cookie: response.cookies } : {},
+              referer, fileName: task.title + '.' + task.format, format: task.format, size: null };
+          } } : {}),
           zlibraryNodeDomain: zlibrary.domain,
           openSourceLogin: showSourceLogin,
           isZLibrarySource: (source) => source.id === zlibrary.source.id,

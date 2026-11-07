@@ -122,6 +122,7 @@ import {
 } from '@core/favorite/favoriteUi';
 import { attachGodMomentRepository, hydrateGodMomentsFromDb, listGodMoments, setGodEditTarget } from '@core/god/godMoments';
 import { setOnlineReaderTarget } from '@core/reader/onlineReaderSession';
+import { comicChapterRouteTarget, rememberComicChapterRouteTarget } from '@ui/pages/comicChapterRouteTargets';
 import { GodMomentRepository } from '@core/god/godMomentRepository';
 import { takeGodJumpChapterId } from '@core/god/godRankingSettings';
 import type { GodMoment } from '@core/god/godTypes';
@@ -1540,7 +1541,7 @@ function createChaptersPorts(
 export function ComicChaptersPage() {
   const setRoute = useAppStore((s) => s.setRoute);
   const setRouteGodEditor = setRoute;
-  const setTab = useAppStore((s) => s.setTab);
+  const openLibrarySearch = useAppStore((s) => s.openLibrarySearch);
   const pushSearchHistory = useAppStore((s) => s.pushSearchHistory);
   const primaryIndex = useAppStore((s) => s.primaryIndex);
   const secondaryIndex = useAppStore((s) => s.secondaryIndex);
@@ -1726,7 +1727,7 @@ export function ComicChaptersPage() {
               };
         // MainActivity L1046–1062：bookId 形如 "sourceId::comicId"
         const target = resolveComicDetailTarget(
-          takeComicDetailTarget(),
+          takeComicDetailTarget() ?? comicChapterRouteTarget(useAppStore.getState().route),
           beaconMoment === null ? null : beaconMoment.bookId,
           firstFavorite,
         );
@@ -1808,9 +1809,13 @@ export function ComicChaptersPage() {
     (text: string): void => {
       if (text.trim() === '') return
       pushSearchHistory(text)
-      setTab('library')
+      const currentTarget = snapshot.target;
+      if (currentTarget !== null) {
+        rememberComicChapterRouteTarget(useAppStore.getState().route, currentTarget);
+      }
+      openLibrarySearch(text, textMode)
     },
-    [pushSearchHistory, setTab],
+    [pushSearchHistory, openLibrarySearch, snapshot.target, textMode],
   )
 
   const onToggleFavorite = useCallback((next: boolean): void => {

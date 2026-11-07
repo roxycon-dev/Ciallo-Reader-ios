@@ -29,6 +29,7 @@ class ReaderTranslationSession {
       totalCacheBytes: () => runtime.totalCacheBytes,
       clearCache: async () => { await runtime.clearCache(); this.reset(); },
       loadLlmConfig: () => runtime.config,
+      testConnection: (engine, config, signal) => runtime.testConnection(engine, config, signal),
       saveLlmConfig: async (config) => { await runtime.saveConfig(config); this.reset(); },
       showError: (message) => { void showToast(message, { kind: 'error' }); },
     } : UNSUPPORTED_TRANSLATION_BRIDGE;

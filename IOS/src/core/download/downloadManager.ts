@@ -158,6 +158,11 @@ export type DownloadWorkerConfig = Omit<
   'http' | 'dao' | 'novels' | 'broadcaster' | 'secrets' | 'signal' | 'fs' | 'downloadsDir' | 'books'
 >;
 
+export interface DownloadConnectivity {
+  connected(): Promise<boolean>;
+  subscribe(listener: (connected: boolean) => void): Promise<() => void>;
+}
+
 export interface DownloadManagerOptions {
   http: HttpClient;
   fs: FileSystemApi;
@@ -173,6 +178,7 @@ export interface DownloadManagerOptions {
   /** Defaults to the shared `downloadProgressBroadcaster` singleton. */
   broadcaster?: DownloadProgressBroadcaster;
   worker?: DownloadWorkerConfig;
+  connectivity?: DownloadConnectivity;
   /** Test seam; defaults to `runDownloadWorker`. */
   runWorker?: (taskId: string, deps: DownloadWorkerDeps) => Promise<DownloadWorkerResult>;
   /** Android `Log.i(TAG, ...)` sink. */
@@ -206,6 +212,9 @@ export class DownloadManager {
   private readonly activeRuns = new Map<string, ActiveRun>();
 
   private readonly restored: Promise<void>;
+  private readonly connectivity: DownloadConnectivity | undefined;
+  private unsubscribeConnectivity: (() => void) | undefined;
+  private disposed = false;
 
   constructor(options: DownloadManagerOptions) {
     this.dao = options.dao;
@@ -217,11 +226,46 @@ export class DownloadManager {
     this.broadcaster = options.broadcaster ?? downloadProgressBroadcaster;
     this.http = options.http;
     this.workerConfig = options.worker ?? {};
+    this.connectivity = options.connectivity;
     this.runWorker = options.runWorker ?? runDownloadWorker;
     this.log = options.log ?? ((): void => {});
     // Android `init { restoreTasks() }` — scope.launch { ... } fire and forget.
     this.restored = this.restoreTasks().catch((e: unknown) => {
       this.log(`restoreTasks failed: ${errorMessage(e) ?? 'unknown'}`);
+    });
+    void this.connectivity?.subscribe(() => { void this.syncConnectivity().catch(() => {}); }).then((unsubscribe) => {
+      if (this.disposed) unsubscribe(); else this.unsubscribeConnectivity = unsubscribe;
+      return this.syncConnectivity();
+    }).catch(() => {});
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.unsubscribeConnectivity?.();
+  }
+
+  private async syncConnectivity(): Promise<void> {
+    if (this.disposed || !this.connectivity) return;
+    await withControlLock(async () => {
+      if (this.disposed) return;
+      const online = await this.connectivity!.connected();
+      if (online) {
+        for (const task of await this.dao.getActiveTasks()) {
+          if (task.status === 'PENDING' && !this.activeRuns.has(task.id)) {
+            await this.enqueueWorker(task.id, task.downloadUrl, task.title, task.format);
+          }
+        }
+        return;
+      }
+      const ids = [...this.activeRuns.keys()];
+      await Promise.all(ids.map((id) => this.stopRun(id)));
+      for (const id of ids) {
+        const task = await this.dao.getTask(id);
+        if (task && ['PENDING', 'PAUSED', 'DOWNLOADING'].includes(task.status)) {
+          await this.dao.updateProgressAndStatus(id, 'PENDING', task.downloadedBytes, task.totalBytes, null);
+          this.broadcaster.updateState(id, DownloadStatePending);
+        }
+      }
     });
   }
 
@@ -255,6 +299,11 @@ export class DownloadManager {
         if (task.status === 'PENDING' || task.status === 'DOWNLOADING') {
           // Android: getWorkInfosForUniqueWork("download_${task.id}") → unfinished work ⇒ skip.
           if (this.activeRuns.has(task.id)) continue;
+          if (this.connectivity && task.status === 'PENDING') {
+            this.broadcaster.updateState(task.id, DownloadStatePending);
+            await this.enqueueWorker(task.id, task.downloadUrl, task.title, task.format);
+            continue;
+          }
           if (await this.workerConfig.background?.restorable(task.id).catch(() => false)) {
             this.broadcaster.updateState(task.id, DownloadStatePending);
             await this.enqueueWorker(task.id, task.downloadUrl, task.title, task.format);
@@ -557,11 +606,13 @@ export class DownloadManager {
 
     // ExistingWorkPolicy.REPLACE — abort whatever currently holds this unique name.
     await this.stopRun(bookId);
+    if (this.disposed || this.connectivity && !await this.connectivity.connected()) return;
 
     const controller = new AbortController();
     const deps: DownloadWorkerDeps = {
       http: this.http,
       ...this.workerConfig,
+      ...(this.connectivity ? { networkConnected: () => this.connectivity!.connected() } : {}),
       fs: this.fs,
       dao: this.dao,
       novels: this.novels,

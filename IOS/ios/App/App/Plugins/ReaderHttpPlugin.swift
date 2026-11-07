@@ -193,7 +193,18 @@ private final class NativeHttpFixture {
                 guard length >= 0, length <= 1024 * 1024 else { self.close(connection); return }
                 if bytes.count - boundary.upperBound >= length {
                     let body = Data(bytes[boundary.upperBound..<(boundary.upperBound + length)])
-                    if path == "/progressive" {
+                    if path == "/zlib-fixture-entry" {
+                        self.respondFixture(connection, status: "200 OK",
+                            headers: "Content-Type: text/html; charset=utf-8\r\nSet-Cookie: ciallo_native_book=ready; Path=/\r\n",
+                            body: Data("<html><body>Download entry</body></html>".utf8))
+                    } else if path == "/zlib-fixture-download" {
+                        self.respondFixture(connection, status: "302 Found", headers: "Location: /zlib-fixture-file\r\n", body: Data())
+                    } else if path == "/zlib-fixture-file" {
+                        let authorized = lines.contains { $0.lowercased().hasPrefix("cookie:") && $0.contains("ciallo_native_book=ready") }
+                        self.respondFixture(connection, status: authorized ? "200 OK" : "403 Forbidden",
+                            headers: authorized ? "Content-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=fixture.epub\r\n" : "Content-Type: text/html\r\n",
+                            body: Data((authorized ? "attachment" : "<html>Missing entry cookie</html>").utf8))
+                    } else if path == "/progressive" {
                         var response = Data("HTTP/1.1 200 OK\r\nContent-Length: 131072\r\nConnection: close\r\n\r\n".utf8)
                         response.append(Data(repeating: 0xA5, count: 64 * 1024))
                         connection.send(content: response, completion: .contentProcessed { _ in })
@@ -216,6 +227,13 @@ private final class NativeHttpFixture {
             }
             if ended || error != nil { self.close(connection) } else { self.read(connection, bytes: bytes) }
         }
+    }
+    private func respondFixture(_ connection: NWConnection, status: String, headers: String, body: Data) {
+        var response = Data("HTTP/1.1 \(status)\r\n\(headers)Content-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
+        response.append(body)
+        connection.send(content: response, completion: .contentProcessed { [weak self, weak connection] _ in
+            if let connection = connection { self?.close(connection) }
+        })
     }
     private func respond(_ connection: NWConnection, path: String, body: Data) {
         let binary = Data([0, 255, 128, 0xd6, 0xd0, 0xce, 0xc4]), json = Data(" { \"z\":1, \"a\":2, \"a\":3 }\r\n".utf8)

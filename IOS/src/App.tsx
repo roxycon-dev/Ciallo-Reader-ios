@@ -57,6 +57,8 @@ import { GodEditorPage } from '@ui/pages/GodEditorPage';
 import { GodRankingPage } from '@ui/pages/GodRankingPage';
 import { HomePage } from '@ui/pages/HomePage';
 import { LibraryPage } from '@ui/pages/LibraryPage';
+import { pruneLibrarySearchSessions } from '@ui/pages/librarySearchSessions';
+import { pruneComicChapterRouteTargets } from '@ui/pages/comicChapterRouteTargets';
 import { DiscoverPage } from '@ui/pages/DiscoverPage';
 import { OnboardingPage } from '@ui/pages/OnboardingPage';
 import { ReaderPage, setInlineImageDecoder } from '@ui/pages/ReaderPage';
@@ -83,6 +85,9 @@ import {
   getGodCropTarget,
   setGodCropResult,
   type RouteKey,
+  type LibrarySearchRequest,
+  isLibrarySearchRoute,
+  librarySessionIdFromRoute,
 } from '@ui/state/appStore';
 import { Toast } from '@ui/toast';
 import { showToast } from '@ui/toast';
@@ -106,7 +111,7 @@ type AppRoute =
  * `main` ↔ `ROUTES.home`：Compose 侧是 `composable("home")` 包着 MainShell，
  * Web 侧那个壳本身就是主路由，所以键名不同、目的地相同。
  */
-const ROUTE_NAME_BY_KEY: Readonly<Record<AppRoute, RouteName | null>> = {
+const ROUTE_NAME_BY_KEY: Readonly<Partial<Record<AppRoute, RouteName | null>>> = {
   splash: ROUTES.splash,
   onboarding: ROUTES.onboarding,
   main: ROUTES.home,
@@ -125,9 +130,28 @@ const ROUTE_NAME_BY_KEY: Readonly<Record<AppRoute, RouteName | null>> = {
 
 /** 某条路由的入场转场；Kotlin 里没有对应 NavHost 路由时返回 null（走默认淡入）。 */
 function routeTransitionFor(route: AppRoute): readonly RouteTransitionPart[] | null {
-  const name = ROUTE_NAME_BY_KEY[route];
+  if (isLibrarySearchRoute(route)) return null;
+  const baseRoute = route.startsWith('comicChapters/') ? 'comicChapters' : route;
+  const name = ROUTE_NAME_BY_KEY[baseRoute];
   if (name === null || name === undefined) return null;
   return routeTransition(name).enter;
+}
+
+function LibrarySearchRoute(props: { route: RouteKey; request: LibrarySearchRequest | undefined }) {
+  const sessionId = librarySessionIdFromRoute(props.route);
+  const goBack = useAppStore((state) => state.goBack);
+  useEffect(() => {
+    if (sessionId === null || props.request === undefined) goBack('comicChapters');
+  }, [goBack, props.request, sessionId]);
+  if (sessionId === null || props.request === undefined) return null;
+  return (
+    <LibraryPage
+      sessionId={sessionId}
+      searchRequest={props.request}
+      onBack={() => goBack('comicChapters')}
+      standalone
+    />
+  );
 }
 
 /**
@@ -214,6 +238,8 @@ function GodCoverCropRoute() {
 export function App() {
   const sourceManagementIo = useMemo(() => createSourceManagementIo(), []);
   const route = useAppStore((s) => s.route) as AppRoute;
+  const routeHistory = useAppStore((s) => s.routeHistory);
+  const librarySearchRequests = useAppStore((s) => s.librarySearchRequests);
   const autoNightMode = useAppStore((s) => s.autoNightMode);
   const screenOrientationLock = useAppStore((s) => s.screenOrientationLock);
   useEffect(() => {
@@ -226,6 +252,18 @@ export function App() {
     // 启动水合单一入口（appStore 不再在 import 时自动开库）
     void bootstrapLibrary().then(() => useAppStore.getState().ensureAniListSeeded());
   }, []);
+
+  useEffect(() => {
+    const retainedSessionIds = new Set<string>();
+    const retainedRoutes = new Set<RouteKey>([route, ...routeHistory]);
+    for (const entry of [route, ...routeHistory]) {
+      const sessionId = librarySessionIdFromRoute(entry);
+      if (sessionId !== null) retainedSessionIds.add(sessionId);
+    }
+    pruneLibrarySearchSessions(retainedSessionIds);
+    pruneComicChapterRouteTargets(retainedRoutes);
+    useAppStore.getState().pruneLibrarySearchRequests(retainedSessionIds);
+  }, [route, routeHistory]);
 
   useEffect(() => getPlatform().appLifecycle.subscribe((foreground) => {
     if (!foreground) getPrivacyService().lock();
@@ -408,7 +446,13 @@ export function App() {
         {route === 'main' ? <MainShell /> : null}
         {route === 'reader' ? <ReaderPrivacyGate><ReaderPage /></ReaderPrivacyGate> : null}
         {route === 'comicReader' ? <ReaderPrivacyGate><LocalComicReaderRoute /></ReaderPrivacyGate> : null}
-        {route === 'comicChapters' ? <ComicChaptersPage /> : null}
+        {route === 'comicChapters' || route.startsWith('comicChapters/') ? <ComicChaptersPage /> : null}
+        {isLibrarySearchRoute(route) ? (
+          <LibrarySearchRoute
+            route={route}
+            request={librarySearchRequests[librarySessionIdFromRoute(route) ?? '']}
+          />
+        ) : null}
         {route === 'sourceManagement' ? <SourceManagementPage io={sourceManagementIo} /> : null}
         {route === 'novelReaderOnline' ? <OnlineReaderRoute textMode /> : null}
         {route === 'comicReaderOnline' ? <OnlineReaderRoute /> : null}

@@ -46,5 +46,14 @@ export async function probeNativeHttp(platform: PlatformBundle): Promise<void> {
     assert(interrupted && received === 64 * 1024, 'HTTP consumer waited for the entire response before reading bytes');
     await wait((status) => status.cancelledSlowConnections >= 3);
     await wait((status) => status.activeRequests === 0);
+    const { resolveZLibraryDownloadWithWebView } = await import('./zLibraryDownloadWebView');
+    const handoff = await resolveZLibraryDownloadWithWebView(url + '/zlib-fixture-entry', url + '/zlib-fixture-download');
+    assert(handoff?.url === url + '/zlib-fixture-file' && handoff.cookies.includes('ciallo_native_book=ready'),
+      'Hidden WKWebView did not return the redirected download and the entry cookie');
+    const stopped = new AbortController();
+    const waitForHandoff = resolveZLibraryDownloadWithWebView(url + '/slow', url + '/zlib-fixture-download', null, stopped.signal);
+    stopped.abort();
+    assert(await waitForHandoff === null, 'Cancelled hidden WKWebView still returned a download');
+
   } finally { await fixture.fixture({ action: 'stop' }); }
 }

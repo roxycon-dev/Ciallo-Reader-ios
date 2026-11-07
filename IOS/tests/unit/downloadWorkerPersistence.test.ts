@@ -1,4 +1,4 @@
-import { DownloadManager } from '@core/download/downloadManager';
+import { DownloadManager, withControlLock } from '@core/download/downloadManager';
 import { describe, expect, it, vi } from 'vitest';
 import { performDownloadTask } from '@core/download/downloadWorker';
 import { DownloadProgressBroadcaster } from '@core/download/downloadProgressBroadcaster';
@@ -84,6 +84,33 @@ describe('download worker durable partial files and cancellation', () => {
     expect(recoverZLibraryDownload).toHaveBeenCalledOnce();
     expect(new TextDecoder().decode(await scenario.fs.readFile(scenario.task.filePath))).toBe(new TextDecoder().decode(text));
     expect(scenario.rows.get('fixture')).toMatchObject({ status: 'COMPLETED', downloadUrl: second });
+  });
+
+  it('holds tasks offline, resumes on connection and keeps user-paused tasks paused', async () => {
+    const scenario = fixture();
+    let online = false, listener: (() => void) | undefined, started = 0;
+    const manager = new DownloadManager({ ...scenario, secrets: scenario.secure, downloadsDir: 'downloads',
+      http: { request: async () => { throw new Error('fixture worker owns the request'); } },
+      books: { getAllBooksSync: async () => [], getBookBySourceResource: async () => null },
+      connectivity: { connected: async () => online, async subscribe(callback) { listener = () => callback(online); return () => {}; } },
+      runWorker: async (_id, deps) => {
+        started++;
+        await new Promise<void>((resolve) => { deps.signal!.addEventListener('abort', () => resolve(), { once: true }); });
+        return 'skipped';
+      },
+    });
+    const drain = () => withControlLock(async () => {});
+    await manager.whenRestored(); await drain();
+    expect(started).toBe(0);
+    online = true; listener?.(); await drain();
+    expect(started).toBe(1);
+    online = false; listener?.(); await drain();
+    expect(scenario.rows.get('fixture')?.status).toBe('PENDING');
+    await manager.pauseDownload('fixture');
+    online = true; listener?.(); await drain();
+    expect(scenario.rows.get('fixture')?.status).toBe('PAUSED');
+    expect(started).toBe(1);
+    manager.dispose();
   });
 
   it('passes pause cancellation into a request that has not returned its body and records PAUSED', async () => {
