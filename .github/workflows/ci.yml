@@ -15,7 +15,7 @@
 #     └─> web-build (ubuntu-latest)      dist + vite preview + Playwright e2e
 #           └─> cap-sync (macos-26)      npm ci → vite build → cap sync ios → cap copy ios
 #                 └─> ios-build (macos-26)   xcodebuild 真机构建（模拟器 .app）
-#                       └─> ios-archive (macos-26)  真机 ipa（无证书则跳过）
+#                       └─> ios-archive (macos-26)  arm64 真机构建（可选签名 IPA）
 #
 # 版本钉死策略（全部显式，不用 latest）：
 #   Node  : .nvmrc + actions/setup-node node-version-file（= 24.16.0）
@@ -33,6 +33,11 @@ on:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign_device:
+        description: Export a signed IPA for registered iOS test devices
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -465,10 +470,10 @@ jobs:
           if-no-files-found: error
 
   # ==================================================================
-  # 5) ios-archive — 真机 ipa。没有开发者证书就跳过，不伪造证书。
+  # 5) ios-archive — compile for the device SDK; signing is opt-in for test devices.
   # ==================================================================
   ios-archive:
-    name: ios-archive (device ipa, needs cert)
+    name: ios-device (arm64 Release and optional IPA)
     runs-on: macos-26
     timeout-minutes: 60
     needs: ios-build
@@ -478,156 +483,88 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: IOS/package-lock.json
-
-      - name: Setup npm ${{ env.NPM_VERSION }}
+      - name: Install local Swift package dependencies
         run: |
           npm install -g "npm@$NPM_VERSION"
-
-      - name: Install (npm ci)
-        run: npm ci
-
-      - name: Download synced ios/ + dist
-        uses: actions/download-artifact@v4
+          npm ci
+      - uses: actions/download-artifact@v4
         with:
           name: ios-synced
           path: IOS
-
-      - name: Detect signing credentials
-        id: creds
+      - name: Build Release for physical devices without signing
+        if: github.event_name != 'workflow_dispatch' || !inputs.sign_device
         run: |
-          set -o pipefail
-          # 真机 ipa 必须要真实 Apple 开发者证书 + provisioning profile。
-          # 没有就跳过 —— **绝不**生成自签名证书冒充。
-          if [ -n "$IOS_CERT_P12_BASE64" ] && [ -n "$IOS_CERT_PASSWORD" ]; then
-            echo "have_cert=true" >> "$GITHUB_OUTPUT"
-            echo "检测到 iOS 证书 secret，执行真机 archive。"
-          else
-            echo "have_cert=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=跳过 ios-archive::未配置 IOS_CERT_P12_BASE64 / IOS_CERT_PASSWORD，跳过真机 ipa 构建。模拟器 .app 由 ios-build job 产出。"
-          fi
-
-      - name: Explain skip reason
-        if: steps.creds.outputs.have_cert == 'false'
-        run: |
-          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
-          ## ios-archive 已跳过
-
-          真机 ipa 需要真实 Apple 开发者证书与 provisioning profile，本仓库尚未配置。
-
-          缺失的 repository secrets：
-          - `IOS_CERT_P12_BASE64` — .p12 证书的 base64（`base64 -i cert.p12 | pbcopy`）
-          - `IOS_CERT_PASSWORD` — 导出 .p12 时设的密码
-          - （可选）`IOS_PROVISIONING_PROFILE_BASE64` + `IOS_TEAM_ID`
-
-          配置完成后本 job 会自动启用。当前可用产物请看 `ciallo-ios-simulator-app`。
-          EOF
-
-      - name: Import certificate & profile
-        if: steps.creds.outputs.have_cert == 'true'
-        run: |
-          set -o pipefail
-          set +x   # 别把证书/密码打进日志
-          CERT_PATH="$RUNNER_TEMP/cert.p12"
-          PROFILE_PATH="$RUNNER_TEMP/app.mobileprovision"
-          echo "$IOS_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
-          security create-keychain -p ciallo-ci -s
-          security set-keychain-settings -lut 21600 ciallo-ci
-          security unlock-keychain -p ciallo-ci -u
-          security import "$CERT_PATH" -k ciallo-ci -P "$IOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security list-keychains -d user -s ciallo-ci login.keychain-db
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ciallo-ci login.keychain-db
-          if [ -n "${IOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
-            echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
-            mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-            cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/"
-            echo "provisioning profile installed"
-          else
-            echo "::warning::未提供 IOS_PROVISIONING_PROFILE_BASE64，依赖 Xcode 自动签名（需要仓库开启 GitHub Actions 集成）"
-          fi
-          security find-identity -v -p codesigning || true
+          set -euo pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme "$XCODE_SCHEME" \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath ios/DeviceDerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee xcodebuild-device.log
+          app=ios/DeviceDerivedData/Build/Products/Release-iphoneos/App.app
+          test -f "$app/public/index.html"
+          xcrun lipo -verify_arch arm64 "$app/App"
+          echo "已编译 iPhone/iPad arm64 Release。此构建未签名；可手动运行 CI 并启用 sign_device 导出测试用 IPA。" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install development signing assets
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_device
         env:
           IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
           IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-
-      - name: Detect -workspace vs -project
-        if: steps.creds.outputs.have_cert == 'true'
-        id: target
         run: |
-          set -o pipefail
-          if [ -d ios/App/App.xcworkspace ]; then
-            echo "flag=-workspace" >> "$GITHUB_OUTPUT"
-            echo "name=App.xcworkspace" >> "$GITHUB_OUTPUT"
-          else
-            echo "flag=-project" >> "$GITHUB_OUTPUT"
-            echo "name=App.xcodeproj" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ -z "$IOS_CERT_P12_BASE64" ] || [ -z "$IOS_CERT_PASSWORD" ] || [ -z "$IOS_PROVISIONING_PROFILE_BASE64" ]; then
+            echo "::error::配置开发证书、证书密码和匹配的 iOS 开发 provisioning profile 后再请求签名。"
+            exit 1
           fi
-
-      - name: cap sync ios (archive 需要最新 web 产物)
-        if: steps.creds.outputs.have_cert == 'true'
+          cert="$RUNNER_TEMP/ciallo-dev.p12"
+          profile="$RUNNER_TEMP/ciallo-dev.mobileprovision"
+          keychain="$RUNNER_TEMP/ciallo-dev.keychain-db"
+          password=$(openssl rand -hex 24)
+          echo "::add-mask::$password"
+          umask 077
+          printf '%s' "$IOS_CERT_P12_BASE64" | base64 -D > "$cert"
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$profile"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$cert" -P "$IOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          security cms -D -i "$profile" > "$RUNNER_TEMP/ciallo-profile.plist"
+          python3 scripts/prepare-ios-device-signing.py "$profile" "$RUNNER_TEMP/ciallo-profile.plist"
+          security find-identity -v -p codesigning "$keychain" | grep -q 'Apple Development'
+      - name: Archive and export the development IPA
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_device
         run: |
-          npx vite build
-          npx cap sync ios
-          npx cap copy ios
-
-      - name: xcodebuild archive (generic/platform=iOS)
-        if: steps.creds.outputs.have_cert == 'true'
-        run: |
-          set -o pipefail
-          xcodebuild \
-            ${{ steps.target.outputs.flag }} ios/App/${{ steps.target.outputs.name }} \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
+          set -euo pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme "$XCODE_SCHEME" \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath ios/App/build/App.xcarchive \
-            archive \
-            2>&1 | tee xcodebuild-archive.log
-
-      - name: Print full archive log
-        if: failure() && steps.creds.outputs.have_cert == 'true'
-        run: |
-          echo "===== xcodebuild archive 完整日志开始 ====="
-          cat xcodebuild-archive.log
-          echo "===== xcodebuild archive 完整日志结束 ====="
-          grep -nE '(error:|BUILD FAILED|The following build commands failed|\*\* BUILD)' xcodebuild-archive.log || true
-
-      - name: Export IPA
-        if: steps.creds.outputs.have_cert == 'true'
-        run: |
-          set -o pipefail
-          cat > export-options.plist <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>development</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>teamID</key><string>$(TEAM_ID)</string>
-          </dict>
-          </plist>
-          PLIST
-          sed -i '' "s/\$(TEAM_ID)/${IOS_TEAM_ID:-}/" export-options.plist
-          xcodebuild \
-            ${{ steps.target.outputs.flag }} ios/App/${{ steps.target.outputs.name }} \
-            -exportArchive \
-            -archivePath ios/App/build/App.xcarchive \
-            -exportOptionsPlist export-options.plist \
-            -exportPath ios/App/build/ipa \
-            2>&1 | tee xcodebuild-export.log
-          ls -lh ios/App/build/ipa/
-
-      - name: Upload ipa
-        if: steps.creds.outputs.have_cert == 'true'
+            CIALLO_CODE_SIGN_STYLE=Manual "CIALLO_SIGNING_TEAM=$CIALLO_TEAM_ID" \
+            "CIALLO_SIGNING_PROFILE=$CIALLO_PROFILE_UUID" archive 2>&1 | tee xcodebuild-device.log
+          codesign --verify --deep --strict ios/App/build/App.xcarchive/Products/Applications/App.app
+          xcodebuild -exportArchive -archivePath ios/App/build/App.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ciallo-export-options.plist" \
+            -exportPath ios/App/build/ipa 2>&1 | tee xcodebuild-export.log
+      - name: Upload signed device IPA
+        if: github.event_name == 'workflow_dispatch' && inputs.sign_device
         uses: actions/upload-artifact@v4
         with:
           name: ciallo-ios-ipa
           path: IOS/ios/App/build/ipa/*.ipa
           retention-days: 30
           if-no-files-found: error
+      - name: Upload device build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-device-build-log
+          path: |
+            IOS/xcodebuild-device.log
+            IOS/xcodebuild-export.log
+          retention-days: 7
+          if-no-files-found: ignore

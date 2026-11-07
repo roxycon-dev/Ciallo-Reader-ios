@@ -166,6 +166,9 @@ export function createFetchSourceHttpClient(): HttpClient {
   return {
     async request(req: HttpRequest): Promise<HttpResponse> {
       const controller = new AbortController();
+      const cancel = () => controller.abort(req.signal?.reason);
+      if (req.signal?.aborted) cancel();
+      else req.signal?.addEventListener('abort', cancel, { once: true });
       let timer: ReturnType<typeof setTimeout> | undefined;
       if (req.timeoutMs !== undefined && req.timeoutMs > 0) {
         timer = setTimeout(() => {
@@ -196,6 +199,7 @@ export function createFetchSourceHttpClient(): HttpClient {
         };
       } finally {
         if (timer !== undefined) clearTimeout(timer);
+        req.signal?.removeEventListener('abort', cancel);
       }
     },
   };

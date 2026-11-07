@@ -320,7 +320,10 @@ const SAMPLE_BOOKS: ReadonlyArray<Omit<Book, 'id' | 'lastReadTime'>> = [
 
 function changePaperRoute(current: RouteKey, next: RouteKey, commit: () => void): void {
   const reader = (route: RouteKey) => route === 'reader' || route === 'comicReader' || route === 'novelReaderOnline' || route === 'comicReaderOnline';
-  if (current === 'splash' || current === 'onboarding' || reader(current) || reader(next)) commit();
+  // The Android standalone Library destination owns its own paper surface.
+  // Snapshotting its search field and loaded backdrop during pop can crash WebKit.
+  if (current === 'splash' || current === 'onboarding' || reader(current) || reader(next) ||
+      isLibrarySearchRoute(current) || isLibrarySearchRoute(next)) commit();
   else void withSharedElementTransition(commit);
 }
 
@@ -797,22 +800,8 @@ export function bootstrapLibrary(): Promise<void> {
         performance.mark('app-zlibrary-ready');
         const { showSourceLogin } = await import('@ui/sourceDialogs');
 
-        // E60：keyword 子系统装配。
-        //
-        // `KeywordPrefsSource` 读的是**同步 boolean**，而 `SettingsRepository`
-        // 的三个方法都是 async（底层 SharedPreferences/secure store 皆如此）。
-        // Kotlin 侧同样是「构造时同步读一次 `PreferencesManager`」，所以这里
-        // 在装配期把三个值**快照一次**再交给 repository —— 与 `by lazy` 的
-        // 构造时点一致，也避免把 async 泄进 core 的同步接口。
-        // `PreferencesManager` = Kotlin `PreferencesManager(app)`。它包一层
-        // `SettingsRepository`（后者拿 SQLite 句柄），Android 侧也是这个组合。
-        const settingsRepo = new SettingsRepository(platform.db);
-        const prefsManager = new PreferencesManager(settingsRepo);
-        const keywordPrefs = await Promise.all([
-          prefsManager.multiLanguageSearch(),
-          prefsManager.multiLanguageOnlineLookup(),
-          prefsManager.incognitoBrowsingEnabled(),
-        ]);
+        // Keyword search uses live preferences and a separate derived SQLite index.
+        const prefsManager = new PreferencesManager(new SettingsRepository(platform.db));
 
         // Kotlin `context.assets.open(name)` —— Web 侧走 public/ 静态资源。
         // 资源缺失时**显式抛错**（不静默降级）：`KeywordDictionary.prepare()`
@@ -835,7 +824,11 @@ export function bootstrapLibrary(): Promise<void> {
         };
 
         const { getPlatformKind } = await import('@platform/index');
-        const nativeDownloads = getPlatformKind() === 'ios-native'
+        const native = getPlatformKind() === 'ios-native';
+        const dictionaryDb = native
+          ? new (await import('@platform/ios-native/capacitorDb')).CapacitorSqliteDatabase(false)
+          : new (await import('@platform/web-mock')).InMemorySqliteDatabase();
+        const nativeDownloads = native
           ? new (await import('@platform/ios-native/nativeBackgroundDownloads')).NativeBackgroundDownloads()
           : undefined;
         const nativeZLibraryHandoff = getPlatformKind() === 'ios-native'
@@ -864,11 +857,14 @@ export function bootstrapLibrary(): Promise<void> {
             fs: platform.fs,
             db: platform.db,
             settings: keywordSettings,
-            prefs: {
-              multiLanguageSearch: keywordPrefs[0],
-              multiLanguageOnlineLookup: keywordPrefs[1],
-              incognitoBrowsingEnabled: keywordPrefs[2],
+            dictionaryDb,
+            prefs: async () => {
+              const [multiLanguageSearch, multiLanguageOnlineLookup, incognitoBrowsingEnabled] = await Promise.all([
+                prefsManager.multiLanguageSearch(), prefsManager.multiLanguageOnlineLookup(), prefsManager.incognitoBrowsingEnabled(),
+              ]);
+              return { multiLanguageSearch, multiLanguageOnlineLookup, incognitoBrowsingEnabled };
             },
+            ensureBundledTitlesImported: async () => { await useAppStore.getState().ensureAniListSeeded(); },
             http: platform.http,
           }),
           db: platform.db,

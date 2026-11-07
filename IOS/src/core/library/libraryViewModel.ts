@@ -210,6 +210,8 @@ class Job {
   private readonly controller = new AbortController();
   private settled: Promise<unknown> = Promise.resolve();
 
+  get signal(): AbortSignal { return this.controller.signal; }
+
   get cancelled(): boolean {
     return this.controller.signal.aborted;
   }
@@ -340,7 +342,7 @@ export interface LibraryViewModelDeps {
   comicDownloads?: ComicDownloadManager;
   recordMetadata: ReadingRecordMetadata;
   /** Android `KeywordRepository.observe(keyword, forceRefresh)`. */
-  keywordObserve?: (keyword: string, forceRefresh: boolean) => AsyncIterable<KeywordUpdate>;
+  keywordObserve?: (keyword: string, forceRefresh: boolean, signal?: AbortSignal) => AsyncIterable<KeywordUpdate>;
   /** Android `com.example.data.AppDatabase.ensureBundledTitlesImported` + source registration. */
   registerBuiltinSources?: () => Promise<void>;
   /** Android `com.example.ui.warmComicPage(url, headers)`. */
@@ -554,7 +556,8 @@ export class LibraryViewModel {
   /* ───────────── init ───────────── */
 
   /** LibraryViewModel.kt:212-266 `init { … }`. */
-  async initialize(): Promise<void> {
+  async initialize(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return;
     // 漫画下载完成后刷新"已导入本地书"状态
     this.unsubscribeComicTasks =
       this.deps.comicDownloads?.subscribeTasks((tasks) => {
@@ -575,13 +578,18 @@ export class LibraryViewModel {
 
     await this.deps.sources.initialize();
     await this.deps.registerBuiltinSources?.();
+    if (signal?.aborted) return;
 
     this.unsubscribeActiveSource = this.deps.sources.subscribeActiveSource(() => {
       void this.checkSourceLoginStatus();
     });
   }
 
-  dispose(): void {
+  dispose(cancelSearch = false): void {
+    if (cancelSearch) {
+      this.searchRequestSeq++;
+      this.cancelAggregateSearch();
+    }
     this.unsubscribeActiveSource?.();
     this.unsubscribeActiveSource = null;
     this.unsubscribeComicTasks?.();
@@ -891,23 +899,26 @@ export class LibraryViewModel {
     keyword: string,
     forceRefresh: boolean,
     valid: () => boolean,
+    signal: AbortSignal,
   ): AsyncIterable<string[]> {
     // The Kotlin `flow { … }` builder closes over the ViewModel, so the generator is
     // written as a bound async-generator method to avoid aliasing `this`.
-    return this.keywordFlow(keyword, forceRefresh, valid);
+    return this.keywordFlow(keyword, forceRefresh, valid, signal);
   }
 
   private async *keywordFlow(
     keyword: string,
     forceRefresh: boolean,
     valid: () => boolean,
+    signal: AbortSignal,
   ): AsyncGenerator<string[], void, undefined> {
     if (!this.multiLanguageSearchState.value) return;
     const observe = this.deps.keywordObserve;
     if (observe === undefined) return;
-    for await (const update of observe(keyword, forceRefresh)) {
+    for await (const update of observe(keyword, forceRefresh, signal)) {
       const batch = update.added;
-      if (valid() && this.multiLanguageSearchState.value) {
+      if (!valid() || !this.multiLanguageSearchState.value) return;
+      {
         this.searchKeywordsState.update((words) => {
           const seen = new Set<string>();
           const out: string[] = [];
@@ -957,9 +968,7 @@ export class LibraryViewModel {
         await runner.searchExpanded(
           sources,
           keyword,
-          this.keywordExpansion(keyword, forceKeywordRefresh, () =>
-            seq === this.aggregateSearchSeq,
-          ),
+          this.keywordExpansion(keyword, forceKeywordRefresh, () => seq === this.aggregateSearchSeq, job.signal),
           (group) => {
             if (seq === this.aggregateSearchSeq) {
               this.uiStateState.update((current) => withComicSearchGroup(current, group));
@@ -1417,9 +1426,7 @@ export class LibraryViewModel {
         await this.singleSourceSearch.searchExpanded(
           [source],
           keyword,
-          this.keywordExpansion(keyword, forceKeywordRefresh, () =>
-            requestSeq === this.searchRequestSeq,
-          ),
+          this.keywordExpansion(keyword, forceKeywordRefresh, () => requestSeq === this.searchRequestSeq, job.signal),
           (group) => {
             if (requestSeq !== this.searchRequestSeq) return;
             collected = group.books.slice();

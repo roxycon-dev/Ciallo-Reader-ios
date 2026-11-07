@@ -109,7 +109,7 @@ export interface LibraryAssemblyPorts {
    * 宿主应传 `buildKeywordObserve(ports)`（`core/source/keyword/keywordAssembly.ts`），
    * 它内部保留 Kotlin `by lazy` 语义：首次搜索时才建仓储。
    */
-  readonly keywordObserve?: (keyword: string, forceRefresh: boolean) => AsyncIterable<KeywordUpdate>;
+  readonly keywordObserve?: (keyword: string, forceRefresh: boolean, signal?: AbortSignal) => AsyncIterable<KeywordUpdate>;
   /** Android `com.example.ui.warmComicPage(url, headers)`。 */
   readonly warmComicPage?: (url: string, headers: Record<string, string>) => Promise<void>;
   /** Android `ZLibraryNodeConfig.domain`。 */
@@ -373,13 +373,13 @@ export function installLibraryRuntime(ports: LibraryAssemblyPorts): LibraryRunti
     createSearchSession,
     disposeSearchSession: (viewModel) => {
       if (!searchSessions.delete(viewModel)) return;
-      viewModel.dispose();
+      viewModel.dispose(true);
     },
     sourceManager: assembly.sourceManager,
     favorites: assembly.favorites,
     novelDownloads: assembly.downloadManager,
     dispose: () => {
-      for (const viewModel of searchSessions) viewModel.dispose();
+      for (const viewModel of searchSessions) viewModel.dispose(true);
       searchSessions.clear();
       assembly.viewModel.dispose();
       assembly.downloadManager.dispose();

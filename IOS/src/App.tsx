@@ -63,7 +63,8 @@ import { DiscoverPage } from '@ui/pages/DiscoverPage';
 import { OnboardingPage } from '@ui/pages/OnboardingPage';
 import { ReaderPage, setInlineImageDecoder } from '@ui/pages/ReaderPage';
 import { createFileInlineImageDecoder } from '@platform/readerImageResolver';
-import { getPlatform } from '@platform/index';
+import { getPlatform, getPlatformKind } from '@platform/index';
+import { createIosSettingsUpdateIo } from '@platform/ios-native/settingsUpdateRuntime';
 import { SettingsPage } from '@ui/pages/SettingsPage';
 import { DeviceTransferPage } from '@ui/pages/DeviceTransferPage';
 import { SourceManagementPage } from '@ui/pages/SourceManagementPage';
@@ -166,6 +167,9 @@ function LibrarySearchRoute(props: { route: RouteKey; request: LibrarySearchRequ
 function MainShell() {
   const activeTab = useAppStore((s) => s.activeTab);
   const setTab = useAppStore((s) => s.setTab);
+  const settingsUpdateIo = useMemo(() => getPlatformKind() === 'ios-native'
+    ? createIosSettingsUpdateIo(getPlatform())
+    : null, []);
   const [discoverRefresh, setDiscoverRefresh] = useState(0);
   const lastTap = useRef({ tab: activeTab, time: 0 });
 
@@ -185,7 +189,9 @@ function MainShell() {
             case 'stats':
               return <StatisticsPage />;
             default:
-              return <SettingsPage />;
+              return settingsUpdateIo === null
+                ? <SettingsPage />
+                : <SettingsPage updateIo={settingsUpdateIo} />;
           }
         }}
       </TabContent>

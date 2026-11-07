@@ -73,7 +73,7 @@ export interface KeywordExpansionOptions {
   /** Kotlin `online: suspend (String) -> List<KeywordConcept>`. */
   readonly online: (input: string) => Promise<KeywordConcept[]>;
   /** Kotlin `onlineAllowed: () -> Boolean`. */
-  readonly onlineAllowed: () => boolean;
+  readonly onlineAllowed: () => boolean | Promise<boolean>;
   /** Kotlin `needsRefresh: suspend (String) -> Boolean = { false }`. */
   readonly needsRefresh?: (input: string) => Promise<boolean>;
   /** Kotlin `onlineWindowMs: Long = 20_000`. */
@@ -82,21 +82,22 @@ export interface KeywordExpansionOptions {
   readonly onlineEvents?: (
     input: string,
     known: KeywordConcept[],
+    signal: AbortSignal,
   ) => AsyncGenerator<OnlineKeywordResult, void, void>;
   /** Kotlin `onlineDisabledReason: () -> String = { … }`. */
-  readonly onlineDisabledReason?: () => string;
+  readonly onlineDisabledReason?: () => string | Promise<string>;
 }
 
 export class KeywordExpansion {
   private readonly local: (input: string) => Promise<KeywordConcept[]>;
   private readonly online: (input: string) => Promise<KeywordConcept[]>;
-  private readonly onlineAllowed: () => boolean;
+  private readonly onlineAllowed: () => boolean | Promise<boolean>;
   private readonly needsRefresh: (input: string) => Promise<boolean>;
   private readonly onlineWindowMs: number;
   private readonly onlineEvents:
-    | ((input: string, known: KeywordConcept[]) => AsyncGenerator<OnlineKeywordResult, void, void>)
+    | ((input: string, known: KeywordConcept[], signal: AbortSignal) => AsyncGenerator<OnlineKeywordResult, void, void>)
     | null;
-  private readonly onlineDisabledReason: () => string;
+  private readonly onlineDisabledReason: () => string | Promise<string>;
 
   constructor(options: KeywordExpansionOptions) {
     this.local = options.local;
@@ -117,26 +118,36 @@ export class KeywordExpansion {
   }
 
   /** Kotlin `fun observe(input: String): Flow<KeywordUpdate>`. */
-  async *observe(input: string): AsyncGenerator<KeywordUpdate, void, void> {
+  async *observe(input: string, signal?: AbortSignal): AsyncGenerator<KeywordUpdate, void, void> {
+    if (signal?.aborted) return;
     const queue = new AsyncQueue<KeywordUpdate>();
+    const lifetime = new AbortController();
+    const cancel = () => { lifetime.abort(); queue.close(); };
+    signal?.addEventListener('abort', cancel, { once: true });
     // Closing on settle is what turns the running body into a bounded stream.
-    const run = this.runExpansion(input, (update) => {
+    const run = this.runExpansion(input, lifetime, (update) => {
       void queue.push(update);
     }).then(
       () => queue.close(),
       () => queue.close(),
     );
-    for (;;) {
-      const update = await queue.shift();
-      if (update === null) break;
-      yield update;
+    try {
+      for (;;) {
+        const update = await queue.shift();
+        if (update === null || signal?.aborted) break;
+        yield update;
+      }
+      if (!signal?.aborted) await run;
+    } finally {
+      signal?.removeEventListener('abort', cancel);
+      cancel();
     }
-    await run;
   }
 
   /** The Kotlin `flow { … }` body of `observe`. */
   private async runExpansion(
     input: string,
+    lifetime: AbortController,
     emit: (update: KeywordUpdate) => void,
   ): Promise<void> {
     if (!isPlain(input)) {
@@ -180,7 +191,8 @@ export class KeywordExpansion {
       const group = concepts[i] as KeywordConcept[];
       if (!complete(group) || (await this.needsRefresh(part))) missing.push(i);
     }
-    const supplement = missing.length > 0 && this.onlineAllowed();
+    if (lifetime.signal.aborted) return;
+    const supplement = missing.length > 0 && (await this.onlineAllowed());
     let onlineAdded = false;
     let persisted = false;
     let cached = settled.some((group) => group.some((it) => it.source.includes('在线缓存')));
@@ -224,9 +236,10 @@ export class KeywordExpansion {
     if (supplement) {
       const outcome = await withTimeoutOrNull(
         this.onlineWindowMs,
-        this.runOnline(input, parts, concepts, missing, providers, seen, publish),
+        this.runOnline(input, parts, concepts, missing, providers, seen, publish, lifetime.signal),
       );
       timedOut = outcome === null;
+      if (timedOut) lifetime.abort();
       if (outcome !== null) {
         onlineAdded = outcome.onlineAdded;
         persisted = outcome.persisted;
@@ -243,8 +256,9 @@ export class KeywordExpansion {
         .filter((it) => !seen.has(query(it.text)))
         .slice(0, Math.max(0, VARIANT_LIMIT - seen.size))
         .some((it) => origins.get(query(it.text)) === '在线');
-    const state = ((): string => {
-      if (supplement && !this.onlineAllowed()) return this.onlineDisabledReason();
+    const allowed = missing.length > 0 && (await this.onlineAllowed());
+    const state = await (async (): Promise<string> => {
+      if (supplement && !allowed) return this.onlineDisabledReason();
       if (timedOut) {
         return onlineAdded && persisted
           ? '已补充并缓存，部分在线查询超时'
@@ -257,7 +271,7 @@ export class KeywordExpansion {
       if (onlineAdded) return persisted ? '已在线补充并缓存' : '已在线补充';
       if (ambiguous) return '名称存在歧义，未自动扩展不确定名称';
       if (cached) return '已使用缓存';
-      if (!this.onlineAllowed() && missing.length > 0) return this.onlineDisabledReason();
+      if (!allowed && missing.length > 0) return this.onlineDisabledReason();
       if (localFailed && seen.size === 1) {
         return '本地资料暂不可用，未找到扩展名称，本次仅使用原词';
       }
@@ -280,6 +294,7 @@ export class KeywordExpansion {
     providers: Map<string, KeywordProviderState>,
     seen: Set<string>,
     publish: (cap: number, status: string, origin: string, preferred?: KeywordName[]) => void,
+    signal: AbortSignal,
   ): Promise<{
     onlineAdded: boolean;
     persisted: boolean;
@@ -299,14 +314,14 @@ export class KeywordExpansion {
       try {
         const updates =
           this.onlineEvents != null
-            ? this.onlineEvents(parts[i] as string, concepts[i] as KeywordConcept[])
+            ? this.onlineEvents(parts[i] as string, concepts[i] as KeywordConcept[], signal)
             : defaultOnlineEvents(this.online(parts[i] as string));
         for await (const result of updates) {
-          if (cancelled) return;
+          if (cancelled || signal.aborted) return;
           await responses.push([i, result]);
         }
       } catch {
-        if (cancelled) return;
+        if (cancelled || signal.aborted) return;
         await responses.push([
           i,
           {
@@ -328,7 +343,7 @@ export class KeywordExpansion {
         const next = await responses.shift();
         if (next === null) break;
         const [i, result] = next;
-        if (!this.onlineAllowed()) {
+        if (signal.aborted || !(await this.onlineAllowed())) {
           // Kotlin: `jobs.forEach { it.cancel() }` then `break`
           cancelled = true;
           break;

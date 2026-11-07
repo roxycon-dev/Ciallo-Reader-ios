@@ -2653,6 +2653,10 @@ export function LibraryPage(props: LibraryPageProps = {}) {
   const searchHistory = useFlow(vm.searchHistoryState);
   const errorMessage = useFlow(vm.errorMessageState);
   const hasSeenWelcome = useFlow(vm.hasSeenWelcomeState);
+  // Detail searches are entered from an existing comic chapter and arrive with a
+  // concrete query. Let that route reach its search field without completing the
+  // base Library welcome preference; returning to the base tab still shows welcome.
+  const showWelcome = !hasSeenWelcome && !props.standalone;
   const isCurrentSourceLoggedIn = useFlow(vm.isCurrentSourceLoggedInState);
   const formatPickerBook = useFlow(vm.formatPickerBookState);
   const pendingFormats = useFlow(vm.pendingFormatsState);
@@ -2737,7 +2741,7 @@ export function LibraryPage(props: LibraryPageProps = {}) {
     [uiState],
   );
   useEffect(() => {
-    if (didRestorePageMemory.current || !hasSeenWelcome) return undefined;
+    if (didRestorePageMemory.current || showWelcome) return undefined;
     const memory = getLibraryPageMemory(pageKey);
     const frame = window.requestAnimationFrame(() => {
       if (memory.gridScrollTop !== undefined && gridRef.current === null) return;
@@ -2752,7 +2756,7 @@ export function LibraryPage(props: LibraryPageProps = {}) {
       didRestorePageMemory.current = true;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [aggResults, hasSeenWelcome, pageKey, searchResults]);
+  }, [aggResults, pageKey, searchResults, showWelcome]);
   /** L187-191 favoriteKeys: "sourceId::comicId" set from the favorites table. */
   const [favoriteKeys, setFavoriteKeys] = useState<string[]>(runtime?.favoriteKeys ?? []);
   const favoritesVisible = useFavoriteVisibility();
@@ -2852,7 +2856,7 @@ export function LibraryPage(props: LibraryPageProps = {}) {
     );
   }
 
-  if (!hasSeenWelcome) {
+  if (showWelcome) {
     return (
       <div className={props.standalone ? 'lib-page lib-page--standalone' : 'lib-page'}>
         <LibraryWelcomeScreen

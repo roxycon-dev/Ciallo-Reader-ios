@@ -11,6 +11,7 @@ interface SqlitePluginLike {
     values?: SqlValue[];
     transaction?: boolean;
   }): Promise<{ changes?: { changes?: number; lastId?: number } }>;
+  executeSet(options: { database: string; set: Array<{ statement: string; values: SqlValue[] }>; transaction: false }): Promise<unknown>;
   query(options: { database: string; statement: string; values?: SqlValue[] }): Promise<{ values?: unknown[] }>;
   close(options: { database: string }): Promise<void>;
   closeConnection(options: { database: string; readonly: boolean }): Promise<void>;
@@ -66,6 +67,8 @@ export class CapacitorSqliteDatabase implements SQLiteDatabase {
   private databaseName = '';
   private opening: Promise<void> | null = null;
 
+  constructor(private readonly startupDiagnostics = true) {}
+
   async open(options: { name: string }): Promise<void> {
     if (this.opening) await this.opening;
     if (this.plugin !== null) {
@@ -73,11 +76,11 @@ export class CapacitorSqliteDatabase implements SQLiteDatabase {
       throw new Error('Close the current database before opening another database');
     }
     const opening = (async () => {
-      await reportStartup('starting', new Error('database: loading plugin'));
+      if (this.startupDiagnostics) await reportStartup('starting', new Error('database: loading plugin'));
       const plugin = await loadSqlitePlugin();
-      await reportStartup('starting', new Error('database: creating connection'));
+      if (this.startupDiagnostics) await reportStartup('starting', new Error('database: creating connection'));
       await plugin.createConnection({ database: options.name, version: 1, readonly: false });
-      await reportStartup('starting', new Error('database: opening connection'));
+      if (this.startupDiagnostics) await reportStartup('starting', new Error('database: opening connection'));
       try {
         await plugin.open({ database: options.name });
       } catch (error) {
@@ -86,7 +89,7 @@ export class CapacitorSqliteDatabase implements SQLiteDatabase {
       }
       this.databaseName = options.name;
       this.plugin = plugin;
-      await reportStartup('starting', new Error('database: connection ready'));
+      if (this.startupDiagnostics) await reportStartup('starting', new Error('database: connection ready'));
     })();
     this.opening = opening;
     try { await opening; }
@@ -105,6 +108,11 @@ export class CapacitorSqliteDatabase implements SQLiteDatabase {
       return { rowsAffected, lastInsertRowId: changes.lastId };
     }
     return { rowsAffected };
+  }
+
+  async executeBatch(set: Array<{ statement: string; values: SqlValue[] }>): Promise<void> {
+    if (set.length === 0) return;
+    await this.requirePlugin().executeSet({ database: this.databaseName, set, transaction: false });
   }
 
   async query<T>(sql: string, params?: SqlValue[]): Promise<T[]> {

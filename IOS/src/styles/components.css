@@ -29,6 +29,7 @@
     0 4px 8px rgba(0, 0, 0, 0.08),
     0 4px 8px rgba(0, 0, 0, 0.15);
   position: relative;
+  isolation: isolate;
 }
 
 .glass-card--interactive {
@@ -44,6 +45,39 @@
 
 .glass-card--max {
   transform-style: preserve-3d;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 220ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Static GlassCard.kt optical layers. Negative stacking keeps them over the
+   card surface and below its normal content without wrapping or reflowing it. */
+.glass-card__layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.glass-card__light-path,
+.glass-card__tilt-light {
+  transition: opacity 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.glass-card__indent {
+  inset: auto;
+  transition: opacity 220ms cubic-bezier(0.34, 1.2, 0.5, 1);
+}
+
+.glass-card__rim {
+  inset: 0 0 auto;
+  transition: opacity 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.glass-card__edge {
+  box-sizing: border-box;
 }
 
 .max-card-aura,
@@ -1366,6 +1400,22 @@
 /* ══ Feedback / Motion.kt (overlay tokens are shared) ════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
+  .glass-card--interactive {
+    transition: none !important;
+  }
+
+  .glass-card--interactive:active {
+    transform: none;
+  }
+
+  .glass-card--max,
+  .glass-card__light-path,
+  .glass-card__tilt-light,
+  .glass-card__indent,
+  .glass-card__rim {
+    transition: none !important;
+  }
+
   .overlay-entrance,
   .cal-card__view {
     animation-duration: 1ms !important;

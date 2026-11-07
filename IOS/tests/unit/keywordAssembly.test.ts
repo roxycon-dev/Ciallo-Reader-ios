@@ -10,6 +10,7 @@
  * silently on device.
  */
 
+import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -26,7 +27,9 @@ import {
 } from '@core/source/keyword/keywordAssembly';
 import { InMemorySqliteDatabase, openSchemaV12 } from '@platform/web-mock';
 import { MemoryFileSystem } from '@platform/web-mock';
-import type { SQLiteDatabase } from '@platform/interfaces';
+import { openAppDatabase } from '@core/db/openDatabase';
+import { SettingsRepository, PreferencesManager } from '@core/settings/settingsRepository';
+import type { HttpRequest, SQLiteDatabase, SqlValue } from '@platform/interfaces';
 
 /** Repo root: `tests/unit/` → `../..`. */
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -60,6 +63,7 @@ async function ports(
     readAsset: async (name: string) => bundledAsset(name),
     fs: new MemoryFileSystem(),
     db: await openDb(),
+    dictionaryDb: new InMemorySqliteDatabase(),
     settings: memorySettings(),
     prefs: {
       multiLanguageSearch: true,
@@ -139,44 +143,69 @@ describe('keyword assembly (E60)', () => {
     await iterator.return?.();
   });
 
-  it('online gates keep Kotlin\'s verbatim disabled-reason strings', () => {
-    // `KeywordRepository.kt:54-59` `onlineDisabledReason()` — the three gated strings
-    // are user-visible in 关键词扩展预览, so they are pinned verbatim.
-    // Exercised through the expansion's status computation rather than a full
-    // `observe()` run: the full path gunzips the 647 KB dictionary and builds the
-    // SQLite index, which makes this an integration test, not a unit test.
-    const cases: Array<[Partial<KeywordPrefsSource>, string]> = [
-      [{ multiLanguageSearch: false }, '多语言搜索已关闭，仅使用原词'],
-      [{ multiLanguageOnlineLookup: false }, '在线补充已关闭，使用本地关键词'],
-      [{ incognitoBrowsingEnabled: true }, '无痕浏览中，在线补充暂停，使用本地关键词'],
-    ];
-    for (const [patch, expected] of cases) {
-      const prefs: KeywordPrefsSource = {
-        multiLanguageSearch: true,
-        multiLanguageOnlineLookup: true,
-        incognitoBrowsingEnabled: false,
-        ...patch,
-      };
-      // Kotlin `onlineAllowed()` = multiLanguageSearch && multiLanguageOnlineLookup && !incognito
-      const onlineAllowed =
-        prefs.multiLanguageSearch &&
-        prefs.multiLanguageOnlineLookup &&
-        !prefs.incognitoBrowsingEnabled;
-      let reason = '使用已有关键词';
-      if (!prefs.multiLanguageSearch) reason = '多语言搜索已关闭，仅使用原词';
-      else if (!prefs.multiLanguageOnlineLookup) reason = '在线补充已关闭，使用本地关键词';
-      else if (prefs.incognitoBrowsingEnabled) reason = '无痕浏览中，在线补充暂停，使用本地关键词';
-      // Every one of these three states disables the online lookup, and each has its
-      // own user-visible string.
-      expect(onlineAllowed, JSON.stringify(patch)).toBe(false);
-      expect(reason, JSON.stringify(patch)).toBe(expected);
-    }
-    // The only state that keeps online lookup on falls through to the Kotlin `else`.
-    const allOn: KeywordPrefsSource = {
-      multiLanguageSearch: true,
-      multiLanguageOnlineLookup: true,
-      incognitoBrowsingEnabled: false,
+  it('opens a separate dictionary, emits real bundled aliases and honors live search privacy', async () => {
+    const sqlite = new DatabaseSync(':memory:');
+    const librarySqlite = new DatabaseSync(':memory:');
+    const libraryDb: SQLiteDatabase = {
+      open: async () => {},
+      execute: async (sql, values = []) => ({ rowsAffected: Number(librarySqlite.prepare(sql).run(...values).changes) }),
+      query: async <T,>(sql: string, values: SqlValue[] = []) => librarySqlite.prepare(sql).all(...values) as T[],
+      close: async () => librarySqlite.close(),
     };
-    expect(allOn.multiLanguageSearch && allOn.multiLanguageOnlineLookup && !allOn.incognitoBrowsingEnabled).toBe(true);
+    await openAppDatabase({ db: libraryDb });
+    const run = (sql: string, values: SqlValue[] = []) => sqlite.prepare(sql).run(...values);
+    let batches = 0;
+    const dictionaryDb: KeywordAssemblyPorts['dictionaryDb'] = {
+      open: async ({ name }) => { expect(name).toBe('keyword_dictionary_v1.db'); },
+      execute: async (sql, values) => ({ rowsAffected: Number(run(sql, values).changes) }),
+      executeBatch: async (set) => {
+        batches++;
+        expect(set.length).toBeLessThan(540);
+        for (const { statement, values } of set) run(statement, values);
+      },
+      query: async <T,>(sql: string, values: SqlValue[] = []) => sqlite.prepare(sql).all(...values) as T[],
+      close: async () => sqlite.close(),
+    };
+    const settings = new SettingsRepository(libraryDb);
+    const prefs = new PreferencesManager(settings);
+    await prefs.setMultiLanguageOnlineLookup(false);
+    const requests: HttpRequest[] = [];
+    const observe = buildKeywordObserve(await ports({
+      db: libraryDb, dictionaryDb,
+      prefs: async () => ({
+        multiLanguageSearch: await prefs.multiLanguageSearch(),
+        multiLanguageOnlineLookup: await prefs.multiLanguageOnlineLookup(),
+        incognitoBrowsingEnabled: await prefs.incognitoBrowsingEnabled(),
+      }),
+      http: { async request(request) {
+        requests.push(request);
+        const body = new URL(request.url).hostname === 'www.wikidata.org' ? '{"search":[]}' : '{"data":[]}';
+        return { status: 200, headers: {}, url: request.url, body: new TextEncoder().encode(body) };
+      } },
+    }));
+    const collect = async (input: string) => {
+      const updates = [];
+      for await (const update of observe(input, true)) updates.push(update);
+      return updates;
+    };
+    try {
+      const aliases = await collect('macross');
+      expect(sqlite.prepare("SELECT raw FROM aliases WHERE concept='ehtag:parody:macross'").all().map(({ raw }) => raw)).toContain('超时空要塞');
+      expect(aliases.flatMap((item) => item.added), JSON.stringify(aliases)).toContain('超时空要塞');
+      expect(batches).toBeGreaterThan(1);
+      expect(batches).toBeLessThan(256);
+      expect(requests).toHaveLength(0);
+
+      await prefs.setMultiLanguageOnlineLookup(true);
+      await collect('CialloMetadataProbeUnmatched');
+      expect(requests.some(({ url }) => new URL(url).hostname === 'www.wikidata.org')).toBe(true);
+
+      const requestsBeforePrivacy = requests.length;
+      await settings.setBoolean('incognito_browsing_enabled', true);
+      const privateLookup = await collect('CialloMetadataProbePrivate');
+      expect(privateLookup.at(-1)?.status).toBe('无痕浏览中，在线补充暂停，使用本地关键词');
+      expect(requests).toHaveLength(requestsBeforePrivacy);
+      expect(await prefs.incognitoBrowsingEnabled()).toBe(true);
+    } finally { await Promise.all([dictionaryDb.close(), libraryDb.close()]); }
   });
 });

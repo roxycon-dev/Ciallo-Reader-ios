@@ -12,7 +12,7 @@ export interface LibraryPageMemory {
 const viewModels = new Map<string, LibraryViewModel>();
 const ownedViewModels = new Set<string>();
 const releaseViewModels = new Map<string, (viewModel: LibraryViewModel) => void>();
-const startedSessions = new Set<string>();
+const startedSessions = new Map<string, AbortController>();
 const pageMemory = new Map<string, LibraryPageMemory>();
 
 export function getLibrarySearchViewModel(sessionId: string, runtime: LibraryRuntime): LibraryViewModel {
@@ -34,9 +34,15 @@ export function startLibrarySearchSession(
   request: LibrarySearchRequest,
 ): void {
   if (startedSessions.has(sessionId)) return;
-  startedSessions.add(sessionId);
-  viewModel.requestAggregateSearch(request.keyword, request.textMode);
-  if (ownedViewModels.has(sessionId)) void viewModel.initialize();
+  const lifetime = new AbortController();
+  startedSessions.set(sessionId, lifetime);
+  if (ownedViewModels.has(sessionId)) {
+    // The search needs the saved language options on its very first request.
+    const dispatch = () => {
+      if (!lifetime.signal.aborted) viewModel.requestAggregateSearch(request.keyword, request.textMode);
+    };
+    void viewModel.initialize(lifetime.signal).then(dispatch, dispatch);
+  } else viewModel.requestAggregateSearch(request.keyword, request.textMode);
 }
 
 export function getLibraryPageMemory(key: string): LibraryPageMemory {
@@ -50,6 +56,7 @@ export function updateLibraryPageMemory(key: string, update: Partial<LibraryPage
 export function pruneLibrarySearchSessions(retainedSessionIds: ReadonlySet<string>): void {
   for (const [sessionId, viewModel] of viewModels) {
     if (retainedSessionIds.has(sessionId)) continue;
+    startedSessions.get(sessionId)?.abort();
     if (ownedViewModels.has(sessionId)) {
       (releaseViewModels.get(sessionId) ?? ((session) => session.dispose()))(viewModel);
     }

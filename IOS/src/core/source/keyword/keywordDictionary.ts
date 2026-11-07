@@ -50,7 +50,7 @@
  *     message.
  */
 
-import type { SQLiteDatabase } from '@platform/interfaces';
+import type { SQLiteDatabase, SqlValue } from '@platform/interfaces';
 import { gunzipSync } from 'fflate';
 import {
   arrayOptJsonObject,
@@ -82,6 +82,14 @@ export interface KeyValueStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
 }
+
+interface DictionaryInsert { statement: string; values: SqlValue[] }
+
+export interface KeywordDictionaryDatabase extends SQLiteDatabase {
+  executeBatch?(set: DictionaryInsert[]): Promise<void>;
+}
+
+class DictionaryRefreshStopped extends Error {}
 
 export interface KeywordDictionaryOptions {
   /** Kotlin `context.assets.open(name)`. */
@@ -126,7 +134,7 @@ export class KeywordDictionary {
   private ready = false;
 
   constructor(
-    private readonly db: SQLiteDatabase,
+    private readonly db: KeywordDictionaryDatabase,
     private readonly options: KeywordDictionaryOptions,
   ) {}
 
@@ -176,17 +184,16 @@ export class KeywordDictionary {
       try {
         const bytes = await this.options.readAsset('keyword_ehtag.tsv.gzip');
         const text = decodeUtf8(gunzipSync(bytes));
+        const batch: DictionaryInsert[] = [];
         for (const rawLine of text.split('\n')) {
           this.throwIfAborted();
           const line = rawLine.replace(/\r$/, '');
           const parts = line.split('\t');
           if (parts.length !== 3) continue;
-          await this.put(
-            parts[0] as string,
-            parts[1] as string,
-            parts[2] as string,
-          );
+          this.put(batch, parts[0] as string, parts[1] as string, parts[2] as string);
+          if (batch.length >= 512) await this.flush(batch);
         }
+        await this.flush(batch);
         const versionBytes = await this.options.readAsset('keyword_dictionary_version.txt');
         const version = decodeUtf8(versionBytes).trim();
         await this.db.execute('INSERT INTO metadata(version) VALUES(?)', [version]);
@@ -201,7 +208,7 @@ export class KeywordDictionary {
   }
 
   /** Kotlin `private fun put(insert, namespace, raw, name)` (lines 97-123). */
-  private async put(namespace: string, raw: string, name: string): Promise<void> {
+  private put(batch: DictionaryInsert[], namespace: string, raw: string, name: string): void {
     if (raw.trim() === '' || name.trim() === '') return;
     if (raw.length > 160 || name.length > 160) return;
     const id = `ehtag:${namespace}:${raw}`;
@@ -214,33 +221,35 @@ export class KeywordDictionary {
     const shorts = SHORT_NAME_NAMESPACES.has(namespace) ? shortForms(cleanName) : [];
     if (shorts.length > 0) {
       for (const short of shorts) {
-        await this.db.execute(INSERT_NAME_PART_SQL, [id, matchKey(short)]);
+        batch.push({ statement: INSERT_NAME_PART_SQL, values: [id, matchKey(short)] });
       }
     }
     for (const entry of dedupeNames(names)) {
       if (entry.text.trim() === '') continue;
       this.throwIfAborted();
-      await this.db.execute(INSERT_ALIAS_SQL, [
-        id,
-        entry.text,
-        entry.language,
-        matchKey(entry.text),
-      ]);
+      batch.push({ statement: INSERT_ALIAS_SQL, values: [id, entry.text, entry.language, matchKey(entry.text)] });
     }
   }
 
+  private async flush(batch: DictionaryInsert[]): Promise<void> {
+    if (batch.length === 0) return;
+    if (this.db.executeBatch) await this.db.executeBatch(batch);
+    else for (const { statement, values } of batch) await this.db.execute(statement, values);
+    batch.length = 0;
+  }
+
   /** On a missing word, at most one attempt per day, without erasing a usable old version. */
-  async refreshIfDue(allowed: () => boolean): Promise<boolean> {
+  async refreshIfDue(allowed: () => boolean | Promise<boolean>): Promise<boolean> {
     const due = await this.gate.withLock(async () => {
       await this.prepare();
       const stamp = this.now();
       const last = await this.options.settings.get(CHECKED_AT);
       const lastNum = last != null && /^\d+$/.test(last) ? Number.parseInt(last, 10) : 0;
-      if (!allowed() || stamp - lastNum < 24 * 60 * 60 * 1_000) return false;
+      if (!(await allowed()) || stamp - lastNum < 24 * 60 * 60 * 1_000) return false;
       await this.options.settings.set(CHECKED_AT, String(stamp));
       return true;
     });
-    if (!due) return false;
+    if (!due || !(await allowed())) return false;
 
     const request = {
       url: DICTIONARY_URL,
@@ -263,15 +272,16 @@ export class KeywordDictionary {
         'SELECT version FROM metadata LIMIT 1',
       );
       const current = currentRows[0]?.version ?? '';
-      if (head.trim() !== '' && head === current) return false;
+      if ((head.trim() !== '' && head === current) || !(await allowed())) return false;
       await this.db.execute('BEGIN');
       try {
         await this.db.execute('DELETE FROM aliases');
         await this.db.execute('DELETE FROM name_parts');
+        const batch: DictionaryInsert[] = [];
         let count = 0;
         for (let i = 0; i < groups.length; i += 1) {
           this.throwIfAborted();
-          if (!allowed()) return false;
+          if (!(await allowed())) throw new DictionaryRefreshStopped();
           const group = arrayOptJsonObject(groups, i);
           if (group == null) continue;
           const namespace = optString(group, 'namespace', '') ?? '';
@@ -280,10 +290,16 @@ export class KeywordDictionary {
           if (data == null) continue;
           for (const raw of keys(data)) {
             const display = optString(optJsonObject(data, raw), 'name', '') ?? '';
-            await this.put(namespace, raw, display);
+            this.put(batch, namespace, raw, display);
+            if (batch.length >= 512) {
+              if (!(await allowed())) throw new DictionaryRefreshStopped();
+              await this.flush(batch);
+            }
             count += 1;
           }
         }
+        if (!(await allowed())) throw new DictionaryRefreshStopped();
+        await this.flush(batch);
         if (!(count >= 1_000 && count <= 100_000)) {
           throw new Error('Invalid keyword dictionary size');
         }
@@ -291,10 +307,12 @@ export class KeywordDictionary {
         await this.db.execute('INSERT INTO metadata(version) VALUES(?)', [
           head.trim() === '' ? `online-${this.now()}` : head,
         ]);
+        if (!(await allowed())) throw new DictionaryRefreshStopped();
         await this.db.execute('COMMIT');
         return true;
       } catch (e) {
         await this.db.execute('ROLLBACK');
+        if (e instanceof DictionaryRefreshStopped) return false;
         throw e;
       }
     });

@@ -37,7 +37,9 @@ test('discovery uses real source responses, persists follow/block choices and op
   await page.getByRole('button', { name: 'MangaDex 漫画', exact: true }).click();
   const work = page.getByRole('button', { name: '打开 发现验收漫画', exact: true });
   await expect(work).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('.discover-cover img').first()).toHaveAttribute('src', /^blob:/);
+  const cover = page.locator('.discover-cover img').first();
+  await expect(cover).toBeVisible();
+  await expect.poll(() => cover.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBe(32);
   await page.getByRole('button', { name: '喜欢 发现验收漫画', exact: true }).click();
   await expect(page.getByRole('button', { name: '取消喜欢 发现验收漫画', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '屏蔽', exact: true }).click();

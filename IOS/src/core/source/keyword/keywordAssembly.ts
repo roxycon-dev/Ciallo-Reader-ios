@@ -23,7 +23,7 @@
 
 import type { FileSystemApi, HttpClient, SQLiteDatabase } from '@platform/interfaces';
 import type { KeywordUpdate } from './keywordModels';
-import { KeywordDictionary, type KeyValueStore } from './keywordDictionary';
+import { KeywordDictionary, type KeywordDictionaryDatabase, type KeyValueStore } from './keywordDictionary';
 import {
   createAniListTitleDao,
   KeywordRepository,
@@ -53,10 +53,12 @@ export interface KeywordAssemblyPorts {
   readonly fs: FileSystemApi;
   /** Kotlin `AppDatabase.getDatabase(app)`. */
   readonly db: SQLiteDatabase;
+  /** Android SQLiteOpenHelper for the rebuildable dictionary, separate from Room. */
+  readonly dictionaryDb: KeywordDictionaryDatabase;
   /** Kotlin `KeywordDictionary(app)`'s daily-refresh stamp store. */
   readonly settings: KeyValueStore;
   /** Kotlin `PreferencesManager(app)`. */
-  readonly prefs: KeywordPrefsSource;
+  readonly prefs: KeywordPrefsSource | (() => Promise<KeywordPrefsSource>);
   /** Kotlin `OnlineKeywordLookup(context = …)` needs the shared HTTP transport. */
   readonly http?: HttpClient | null;
   /** Kotlin `System::currentTimeMillis`. */
@@ -72,7 +74,7 @@ export interface KeywordAssemblyPorts {
  */
 export function createKeywordRepository(ports: KeywordAssemblyPorts): KeywordRepository {
   // Kotlin `KeywordDictionary(app)` — first arg is the DB (Kotlin got it from Context).
-  const dictionary = new KeywordDictionary(ports.db, {
+  const dictionary = new KeywordDictionary(ports.dictionaryDb, {
     readAsset: ports.readAsset,
     settings: ports.settings,
     client: ports.http ?? null,
@@ -88,6 +90,7 @@ export function createKeywordRepository(ports: KeywordAssemblyPorts): KeywordRep
     legacyCacheDirectory: KEYWORD_LEGACY_CACHE_DIRECTORY,
     prefs: ports.prefs,
     dictionary,
+    client: ports.http ?? null,
     // Kotlin `AppDatabase.getDatabase(app).anilistDao()`.
     dao: createAniListTitleDao(ports.db),
     ...(ports.ensureBundledTitlesImported === undefined
@@ -109,11 +112,11 @@ export function createKeywordRepository(ports: KeywordAssemblyPorts): KeywordRep
  */
 export function buildKeywordObserve(
   ports: KeywordAssemblyPorts,
-): (keyword: string, forceRefresh: boolean) => AsyncIterable<KeywordUpdate> {
+): (keyword: string, forceRefresh: boolean, signal?: AbortSignal) => AsyncIterable<KeywordUpdate> {
   let repository: KeywordRepository | null = null;
-  return (keyword, forceRefresh) => {
+  return (keyword, forceRefresh, signal) => {
     // Kotlin `by lazy { … }` — first access wins, same value thereafter.
     if (repository === null) repository = createKeywordRepository(ports);
-    return repository.observe(keyword, forceRefresh);
+    return repository.observe(keyword, forceRefresh, signal);
   };
 }

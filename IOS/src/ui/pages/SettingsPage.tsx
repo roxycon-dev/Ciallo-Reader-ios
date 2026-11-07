@@ -374,6 +374,12 @@ export interface AppUpdateState {
 
 /** Android `GithubUpdateChecker` + `AppUpdateManager` — the About card's whole I/O surface. */
 export interface SettingsUpdateIo {
+  /** Optional platform-specific explanation for the About card. */
+  updateHint?: string;
+  /** Optional platform-specific project/release-notes destinations. */
+  projectUrl?: string;
+  releaseNotesUrl?: string;
+  releaseNotesLabel?: string;
   /** Kotlin `updateChecker.check(versionName)` (L1378). */
   check(currentVersion: string): Promise<UpdateCheckResult>;
   /** Kotlin `appUpdate.offer(release)` (L1380). */
@@ -1139,6 +1145,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
   /* ── Kotlin L136–137: updateChecking / updateMessage ── */
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+  const [updateReleaseUrl, setUpdateReleaseUrl] = useState<string | null>(null);
   const [appUpdateState, setAppUpdateState] = useState<AppUpdateState>({
     release: null,
     transferring: false,
@@ -1369,6 +1376,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
     if (updateChecking) return;
     setUpdateChecking(true);
     setUpdateMessage(null);
+    setUpdateReleaseUrl(null);
     void (async () => {
       try {
         if (appVersion === null) {
@@ -1377,6 +1385,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
         }
         const result = await updateIo.check(appVersion);
         setUpdateMessage(result.message);
+        setUpdateReleaseUrl(result.releaseUrl ?? result.release?.releaseUrl ?? null);
         if (result.release !== null && result.release !== undefined) {
           await updateIo.offer(result.release);
         }
@@ -2325,12 +2334,12 @@ export function SettingsPage(props: SettingsPageProps = {}) {
                 className="settings-about__textbtn"
                 onClick={() => {
                   // Kotlin L1392-1393 `runCatching { … }.onFailure { toast("无法打开发布页，请检查浏览器。") }`
-                  void updateIo.openUri(GITHUB_LATEST_URL).catch(() => {
+                  void updateIo.openUri(updateReleaseUrl ?? updateIo.releaseNotesUrl ?? GITHUB_LATEST_URL).catch(() => {
                     showToast('无法打开发布页，请检查浏览器。');
                   });
                 }}
               >
-                GitHub 发布页
+                {updateIo.releaseNotesLabel ?? 'GitHub 发布页'}
               </button>
             ) : null}
 
@@ -2352,7 +2361,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
             ) : null}
 
             {/* Kotlin L1402–1403 */}
-            <p className="settings-about__hint-strong">检查正式版本，确认后下载并打开系统安装页面。</p>
+            <p className="settings-about__hint-strong">{updateIo.updateHint ?? '检查正式版本，确认后下载并打开系统安装页面。'}</p>
             {/* Kotlin L1404–1409: Spacer(2.dp) before the tagline */}
             <div className="settings-spacer-2" />
             <p className="settings-about__tagline">轻量级本地 / 在线小说阅读器</p>
@@ -2365,7 +2374,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
               className="settings-about__star"
               onClick={() => {
                 // Kotlin L1417-1419 `runCatching { githubUriHandler.openUri(...) }.onFailure { … }`
-                void updateIo.openUri(GITHUB_RELEASES_URL).catch(() => {
+                void updateIo.openUri(updateIo.projectUrl ?? GITHUB_RELEASES_URL).catch(() => {
                   showToast('暂时打不开 GitHub，稍后再来喵～');
                 });
               }}

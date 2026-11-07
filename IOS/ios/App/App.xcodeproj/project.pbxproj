@@ -399,7 +399,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
+				CIALLO_CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = "$(CIALLO_CODE_SIGN_STYLE)";
+				"CIALLO_SIGNING_IDENTITY[sdk=iphoneos*]" = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "$(CIALLO_SIGNING_IDENTITY)";
+				DEVELOPMENT_TEAM = "$(CIALLO_SIGNING_TEAM)";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "$(CIALLO_SIGNING_PROFILE)";
 				CURRENT_PROJECT_VERSION = 205;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;

@@ -89,6 +89,14 @@ export class InMemorySqliteDatabase implements SQLiteDatabase {
     });
   }
 
+  async executeBatch(set: Array<{ statement: string; values: SqlValue[] }>): Promise<void> {
+    // Let the browser process input between bounded dictionary batches.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await this.enqueue(async () => {
+      for (const { statement, values } of set) await this.dispatch(statement, values, 'execute');
+    });
+  }
+
   query<T>(sql: string, params?: SqlValue[]): Promise<T[]> {
     return this.enqueue(() => this.dispatch(sql, params, 'query') as Promise<T[]>);
   }
@@ -198,11 +206,17 @@ export class InMemorySqliteDatabase implements SQLiteDatabase {
     if (selectColumns) {
       const colsRaw = (selectColumns[1] ?? '').trim();
       if (colsRaw !== '*' && !/^COUNT\s*\(\s*\*\s*\)$/i.test(colsRaw)) {
-        const rows = projectColumns(this.applySelect((selectColumns[2] ?? '').trim(), params), colsRaw);
+        const distinct = /^DISTINCT\s+/i.exec(colsRaw);
+        const source = (selectColumns[2] ?? '').trim();
+        const limit = distinct ? /\s+LIMIT\s+(\d+)(?:\s+OFFSET\s+(\d+))?$/i.exec(source) : null;
+        const rows = projectColumns(this.applySelect(limit ? source.slice(0, limit.index) : source, params), distinct ? colsRaw.slice(distinct[0].length) : colsRaw);
         if (mode === 'execute') {
           return { rowsAffected: 0 };
         }
-        return rows;
+        if (!distinct) return rows;
+        const unique = new Map(rows.map((row) => [JSON.stringify(row), row]));
+        const offset = Number(limit?.[2] ?? 0);
+        return [...unique.values()].slice(offset, limit ? offset + Number(limit[1]) : undefined);
       }
     }
 
@@ -309,25 +323,33 @@ export class InMemorySqliteDatabase implements SQLiteDatabase {
       row[col] = parseValueToken(valueTokens[idx] ?? '', params, cursor);
     });
 
-    // Bundled title imports contain ~94k rows. Scanning every existing ID and
-    // unique index on every INSERT made startup quadratic and froze WebKit.
+    // AniList and EhTag imports both rely on indexed conflict checks. Include
+    // explicit composite keys as well as tables with a generated row ID.
     const autoPk = meta.autoGeneratePk && meta.primaryKey.length === 1 ? meta.primaryKey[0] : undefined;
-    if (strategy === 'IGNORE' && upsert === null && autoPk !== undefined && row[autoPk] == null) {
+    if (strategy === 'IGNORE' && upsert === null && (autoPk || meta.primaryKey.length > 0)) {
       let cache = this.ignoreCache.get(tableName);
       if (cache === undefined || cache.rows !== rows || cache.length !== rows.length) {
-        const unique = [...this.indices.values()].filter((index) => index.table === tableName && index.unique)
-          .map((index) => ({ columns: index.columns, keys: new Set(rows.map((item) => JSON.stringify(index.columns.map((column) => item[column] ?? null)))) }));
-        cache = { rows, length: rows.length, nextId: rows.reduce((max, item) => Math.max(max, Number(item[autoPk] ?? 0)), 0) + 1, unique };
+        const constraints = [meta.primaryKey, ...[...this.indices.values()]
+          .filter((index) => index.table === tableName && index.unique).map((index) => index.columns)];
+        const unique = constraints.map((columns) => ({
+          columns,
+          keys: new Set(rows.map((item) => JSON.stringify(columns.map((column) => item[column] ?? null)))),
+        }));
+        const nextId = autoPk === undefined ? 1
+          : rows.reduce((max, item) => Math.max(max, Number(item[autoPk] ?? 0)), 0) + 1;
+        cache = { rows, length: rows.length, nextId, unique };
         this.ignoreCache.set(tableName, cache);
       }
-      const keys = cache.unique.map((index) => JSON.stringify(index.columns.map((column) => row[column] ?? null)));
+      const keyFor = (columns: string[]): string => JSON.stringify(columns.map((column) => row[column] ?? null));
+      if (autoPk && row[autoPk] == null) row[autoPk] = cache.nextId;
+      const keys = cache.unique.map((index) => keyFor(index.columns));
       if (cache.unique.some((index, i) => index.keys.has(keys[i]!))) return undefined;
-      const id = cache.nextId++;
-      row[autoPk] = id;
+      const id = autoPk ? row[autoPk] : undefined;
+      if (typeof id === 'number') cache.nextId = Math.max(cache.nextId, id + 1);
       cache.unique.forEach((index, i) => index.keys.add(keys[i]!));
       rows.push(row);
       cache.length = rows.length;
-      return id;
+      return typeof id === 'number' ? id : undefined;
     }
 
     if (upsert !== null) {

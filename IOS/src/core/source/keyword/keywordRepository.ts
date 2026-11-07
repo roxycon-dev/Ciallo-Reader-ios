@@ -56,7 +56,7 @@
  *     `findMediaIdsContaining` arguments only.
  */
 
-import type { FileSystemApi, SQLiteDatabase } from '@platform/interfaces';
+import type { FileSystemApi, HttpClient, SQLiteDatabase } from '@platform/interfaces';
 import type { AniListTitleRow } from '../../data/anilistSeeding';
 import { normalize as normalizeTitle } from '../../data/titleNormalizer';
 import { AsyncMutex } from '../impl/sourceHttp';
@@ -154,11 +154,12 @@ export interface KeywordRepositoryOptions {
   /** Kotlin `File(app.cacheDir, "keyword_lookup_v1")`. */
   readonly legacyCacheDirectory: string;
   /** Kotlin `PreferencesManager(app)`. */
-  readonly prefs: KeywordPrefs;
+  readonly prefs: KeywordPrefs | (() => Promise<KeywordPrefs>);
   /** Kotlin `KeywordDictionary(app)`. */
   readonly dictionary: KeywordDictionary;
   /** Kotlin `OnlineKeywordLookup(context = …)`. */
   readonly network?: OnlineKeywordLookup;
+  readonly client?: HttpClient | null;
   /** Kotlin `AppDatabase…anilistDao()`. */
   readonly dao?: AniListTitleDao;
   /** Kotlin `AppDatabase.ensureBundledTitlesImported(app)`. */
@@ -189,7 +190,11 @@ export class KeywordRepository {
   constructor(private readonly options: KeywordRepositoryOptions) {
     this.cache = new KeywordCache(options.fs, options.cacheDirectory, options.now);
     this.legacyCache = new KeywordCache(options.fs, options.legacyCacheDirectory, options.now);
-    this.network = options.network ?? new OnlineKeywordLookup();
+    this.network = options.network ?? new OnlineKeywordLookup({
+      client: options.client ?? null,
+      requestAllowed: () => this.onlineAllowed(),
+      ...(options.now ? { now: options.now } : {}),
+    });
     for (let i = 0; i < GATE_COUNT; i += 1) this.onlineGates.push(new AsyncMutex());
     // Kotlin `by lazy` is synchronous-once-initialised; the asset read is async,
     // so the first `local()` call awaits this promise.
@@ -224,7 +229,7 @@ export class KeywordRepository {
       online: async () => [],
       onlineAllowed: () => this.onlineAllowed(),
       needsRefresh: async (input) => forceRefresh || (await this.cachedEntry(input))?.fresh === false,
-      onlineEvents: (input, known) => this.online(input, known, forceRefresh),
+      onlineEvents: (input, known, signal) => this.online(input, known, forceRefresh, signal),
       onlineDisabledReason: () => this.onlineDisabledReason(),
     });
   }
@@ -233,21 +238,28 @@ export class KeywordRepository {
     yield* this.engine().expand(input);
   }
 
-  async *observe(input: string, forceRefresh = false): AsyncGenerator<KeywordUpdate, void, void> {
-    yield* this.engine(forceRefresh).observe(input);
+  async *observe(input: string, forceRefresh = false, signal?: AbortSignal): AsyncGenerator<KeywordUpdate, void, void> {
+    yield* this.engine(forceRefresh).observe(input, signal);
   }
 
   // A PIN protects shelf categories; it is not a global search-network switch.
   // Global incognito still prevents metadata queries and dictionary refreshes.
-  private onlineAllowed(): boolean {
-    const prefs = this.options.prefs;
-    return (
-      prefs.multiLanguageSearch && prefs.multiLanguageOnlineLookup && !prefs.incognitoBrowsingEnabled
-    );
+  private readPrefs(): KeywordPrefs | Promise<KeywordPrefs> {
+    return typeof this.options.prefs === 'function' ? this.options.prefs() : this.options.prefs;
   }
 
-  private onlineDisabledReason(): string {
-    const prefs = this.options.prefs;
+  private async onlineAllowed(): Promise<boolean> {
+    try {
+      const prefs = await this.readPrefs();
+      return prefs.multiLanguageSearch && prefs.multiLanguageOnlineLookup && !prefs.incognitoBrowsingEnabled;
+    } catch {
+      return false;
+    }
+  }
+
+  private async onlineDisabledReason(): Promise<string> {
+    const prefs = await Promise.resolve().then(() => this.readPrefs()).catch(() => null);
+    if (!prefs) return '在线补充未启用，使用本地关键词';
     if (!prefs.multiLanguageSearch) return '多语言搜索已关闭，仅使用原词';
     if (!prefs.multiLanguageOnlineLookup) return '在线补充已关闭，使用本地关键词';
     if (prefs.incognitoBrowsingEnabled) return '无痕浏览中，在线补充暂停，使用本地关键词';
@@ -277,10 +289,16 @@ export class KeywordRepository {
         titles = await this.options.titleLookup(input, direct);
       } else if (this.options.dao != null) {
         const dao = this.options.dao;
-        if ((await dao.countTitles()) === 0 && this.options.ensureBundledTitlesImported != null) {
-          await this.options.ensureBundledTitlesImported();
+        try {
+          if ((await dao.countTitles()) === 0 && this.options.ensureBundledTitlesImported != null) {
+            await this.options.ensureBundledTitlesImported();
+          }
+          titles = await linkTitles(dao, input, direct);
+        } catch (error) {
+          // The title index is supplemental. Keep a valid dictionary/seed result
+          // if the independently seeded AniList index cannot be queried yet.
+          if (direct.length === 0) throw error;
         }
-        titles = await linkTitles(dao, input, direct);
       }
     }
     return merge([...direct, ...titles]);
@@ -291,6 +309,7 @@ export class KeywordRepository {
     input: string,
     known: KeywordConcept[],
     forceRefresh: boolean,
+    signal: AbortSignal,
   ): AsyncGenerator<OnlineKeywordResult, void, void> {
     const key = query(input);
     const gate = this.onlineGates[hashBucket(key, GATE_COUNT)] as AsyncMutex;
@@ -299,7 +318,7 @@ export class KeywordRepository {
       void,
       void
     > {
-      if (!self.onlineAllowed()) return;
+      if (signal.aborted || !(await self.onlineAllowed())) return;
       const entry = await self.cachedEntry(input);
       let concepts = merge([...known, ...(entry?.concepts ?? [])]);
       const states = new Map<string, KeywordProviderState>();
@@ -322,8 +341,9 @@ export class KeywordRepository {
           /* Old dictionary remains usable. */
         }
       });
-      for await (const result of self.network.stream(input, concepts, skip)) {
-        if (!self.onlineAllowed()) return;
+      if (signal.aborted || !(await self.onlineAllowed())) return;
+      for await (const result of self.network.stream(input, concepts, skip, signal)) {
+        if (signal.aborted || !(await self.onlineAllowed())) return;
         concepts = merge([...concepts, ...result.concepts]);
         for (const state of result.states) states.set(state.provider, state);
         const ttl = complete(concepts) ? THIRTY_DAYS_MS : SIX_HOURS_MS;

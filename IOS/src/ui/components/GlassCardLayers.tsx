@@ -242,6 +242,7 @@ export function pressHandlers(options: {
   let consumedStreak = 0;
   let startMs = 0;
   let seed = 0;
+  let pointerDown = false;
 
   const local = (
     e: React.PointerEvent<HTMLElement>,
@@ -257,6 +258,7 @@ export function pressHandlers(options: {
   return {
     onPointerDown: (e) => {
       consumedStreak = 0;
+      pointerDown = true;
       startMs = typeof performance !== 'undefined' ? performance.now() : 0;
       seed = newIndentSeed();
       const p = local(e);
@@ -272,15 +274,16 @@ export function pressHandlers(options: {
       });
     },
     onPointerMove: (e) => {
+      if (!pointerDown) return;
       const p = local(e);
       // 滚动门控：事件被列表消费即视为滚动接管，3 帧后熄灭全套按压特效
       if (e.defaultPrevented) consumedStreak += 1;
       else consumedStreak = 0;
       if (consumedStreak >= 3) {
+        pointerDown = false;
         options.onChange({ ...IDLE_PRESS, pressStartAt: startMs });
         return;
       }
-      if (!e.currentTarget.matches(':active')) return;
       options.onChange({
         handDown: true,
         indentIntensity: 1,
@@ -293,12 +296,15 @@ export function pressHandlers(options: {
       });
     },
     onPointerUp: () => {
+      pointerDown = false;
       options.onChange({ ...IDLE_PRESS, pressStartAt: startMs });
     },
     onPointerCancel: () => {
+      pointerDown = false;
       options.onChange({ ...IDLE_PRESS, pressStartAt: startMs });
     },
     onPointerLeave: () => {
+      pointerDown = false;
       options.onChange({ ...IDLE_PRESS, pressStartAt: startMs });
     },
   };

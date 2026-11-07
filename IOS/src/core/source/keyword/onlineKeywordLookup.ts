@@ -111,6 +111,7 @@ export class Ambiguous extends Error {
 export interface OnlineKeywordLookupOptions {
   /** Kotlin `client: OkHttpClient = SharedHttpTransport.builder()…build()`. */
   readonly client?: HttpClient | null;
+  readonly requestAllowed?: () => Promise<boolean>;
   /** Kotlin `wikiEndpoint: String = "https://www.wikidata.org/w/api.php"`. */
   readonly wikiEndpoint?: string;
   /** Kotlin `bangumiEndpoint: String = "https://api.bgm.tv/v0/"`. */
@@ -140,11 +141,11 @@ export class OnlineKeywordLookup {
   private readonly cooldowns = new Map<string, number>();
   /** Kotlin `private val bangumiSlots = Semaphore(2)`. */
   private readonly bangumiSlots = new Semaphore(2);
-  /** Shared cancellation for the provider tasks of one `stream()` call. */
-  private readonly abort = new AbortController();
+  private readonly requestAllowed: (() => Promise<boolean>) | undefined;
 
   constructor(options: OnlineKeywordLookupOptions = {}) {
     this.client = resolveHttpClient(options.client ?? null);
+    this.requestAllowed = options.requestAllowed;
     this.wikiEndpoint = options.wikiEndpoint ?? DEFAULT_WIKI_ENDPOINT;
     this.bangumiEndpoint = options.bangumiEndpoint ?? DEFAULT_BANGUMI_ENDPOINT;
     this.now = options.now ?? Date.now;
@@ -174,24 +175,41 @@ export class OnlineKeywordLookup {
     input: string,
     known: KeywordConcept[],
     skip: ReadonlySet<string> = new Set<string>(),
+    signal?: AbortSignal,
   ): AsyncGenerator<OnlineKeywordResult, void, void> {
+    if (signal?.aborted) return;
     const outbox = new KeywordQueue();
-    /** Kotlin `private val pending = ConcurrentHashMap<String, Job>()`. */
-    const pending = new Map<string, Promise<void>>();
+    const pending = new Map<string, { abort: AbortController; task: Promise<void> }>();
     let bridgeStarted = false;
+    let completeEntity = false;
+    const stop = () => {
+      for (const { abort } of pending.values()) abort.abort();
+      outbox.close();
+    };
+    signal?.addEventListener('abort', stop, { once: true });
+    const register = (id: string, body: (signal: AbortSignal) => Promise<void>): void => {
+      if (completeEntity || signal?.aborted || skip.has(id)) return;
+      const abort = new AbortController();
+      const task = Promise.resolve().then(async () => {
+        if (!abort.signal.aborted) await body(abort.signal);
+      }).finally(() => { pending.delete(id); });
+      pending.set(id, { abort, task });
+    };
 
     /** Kotlin `suspend fun runProvider(id, call)` including its `send(...)`. */
     const runProvider = async (
       id: string,
+      providerSignal: AbortSignal,
       call: () => Promise<KeywordConcept[]>,
     ): Promise<KeywordConcept[]> => {
-      if (skip.has(id)) return [];
+      if (providerSignal.aborted) return [];
       let outcome = 'found';
       let detail = '';
       let names: KeywordConcept[];
       try {
         names = await call();
       } catch (e) {
+        if (providerSignal.aborted) return [];
         if (e instanceof Ambiguous) {
           outcome = 'ambiguous';
           names = [];
@@ -201,6 +219,7 @@ export class OnlineKeywordLookup {
           names = [];
         }
       }
+      if (providerSignal.aborted) return [];
       if (names.length === 0 && outcome === 'found') outcome = 'empty';
       const delay =
         outcome === 'found'
@@ -217,8 +236,9 @@ export class OnlineKeywordLookup {
         persisted: false,
       });
       if (complete(names)) {
-        for (const otherId of [...pending.keys()]) {
-          if (otherId !== id) this.abort.abort();
+        completeEntity = true;
+        for (const [otherId, { abort }] of pending) {
+          if (otherId !== id) abort.abort();
         }
       }
       return names;
@@ -234,21 +254,13 @@ export class OnlineKeywordLookup {
       if (skip.has('anilist') || bridgeStarted) return;
       bridgeStarted = true;
       const chosen = target as KeywordConcept;
-      pending.set(
-        'anilist',
-        (async () => {
-          await runProvider('anilist', () => this.anilist(chosen));
-        })(),
-      );
+      register('anilist', async (providerSignal) => {
+        await runProvider('anilist', providerSignal, () => this.anilist(chosen, providerSignal));
+      });
     };
 
-    /** Kotlin `pending[id] = launch(start = CoroutineStart.LAZY) { … }`. */
-    const register = (id: string, body: () => Promise<void>): void => {
-      pending.set(id, body());
-    };
-
-    register('wikidata', async () => {
-      await runProvider('wikidata', () => this.wikidata(input));
+    register('wikidata', async (providerSignal) => {
+      await runProvider('wikidata', providerSignal, () => this.wikidata(input, providerSignal));
     });
 
     const kinds = [...new Set(known.map((it) => kindOf(it)).filter((it) => it !== 'unknown'))];
@@ -264,26 +276,31 @@ export class OnlineKeywordLookup {
               : ['characters', 'persons', 'subjects'];
 
     for (const resource of resources) {
-      register(`bangumi:${resource}`, async () => {
-        const found = await runProvider(`bangumi:${resource}`, () =>
-          this.bangumi(input, resource, known),
+      register(`bangumi:${resource}`, async (providerSignal) => {
+        const found = await runProvider(`bangumi:${resource}`, providerSignal, () =>
+          this.bangumi(input, resource, known, providerSignal),
         );
         if (found.length > 0 && !complete(found)) bridge(found);
       });
     }
     bridge(known);
 
-    // Kotlin line 112: `pending.values.forEach { it.start() }` — the channel
-    // closes once every registered task settles.
-    const done = Promise.all([...pending.values()]).then(() => {
+    // Bangumi can discover a bridge after the initial providers have started.
+    const closeWhenSettled = async () => {
+      while (pending.size > 0) await Promise.allSettled([...pending.values()].map(({ task }) => task));
       outbox.close();
-    });
-    for (;;) {
-      const next = await outbox.shift();
-      if (next === null) break;
-      yield next;
+    };
+    void closeWhenSettled();
+    try {
+      for (;;) {
+        const next = await outbox.shift();
+        if (next === null || signal?.aborted) break;
+        yield next;
+      }
+    } finally {
+      signal?.removeEventListener('abort', stop);
+      stop();
     }
-    await done;
   }
 
   // -------------------------------------------------------------------------
@@ -297,13 +314,16 @@ export class OnlineKeywordLookup {
       throw new Unavailable('资料服务限流，请稍后重试');
     }
     const execute = async (): Promise<JsonObject> => {
+      request.signal?.throwIfAborted();
+      if (this.requestAllowed && !(await this.requestAllowed())) throw new Unavailable('在线补充已暂停');
+      request.signal?.throwIfAborted();
       const headers: Record<string, string> = {
         'User-Agent':
           'CialloReader/1.2 (https://github.com/roxycon-dev/Ciallo-Reader; keyword metadata)',
         Accept: 'application/json',
         ...(request.headers ?? {}),
       };
-      const init: SourceRequestInit = { headers, maxBytes: MAX_METADATA_BODY_BYTES };
+      const init: SourceRequestInit = { headers, maxBytes: MAX_METADATA_BODY_BYTES, timeoutMs: 8_000 };
       if (request.method !== undefined) init.method = request.method;
       if (request.body !== undefined) init.body = request.body;
       if (request.signal !== undefined) init.signal = request.signal;
@@ -358,7 +378,7 @@ export class OnlineKeywordLookup {
   // Kotlin 142-183 wikidata()
   // -------------------------------------------------------------------------
 
-  private async wikidata(input: string): Promise<KeywordConcept[]> {
+  private async wikidata(input: string, signal: AbortSignal): Promise<KeywordConcept[]> {
     const searchUrl = buildUrl(this.wikiUrl('wbsearchentities'), [], [
       ['search', input],
       ['language', 'zh'],
@@ -366,7 +386,7 @@ export class OnlineKeywordLookup {
       ['type', 'item'],
       ['limit', '5'],
     ]);
-    const searchResponse = await this.json({ url: searchUrl, signal: this.abort.signal });
+    const searchResponse = await this.json({ url: searchUrl, signal });
     const results = optJsonArray(searchResponse, 'search');
     if (results == null) throw new Unavailable();
     const key = match(input);
@@ -388,7 +408,7 @@ export class OnlineKeywordLookup {
       ['props', 'labels|aliases'],
       ['languages', 'zh|zh-hans|zh-hant|en|ja'],
     ]);
-    const entitiesResponse = await this.json({ url: entitiesUrl, signal: this.abort.signal });
+    const entitiesResponse = await this.json({ url: entitiesUrl, signal });
     const entities = optJsonObject(entitiesResponse, 'entities');
     if (entities == null) throw new Unavailable();
     const verified: KeywordConcept[] = [];
@@ -434,6 +454,7 @@ export class OnlineKeywordLookup {
     input: string,
     resource: string,
     known: KeywordConcept[],
+    signal: AbortSignal,
   ): Promise<KeywordConcept[]> {
     const body: Record<string, JsonValue> = { keyword: input, filter: {} };
     if (resource === 'subjects') body['sort'] = 'match';
@@ -446,7 +467,7 @@ export class OnlineKeywordLookup {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: this.abort.signal,
+      signal,
     });
     const data = optJsonArray(response, 'data');
     if (data == null) throw new Unavailable();
@@ -486,7 +507,7 @@ export class OnlineKeywordLookup {
           ? row
           : await this.json({
               url: buildUrl(this.bangumiEndpoint, [`${resource}/${id}`]),
-              signal: this.abort.signal,
+              signal,
             });
       const names = bangumiNames(detail);
       const rankValue = personRank(names, keys, resource !== 'subjects');
@@ -517,7 +538,7 @@ export class OnlineKeywordLookup {
   // -------------------------------------------------------------------------
 
   /** Only verified aliases bridge to AniList; a top-ranked unrelated result is insufficient. */
-  private async anilist(concept: KeywordConcept): Promise<KeywordConcept[]> {
+  private async anilist(concept: KeywordConcept, signal: AbortSignal): Promise<KeywordConcept[]> {
     const bridgeLanguages = new Set(['ja', 'native', 'romaji', 'latin', 'en']);
     const ordered = concept.names
       .map((name, index) => ({
@@ -555,7 +576,7 @@ export class OnlineKeywordLookup {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, variables: { search: term } }),
-        signal: this.abort.signal,
+        signal,
       });
       const page = optJsonObject(optJsonObject(response, 'data'), 'Page');
       if (page == null) throw new Unavailable();

@@ -142,6 +142,26 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
       assert(rolledBack && rows.length === 1 && rows[0]!.value === 'committed', 'Native SQLite rollback exposed uncommitted data');
     } finally { await platform.db.execute(`DROP TABLE IF EXISTS "${table}"`); }
   }, 40_000);
+  await check('Native keyword dictionary loads bundled aliases independently of the bookshelf', async () => {
+    const [{ KeywordDictionary }, { CapacitorSqliteDatabase }] = await Promise.all([
+      import('@core/source/keyword/keywordDictionary'), import('./capacitorDb'),
+    ]);
+    const db = new CapacitorSqliteDatabase(false);
+    const dictionary = new KeywordDictionary(db, {
+      async readAsset(name) {
+        const response = await platform.http.request({ url: `/keyword/${name}`, timeoutMs: 10_000 });
+        assert(response.status === 200, `Missing bundled keyword asset ${name}`);
+        return response.body;
+      },
+      settings: { get: async () => null, set: async () => {} },
+    });
+    try {
+      const concepts = await dictionary.find('macross');
+      assert(concepts.some((concept) => concept.names.some(({ text }) => text === '超时空要塞')), 'Bundled dictionary lookup failed');
+      const tables = await platform.db.query<{ name: string }>("SELECT name FROM sqlite_master WHERE name IN ('books','aliases')");
+      assert(tables.length === 1 && tables[0]?.name === 'books', 'Dictionary schema leaked into the bookshelf database');
+    } finally { await db.close(); }
+  }, 40_000);
   await check('Native whole archive import remaps ids and rolls back SQLite and reader preferences', async () => {
     const { probeNativeArchiveImport } = await import('./archiveImportProbe'); await probeNativeArchiveImport(nonce);
   }, 60_000);
