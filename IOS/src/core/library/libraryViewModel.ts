@@ -406,7 +406,22 @@ function isComicShelfRow(book: { contentType?: string }): boolean {
   return book.contentType === CONTENT_TYPE_COMIC;
 }
 
+export interface DownloadPreparation { book: SearchBook; state: DownloadState }
+
 export class LibraryViewModel {
+  readonly preparingDownloadsState = new MutableValue<ReadonlyMap<string, DownloadPreparation>>(new Map());
+  private readonly preparingDownloadJobs = new Map<string, symbol>();
+
+  allDownloadTasks(): Promise<DownloadTaskRecord[]> { return this.deps.downloads.allTasks(); }
+
+  private updatePreparation(key: string, preparation: DownloadPreparation | null): void {
+    this.preparingDownloadsState.update((previous) => {
+      const next = new Map(previous);
+      if (preparation) next.set(key, preparation); else next.delete(key);
+      return next;
+    });
+  }
+
   private readonly deps: LibraryViewModelDeps;
   private readonly sourceSearches: SourceSearchCoordinator;
   private readonly recordResolver: ReadingRecordResolver;
@@ -1338,6 +1353,7 @@ export class LibraryViewModel {
       const key = downloadTaskId(task.sourceId, originalBookId(task.id, task.sourceId));
       out.set(key, states.get(task.id) ?? this.downloadStateOfTask(task));
     }
+    for (const [key, prep] of this.preparingDownloadsState.value) out.set(key, prep.state);
     return out;
   }
 
@@ -1365,9 +1381,16 @@ export class LibraryViewModel {
 
   /** Android `downloadManager.downloadStates` subscription bridge for the page. */
   subscribeDownloadStates(listener: (states: Map<string, DownloadState>) => void): () => void {
-    return this.deps.downloads.subscribeDownloadStates(() => {
-      void this.downloadStates().then(listener);
-    });
+    let active = true, revision = 0;
+    const update = () => {
+      const current = ++revision;
+      void this.downloadStates().then((states) => {
+        if (active && current === revision) listener(states);
+      }).catch(() => {});
+    };
+    const tasks = this.deps.downloads.subscribeDownloadStates(update);
+    const preparing = this.preparingDownloadsState.subscribe(update);
+    return () => { active = false; tasks(); preparing(); };
   }
 
   /* ───────────── Search ───────────── */
@@ -1574,50 +1597,43 @@ export class LibraryViewModel {
     format: string | null,
     replaceNovel = false,
   ): Promise<void> {
-    let snapshot = book;
-    if (WholeBookNovelSources.contains(book.sourceId) && !replaceNovel) {
-      try {
-        const detail = await source.getDetail(book.id);
-        if (detail.kind === 'success') snapshot = detail.data;
-      } catch {
-        snapshot = book;
-      }
-    }
-    let result: SourceResult<DownloadInfo>;
+    const key = downloadTaskId(book.sourceId, book.id);
+    if (this.preparingDownloadJobs.has(key)) return;
+    const job = Symbol(key);
+    this.preparingDownloadJobs.set(key, job);
+    this.updatePreparation(key, { book, state: DownloadStatePending });
+    const current = () => this.preparingDownloadJobs.get(key) === job;
     try {
-      result =
-        format !== null
-          ? await source.getDownloadInfoWithFormat(book.id, format)
-          : await source.getDownloadInfo(book.id);
-    } catch (e) {
-      this.errorMessageState.value =
-        e instanceof Error ? (e.message ?? '获取下载信息失败') : '获取下载信息失败';
+      let snapshot = book;
+      if (WholeBookNovelSources.contains(book.sourceId) && !replaceNovel) {
+        try { const detail = await source.getDetail(book.id); if (detail.kind === 'success') snapshot = detail.data; }
+        catch { /* A source can supply the download even if detail is unavailable. */ }
+      }
+      if (!current()) return;
+      const result: SourceResult<DownloadInfo> = format !== null
+        ? await source.getDownloadInfoWithFormat(book.id, format)
+        : await source.getDownloadInfo(book.id);
+      if (!current()) return;
+      if (result.kind === 'error') throw result.exception;
+      const finalFormat = result.data.format.trim() || book.format;
+      if (READER_UNSUPPORTED.has(finalFormat.toLowerCase())) throw new Error(unsupportedFormatMessage(finalFormat));
+      const request: DownloadRequest = {
+        bookId: book.id, title: snapshot.title, author: snapshot.author, sourceId: book.sourceId,
+        downloadUrl: result.data.url, format: finalFormat, coverUrl: snapshot.cover,
+        novelSnapshot: WholeBookNovelSources.contains(snapshot.sourceId) ? snapshot : null,
+        replaceExistingNovel: replaceNovel,
+      };
+      await this.deps.downloads.enqueueDownload(request, result.data.referer, result.data.headers);
+      if (current()) this.updatePreparation(key, null);
+    } catch (error) {
+      if (!current()) return;
+      const message = error instanceof Error && error.message ? error.message : '获取下载信息失败';
+      this.errorMessageState.value = message;
+      this.updatePreparation(key, { book, state: errorState(message) });
       this.applyDownloadErrorToNovelUpdate(book, replaceNovel);
-      return;
+    } finally {
+      if (current()) this.preparingDownloadJobs.delete(key);
     }
-    if (result.kind === 'error') {
-      this.errorMessageState.value = result.exception.message ?? '获取下载信息失败';
-      this.applyDownloadErrorToNovelUpdate(book, replaceNovel);
-      return;
-    }
-    const finalFormat = result.data.format.trim() === '' ? book.format : result.data.format;
-    // 统一兜底：阅读器不支持的格式（PDF 等）不下载，避免书架出现打不开的书
-    if (READER_UNSUPPORTED.has(finalFormat.toLowerCase())) {
-      this.errorMessageState.value = unsupportedFormatMessage(finalFormat);
-      return;
-    }
-    const request: DownloadRequest = {
-      bookId: book.id,
-      title: snapshot.title,
-      author: snapshot.author,
-      sourceId: book.sourceId,
-      downloadUrl: result.data.url,
-      format: finalFormat,
-      coverUrl: snapshot.cover,
-      novelSnapshot: WholeBookNovelSources.contains(snapshot.sourceId) ? snapshot : null,
-      replaceExistingNovel: replaceNovel,
-    };
-    await this.deps.downloads.enqueueDownload(request, result.data.referer, result.data.headers);
   }
 
   /**
@@ -1797,7 +1813,11 @@ export class LibraryViewModel {
 
   /** LibraryViewModel.kt:1270-1272 `fun cancelDownload(bookId)`. */
   cancelDownload(bookId: string): void {
-    void this.deps.downloads.cancelDownload(bookId);
+    this.preparingDownloadJobs.delete(bookId);
+    this.updatePreparation(bookId, null);
+    void this.deps.downloads.cancelDownload(bookId).catch((error: unknown) => {
+      this.errorMessageState.value = error instanceof Error ? error.message : '无法删除下载记录';
+    });
   }
 
   /* ───────────── Call-site helpers ───────────── */

@@ -42,6 +42,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SourceDialogs } from '@ui/sourceDialogs';
+import { GlobalDownloadCenter } from '@ui/components/library/DownloadCenter';
 import { SharedNovelTarget } from '@ui/sharedNovelTarget';
 import { getPrivacyService } from '@platform/privacyRuntime';
 import { ReaderPrivacyGate } from '@ui/components/privacy/ReaderPrivacyGate';
@@ -419,6 +420,7 @@ export function App() {
       </div>
       <Toast />
       <SourceDialogs />
+      <GlobalDownloadCenter />
       <SharedNovelTarget />
     </div>
   );

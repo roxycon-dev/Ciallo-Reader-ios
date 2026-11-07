@@ -510,11 +510,11 @@ export class DownloadManager {
       await withTaskLock(bookId, async () => {
         const task = await this.dao.getTask(bookId);
         if (task == null) return;
-        if (task.status === 'COMPLETED') return;
+        const completed = task.status === 'COMPLETED';
         const base = nameWithoutExtension(task.filePath);
         await deleteQuietly(this.fs, joinPath(this.downloadsDir, `${base}.tmp`));
         await deleteQuietly(this.fs, joinPath(this.downloadsDir, `${base}.resume`));
-        await deleteQuietly(this.fs, task.filePath);
+        if (!completed && !await this.bookExistsForTask(task)) await deleteQuietly(this.fs, task.filePath);
         await this.workerConfig.background?.discard(bookId);
         await this.dao.deleteTask(bookId);
         await this.secrets.remove(`download:${bookId}`);

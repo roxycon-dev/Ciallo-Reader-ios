@@ -1,3 +1,4 @@
+import { useSourceCover } from '@ui/hooks/useSourceCover';
 /**
  * LibraryPage — React port of Android `com.example.library.LibraryScreen.kt`
  * (3535 lines, 3441 non-blank) plus every dialog/composable it hosts:
@@ -119,15 +120,6 @@ import {
   comicFormatBadge,
   coverPlaceholderGradient,
   displayFormat,
-  downloadCardPrimaryLabel,
-  downloadCardProgress,
-  downloadCardRemainingLine,
-  downloadCardShowsControls,
-  downloadCardSpeedText,
-  downloadCardStatusRole,
-  downloadCardStatusText,
-  downloadSpeedBps,
-  downloadSpeedSampleDue,
   headerCollapseMetrics,
   headerFraction,
   keywordProviderOutcome,
@@ -157,6 +149,7 @@ import { getLibraryRuntime } from '@core/library/libraryRuntime';
 import type { ComicDownloadTask } from '@core/library/libraryComicDownload';
 import { ReadingRecordMetadata } from '@core/library/libraryReadingRecords';
 import { useAppStore } from '@ui/state/appStore';
+import { downloadStatusLabel, openDownloadCenter } from '@ui/components/library/DownloadCenter';
 import { useFavoriteVisibility } from '@ui/hooks/useFavoriteVisibility';
 // E50：shared-element 转场的 key 工厂（对应 Kotlin `rememberSharedContentState`）。
 import { bookCoverKey } from '@ui/shared/viewTransitions';
@@ -205,14 +198,11 @@ const HEADER_COLLAPSE_PX = 150;
 /** LibraryScreen.kt:120/1760 search history cap (`history.take(10)`, `take(20)`). */
 const HISTORY_CHIP_LIMIT = 10;
 
-/** LibraryScreen.kt:2351 `tasks.take(4)` in ComicDownloadGlassCard. */
-const COMIC_TASK_PREVIEW_LIMIT = 4;
 
 /** LibraryScreen.kt:299/313/683 history-panel settle delay (ms). */
 const HISTORY_SETTLE_MS = 330;
 
 /** LibraryScreen.kt:313/296 download timeout hint / login probe delay (ms). */
-const DOWNLOAD_HINT_MS = 15_000;
 const LOGIN_PROBE_MS = 1_200;
 
 /** LibraryScreen.kt:354 header restore delay after blur (ms). */
@@ -471,38 +461,22 @@ function BookCoverPlaceholder(props: { title: string; format: string }) {
  */
 function CoverImage(props: {
   src: string | null;
+  sourceId: string;
   alt: string;
   title: string;
   format: string;
   className?: string;
-  headers?: Record<string, string>;
 }) {
-  const [failed, setFailed] = useState(false);
-  // LibraryScreen.kt:2727-2734 / :3105-3111 `val coverModel = if (coverHeaders.isEmpty()) book.cover
-  // else ImageRequest.Builder(…).addHeader(…)` — only the header-carrying arm needs a CORS
-  // request, and `<img crossorigin>` makes a same-origin-only response FAIL to load, which
-  // would swap in the placeholder for every cover that has no headers (the common case).
-  const crossOrigin = useMemo(
-    () => (props.headers !== undefined && Object.keys(props.headers).length > 0 ? 'anonymous' : undefined),
-    [props.headers],
-  );
-  // Coil `remember(context, book.cover, book.sourceId)` — the load is restarted when the
-  // source URL changes; `key` on the <img> gives the same semantics.
-  if (props.src === null || props.src.trim() === '' || failed) {
-    return <BookCoverPlaceholder title={props.title} format={props.format} />;
-  }
+  const source = getLibraryRuntime()?.sourceManager?.getSource(props.sourceId) ?? null;
+  const { image, attach } = useSourceCover(props.src, source);
+  const [failed, setFailed] = useState<string | null>(null);
   return (
-    <img
-      key={props.src}
-      className={props.className}
-      src={props.src}
-      alt={props.alt}
-      crossOrigin={crossOrigin}
-      referrerPolicy="no-referrer"
-      onError={() => {
-        setFailed(true);
-      }}
-    />
+    <span className="lib-cover-source" ref={attach}>
+      {image && image !== failed ? (
+        <img key={image} className={props.className} src={image} alt={props.alt}
+          referrerPolicy="no-referrer" loading="lazy" onError={() => setFailed(image)} />
+      ) : <BookCoverPlaceholder title={props.title} format={props.format} />}
+    </span>
   );
 }
 
@@ -993,7 +967,6 @@ function SearchResultFavoriteButton(props: {
 function LibraryBookCardItem(props: {
   book: SearchBook;
   downloadState: DownloadState;
-  coverHeaders: Record<string, string>;
   comicMode: boolean;
   favorite: boolean;
   onToggleFavorite: (next: boolean) => void;
@@ -1016,10 +989,10 @@ function LibraryBookCardItem(props: {
       >
         <CoverImage
           src={book.cover}
+          sourceId={book.sourceId}
           alt={book.title}
           title={book.title}
           format={displayFormat(book)}
-          headers={props.coverHeaders}
         />
         <SearchResultFavoriteButton
           favorite={props.favorite}
@@ -1185,6 +1158,7 @@ function NovelCover(props: { book: SearchBook; width: number; height: number }) 
     >
       <CoverImage
         src={props.book.cover}
+        sourceId={props.book.sourceId}
         alt={props.book.title}
         title={props.book.title}
         format={props.book.format.toUpperCase()}
@@ -1573,7 +1547,6 @@ function NovelUpdateSheet(props: {
 
 function StaggeredComicCardItem(props: {
   book: SearchBook;
-  coverHeaders: Record<string, string>;
   sourceName: string;
   novel: boolean;
   favorite: boolean;
@@ -1604,10 +1577,10 @@ function StaggeredComicCardItem(props: {
       <span className="lib-stagger__cover" style={{ aspectRatio: `1 / ${String(ratio)}` }}>
         <CoverImage
           src={props.book.cover}
+        sourceId={props.book.sourceId}
           alt={props.book.title}
           title={props.book.title}
           format={displayFormat(props.book)}
-          headers={props.coverHeaders}
         />
         <span className="lib-stagger__scrim" aria-hidden="true" />
         <span className="lib-stagger__text">
@@ -2062,298 +2035,6 @@ function LibraryLoginDialog(props: {
   );
 }
 
-/* ─────────────── DownloadGlassCard (DownloadGlassCard.kt:68-358) ─────────────── */
-
-function DownloadGlassCard(props: {
-  book: SearchBook | null;
-  state: DownloadState;
-  onDismiss: (() => void) | null;
-  onPause: (() => void) | null;
-  onResume: (() => void) | null;
-  onCancel: (() => void) | null;
-}) {
-  // DownloadGlassCard.kt:81-83 — speed sampler state, resampled every 400 ms while
-  // downloading (the Kotlin `LaunchedEffect(state)` + 400 ms window).
-  const [sample, setSample] = useState({ bytes: -1, at: 0, speed: 0 });
-  const bytes =
-    props.state.kind === 'Downloading' ? props.state.downloadedBytes : null;
-  useEffect(() => {
-    if (bytes === null) return undefined;
-    const timer = window.setInterval(() => {
-      const now = performance.now();
-      setSample((prev) => {
-        // Kotlin DownloadGlassCard.kt:95-98 — the FIRST sample only seeds the window.
-        if (prev.bytes < 0 || prev.at <= 0) {
-          return { bytes, at: now, speed: prev.speed };
-        }
-        // Kotlin lines 89-94 — `lastBytes`/`lastTime` advance on every `dt > 400` pass,
-        // including one that measures 0 B/s. Skipping the window update for a zero speed
-        // would fold the whole stall into the next sample's divisor.
-        if (!downloadSpeedSampleDue(prev.bytes, prev.at, now)) return prev;
-        return { bytes, at: now, speed: downloadSpeedBps(bytes, prev.bytes, prev.at, now) };
-      });
-    }, 400);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [bytes, props.state]);
-  const speedBps = sample.speed;
-
-  const progress = downloadCardProgress(props.state);
-  const statusRole = downloadCardStatusRole(props.state);
-
-  if (props.book === null) {
-    return (
-      <div className="lib-download-overlay" onClick={() => { props.onDismiss?.(); }}>
-        <div className="lib-download-card" onClick={(event) => { event.stopPropagation(); }}>
-          <div className="lib-download-card__head">
-            <span className="lib-download-card__icon">
-              <IconDownload />
-            </span>
-            <p className="lib-download-card__title">下载管理中心</p>
-            {props.onDismiss !== null ? (
-              <button type="button" className="lib-icon-button" aria-label="关闭" onClick={() => { props.onDismiss?.(); }}>
-                <IconClose />
-              </button>
-            ) : null}
-          </div>
-          <p className="lib-download-card__empty-desc" data-testid="download_panel_empty">
-            暂无进行中的下载任务
-            <br />
-            在书库中搜索图书并点击“下载”，离线书籍将自动同步存入本地书架。
-          </p>
-          <button
-            type="button"
-            className="lib-sheet__outline-button"
-            onClick={() => { props.onDismiss?.(); }}
-          >
-            知道了
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const book = props.book;
-  return (
-    <div className="lib-download-overlay" onClick={() => { props.onDismiss?.(); }}>
-      <div className="lib-download-card" onClick={(event) => { event.stopPropagation(); }}>
-        <div className="lib-download-card__head">
-          <CoverImage
-            className="lib-download-card__cover"
-            src={book.cover}
-            alt=""
-            title={book.title}
-            format={displayFormat(book)}
-          />
-          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-            <p className="lib-download-card__book-title">{book.title}</p>
-            <p
-              className={
-                statusRole === 'error'
-                  ? 'lib-download-card__status lib-download-card__status--error'
-                  : 'lib-download-card__status'
-              }
-            >
-              {downloadCardStatusText(props.state)}
-            </p>
-          </div>
-          {props.onDismiss !== null ? (
-            <button type="button" className="lib-icon-button" aria-label="关闭" onClick={() => { props.onDismiss?.(); }}>
-              <IconClose />
-            </button>
-          ) : null}
-        </div>
-
-        <div className="lib-download-card__bar">
-          <div
-            className="lib-download-card__bar-fill"
-            style={{ width: `${String(Math.min(100, Math.max(0, progress * 100)))}%` }}
-          />
-        </div>
-
-        {props.state.kind === 'Downloading' ? (
-          <>
-            <div className="lib-download-card__stats">
-              <p className="lib-download-card__percent">{String(Math.trunc(progress * 100))}%</p>
-              <p className="lib-download-card__speed">{downloadCardSpeedText(speedBps)}</p>
-            </div>
-            <p className="lib-download-card__remaining">{downloadCardRemainingLine(props.state)}</p>
-          </>
-        ) : null}
-        {props.state.kind === 'Success' ? (
-          <div className="lib-download-card__done">
-            <IconCheckCircle />
-            已加入书架
-          </div>
-        ) : null}
-        {props.state.kind === 'Error' ? (
-          <p className="lib-download-card__note lib-download-card__note--error">{props.state.message}</p>
-        ) : null}
-        {props.state.kind === 'Paused' ? (
-          <p className="lib-download-card__note">已暂停</p>
-        ) : null}
-        {(props.state.kind === 'Idle' || props.state.kind === 'Pending') ? (
-          <p className="lib-download-card__note">准备中…</p>
-        ) : null}
-
-        {downloadCardShowsControls(props.state) ? (
-          <div className="lib-download-card__actions">
-            <button
-              type="button"
-              className="lib-sheet__outline-button"
-              onClick={() => {
-                if (props.state.kind === 'Paused' || props.state.kind === 'Error') {
-                  props.onResume?.();
-                } else {
-                  props.onPause?.();
-                }
-              }}
-            >
-              {downloadCardPrimaryLabel(props.state)}
-            </button>
-            {props.onCancel !== null ? (
-              <button type="button" className="lib-sheet__outline-button" onClick={() => { props.onCancel?.(); }}>
-                取消
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────── ComicDownloadGlassCard (LibraryScreen.kt:2308-2480) ─────────────── */
-
-function ComicDownloadGlassCard(props: {
-  tasks: ComicDownloadTask[];
-  onPause: (chapterId: string) => void;
-  onResume: (id: string) => void;
-  onRetry: (id: string) => void;
-  onCancel: (chapterId: string) => void;
-  onDismiss: () => void;
-}) {
-  const preview = props.tasks.slice(0, COMIC_TASK_PREVIEW_LIMIT);
-  return (
-    <div className="lib-download-card lib-comic-tasks">
-      <div className="lib-download-card__head">
-        <p className="lib-comic-tasks__title">漫画下载</p>
-        <button type="button" className="lib-icon-button lib-icon-button--xs" aria-label="关闭" onClick={props.onDismiss}>
-          <IconClose />
-        </button>
-      </div>
-      {props.tasks.length === 0 ? (
-        <p className="lib-comic-tasks__empty">暂无漫画下载任务</p>
-      ) : (
-        <>
-          {preview.map((task) => (
-            <ComicDownloadTaskRow
-              key={`${task.book.sourceId}-${task.chapterId}`}
-              task={task}
-              onPause={props.onPause}
-              onResume={props.onResume}
-              onRetry={props.onRetry}
-              onCancel={props.onCancel}
-            />
-          ))}
-          {props.tasks.length > COMIC_TASK_PREVIEW_LIMIT ? (
-            <p className="lib-comic-tasks__more">
-              还有 {String(props.tasks.length - COMIC_TASK_PREVIEW_LIMIT)} 个任务…
-            </p>
-          ) : null}
-        </>
-      )}
-    </div>
-  );
-}
-
-/** ComicDownloadTaskRow.kt (LibraryScreen.kt:2374-2480). */
-function ComicDownloadTaskRow(props: {
-  task: ComicDownloadTask;
-  onPause: (chapterId: string) => void;
-  onResume: (id: string) => void;
-  onRetry: (id: string) => void;
-  onCancel: (chapterId: string) => void;
-}) {
-  const { task } = props;
-  const title = task.chapter.title.trim() === '' ? '漫画章节' : task.chapter.title;
-  const statusClass = (() => {
-    switch (task.status) {
-      case 'PAUSED':
-        return 'lib-comic-task__status lib-comic-task__status--paused';
-      case 'FAILED':
-        return 'lib-comic-task__status lib-comic-task__status--failed';
-      case 'SUCCESS':
-        return 'lib-comic-task__status lib-comic-task__status--success';
-      default:
-        return 'lib-comic-task__status';
-    }
-  })();
-  return (
-    <div className="lib-comic-task">
-      <div className="lib-comic-task__row">
-        <p className="lib-comic-task__title">{title}</p>
-        {task.status === 'DOWNLOADING' ? (
-          <span className={statusClass}>{String(Math.trunc(Math.min(1, Math.max(0, task.progress)) * 100))}%</span>
-        ) : task.status === 'PAUSED' ? (
-          <span className={statusClass}>已暂停</span>
-        ) : task.status === 'FAILED' ? (
-          <span className={statusClass}>失败</span>
-        ) : (
-          <span className={statusClass}>已完成</span>
-        )}
-        {task.status === 'DOWNLOADING' || task.status === 'PAUSED' ? (
-          <button
-            type="button"
-            className="lib-icon-button"
-            aria-label={task.status === 'DOWNLOADING' ? '暂停' : '继续'}
-            onClick={() => {
-              if (task.status === 'DOWNLOADING') props.onPause(task.chapterId);
-              else props.onResume(task.chapterId);
-            }}
-          >
-            {task.status === 'DOWNLOADING' ? <IconPause /> : <IconPlayArrow />}
-          </button>
-        ) : null}
-        {task.status === 'FAILED' ? (
-          <button
-            type="button"
-            className="lib-icon-button lib-icon-button--sm"
-            aria-label="重新下载"
-            style={{ color: 'var(--lib-error)' }}
-            onClick={() => { props.onRetry(task.chapterId); }}
-          >
-            <IconRefresh />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="lib-icon-button lib-icon-button--sm"
-          aria-label="取消任务"
-          onClick={() => { props.onCancel(task.chapterId); }}
-        >
-          <IconClose />
-        </button>
-      </div>
-      {task.status === 'DOWNLOADING' ? (
-        <div className="lib-dl-progress" style={{ marginTop: 6, height: 4 }}>
-          <div
-            className="lib-dl-progress__fill"
-            style={{
-              width: `${String(Math.trunc(Math.min(1, Math.max(0, task.progress)) * 100))}%`,
-              background: 'var(--lib-primary)',
-            }}
-          />
-        </div>
-      ) : null}
-      {task.status === 'FAILED' && task.error !== null && task.error.trim() !== '' ? (
-        <p className="lib-comic-task__error">{task.error}</p>
-      ) : null}
-    </div>
-  );
-}
-
 /* ─────────────── MascotEmptyState call sites ─────────────── */
 
 function MascotEmptyState(props: {
@@ -2431,7 +2112,6 @@ function AggregateGroupSection(props: {
   group: LibraryAggregateGroup;
   expanded: boolean;
   expandedNovel: Record<string, boolean>;
-  coverHeadersFor: (book: SearchBook) => Record<string, string>;
   downloadStateOf: (book: SearchBook) => DownloadState;
   isDownloadedNovel: (book: SearchBook) => boolean;
   isFavorite: (book: SearchBook) => boolean;
@@ -2472,7 +2152,6 @@ function AggregateGroupSection(props: {
             <StaggeredComicCardItem
               key={`${group.sourceId}_${book.id}`}
               book={book}
-              coverHeaders={props.coverHeadersFor(book)}
               sourceName={group.sourceName}
               novel={false}
               favorite={props.isFavorite(book)}
@@ -2670,8 +2349,6 @@ export function LibraryPage() {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [loginMessage, setLoginMessage] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
-  const [showDownloadPanel, setShowDownloadPanel] = useState(false);
-  const [activeDownloadBook, setActiveDownloadBook] = useState<SearchBook | null>(null);
   const [novelDetailBook, setNovelDetailBook] = useState<SearchBook | null>(null);
   const [novelDetailLoading, setNovelDetailLoading] = useState(false);
   const [novelDetailError, setNovelDetailError] = useState<string | null>(null);
@@ -2889,13 +2566,6 @@ export function LibraryPage() {
     };
   }, [vm, comicDownloads]);
 
-  /* ── rememberCoverHeaders (L2631-2643) ──
-   * `LaunchedEffect(cover, book.sourceId) { source?.getCoverHeaders(cover) }` is
-   * asynchronous; the web port renders the bare URL and falls back through the
-   * `<img onError>` arm, which is the same visible result when a source adds no
-   * mandatory headers (and never hangs the grid on a per-card network round trip). */
-  const coverHeadersFor = useCallback((): Record<string, string> => ({}), []);
-
   /* ── L415-421 detail-page triggered search request ──
    * Kotlin `LaunchedEffect(detailSearchRequest?.token) { … }` → a subscription whose
    * callback performs the work, so no setState runs synchronously in the effect body. */
@@ -2933,11 +2603,11 @@ export function LibraryPage() {
   const uiState = useFlow(vm.uiStateState);
 
   /* ── L321-325 auto-open the download panel when a comic download is live ── */
-  const comicDownloadingCount = vm.comicDownloading().size;
+  const comicDownloadingCount = comicDownloadTasks.filter((task) => task.status === 'DOWNLOADING').length;
   useEffect(() => {
     if (comicDownloadingCount === 0) return;
     const timer = window.setTimeout(() => {
-      setShowDownloadPanel(true);
+      openDownloadCenter();
     }, 0);
     return () => {
       window.clearTimeout(timer);
@@ -3002,22 +2672,6 @@ export function LibraryPage() {
   /* ── L680 the "curtain" history panel visibility ── */
   const historyPanelVisible =
     searchFieldFocused && searchQuery.trim() === '' && searchHistory.length > 0;
-
-  /* ── L310-319 download timeout hint ── */
-  const activeDownloadKey =
-    activeDownloadBook === null ? '' : vm.novelTaskKey(activeDownloadBook);
-  useEffect(() => {
-    if (activeDownloadKey === '') return undefined;
-    const timer = window.setTimeout(() => {
-      const st = downloadStates.get(activeDownloadKey);
-      if (st === undefined || st.kind === 'Idle') {
-        showToast('未能获取下载链接（可能需要登录），可稍后重试');
-      }
-    }, DOWNLOAD_HINT_MS);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [activeDownloadKey, downloadStates]);
 
   /* ── Derived render inputs ── */
   const searchResults = useMemo(
@@ -3092,10 +2746,7 @@ export function LibraryPage() {
     (book: SearchBook) => favoritesVisible && favoriteKeys.includes(`${book.sourceId}::${book.id}`),
     [favoriteKeys, favoritesVisible],
   );
-  const latestDownloadState = useMemo(
-    () => (activeDownloadBook === null ? null : downloadStateOf(activeDownloadBook)),
-    [activeDownloadBook, downloadStateOf],
-  );
+
 
   /* ── L527-554 the welcome gate / the no-runtime fallback ── */
   if (runtime === null) {
@@ -3129,7 +2780,9 @@ export function LibraryPage() {
           onImportLocal={() => {
             void vm.markLocalBookImported();
             void vm.markWelcomeSeen();
-            setRoute('main');
+            void import('@ui/lib/pickAndImportBooks').then(({ pickAndImportBooks }) => pickAndImportBooks())
+              .then((imported) => { if (imported) useAppStore.getState().setTab('bookshelf'); })
+              .catch((error: unknown) => showToast(error instanceof Error ? error.message : '导入失败，请重试'));
           }}
           onOnlineSearch={() => {
             const onlineSource = visibleSources[0];
@@ -3150,7 +2803,8 @@ export function LibraryPage() {
     );
   }
 
-  const comicActive = comicDownloadingCount > 0;
+  const visibleDownloads = [...downloadStates.values()].filter((state) => state.kind !== 'Idle' && state.kind !== 'Success');
+  const activeDownloads = visibleDownloads.filter((state) => state.kind === 'Pending' || state.kind === 'Downloading').length + comicDownloadingCount;
 
   return (
     <div className="lib-page">
@@ -3164,20 +2818,13 @@ export function LibraryPage() {
         trailing={
           <button
             type="button"
-            className={
-              latestDownloadState?.kind === 'Downloading' || comicActive
-                ? 'lib-icon-button lib-icon-button--active'
-                : 'lib-icon-button'
-            }
+            className="lib-sheet__outline-button lib-download-entry"
             aria-label="下载任务"
-            onClick={() => {
-              setShowDownloadPanel(!showDownloadPanel);
-            }}
+            data-testid="download_tasks_entry"
+            onClick={openDownloadCenter}
           >
-            {latestDownloadState?.kind === 'Downloading' || comicActive ? (
-              <span className="lib-icon-button__spinner" />
-            ) : null}
             <IconDownload />
+            {activeDownloads > 0 ? '下载中 ' + activeDownloads : '下载任务'}
           </button>
         }
       />
@@ -3193,6 +2840,13 @@ export function LibraryPage() {
           paddingBottom: `calc(16px + env(safe-area-inset-bottom, 0px) + ${keyboardInset}px)`,
         }}
       >
+        {visibleDownloads.length + comicDownloadingCount > 0 && (
+          <button type="button" className="lib-download-banner" data-testid="download_progress_banner" onClick={openDownloadCenter}>
+            <IconDownload />
+            <span><strong>下载任务 · {visibleDownloads.length + comicDownloadingCount} 项</strong>
+              <small>{visibleDownloads[0] ? downloadStatusLabel(visibleDownloads[0]) : '漫画正在下载'}</small></span>
+          </button>
+        )}
         {/* L635-647 UnifiedSearchField */}
         <UnifiedSearchField
           query={searchQuery}
@@ -3269,7 +2923,6 @@ export function LibraryPage() {
                   group={group}
                   expanded={expandedGroups[group.sourceId] === true}
                   expandedNovel={expandedNovelSources}
-                  coverHeadersFor={coverHeadersFor}
                   downloadStateOf={downloadStateOf}
                   isDownloadedNovel={isDownloadedNovel}
                   isFavorite={isFavorite}
@@ -3423,7 +3076,6 @@ export function LibraryPage() {
                   key={`${book.sourceId}_${book.id}`}
                   book={book}
                   downloadState={downloadStateOf(book)}
-                  coverHeaders={coverHeadersFor()}
                   comicMode={
                     currentSource?.capabilities.supportComic === true ||
                     currentSource?.capabilities.supportOnlineText === true
@@ -3446,8 +3098,7 @@ export function LibraryPage() {
                     ) {
                       runtime.openZLibraryLoginDialog?.(currentSource);
                     } else {
-                      setActiveDownloadBook(book);
-                      setShowDownloadPanel(true);
+                      openDownloadCenter();
                       vm.startDownload(book);
                     }
                   }}
@@ -3521,34 +3172,21 @@ export function LibraryPage() {
             setNovelDetailBook(null);
           }}
           onDownload={() => {
-            // LibraryScreen.kt:1089-1097 — `source.launch { if (downloadRequiresLogin &&
-            // !source.isLoggedIn()) loginDialogSource = source else startDownload(…) }`.
             const src = availableSources.find((it) => it.id === novelDetailBook.sourceId);
-            if (src === undefined) {
+            void (async () => {
+              if (src?.capabilities.downloadRequiresLogin && !await src.isLoggedIn()) { runtime.openZLibraryLoginDialog?.(src); return; }
               if (novelDetailBook.sourceId === 'zlibrary') vm.startDownload(novelDetailBook);
               else vm.startDownloadWithFormat(novelDetailBook, novelDetailBook.format);
-              return;
-            }
-            if (src.capabilities.downloadRequiresLogin !== true) {
-              if (novelDetailBook.sourceId === 'zlibrary') vm.startDownload(novelDetailBook);
-              else vm.startDownloadWithFormat(novelDetailBook, novelDetailBook.format);
-              return;
-            }
-            void src.isLoggedIn().then((loggedIn) => {
-              if (!loggedIn) {
-                runtime.openZLibraryLoginDialog?.(src);
-                return;
-              }
-              if (novelDetailBook.sourceId === 'zlibrary') vm.startDownload(novelDetailBook);
-              else vm.startDownloadWithFormat(novelDetailBook, novelDetailBook.format);
-            });
+              setNovelDetailBook(null);
+              openDownloadCenter();
+            })().catch((error: unknown) => showToast(error instanceof Error ? error.message : '下载失败'));
           }}
           onRead={() => {
-            void vm.localNovel(novelDetailBook).then((local) => {
-              if (local !== null) {
-                setNovelDetailBook(null);
-                setRoute('reader');
-              }
+            void vm.localNovel(novelDetailBook).then(async (local) => {
+              if (local === null) return;
+              await useAppStore.getState().openBook(local.id);
+              setNovelDetailBook(null);
+              setRoute('reader');
             });
           }}
           onPause={() => {
@@ -3611,68 +3249,6 @@ export function LibraryPage() {
             vm.dismissFormatPicker();
           }}
         />
-      ) : null}
-
-      {/* L1115-1176 the acrylic download-management overlay */}
-      {showDownloadPanel ? (
-        comicDownloadTasks.length > 0 ? (
-          <div
-            className="lib-download-overlay"
-            onClick={() => {
-              setShowDownloadPanel(false);
-            }}
-          >
-            <ComicDownloadGlassCard
-              tasks={comicDownloadTasks}
-              onPause={(chapterId) => {
-                vm.pauseComicChapter(chapterId);
-              }}
-              onResume={(id) => {
-                const task = comicDownloadTasks.find((it) => it.chapterId === id);
-                if (task !== undefined) vm.downloadComicChapter(task.book, task.chapter);
-              }}
-              onRetry={(id) => {
-                const task = comicDownloadTasks.find((it) => it.chapterId === id);
-                if (task !== undefined) vm.retryComicChapter(task.book, task.chapter);
-              }}
-              onCancel={(chapterId) => {
-                vm.cancelComicChapter(chapterId);
-              }}
-              onDismiss={() => {
-                setShowDownloadPanel(false);
-              }}
-            />
-          </div>
-        ) : (
-          <DownloadGlassCard
-            book={activeDownloadBook}
-            state={latestDownloadState ?? DownloadStateIdle}
-            onDismiss={() => {
-              setShowDownloadPanel(false);
-            }}
-            onPause={
-              activeDownloadBook === null
-                ? null
-                : () => {
-                    vm.pauseDownload(vm.novelTaskKey(activeDownloadBook));
-                  }
-            }
-            onResume={
-              activeDownloadBook === null
-                ? null
-                : () => {
-                    vm.resumeDownload(vm.novelTaskKey(activeDownloadBook));
-                  }
-            }
-            onCancel={
-              activeDownloadBook === null
-                ? null
-                : () => {
-                    vm.cancelDownload(vm.novelTaskKey(activeDownloadBook));
-                  }
-            }
-          />
-        )
       ) : null}
 
       {/* L1179-1228 SourcePickerSheet */}

@@ -1567,7 +1567,6 @@ export function HomePage() {
   const setCurrentBookId = useAppStore((s) => s.setCurrentBookId);
   const openBook = useAppStore((s) => s.openBook);
   const addCategory = useAppStore((s) => s.addCategory);
-  const loadLibrary = useAppStore((s) => s.loadLibrary);
 
   const platform = useMemo(() => getPlatform(), []);
   const favorites = useMemo(
@@ -2029,21 +2028,9 @@ export function HomePage() {
   })), []);
 
   const handleImport = useCallback((): void => {
-    void (async () => {
-      const { getPlatform } = await import('@platform/index');
-      const { getBookRepository } = await import('@ui/state/appStore');
-      const { importLocalBook, LOCAL_BOOK_ACCEPT } = await import('@platform/localBookImport');
-      const platform = getPlatform();
-      const repo = getBookRepository();
-      if (repo === null) throw new Error('书架尚未准备好，请重试');
-      const files = await platform.documents.pickFile({ accept: LOCAL_BOOK_ACCEPT, multiple: true });
-      for (const file of files) {
-        const book = await importLocalBook(file, repo, platform.fs);
-        showToast(`已导入《${book.title}》`);
-      }
-      await loadLibrary();
-    })().catch((error: unknown) => showToast(error instanceof Error ? error.message : '导入失败，请重试'));
-  }, [loadLibrary]);
+    void import('@ui/lib/pickAndImportBooks').then(({ pickAndImportBooks }) => pickAndImportBooks())
+      .catch((error: unknown) => showToast(error instanceof Error ? error.message : '导入失败，请重试'));
+  }, []);
 
   const shareFavoriteWorks = useCallback((items: readonly FavoriteItem[]): void => {
     void import('@ui/lib/shareFavorites').then(({ shareFavorites }) => shareFavorites(items.map((item) => item.favorite)))

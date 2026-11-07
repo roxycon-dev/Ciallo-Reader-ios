@@ -29,7 +29,7 @@ export function OnlineReaderRoute({ textMode = false }: { textMode?: boolean }) 
   const [error, setError] = useState<string | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const loadToken = useRef(0);
-  const setRoute = useAppStore((state) => state.setRoute);
+  const goBack = useAppStore((state) => state.goBack);
   const chapter = request?.chapters[index] ?? null;
   const source =
     request === null
@@ -106,7 +106,7 @@ export function OnlineReaderRoute({ textMode = false }: { textMode?: boolean }) 
   );
   const back = (): void => {
     if (request) setComicDetailTarget(request.target);
-    setRoute('comicChapters');
+    goBack('comicChapters');
   };
   const jump = (next: number): void => {
     if (request === null || next < 0 || next >= request.chapters.length) return;

@@ -224,18 +224,18 @@ async function zipNamesFromFile(file: DownloadFileReader): Promise<string[] | nu
   }
   if (!Number.isSafeInteger(cursor) || !Number.isSafeInteger(entries) || cursor > directoryEnd ||
     entries > Math.floor((directoryEnd - cursor) / 46)) return null;
-  let window = new Uint8Array(0) as Uint8Array<ArrayBufferLike>, windowStart = -1;
+  let buffer = new Uint8Array(0) as Uint8Array<ArrayBufferLike>, bufferStart = -1;
   const names: string[] = [];
   for (let i = 0; i < entries; i++) {
-    // Any central record fits in one 512 KiB window (three UInt16 fields).
-    if (cursor < windowStart || cursor - windowStart + Math.min(46 + 3 * 0xffff, directoryEnd - cursor) > window.length) {
-      windowStart = cursor;
-      window = await file.read(cursor, Math.min(512 * 1024, directoryEnd - cursor));
+    // Any central record fits in one 512 KiB buffer (three UInt16 fields).
+    if (cursor < bufferStart || cursor - bufferStart + Math.min(46 + 3 * 0xffff, directoryEnd - cursor) > buffer.length) {
+      bufferStart = cursor;
+      buffer = await file.read(cursor, Math.min(512 * 1024, directoryEnd - cursor));
     }
-    const item = centralEntryAt(window, cursor - windowStart);
-    if (!item || windowStart + item.end > directoryEnd) return null;
+    const item = centralEntryAt(buffer, cursor - bufferStart);
+    if (!item || bufferStart + item.end > directoryEnd) return null;
     names.push(item.entry.name);
-    cursor = windowStart + item.end;
+    cursor = bufferStart + item.end;
   }
   return names;
 }

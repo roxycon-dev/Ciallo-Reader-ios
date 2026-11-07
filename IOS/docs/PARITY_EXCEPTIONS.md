@@ -4,7 +4,7 @@
 
 | # | 模块 | Android 行为 | iOS 行为 | 原因 | 影响 | 状态 |
 ||------||----------||------||
-| E1 | mangatranslate | ONNX OCR + 气泡分割 + 翻译 | 推理入口全抛 `MangaTranslateUnsupportedError`；**入口未隐藏**（见 iOS 行为列）。**状态判定说明：入口未隐藏，范围需缩小** | 用户明确不做 | 无翻译漫画功能；漫画设置里「漫画翻译」开关仍可见、可打开，打开后翻译流水线抛错 | 已确认 |
+| E1 | 漫画翻译 | PP-OCRv6、YOLO26n、在线/自定义 AI 翻译及译文绘制 | iOS 已接入安卓原版模型、配置、隐私门、译文缓存及阅读器；模拟器已用三套原版模型验证识别和绘制 | 原先的移植排除项已被完整移植要求覆盖 | 真机及各书源长图、翻页手感仍须实测 | 原生功能已接入 |
 | E2 | ~~MockBookSource~~ | ~~可启用的 mock 书源~~ | ~~生产环境隐藏~~ **作废 E2（2026-10-06 审计）：Android 侧也从未注册 `MockBookSource`** —— `LibraryViewModel.kt:231-235` 只注册 ZLibrarySource / AutoNovelSource / Wenku8LibrarySource / IxdzsSource / MangaDexSource，全仓 `grep MockBookSource` 只命中 `source/impl/MockBookSource.kt` 自身。TS 侧 `core/source/impl/mockBookSource.ts` 同样无任何 import（仅测试用）。**两侧行为一致，不存在差异**，故本条豁免不成立 | — | — | 作废 |
 | E3 | 成人源开关 | 主色按钮连点 6 次 | 保持一致 | — | — | 已确认 |
 | E4 | 环境音 | .ogg (CC0) | 已转 m4a，Web Audio API 播放 | WKWebView 不播 OGG | AAC 编码音色轻微差异。**与 E9 是同一件事**（E9 为完整版，保留 E4 编号占位） | 已关闭 |

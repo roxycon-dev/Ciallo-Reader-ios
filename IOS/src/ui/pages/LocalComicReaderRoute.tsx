@@ -10,7 +10,7 @@ import { useReadingStatistics } from '@ui/hooks/useReadingStatistics';
 /** Local CBZ/PDF downloads use their stored page paths and the full reader engine. */
 export function LocalComicReaderRoute() {
   const bookId = useAppStore((state) => state.currentBookId);
-  const setRoute = useAppStore((state) => state.setRoute);
+  const goBack = useAppStore((state) => state.goBack);
   const [retry, setRetry] = useState(0);
   const [content, setContent] = useState<{ book: BookRow; pages: ComicPageRef[]; loader: ComicPageLoaderPort } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export function LocalComicReaderRoute() {
     })().catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : '漫画打开失败'); });
     return () => { cancelled = true; loader?.shutdown(); };
   }, [bookId, retry]);
-  const back = (): void => { setRoute('main'); };
+  const back = (): void => { goBack(); };
   if (error) return <main className="startup-status" role="alert"><p>{error}</p><button onClick={() => setRetry((value) => value + 1)}>重试</button><button onClick={back}>返回书架</button></main>;
   if (!content) return <main className="startup-status" role="status">正在打开漫画…</main>;
   return <ComicReaderPage key={content.book.id} pages={content.pages} loader={content.loader}

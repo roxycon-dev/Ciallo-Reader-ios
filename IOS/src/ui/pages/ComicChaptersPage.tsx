@@ -1857,7 +1857,7 @@ export function ComicChaptersPage() {
         onSelectAll={() => {
           setSelectedChapterIds(new Set(ordered.map((entry) => entry.chapter.id)))
         }}
-        onBack={() => setRoute('main')}
+        onBack={() => useAppStore.getState().goBack()}
         onSearchText={onSearchText}
         primary={primary}
       />

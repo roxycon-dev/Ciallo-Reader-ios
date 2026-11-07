@@ -1,3 +1,4 @@
+import { DownloadManager } from '@core/download/downloadManager';
 import { describe, expect, it, vi } from 'vitest';
 import { performDownloadTask } from '@core/download/downloadWorker';
 import { DownloadProgressBroadcaster } from '@core/download/downloadProgressBroadcaster';
@@ -26,6 +27,21 @@ function fixture() {
   return { fs, dao, rows, task, secure, novels, broadcaster: new DownloadProgressBroadcaster() };
 }
 describe('download worker durable partial files and cancellation', () => {
+  it('keeps completed download history after restart and removes only the record on request', async () => {
+    const scenario = fixture(), bytes = new TextEncoder().encode('已下载内容');
+    await scenario.fs.writeFile(scenario.task.filePath, bytes);
+    await scenario.dao.updateState(scenario.task.id, 'COMPLETED');
+    const manager = new DownloadManager({ ...scenario, secrets: scenario.secure, downloadsDir: 'downloads',
+      http: { request: async () => { throw new Error('history must not download anything'); } },
+      books: { getAllBooksSync: async () => [], getBookBySourceResource: async () => null },
+    });
+    await manager.whenRestored();
+    expect(await manager.getAllTasks()).toMatchObject([{ id: scenario.task.id, status: 'COMPLETED' }]);
+    await manager.cancelDownload(scenario.task.id);
+    expect(await scenario.dao.getTask(scenario.task.id)).toBeNull();
+    expect(await scenario.fs.readFile(scenario.task.filePath)).toEqual(bytes);
+  });
+
   it('keeps the paused prefix and resumes with Range/If-Range without duplicating or losing bytes', async () => {
     const scenario = fixture(), bytes = new Uint8Array(128 * 1024 + 17).fill(65), first = new AbortController(), append = scenario.fs.appendFile!;
     let interrupted = false; scenario.fs.appendFile = vi.fn(async (path, chunk) => { await append(path, chunk); if (!interrupted) { interrupted = true; first.abort(); } });

@@ -708,8 +708,25 @@ describe('LibraryViewModel.kt:1172 only a replaceNovel download reports into the
         putString: async () => {},
       }),
     });
-    return { vm, source };
+    return { vm, source, enqueued };
   }
+
+  it('shows a pending preparation and does not enqueue it after cancellation', async () => {
+    const b = book({ id: 'pending', sourceId: 'ixdzs8', format: 'epub' });
+    const { vm, source, enqueued } = makeVm2(b);
+    let release!: (value: Awaited<ReturnType<BookSource['getDownloadInfo']>>) => void;
+    let started!: () => void;
+    const requesting = new Promise<void>((resolve) => { started = resolve; });
+    source.getDownloadInfo = () => new Promise((resolve) => { release = resolve; started(); });
+    vm.startDownload(b);
+    await requesting;
+    expect(vm.preparingDownloadsState.value.get(vm.novelTaskKey(b))?.state.kind).toBe('Pending');
+    vm.cancelDownload(vm.novelTaskKey(b));
+    release({ kind: 'success', data: { url: 'https://fixture.test/book.epub', fileName: 'book.epub', size: null, format: 'epub', referer: null, headers: {} } });
+    await vm.whenIdle();
+    expect(enqueued).toEqual([]);
+    expect(vm.preparingDownloadsState.value.size).toBe(0);
+  });
 
   it('leaves an open update panel untouched when a plain download fails', async () => {
     // Kotlin: `if (replaceNovel) _novelUpdate.value?.takeIf { … }?.let { … copy(error = …) }`.

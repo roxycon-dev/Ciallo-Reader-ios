@@ -2756,7 +2756,7 @@ async function installCustomFontFile(file: File): Promise<{ family: string; name
 // ═════════════════════════════════════════════════════════════════════════════
 
 export function ReaderPage() {
-  const setRoute = useAppStore((s) => s.setRoute);
+  const goBack = useAppStore((s) => s.goBack);
   const books = useAppStore((s) => s.books);
   const currentBookId = useAppStore((s) => s.currentBookId);
   const chapters = useAppStore((s) => s.chapters);
@@ -4041,7 +4041,7 @@ const disposeProgress = useRef<{ chapterIndex: number; input: ReaderProgressInpu
           ttsPlaying={isTtsPlaying}
           autoScrolling={isAutoScrolling}
           showMoreMenu={showReaderMoreMenu}
-          onBack={() => setRoute('main')}
+          onBack={() => goBack()}
           onToggleBookmark={toggleBookmark}
           onToggleTts={startTts}
           onOpenToc={() => setShowTocSheet(true)}

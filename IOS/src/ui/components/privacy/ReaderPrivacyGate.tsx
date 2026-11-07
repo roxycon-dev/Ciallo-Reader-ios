@@ -15,6 +15,6 @@ export function ReaderPrivacyGate({ children }: { children: ReactNode }) {
   if (!privacy.loaded) return <main className="startup-status" role="status">正在检查隐私保护…</main>;
   if (privacy.enabled && category?.isProtected && !privacy.unlockedCategoryIds.includes(category.id)) return <PrivacyPinOverlay
     mode="VERIFY" onPinSet={() => {}} onPinVerified={(pin) => service.unlockCategory(category.id, pin)}
-    onDismiss={() => { if (!service.getSnapshot().unlockedCategoryIds.includes(category.id)) useAppStore.getState().setRoute('main'); }} />;
+    onDismiss={() => { if (!service.getSnapshot().unlockedCategoryIds.includes(category.id)) useAppStore.getState().goBack(); }} />;
   return children;
 }

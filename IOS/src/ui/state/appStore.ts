@@ -207,6 +207,8 @@ interface AppState {
   libraryReady: boolean;
   ensureAniListSeeded: () => Promise<BootstrapAniListResult>;
   setRoute: (route: RouteKey) => void;
+  routeHistory: readonly RouteKey[];
+  goBack: (fallback?: RouteKey) => void;
   setTab: (tab: TabKey) => void;
   setReaderTheme: (i: number) => void;
   setPrimaryIndex: (i: number) => void;
@@ -270,8 +272,15 @@ const SAMPLE_BOOKS: ReadonlyArray<Omit<Book, 'id' | 'lastReadTime'>> = [
   },
 ];
 
+function changePaperRoute(current: RouteKey, next: RouteKey, commit: () => void): void {
+  const reader = (route: RouteKey) => route === 'reader' || route === 'comicReader' || route === 'novelReaderOnline' || route === 'comicReaderOnline';
+  if (current === 'splash' || current === 'onboarding' || reader(current) || reader(next)) commit();
+  else void withSharedElementTransition(commit);
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   route: 'splash',
+  routeHistory: [],
   /**
    * BUG 修正：`MainActivity.kt` L418 `var selectedTab by rememberSaveable { mutableIntStateOf(1) }`。
    * index 1 = `HomeScreen`（书架）；index 0 = `LibraryScreen`（书库）。见文件头。
@@ -337,16 +346,23 @@ export const useAppStore = create<AppState>((set, get) => ({
    * 所以转场回调里只做这一件事；React 的重渲染由 store 订阅驱动。
    */
   setRoute: (route) => {
-    // Startup already has its own fade. Snapshot overlays can swallow a quick
-    // tap on the onboarding skip button while the splash transition is active.
-    const liveReader = (value: RouteKey): boolean => ['reader', 'comicReader', 'novelReaderOnline', 'comicReaderOnline'].includes(value);
-    if (get().route === 'splash' || get().route === 'onboarding' || liveReader(route) || liveReader(get().route)) {
-      set({ route });
-      return;
-    }
-    void withSharedElementTransition(() => {
-      set({ route });
-    });
+    const { route: current } = get();
+    if (current === route) return;
+    const commit = () => {
+      const { route: previous, routeHistory } = get();
+      if (previous === route) return;
+      const returning = routeHistory.lastIndexOf(route);
+      const history = route === 'main' || previous === 'splash' || previous === 'onboarding'
+        ? [] : returning >= 0 ? routeHistory.slice(0, returning) : [...routeHistory, previous].slice(-24);
+      set({ route, routeHistory: history });
+    };
+    changePaperRoute(current, route, commit);
+  },
+  goBack: (fallback = 'main') => {
+    const { route: current, routeHistory } = get();
+    const route = routeHistory.at(-1) ?? fallback;
+    if (current === route) return;
+    changePaperRoute(current, route, () => set({ route, routeHistory: routeHistory.slice(0, -1) }));
   },
   setTab: (activeTab) => set({ activeTab }),
   setReaderTheme: (readerTheme) => set({ readerTheme }),

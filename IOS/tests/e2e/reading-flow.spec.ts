@@ -114,3 +114,22 @@ test('local CBZ opens its real stored pages in the complete comic reader', async
   await expect(page.getByText('2/2', { exact: true })).toBeVisible();
   await page.screenshot({ path: '.tmp/takeover-local-comic.png' });
 });
+
+test('the library and discover share the unified download center', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('onboarding_skip_button').click({ timeout: 45_000 });
+  await page.getByRole('button', { name: '书库', exact: true }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('welcome_import_local_card').click();
+  await (await chooser).setFiles([]);
+  await page.getByTestId('download_tasks_entry').click();
+  const center = page.getByTestId('download_task_panel');
+  await expect(center).toContainText('暂无下载任务');
+  await center.getByRole('button', { name: '收起' }).click();
+  await expect(center).toBeHidden();
+  await page.getByRole('button', { name: '发现', exact: true }).click();
+  await page.locator('.discover-download-entry').click();
+  await expect(center).toContainText('后台继续下载，完成记录保留。');
+  await center.getByRole('button', { name: '收起' }).click();
+  await expect(center).toBeHidden();
+});

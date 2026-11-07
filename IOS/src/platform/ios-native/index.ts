@@ -91,17 +91,21 @@ export interface IosNativePlatform {
   appInfo: AppInfoPort;
 }
 
-const fileReads = registerPlugin<{
+interface BoundedDocumentReads {
   readRange(options: { path: string; offset: number; length: number }): Promise<{ data: string }>;
   digest(options: { path: string }): Promise<{ sha256: string }>;
-}>('ReaderDocuments');
+}
+let fileReads: BoundedDocumentReads | undefined;
+function boundedDocumentReads(): BoundedDocumentReads {
+  return fileReads ??= registerPlugin<BoundedDocumentReads>('ReaderDocuments');
+}
 
 class FilesystemApiAdapter implements FileSystemApi {
   async readRange(path: string, offset: number, length: number): Promise<Uint8Array> {
-    return base64ToBytes((await fileReads.readRange({ path: normalizeFsPath(path), offset, length })).data);
+    return base64ToBytes((await boundedDocumentReads().readRange({ path: normalizeFsPath(path), offset, length })).data);
   }
   async sha256(path: string): Promise<Uint8Array> {
-    const { sha256 } = await fileReads.digest({ path: normalizeFsPath(path) });
+    const { sha256 } = await boundedDocumentReads().digest({ path: normalizeFsPath(path) });
     if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('无效的文件摘要');
     return Uint8Array.from(sha256.match(/../g)!, (part) => Number.parseInt(part, 16));
   }

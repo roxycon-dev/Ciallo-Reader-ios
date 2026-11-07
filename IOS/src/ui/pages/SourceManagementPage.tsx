@@ -210,7 +210,7 @@ export const ZLIBRARY_DEFAULT_DOMAIN = 'z.wwkejishe.top';
 type ModalKind = 'none' | 'debug' | 'import' | 'paste' | 'network' | 'login' | 'node';
 
 export function SourceManagementPage(props: { io?: SourceManagementIo } = {}) {
-  const setRoute = useAppStore((s) => s.setRoute);
+  const goBack = useAppStore((s) => s.goBack);
   const io = props.io ?? NULL_SOURCE_IO;
 
   const [allSources, setAllSources] = useState<BookSource[]>([]);
@@ -412,7 +412,7 @@ export function SourceManagementPage(props: { io?: SourceManagementIo } = {}) {
       {/* L419–434: GlassTopBarStrip + SourceCollapsingTopBar */}
       <SourceCollapsingTopBar
         collapsedFraction={collapsedFraction}
-        onBack={() => setRoute('main')}
+        onBack={() => goBack()}
       />
 
       <div className="source-mgmt-scroll" ref={scrollRef} onScroll={onScroll}>

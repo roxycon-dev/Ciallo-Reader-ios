@@ -529,10 +529,10 @@ export interface CacheManagementPageProps {
 }
 
 export function CacheManagementPage(props: CacheManagementPageProps) {
-  const setRoute = useAppStore((s) => s.setRoute);
+  const goBack = useAppStore((s) => s.goBack);
   // Android `onBack` / `LocalContext.current` — defaulted so the routed page can render
   // with no props (see `createDefaultCacheLayout` / `createPlatformCacheFileSystem`).
-  const onBack = props.onBack ?? (() => setRoute('main'));
+  const onBack = props.onBack ?? (() => goBack());
   const fs = useMemo(() => props.fs ?? createPlatformCacheFileSystem(), [props.fs]);
   const layout = props.layout ?? DEFAULT_CACHE_LAYOUT;
   // `System.currentTimeMillis()` 的测试注入口。默认值放进 useMemo 只是为了让引用稳定：

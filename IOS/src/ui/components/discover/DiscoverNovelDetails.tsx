@@ -1,3 +1,4 @@
+import { openDownloadCenter } from '@ui/components/library/DownloadCenter';
 import { useEffect, useState } from 'react';
 import type { SearchBook } from '@core/source/searchBook';
 import type { LibraryRuntime } from '@core/library/libraryRuntime';
@@ -39,9 +40,10 @@ export function DiscoverNovelDetails({ book, runtime, onDismiss }: { book: Searc
       void (async () => {
         if (source?.capabilities.downloadRequiresLogin && !(await source.isLoggedIn())) { runtime.openZLibraryLoginDialog?.(source); return; }
         vm.startDownloadWithFormat(detail, detail.format);
+        onDismiss(); openDownloadCenter();
       })().catch((error: unknown) => showToast(error instanceof Error ? error.message : '下载失败'));
     }} onRead={() => {
       if (!local) return;
       void useAppStore.getState().openBook(local.id).then(() => { onDismiss(); useAppStore.getState().setRoute('reader'); });
-    }} onPause={() => vm.pauseDownload(key)} onResume={() => vm.resumeDownload(key)} onCancel={() => vm.cancelDownload(key)} />;
+    }} onPause={() => vm.pauseDownload(key)} onResume={() => vm.resumeDownload(key)} onCancel={() => { onDismiss(); openDownloadCenter(); }} />;
 }

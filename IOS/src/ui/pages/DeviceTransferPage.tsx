@@ -15,7 +15,7 @@ import '../../styles/device-transfer.css';
 
 const empty: DeviceTransferState = { importMode: 'MERGE', phase: 'IDLE', peers: [], progress: null, error: '', prepared: null, pairing: null, preview: null, result: null, warnings: [], requiresReload: false };
 const noSubscribe = () => () => {}, emptySnapshot = () => empty;
-const goBack = () => useAppStore.getState().setRoute('main'), reloadApp = () => window.location.reload();
+const goBack = () => useAppStore.getState().goBack(), reloadApp = () => window.location.reload();
 const labels: Record<DeviceTransferState['phase'], string> = { IDLE: '互传已暂停', DISCOVERING: '等待附近设备', PREPARING: '正在整理所选数据', PICKING_FILE: '正在选择并读取迁移包', SHARING_FILE: '正在分享迁移包', CONNECTING: '正在连接设备', AWAITING_CONFIRMATION: '请核对两台设备的配对码', AWAITING_IMPORT: '数据已收到，请确认导入', TRANSFERRING: '正在传输', VERIFYING: '正在校验完整数据', RECEIVED: '对方已收到，等待导入', IMPORTING: '正在导入，请稍候', COMPLETED: '迁移完成', FAILED: '互传未完成' };
 export interface TransferUndoUi { info(): Promise<NativeUndoInfo | null>; restore(snapshotId: string, pin?: string): Promise<{ finalizationPending: boolean }>; }
 const nativeUndo: TransferUndoUi = { info: getNativeUndoInfo, restore: undoNativeArchive };
