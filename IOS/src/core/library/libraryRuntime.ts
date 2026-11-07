@@ -1,3 +1,4 @@
+import type { DownloadManager } from '@core/download/downloadManager';
 /**
  * Library runtime registry — the host-side wiring seam for the ported
  * `LibraryViewModel.kt` / `ComicDownloadManager.kt` / `BookShareHelper.kt`.
@@ -27,6 +28,7 @@ export interface LibraryRuntime {
   sourceManager?: SourceManager;
   favorites?: FavoriteRepository;
   viewModel: LibraryViewModel;
+  novelDownloads?: DownloadManager;
   comicDownloads: ComicDownloadManager | null;
   shareHelper: BookShareHelper | null;
   /**

@@ -789,6 +789,7 @@ export function bootstrapLibrary(): Promise<void> {
             return src;
           },
           downloadsDir: 'downloads',
+          getUsableSpace: async () => (await platform.storageStats.volumeStats()).freeBytes,
           toast: (message: string) => {
             void showToast(message);
           },

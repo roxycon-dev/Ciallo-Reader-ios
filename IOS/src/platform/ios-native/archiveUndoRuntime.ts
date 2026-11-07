@@ -23,8 +23,9 @@ export async function undoNativeArchive(snapshotId: string, pin?: string): Promi
   const run = () => scripts.withDefinitionLease(() => manager.withMutationLease(() => createNativeTransferUndoJournal(platform).run(operationId, snapshotId)));
   try {
     return await getOrCreateDownloadQueue({ http: platform.http }).withPausedDownloads(async () => {
-      if (!runtime?.comicDownloads) return run();
-      return runtime.comicDownloads.withControlLock(async () => { await runtime.comicDownloads!.pauseAllLocked(); return run(); });
+      const comics = runtime?.comicDownloads;
+      const guarded = () => comics ? comics.withControlLock(async () => { await comics.pauseAllLocked(); return run(); }) : run();
+      return runtime?.novelDownloads ? runtime.novelDownloads.withPausedDownloads(guarded) : guarded();
     });
   } catch (error) {
     if (await new NativeImportUndoFiles().pending()) throw new NativeUndoPendingError('恢复尚未完成，重新载入后将继续处理');

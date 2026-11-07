@@ -88,6 +88,7 @@ export interface LibraryAssemblyPorts {
   readonly comicSourceOf: ComicSourceResolver;
   /** Android `downloadsDir`（`DownloadManager(application)` 内部解析的目录）。 */
   readonly downloadsDir: string;
+  readonly getUsableSpace?: () => Promise<number>;
   /** 内置书源注册（Android `AppDatabase.ensureBundledTitlesImported` 的近亲）。 */
   readonly registerBuiltinSources?: () => Promise<void>;
   /**
@@ -182,6 +183,7 @@ export function createLibraryAssembly(ports: LibraryAssemblyPorts): LibraryAssem
     books: bookshelf,
     broadcaster,
     worker: {
+      ...(ports.getUsableSpace ? { getUsableSpace: ports.getUsableSpace } : {}),
       ...(ports.novelImporter === undefined ? {} : { importer: ports.novelImporter }),
       async generateBook(task, temp, progress, signal) {
         const source = sourceManager.getSource(task.sourceId);
@@ -346,6 +348,7 @@ export function installLibraryRuntime(ports: LibraryAssemblyPorts): LibraryRunti
     viewModel: assembly.viewModel,
     sourceManager: assembly.sourceManager,
     favorites: assembly.favorites,
+    novelDownloads: assembly.downloadManager,
     comicDownloads: null,
     shareHelper: null,
   };

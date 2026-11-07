@@ -67,6 +67,7 @@ export interface TranslationBridge {
    * 打开一个开关然后在流水线里炸掉。
    */
   available: boolean;
+  refresh?(): Promise<void>;
   /** Kotlin 289 `TranslateModelManager.isReady(context)` */
   isModelsReady(): boolean;
   /**
@@ -77,7 +78,7 @@ export interface TranslationBridge {
   /** Kotlin 292 `TranslationCache.totalBytes(context)` */
   totalCacheBytes(): number;
   /** Kotlin 492 `TranslationCache.clear(context)` */
-  clearCache(): void;
+  clearCache(): void | Promise<void>;
   /** Kotlin 316–319 `llmTranslator.loadConfig()` 的四个字段 */
   loadLlmConfig(): { apiUrl: string; apiKey: string; modelName: string; geminiFormat: boolean };
   /** Kotlin 328 `llmTranslator.saveConfig(...)`，失败时抛错（Kotlin 329 → Toast） */
@@ -86,7 +87,7 @@ export interface TranslationBridge {
     apiKey: string;
     modelName: string;
     geminiFormat: boolean;
-  }): void;
+  }): void | Promise<void>;
   /** Kotlin 329 `Toast.makeText(..., "配置保存失败")` 的呈现通道 */
   showError(message: string): void;
 }
@@ -153,10 +154,18 @@ export function TranslationTab(props: TranslationTabProps) {
 
   useEffect(() => {
     mountedRef.current = true;
+    let active = true;
+    void bridge.refresh?.().then(() => {
+      if (!active) return;
+      setModelsReady(bridge.isModelsReady());
+      setCacheBytes(bridge.totalCacheBytes());
+      setLlm(bridge.loadLlmConfig());
+    }).catch((error: unknown) => { if (active) bridge.showError(error instanceof Error ? error.message : String(error)); });
     return () => {
+      active = false;
       mountedRef.current = false;
     };
-  }, []);
+  }, [bridge]);
 
   const startDownload = useCallback(() => {
     if (busyRef.current) return;
@@ -210,7 +219,7 @@ export function TranslationTab(props: TranslationTabProps) {
     (next: { apiUrl: string; apiKey: string; modelName: string; geminiFormat: boolean }) => {
       setLlm(next);
       try {
-        bridge.saveLlmConfig(next);
+        void Promise.resolve(bridge.saveLlmConfig(next)).catch((e: unknown) => bridge.showError(e instanceof Error ? e.message : LLM_SAVE_ERROR));
       } catch (e) {
         bridge.showError(e instanceof Error && e.message !== '' ? e.message : LLM_SAVE_ERROR);
       }
@@ -390,8 +399,7 @@ export function TranslationTab(props: TranslationTabProps) {
           type="button"
           className="cmcs-chiprow"
           onClick={() => {
-            bridge.clearCache();
-            setCacheBytes(0);
+            void Promise.resolve(bridge.clearCache()).then(() => setCacheBytes(bridge.totalCacheBytes())).catch((e: unknown) => bridge.showError(e instanceof Error ? e.message : String(e)));
           }}
         >
           <span className="cmcs-chiprow__icon" aria-hidden="true">

@@ -442,31 +442,46 @@ export class DownloadManager {
     await withControlLock(async () => {
       const bookId = await this.resolveTaskId(requestedId);
       await this.stopRun(bookId); // workManager.cancelUniqueWork("download_$bookId").result.get()
-      await withTaskLock(bookId, async () => {
-        const task = await this.dao.getTask(bookId);
-        if (task == null) return;
-        if (task.status === 'COMPLETED') return;
-        const tempFile = joinPath(
-          this.downloadsDir,
-          `${nameWithoutExtension(task.filePath)}.tmp`,
-        );
-        const currentDownloaded = (await this.fs.exists(tempFile))
-          ? (await this.fs.readFile(tempFile)).length
-          : task.downloadedBytes;
+      await this.recordPaused(bookId);
+    });
+  }
 
-        this.log(`Task paused for bookId=${bookId}. Preserved temp bytes=${currentDownloaded}`);
-        await this.dao.updateProgressAndStatus(
-          bookId,
-          'PAUSED',
-          currentDownloaded,
-          task.totalBytes,
-          null,
-        );
-        this.broadcaster.updateState(
-          bookId,
-          pausedState(currentDownloaded, task.totalBytes),
-        );
-      });
+  /** Stop file and database writes while transfer holds the download controls. */
+  withPausedDownloads<T>(operation: () => Promise<T>): Promise<T> {
+    return withControlLock(async () => {
+      const runs = [...this.activeRuns.keys()];
+      await Promise.all(runs.map((id) => this.stopRun(id)));
+      const active = await this.dao.getActiveTasks();
+      for (const task of active) await this.recordPaused(task.id, true);
+      return operation();
+    });
+  }
+
+  private async recordPaused(bookId: string, onlyActive = false): Promise<void> {
+    await withTaskLock(bookId, async () => {
+      const task = await this.dao.getTask(bookId);
+      if (task == null) return;
+      if (task.status === 'COMPLETED' || (onlyActive && task.status !== 'PENDING' && task.status !== 'DOWNLOADING')) return;
+      const tempFile = joinPath(
+        this.downloadsDir,
+        `${nameWithoutExtension(task.filePath)}.tmp`,
+      );
+      const currentDownloaded = (await this.fs.exists(tempFile))
+        ? (this.fs.size ? await this.fs.size(tempFile) : (await this.fs.readFile(tempFile)).length)
+        : task.downloadedBytes;
+
+      this.log(`Task paused for bookId=${bookId}. Preserved temp bytes=${currentDownloaded}`);
+      await this.dao.updateProgressAndStatus(
+        bookId,
+        'PAUSED',
+        currentDownloaded,
+        task.totalBytes,
+        null,
+      );
+      this.broadcaster.updateState(
+        bookId,
+        pausedState(currentDownloaded, task.totalBytes),
+      );
     });
   }
 

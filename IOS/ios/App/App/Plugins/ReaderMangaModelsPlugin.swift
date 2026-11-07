@@ -9,7 +9,7 @@ import OnnxRuntimeBindings
 final class ReaderMangaModelsPlugin: CAPPlugin, CAPBridgedPlugin {
     let identifier = "ReaderMangaModelsPlugin"
     let jsName = "ReaderMangaModels"
-    let pluginMethods = [
+    let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "commit", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "remove", returnType: CAPPluginReturnPromise),

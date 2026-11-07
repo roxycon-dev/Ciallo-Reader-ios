@@ -43,8 +43,9 @@ export async function importNativeArchive(platform: PlatformBundle, archive: Ins
       }));
     }));
     const imported = await queue.withPausedDownloads(async () => {
-      if (!runtime?.comicDownloads) return run();
-      return runtime.comicDownloads.withControlLock(async () => { await runtime.comicDownloads!.pauseAllLocked(); return run(); });
+      const comics = runtime?.comicDownloads;
+      const guarded = () => comics ? comics.withControlLock(async () => { await comics.pauseAllLocked(); return run(); }) : run();
+      return runtime?.novelDownloads ? runtime.novelDownloads.withPausedDownloads(guarded) : guarded();
     });
     return { result: imported.value, finalizationPending: imported.finalizationPending, requiresReload: !imported.value.duplicate };
   } finally { await staging.dispose().catch(() => {}); }

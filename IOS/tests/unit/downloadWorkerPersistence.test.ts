@@ -3,7 +3,7 @@ import { performDownloadTask } from '@core/download/downloadWorker';
 import { DownloadProgressBroadcaster } from '@core/download/downloadProgressBroadcaster';
 import { NovelDownloadStore } from '@core/download/novelDownloadStore';
 import type { DownloadTaskRecord, DownloadTaskStore } from '@core/download/downloadTaskRepository';
-import type { FileSystemApi, HttpClient } from '@platform/interfaces';
+import type { FileSystemApi, HttpClient, HttpRequest, HttpStreamResponse } from '@platform/interfaces';
 import { MemoryFileSystem } from '@platform/web-mock/memoryFileSystem';
 import { MemorySecureStore } from '@platform/web-mock/memorySecureStore';
 
@@ -29,16 +29,23 @@ describe('download worker durable partial files and cancellation', () => {
   it('keeps the paused prefix and resumes with Range/If-Range without duplicating or losing bytes', async () => {
     const scenario = fixture(), bytes = new Uint8Array(128 * 1024 + 17).fill(65), first = new AbortController(), append = scenario.fs.appendFile!;
     let interrupted = false; scenario.fs.appendFile = vi.fn(async (path, chunk) => { await append(path, chunk); if (!interrupted) { interrupted = true; first.abort(); } });
-    const http: HttpClient = { request: vi.fn(async (request) => {
+    const seen: HttpRequest[] = [];
+    const consume = async <T,>(request: HttpRequest, consumer: (response: HttpStreamResponse) => Promise<T>): Promise<T> => {
+      seen.push(request);
       const offset = request.headers?.Range ? 64 * 1024 : 0;
       if (offset) expect(request.headers?.['If-Range']).toBe('"edition-1"');
-      return { status: offset ? 206 : 200, headers: { etag: '"edition-1"', 'content-range': `bytes ${offset}-${bytes.length - 1}/${bytes.length}` }, url: request.url, body: bytes.slice(offset) };
-    }) };
+      async function* chunks() {
+        for (let cursor = offset; cursor < bytes.length; cursor += 64 * 1024) yield bytes.subarray(cursor, cursor + 64 * 1024);
+      }
+      return consumer({ status: offset ? 206 : 200, headers: { etag: '"edition-1"', 'content-range': `bytes ${offset}-${bytes.length - 1}/${bytes.length}` },
+        url: request.url, size: bytes.length - offset, chunks: chunks() });
+    };
+    const http: HttpClient = { consume, request: vi.fn(async () => { throw new Error('should not buffer response'); }) };
     const deps = { ...scenario, secrets: scenario.secure, http, downloadsDir: 'downloads' };
     await expect(performDownloadTask('fixture', { ...deps, signal: first.signal })).rejects.toMatchObject({ name: 'AbortError' });
     expect(scenario.rows.get('fixture')).toMatchObject({ status: 'PAUSED', downloadedBytes: 64 * 1024 }); expect(await scenario.fs.size!('downloads/book.tmp')).toBe(64 * 1024);
     await scenario.dao.updateState('fixture', 'PENDING'); expect(await performDownloadTask('fixture', { ...deps, signal: new AbortController().signal })).toBe('success');
-    expect(vi.mocked(http.request).mock.calls[1]![0].headers?.Range).toBe('bytes=65536-'); expect(await scenario.fs.readFile('downloads/book.txt')).toEqual(bytes); expect(scenario.rows.get('fixture')?.status).toBe('COMPLETED'); expect(scenario.fs.move).toHaveBeenCalledOnce(); expect(await scenario.fs.exists('downloads/book.tmp')).toBe(false);
+    expect(http.request).not.toHaveBeenCalled(); expect(seen[1]!.headers?.Range).toBe('bytes=65536-'); expect(await scenario.fs.readFile('downloads/book.txt')).toEqual(bytes); expect(scenario.rows.get('fixture')?.status).toBe('COMPLETED'); expect(scenario.fs.move).toHaveBeenCalledOnce(); expect(await scenario.fs.exists('downloads/book.tmp')).toBe(false);
   });
   it('passes pause cancellation into a request that has not returned its body and records PAUSED', async () => {
     const scenario = fixture(), controller = new AbortController(); let started!: () => void;

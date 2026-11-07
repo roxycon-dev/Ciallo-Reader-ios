@@ -463,7 +463,7 @@ export function packRgbChw(
 
 /** Kotlin lines 201..213 — `Prototypes(data, height, width)`. */
 export interface MaskPrototypes {
-  data: readonly number[];
+  data: ArrayLike<number>;
   height: number;
   width: number;
 }

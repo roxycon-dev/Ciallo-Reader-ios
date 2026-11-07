@@ -31,8 +31,9 @@ export async function exportNativeArchive(platform: PlatformBundle, selection: A
       requireTransfer(!options.signal?.aborted, '导出已取消'); return packed;
     }))));
     const packed = await getOrCreateDownloadQueue({ http: platform.http }).withPausedDownloads(async () => {
-      if (!runtime?.comicDownloads) return build();
-      return runtime.comicDownloads.withControlLock(async () => { await runtime.comicDownloads!.pauseAllLocked(); return build(); });
+      const comics = runtime?.comicDownloads;
+      const guarded = () => comics ? comics.withControlLock(async () => { await comics.pauseAllLocked(); return build(); }) : build();
+      return runtime?.novelDownloads ? runtime.novelDownloads.withPausedDownloads(guarded) : guarded();
     });
     return { sessionId: stageId, path: packed.path, size: await file.size(), sha256: await file.hash(), manifest: packed.manifest };
   } catch (error) { await file.remove().catch(() => {}); throw error; }

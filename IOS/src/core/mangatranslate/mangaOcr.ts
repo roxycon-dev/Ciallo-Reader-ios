@@ -322,17 +322,17 @@ export function buildRecInputTensor(
  * DB 后处理（纯逻辑，供单测直接调用）。
  * Kotlin lines 228..287 — FULLY PORTED.
  */
-export function extractLineRects(prob: readonly number[], pre: PreResult): RectF[] {
+export function extractLineRects(prob: ArrayLike<number>, pre: PreResult): RectF[] {
   const width = DET_INPUT;
   const height = DET_INPUT;
   const total = width * height;
   if (prob.length < total) return [];
-  const visited = new Array<boolean>(total).fill(false);
-  const stack = new Array<number>(total).fill(0);
+  const visited = new Uint8Array(total);
+  const stack = new Int32Array(total);
   const results: RectF[] = [];
 
   for (let i = 0; i < total; i += 1) {
-    if (visited[i] === true || (prob[i] as number) <= PROB_THRESHOLD) continue;
+    if (visited[i] === 1 || (prob[i] as number) <= PROB_THRESHOLD) continue;
     let minX = width;
     let minY = height;
     let maxX = 0;
@@ -342,7 +342,7 @@ export function extractLineRects(prob: readonly number[], pre: PreResult): RectF
     let sp = 0;
     stack[sp] = i;
     sp += 1;
-    visited[i] = true;
+    visited[i] = 1;
     while (sp > 0) {
       sp -= 1;
       const idx = stack[sp] as number;
@@ -360,8 +360,8 @@ export function extractLineRects(prob: readonly number[], pre: PreResult): RectF
         for (let nx = x - 1; nx <= x + 1; nx += 1) {
           if (nx < 0 || nx >= width) continue;
           const nidx = rowOffset + nx;
-          if (visited[nidx] !== true && (prob[nidx] as number) > PROB_THRESHOLD) {
-            visited[nidx] = true;
+          if (visited[nidx] === 0 && (prob[nidx] as number) > PROB_THRESHOLD) {
+            visited[nidx] = 1;
             stack[sp] = nidx;
             sp += 1;
           }

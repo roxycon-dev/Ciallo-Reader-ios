@@ -184,7 +184,9 @@
  *  L2099 ChasingDots                     → comic.css .comic-chasing-dots
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ReaderTranslationContext, useReaderTranslation } from '@ui/hooks/useReaderTranslation';
+import type { TranslationBridge } from '@ui/components/comic/sheets/ComicSettingsTranslationTab';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react';
 import { getAmbientAudio } from '@core/audio/ambientAudio';
 import {
@@ -255,7 +257,6 @@ import {
   ComicPresetSheet,
   ComicSettingsSheet,
   ComicTocSheet,
-  UNSUPPORTED_TRANSLATION_BRIDGE,
   type ComicCropLoader,
   type ComicPreviewLoader,
   type ComicThumbLoader,
@@ -1062,6 +1063,12 @@ function useComicPageBitmap({
           imagePipelineFingerprint(config),
           effectiveRotation(config.bookRotation, pageRotationOf(bookState, slot.ref.id)),
         );
+  const translation = useContext(ReaderTranslationContext);
+  const subscribe = useCallback((listener: () => void) =>
+    translation && cacheKey ? translation.subscribePage(cacheKey, listener) : () => {}, [translation, cacheKey]);
+  const getTranslation = useCallback(() => config.translationEnabled && cacheKey ? translation?.get(cacheKey) ?? null : null,
+    [config.translationEnabled, translation, cacheKey]);
+  const translated = useSyncExternalStore(subscribe, getTranslation, getTranslation);
   const slotId = slot?.ref.id ?? '';
   const half = slot?.half ?? 'FULL';
   const rotation = slot === null ? 0 : effectiveRotation(config.bookRotation, pageRotationOf(bookState, slot.ref.id));
@@ -1164,7 +1171,7 @@ function useComicPageBitmap({
     enhanceStrength,
   ]);
 
-  return state;
+  return translated ? { kind: 'READY', bitmap: translated, refining: false, error: null } : state;
 }
 
 /** Kotlin seed()（L838-855）：同步读缓存播种 */
@@ -2028,6 +2035,7 @@ interface VerticalListProps {
 }
 
 function ComicVerticalList(props: VerticalListProps): ReactNode {
+  const translation = useContext(ReaderTranslationContext);
   const {
     layout,
     config,
@@ -2184,8 +2192,10 @@ function ComicVerticalList(props: VerticalListProps): ReactNode {
       });
     });
     // Kotlin L1374-1375: 整窗一次提交
-    loader.preloadWindow(entries, toneOf(config));
-  }, [currentSpread, strategy, layout, config, spreadCount, loader, bookState, sizes]);
+    const tone = toneOf(config);
+    loader.preloadWindow(entries, tone);
+    translation?.schedule(entries, config, tone);
+  }, [currentSpread, strategy, layout, config, spreadCount, loader, bookState, sizes, translation]);
 
   // 连续自动滚动（Kotlin L1379-1403）：rAF + 挂钟自算 dt
   useEffect(() => {
@@ -2895,6 +2905,7 @@ function ComicMagneticPager(props: MagneticPagerProps): ReactNode {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 interface ChromeProps {
+  readonly translationBridge: TranslationBridge;
   readonly visible: boolean;
   readonly panel: ComicPanel;
   readonly onPanelChange: (panel: ComicPanel) => void;
@@ -2968,7 +2979,7 @@ function ComicReaderChrome(props: ChromeProps): ReactNode {
           onBookStateChange={(next) => {
             props.onBookStateChange(toBookStatePatch(props.bookState, next));
           }}
-          translationBridge={UNSUPPORTED_TRANSLATION_BRIDGE}
+          translationBridge={props.translationBridge}
           glass={glass}
           onDismiss={onDismissPanel}
         />
@@ -3249,6 +3260,7 @@ export function ComicReaderPage(props: ComicReaderPageProps): ReactNode {
   const presetStore = useMemo(() => asPresetStore(store), [store]);
 
   const [config, setConfig] = useState<ComicReaderConfig>(effective.config);
+  const { session: translation, keys: activeTranslations } = useReaderTranslation(loader, config);
   const [bookState, setBookState] = useState<ComicBookState>(() =>
     bookKey === null ? NO_BOOK_STATE : store.loadBookState(bookKey),
   );
@@ -3607,7 +3619,9 @@ export function ComicReaderPage(props: ComicReaderPageProps): ReactNode {
       });
     }
     // Kotlin L548-549: 整窗一次提交
-    loader.preloadWindow(entries, toneOf(displayConfig));
+    const tone = toneOf(displayConfig);
+    loader.preloadWindow(entries, tone);
+    translation.schedule(entries, displayConfig, tone);
     if (onTranslationWindowSchedule !== null) onTranslationWindowSchedule(entries, displayConfig);
   }, [
     currentSpread,
@@ -3619,6 +3633,7 @@ export function ComicReaderPage(props: ComicReaderPageProps): ReactNode {
     sizes,
     loader,
     translationEpoch,
+    translation,
     onTranslationWindowSchedule,
   ]);
 
@@ -3846,6 +3861,7 @@ export function ComicReaderPage(props: ComicReaderPageProps): ReactNode {
   ]);
 
   const chromeProps: ChromeProps = {
+    translationBridge: translation.bridge,
     visible: controlsVisible,
     panel,
     onPanelChange: setPanel,
@@ -3902,35 +3918,37 @@ export function ComicReaderPage(props: ComicReaderPageProps): ReactNode {
   };
 
   return (
-    <div className={`comic-core${config.hideSystemBars ? ' is-immersive' : ''}`} style={backgroundStyle}>
-      <div
-        className="comic-engine-layer"
-        style={{ opacity: engineFade }}
-        data-engine-gl={engineIsGl ? '1' : '0'}
-        data-child-zoomed={childZoomed ? '1' : '0'}
-      >
-        {verticalMode ? (
-          <ComicVerticalList {...verticalListProps} />
-        ) : config.mode === 'MAGNETIC' ? (
-          <ComicMagneticPager {...magneticProps} />
-        ) : (
-          <ComicPagedReader {...pagedProps} />
-        )}
-      </div>
-
-      {/* 场景特效层（Kotlin L659-661；ComicSceneFx.kt 不在本次范围 → CSS 类） */}
-      {config.sceneEffect && config.scene !== 'NONE' ? (
-        <div className={`comic-scene-overlay comic-scene-${config.scene.toLowerCase()}`} aria-hidden />
-      ) : null}
-
-      {/* 翻译进行中角标（Kotlin L664-675） */}
-      {config.translationEnabled && translatingKeys.length > 0 && panel === 'NONE' ? (
-        <div className="comic-translate-badge">
-          <p>正在翻译…</p>
+    <ReaderTranslationContext.Provider value={translation}>
+      <div className={`comic-core${config.hideSystemBars ? ' is-immersive' : ''}`} style={backgroundStyle}>
+        <div
+          className="comic-engine-layer"
+          style={{ opacity: engineFade }}
+          data-engine-gl={engineIsGl ? '1' : '0'}
+          data-child-zoomed={childZoomed ? '1' : '0'}
+        >
+          {verticalMode ? (
+            <ComicVerticalList {...verticalListProps} />
+          ) : config.mode === 'MAGNETIC' ? (
+            <ComicMagneticPager {...magneticProps} />
+          ) : (
+            <ComicPagedReader {...pagedProps} />
+          )}
         </div>
-      ) : null}
 
-      <ComicReaderChrome {...chromeProps} />
-    </div>
+        {/* 场景特效层（Kotlin L659-661；ComicSceneFx.kt 不在本次范围 → CSS 类） */}
+        {config.sceneEffect && config.scene !== 'NONE' ? (
+          <div className={`comic-scene-overlay comic-scene-${config.scene.toLowerCase()}`} aria-hidden />
+        ) : null}
+
+        {/* 翻译进行中角标（Kotlin L664-675） */}
+        {config.translationEnabled && (translatingKeys.length > 0 || activeTranslations.length > 0) && panel === 'NONE' ? (
+          <div className="comic-translate-badge">
+            <p>正在翻译…</p>
+          </div>
+        ) : null}
+
+        <ComicReaderChrome {...chromeProps} />
+      </div>
+    </ReaderTranslationContext.Provider>
   );
 }

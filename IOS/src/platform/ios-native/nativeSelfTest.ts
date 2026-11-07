@@ -61,6 +61,9 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
       assert((await resources.resource('/etc/hosts')).kind === 'missing', 'Native resource escaped Documents');
     } finally { await platform.fs.delete(path); }
   });
+  await check('Original Android ONNX models detect and recognize a comic panel, then render translated text', async () => {
+    const { probeNativeManga } = await import('./nativeMangaProbe'); await probeNativeManga(platform);
+  }, 90_000);
   await check('Native HTTP preserves bytes, bounds chunks and cancels real sockets', async () => {
     const { probeNativeHttp } = await import('./nativeHttpProbe'); await probeNativeHttp(platform);
   }, 40_000);
