@@ -118,11 +118,7 @@ function zip64UncompressedSize(extra: Uint8Array, size: number): number {
   return size;
 }
 
-/**
- * Parse the ZIP central directory. Returns null when the archive is unreadable,
- * mirroring `ZipFile(file)` throwing an IOException (which Kotlin catches).
- */
-export function readZipCentralDirectory(data: Uint8Array): ZipCentralEntry[] | null {
+function eocdOffset(data: Uint8Array): number {
   let eocd = -1;
   const floor = Math.max(0, data.length - 22 - 0xffff);
   for (let i = data.length - 22; i >= floor; i -= 1) {
@@ -131,6 +127,15 @@ export function readZipCentralDirectory(data: Uint8Array): ZipCentralEntry[] | n
       break;
     }
   }
+  return eocd;
+}
+
+/**
+ * Parse the ZIP central directory. Returns null when the archive is unreadable,
+ * mirroring `ZipFile(file)` throwing an IOException (which Kotlin catches).
+ */
+export function readZipCentralDirectory(data: Uint8Array): ZipCentralEntry[] | null {
+  const eocd = eocdOffset(data);
   if (eocd < 0) return null;
 
   // Kotlin opens the whole `File` with `ZipFile`, which reads a *complete* EOCD
@@ -160,30 +165,86 @@ export function readZipCentralDirectory(data: Uint8Array): ZipCentralEntry[] | n
   const out: ZipCentralEntry[] = [];
   let cursor = offset;
   for (let i = 0; i < totalEntries; i += 1) {
-    if (cursor + 46 > data.length || readU32(data, cursor) !== CENTRAL_SIG) return null;
-    const crc = readU32(data, cursor + 16);
-    const rawSize = readU32(data, cursor + 24);
-    const nameLen = readU16(data, cursor + 28);
-    const extraLen = readU16(data, cursor + 30);
-    const commentLen = readU16(data, cursor + 32);
-    if (crc === undefined || rawSize === undefined) return null;
-    if (nameLen === undefined || extraLen === undefined || commentLen === undefined) return null;
-    const nameStart = cursor + 46;
-    const extraStart = nameStart + nameLen;
-    if (extraStart + extraLen > data.length) return null;
-    let name = '';
-    for (let j = 0; j < nameLen; j += 1) {
-      name += String.fromCharCode(data[nameStart + j] as number);
-    }
-    out.push({
-      name,
-      crc,
-      size: zip64UncompressedSize(data.subarray(extraStart, extraStart + extraLen), rawSize),
-      isDirectory: name.endsWith('/'),
-    });
-    cursor = extraStart + extraLen + commentLen;
+    const item = centralEntryAt(data, cursor);
+    if (!item) return null;
+    out.push(item.entry);
+    cursor = item.end;
   }
   return out;
+}
+
+function centralEntryAt(data: Uint8Array, cursor: number): { entry: ZipCentralEntry; end: number } | null {
+  if (cursor + 46 > data.length || readU32(data, cursor) !== CENTRAL_SIG) return null;
+  const crc = readU32(data, cursor + 16);
+  const rawSize = readU32(data, cursor + 24);
+  const nameLen = readU16(data, cursor + 28);
+  const extraLen = readU16(data, cursor + 30);
+  const commentLen = readU16(data, cursor + 32);
+  if (crc === undefined || rawSize === undefined) return null;
+  if (nameLen === undefined || extraLen === undefined || commentLen === undefined) return null;
+  const nameStart = cursor + 46;
+  const extraStart = nameStart + nameLen;
+  if (extraStart + extraLen > data.length) return null;
+  let name = '';
+  for (let j = 0; j < nameLen; j += 1) {
+    name += String.fromCharCode(data[nameStart + j] as number);
+  }
+  return { entry: {
+    name,
+    crc,
+    size: zip64UncompressedSize(data.subarray(extraStart, extraStart + extraLen), rawSize),
+    isDirectory: name.endsWith('/'),
+  }, end: extraStart + extraLen + commentLen };
+}
+
+export interface DownloadFileReader {
+  size: number;
+  read(offset: number, length: number): Promise<Uint8Array>;
+}
+
+async function zipNamesFromFile(file: DownloadFileReader): Promise<string[] | null> {
+  const tailLength = Math.min(file.size, 22 + 0xffff + 20), tailStart = file.size - tailLength;
+  const tail = await file.read(tailStart, tailLength), end = eocdOffset(tail);
+  if (end < 0) return null;
+  let entries = readU16(tail, end + 10)!, cursor = readU32(tail, end + 16)!;
+  let directoryEnd = tailStart + end;
+  if (entries === 0xffff || cursor === 0xffffffff) {
+    const locator = end - 20;
+    if (locator >= 0 && readU32(tail, locator) === EOCD64_LOCATOR_SIG) {
+      const start = readU64(tail, locator + 8);
+      if (start !== undefined && Number.isSafeInteger(start) && start + 56 <= directoryEnd) {
+        const record = await file.read(start, 56);
+        if (readU32(record, 0) === EOCD64_SIG) {
+          entries = readU64(record, 32) ?? entries;
+          cursor = readU64(record, 48) ?? cursor;
+          directoryEnd = start;
+        }
+      }
+    }
+  }
+  if (!Number.isSafeInteger(cursor) || !Number.isSafeInteger(entries) || cursor > directoryEnd ||
+    entries > Math.floor((directoryEnd - cursor) / 46)) return null;
+  let window = new Uint8Array(0) as Uint8Array<ArrayBufferLike>, windowStart = -1;
+  const names: string[] = [];
+  for (let i = 0; i < entries; i++) {
+    // Any central record fits in one 512 KiB window (three UInt16 fields).
+    if (cursor < windowStart || cursor - windowStart + Math.min(46 + 3 * 0xffff, directoryEnd - cursor) > window.length) {
+      windowStart = cursor;
+      window = await file.read(cursor, Math.min(512 * 1024, directoryEnd - cursor));
+    }
+    const item = centralEntryAt(window, cursor - windowStart);
+    if (!item || windowStart + item.end > directoryEnd) return null;
+    names.push(item.entry.name);
+    cursor = windowStart + item.end;
+  }
+  return names;
+}
+
+/** Inspect only the prefix and ZIP directory when the platform supports random access. */
+export async function validateDownloadFile(file: DownloadFileReader, format: string): Promise<IntegrityResult> {
+  const prefix = file.size > 0 ? await file.read(0, Math.min(TEXT_SAMPLE_BYTES, file.size)) : new Uint8Array();
+  const names = prefix[0] === 0x50 && prefix[1] === 0x4b ? await zipNamesFromFile(file) : null;
+  return validateFileSample(prefix, format, names);
 }
 
 function entryExt(name: string): string {
@@ -212,18 +273,12 @@ function namesIndicateCbz(names: string[]): boolean {
   return names.some((n) => !n.endsWith('/') && IMAGE_EXTS.has(entryExt(n)));
 }
 
-function inspectZip(data: Uint8Array): string | null {
-  const names = zipEntryNames(data);
+function inspectZipNames(names: string[] | null): string | null {
   if (names === null) return null;
   if (namesIndicateDocx(names)) return 'docx';
   if (namesIndicateEpub(names)) return 'epub';
   if (namesIndicateCbz(names)) return 'cbz';
   return null;
-}
-
-function zipHasEpubStructure(data: Uint8Array): boolean {
-  const names = zipEntryNames(data);
-  return names !== null && namesIndicateEpub(names);
 }
 
 /** From an HTML error page, find a user-facing reason. */
@@ -254,6 +309,11 @@ function extractHtmlErrorHint(data: Uint8Array): string | null {
 }
 
 export function validateFileIntegrity(data: Uint8Array, format: string): IntegrityResult {
+  const names = data[0] === 0x50 && data[1] === 0x4b ? zipEntryNames(data) : null;
+  return validateFileSample(data, format, names);
+}
+
+function validateFileSample(data: Uint8Array, format: string, names: string[] | null): IntegrityResult {
   if (data.length === 0) {
     return { valid: false, actualFormat: null, isHtmlErrorPage: false, htmlErrorHint: null };
   }
@@ -278,14 +338,14 @@ export function validateFileIntegrity(data: Uint8Array, format: string): Integri
   }
 
   const declared = format.toLowerCase().trim();
-  const detected = detectRealFormat(head, data);
+  const detected = detectFormatWithZip(head, () => inspectZipNames(names));
 
   if (declared === 'epub' && detected !== null && detected !== 'epub') {
     return { valid: true, actualFormat: detected, isHtmlErrorPage: false, htmlErrorHint: null };
   }
 
   if (declared === 'epub' || detected === 'epub') {
-    if (zipHasEpubStructure(data)) {
+    if (names && namesIndicateEpub(names)) {
       return { valid: true, actualFormat: 'epub', isHtmlErrorPage: false, htmlErrorHint: null };
     }
     if (isProbablyText(data.subarray(0, TEXT_SAMPLE_BYTES))) {
@@ -306,6 +366,10 @@ export function validateFileIntegrity(data: Uint8Array, format: string): Integri
  * the head is used, which is enough for every non-ZIP branch.
  */
 export function detectRealFormat(head: Uint8Array, full?: Uint8Array): string | null {
+  return detectFormatWithZip(head, () => inspectZipNames(zipEntryNames(full ?? head)));
+}
+
+function detectFormatWithZip(head: Uint8Array, inspect: () => string | null): string | null {
   if (head.length < 4) return null;
 
   if (head.length >= 5) {
@@ -331,7 +395,7 @@ export function detectRealFormat(head: Uint8Array, full?: Uint8Array): string | 
   }
 
   if (head[0] === 0x50 && head[1] === 0x4b) {
-    return inspectZip(full ?? head);
+    return inspect();
   }
 
   if (

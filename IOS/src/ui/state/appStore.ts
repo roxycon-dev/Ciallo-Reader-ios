@@ -751,7 +751,12 @@ export function bootstrapLibrary(): Promise<void> {
             secureStore.set(`keyword_dictionary.${key}`, value),
         };
 
+        const { getPlatformKind } = await import('@platform/index');
+        const nativeDownloads = getPlatformKind() === 'ios-native'
+          ? new (await import('@platform/ios-native/nativeBackgroundDownloads')).NativeBackgroundDownloads()
+          : undefined;
         const runtime = installLibraryRuntime({
+          ...(nativeDownloads ? { backgroundBookDownload: nativeDownloads } : {}),
           zlibraryNodeDomain: zlibrary.domain,
           openSourceLogin: showSourceLogin,
           isZLibrarySource: (source) => source.id === zlibrary.source.id,
@@ -799,7 +804,6 @@ export function bootstrapLibrary(): Promise<void> {
         });
         const { installLibraryContentServices } = await import('@platform/libraryContentServices');
         await installLibraryContentServices(platform, runtime, bookRepository!, () => useAppStore.getState().loadLibrary());
-        const { getPlatformKind } = await import('@platform/index');
         if (getPlatformKind() === 'ios-native') {
           const { runNativeSelfTests } = await import('@platform/ios-native/nativeSelfTest');
           await runNativeSelfTests(platform);

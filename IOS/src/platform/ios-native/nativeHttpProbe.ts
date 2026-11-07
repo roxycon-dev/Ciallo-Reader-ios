@@ -32,6 +32,19 @@ export async function probeNativeHttp(platform: PlatformBundle): Promise<void> {
     await wait((status) => status.slowStarted >= 1); controller.abort(); assert(await cancelled, 'Caller cancellation did not reject'); await wait((status) => status.cancelledSlowConnections >= 1);
     const timed = platform.http.request({ url: `${url}/slow`, timeoutMs: 1000 }).then(() => false, () => true);
     assert(await timed, 'Native call timeout did not reject'); await wait((status) => status.cancelledSlowConnections >= 2);
+    const progressive = new AbortController(), consume = platform.http.consume;
+    assert(consume, 'Native streaming HTTP consumer unavailable');
+    let received = 0;
+    const interrupted = await consume!.call(platform.http, { url: `${url}/progressive`, timeoutMs: 8000, signal: progressive.signal }, async (response) => {
+      assert(response.size === 128 * 1024, 'Missing streamed Content-Length');
+      for await (const chunk of response.chunks) {
+        received += chunk.length;
+        assert(received === 64 * 1024 && chunk.every((byte) => byte === 0xa5), 'Wrong prefix from an in-progress response');
+        progressive.abort();
+      }
+    }).then(() => false, () => true);
+    assert(interrupted && received === 64 * 1024, 'HTTP consumer waited for the entire response before reading bytes');
+    await wait((status) => status.cancelledSlowConnections >= 3);
     await wait((status) => status.activeRequests === 0);
   } finally { await fixture.fixture({ action: 'stop' }); }
 }

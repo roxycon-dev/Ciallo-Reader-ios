@@ -12,6 +12,7 @@ export const DEFAULT_HEADERS: HttpHeader = {
 
 /** Transport adapter options; AbortSignal remains inside JavaScript. */
 export interface NativeHttpRequestOptions {
+  progressive?: boolean;
   maxResponseBytes?: number;
   signal?: AbortSignal;
   redirect?: 'follow' | 'manual' | 'error';
@@ -141,7 +142,7 @@ export class CapacitorHttpClient implements HttpClient {
   async consume<T>(req: HttpRequest, consumer: (response: HttpStreamResponse) => Promise<T>): Promise<T> {
     httpResponseLimit(req.maxResponseBytes);
     const transport = req.url.startsWith('/') && !req.url.startsWith('//') ? null : await this.resolveTransport();
-    if (transport?.consume) return transport.consume(this.nativeOptions(req), consumer);
+    if (transport?.consume) return transport.consume({ ...this.nativeOptions(req), progressive: true }, consumer);
     const response = await this.request(req);
     async function* chunks() { yield response.body; }
     return consumer({ status: response.status, headers: response.headers, url: response.url, size: response.body.length, chunks: chunks() });

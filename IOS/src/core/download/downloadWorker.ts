@@ -40,7 +40,7 @@ import {
 import type { DownloadProgressBroadcaster } from './downloadProgressBroadcaster';
 import type { NovelDownloadStore } from './novelDownloadStore';
 import { prepareNovelTextArchive } from './novelTextArchive';
-import { validateFileIntegrity } from '../data/downloadFileValidator';
+import { validateDownloadFile, validateFileIntegrity } from '../data/downloadFileValidator';
 import { validateTail, validator as transferValidator } from '../data/downloadTransferPolicy';
 import { isWholeBookNovelSource, type SearchBook } from './downloadRequest';
 import { originalBookId } from './downloadManager';
@@ -69,10 +69,18 @@ export interface NovelBookImporter {
   ): Promise<void>;
 }
 
+export interface BackgroundBookDownload {
+  restorable(id: string): Promise<boolean>;
+  discard(id: string): Promise<void>;
+  consume<T>(id: string, sourceId: string, request: HttpRequest, progress: (written: number, total: number) => void,
+    consumer: (response: HttpStreamResponse) => Promise<T>): Promise<{ value: T } | null>;
+}
+
 export interface DownloadWorkerDeps {
   http: HttpClient;
   /** Optional dedicated client for sourceId === 'zlibrary' (Android client vs publicClient). */
   zlibraryHttp?: HttpClient;
+  background?: BackgroundBookDownload;
   fs: FileSystemApi;
   secrets: SecureStore;
   dao: DownloadTaskStore;
@@ -352,7 +360,7 @@ export async function withResponse<T>(
 }
 
 interface DownloadResponse extends HttpResponse { size: number; chunks: AsyncIterable<Uint8Array>; }
-async function withDownloadResponse<T>(http: HttpClient, zlibraryHttp: HttpClient | undefined, request: HttpRequest, sourceId: string, block: (response: DownloadResponse) => Promise<T>): Promise<T> {
+async function withDownloadResponse<T>(http: HttpClient, zlibraryHttp: HttpClient | undefined, request: HttpRequest, sourceId: string, block: (response: DownloadResponse) => Promise<T>, background?: { port: BackgroundBookDownload; id: string; progress: (written: number, total: number) => void }): Promise<T> {
   const client = sourceId === 'zlibrary' ? zlibraryHttp ?? http : http;
   const guarded = stripSensitiveHeadersOnCrossHost(request.url, request);
   const consume = async (response: HttpStreamResponse): Promise<T> => {
@@ -361,6 +369,10 @@ async function withDownloadResponse<T>(http: HttpClient, zlibraryHttp: HttpClien
     try { return await block({ status: response.status, headers: response.headers, url: response.url, size: response.size, body: first.done ? new Uint8Array() : first.value.subarray(0, 4096), chunks: chunks() }); }
     finally { await iterator.return?.(); }
   };
+  if (background) {
+    const result = await background.port.consume(background.id, sourceId, guarded, background.progress, consume);
+    if (result) return result.value;
+  }
   if (client.consume) return client.consume(guarded, consume);
   const response = await client.request(guarded);
   async function* chunks() { yield response.body; }
@@ -628,6 +640,13 @@ export async function performDownloadTask(
               }
               return false;
             },
+            deps.background ? {
+              port: deps.background, id: taskId,
+              progress(written, expected) {
+                const current = offset + written, full = expected > 0 ? offset + expected : 0;
+                broadcaster.updateState(taskId, downloadingState(current, full, full > 0 ? clamp01(current / full) : 0));
+              },
+            } : undefined,
           );
           if (!restart) break;
           rangeRestarted = true;
@@ -655,9 +674,7 @@ export async function performDownloadTask(
             if (await fileExists(fs, temp)) {
               await fs.delete(temp);
             }
-            const textBytes = await fs.readFile(textPath);
-            await fs.writeFile(temp, textBytes);
-            await fs.delete(textPath);
+            await renameFile(fs, textPath, temp);
           } finally {
             await deleteQuietly(fs, textPath);
           }
@@ -665,7 +682,7 @@ export async function performDownloadTask(
 
         }
         ensureActive(deps.signal);
-        const integrity = validateFileIntegrity(await fs.readFile(temp), format);
+        const integrity = await checkFileIntegrity(fs, temp, format);
         if (!integrity.valid) {
           throw new Error(integrity.htmlErrorHint ?? '下载文件格式校验失败');
         }
@@ -699,7 +716,7 @@ export async function performDownloadTask(
       }
       let latest: DownloadTaskRecord = latestRow;
       const file = latest.filePath;
-      const finalIntegrity = validateFileIntegrity(await fs.readFile(file), latest.format);
+      const finalIntegrity = await checkFileIntegrity(fs, file, latest.format);
       if (!finalIntegrity.valid) {
         throw new Error('下载文件损坏，请重新下载');
       }
@@ -813,10 +830,15 @@ function novelInfoRev(info: NonNullable<SearchBook['novelInfo']>): string {
   ].join('|');
 }
 
+async function checkFileIntegrity(fs: FileSystemApi, path: string, format: string) {
+  if (fs.readRange && fs.size) return validateDownloadFile({ size: await fs.size(path), read: (offset, length) => fs.readRange!(path, offset, length) }, format);
+  return validateFileIntegrity(await fs.readFile(path), format);
+}
+
 async function fingerprint(fs: FileSystemApi, path: string): Promise<Uint8Array | null> {
   try {
     if (!(await fs.exists(path))) return null;
-    return await sha256(await fs.readFile(path));
+    return fs.sha256 ? await fs.sha256(path) : await sha256(await fs.readFile(path));
   } catch {
     return null;
   }

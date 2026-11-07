@@ -129,6 +129,8 @@ public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPicke
         CAPPluginMethod(name: "cancelTransfer", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "transferFileSelfTest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openedTransfer", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "readRange", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "digest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "writeAtomic", returnType: CAPPluginReturnPromise)
     ]
     private var pending: CAPPluginCall?
@@ -329,6 +331,53 @@ public class ReaderDocumentsPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPicke
                 else { call.resolve(["presented": true, "completed": completed]) }
             }
             host.present(activity, animated: true)
+        }
+    }
+
+    private static func localFile(_ path: String) throws -> URL {
+        let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL.resolvingSymlinksInPath()
+        guard !path.hasPrefix("/"), !path.contains("\0"), path.utf8.count <= 4096 else {
+            throw TransferDocumentIO.failure("无效的本地文件路径")
+        }
+        let file = root.appendingPathComponent(path).standardizedFileURL
+        guard file.path.hasPrefix(root.path + "/"), file.resolvingSymlinksInPath().path == file.path,
+              try file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
+            throw TransferDocumentIO.failure("本地文件不存在或路径无效")
+        }
+        return file
+    }
+
+    @objc func readRange(_ call: CAPPluginCall) {
+        guard let path = call.getString("path"), let offset = call.getDouble("offset"), offset.isFinite,
+              offset >= 0, offset <= Double(1 << 42), offset.rounded(.down) == offset,
+              let length = call.getInt("length"), (1...512 * 1024).contains(length) else {
+            call.reject("文件读取范围无效"); return
+        }
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                let file = try Self.localFile(path), handle = try FileHandle(forReadingFrom: file)
+                defer { try? handle.close() }
+                try handle.seek(toOffset: UInt64(offset))
+                let data = try handle.read(upToCount: length) ?? Data()
+                call.resolve(["data": data.base64EncodedString()])
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
+
+    @objc func digest(_ call: CAPPluginCall) {
+        guard let path = call.getString("path") else { call.reject("缺少文件路径"); return }
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                let file = try Self.localFile(path), handle = try FileHandle(forReadingFrom: file)
+                defer { try? handle.close() }
+                var digest = SHA256()
+                while try autoreleasepool(invoking: {
+                    let bytes = try handle.read(upToCount: 512 * 1024) ?? Data()
+                    if bytes.isEmpty { return false }
+                    digest.update(data: bytes); return true
+                }) {}
+                call.resolve(["sha256": digest.finalize().map { String(format: "%02x", Int($0)) }.joined()])
+            } catch { call.reject(error.localizedDescription) }
         }
     }
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { zipSync } from 'fflate';
 import {
   validateFileIntegrity,
+  validateDownloadFile,
   detectRealFormat,
   isProbablyText,
   readZipCentralDirectory,
@@ -52,6 +54,17 @@ function zipOf(names: string[]): Uint8Array {
 }
 
 describe('downloadFileValidator', () => {
+  it('recognizes a large EPUB using only its header, tail and central directory', async () => {
+    const bytes = zipSync({ 'META-INF/container.xml': utf8('<container/>'), 'OEBPS/book.xhtml': new Uint8Array(2 * 1024 * 1024).fill(65) }, { level: 0 });
+    let read = 0;
+    const result = await validateDownloadFile({ size: bytes.length, async read(offset, length) {
+      read += length;
+      return bytes.subarray(offset, offset + length);
+    } }, 'epub');
+    expect(result).toEqual({ valid: true, actualFormat: 'epub', isHtmlErrorPage: false, htmlErrorHint: null });
+    expect(read).toBeLessThan(160 * 1024);
+  });
+
   it('flags HTML error pages as invalid', () => {
     const html = utf8('<!DOCTYPE html><html><head><title>err</title></head><body>Checking your browser - diamwall</body></html>');
     const result = validateFileIntegrity(html, 'epub');

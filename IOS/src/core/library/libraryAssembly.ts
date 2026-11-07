@@ -45,7 +45,7 @@ import type { FavoriteRepository } from '@core/library/favoriteRepository';
 import type { FavoriteDao } from '@core/library/favoriteDao';
 import type { ComicSourceResolver } from '@core/library/comicSourceTypes';
 import type { BookshelfApi } from '@core/download/downloadWorker';
-import type { NovelBookImporter } from '@core/download/downloadWorker';
+import type { BackgroundBookDownload, NovelBookImporter } from '@core/download/downloadWorker';
 import { ReadingRecordMetadata } from '@core/library/libraryReadingRecords';
 import type {
   LibraryLocalBook,
@@ -89,6 +89,7 @@ export interface LibraryAssemblyPorts {
   /** Android `downloadsDir`（`DownloadManager(application)` 内部解析的目录）。 */
   readonly downloadsDir: string;
   readonly getUsableSpace?: () => Promise<number>;
+  readonly backgroundBookDownload?: BackgroundBookDownload;
   /** 内置书源注册（Android `AppDatabase.ensureBundledTitlesImported` 的近亲）。 */
   readonly registerBuiltinSources?: () => Promise<void>;
   /**
@@ -183,6 +184,7 @@ export function createLibraryAssembly(ports: LibraryAssemblyPorts): LibraryAssem
     books: bookshelf,
     broadcaster,
     worker: {
+      ...(ports.backgroundBookDownload ? { background: ports.backgroundBookDownload } : {}),
       ...(ports.getUsableSpace ? { getUsableSpace: ports.getUsableSpace } : {}),
       ...(ports.novelImporter === undefined ? {} : { importer: ports.novelImporter }),
       async generateBook(task, temp, progress, signal) {

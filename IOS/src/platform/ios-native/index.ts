@@ -1,3 +1,4 @@
+import { registerPlugin } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import {
   createMediaPlayerPort,
@@ -90,7 +91,20 @@ export interface IosNativePlatform {
   appInfo: AppInfoPort;
 }
 
+const fileReads = registerPlugin<{
+  readRange(options: { path: string; offset: number; length: number }): Promise<{ data: string }>;
+  digest(options: { path: string }): Promise<{ sha256: string }>;
+}>('ReaderDocuments');
+
 class FilesystemApiAdapter implements FileSystemApi {
+  async readRange(path: string, offset: number, length: number): Promise<Uint8Array> {
+    return base64ToBytes((await fileReads.readRange({ path: normalizeFsPath(path), offset, length })).data);
+  }
+  async sha256(path: string): Promise<Uint8Array> {
+    const { sha256 } = await fileReads.digest({ path: normalizeFsPath(path) });
+    if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error('无效的文件摘要');
+    return Uint8Array.from(sha256.match(/../g)!, (part) => Number.parseInt(part, 16));
+  }
   async size(path: string): Promise<number> { const result = await Filesystem.stat({ path: normalizeFsPath(path), directory: Directory.Data }); if (result.type !== 'file') throw new Error('下载路径不是普通文件'); return result.size; }
   async move(from: string, to: string): Promise<void> { await Filesystem.rename({ from: normalizeFsPath(from), to: normalizeFsPath(to), directory: Directory.Data, toDirectory: Directory.Data }); }
   async writeFileAtomic(path: string, data: Uint8Array): Promise<void> { await writeNativeFileAtomic(normalizeFsPath(path), data); }

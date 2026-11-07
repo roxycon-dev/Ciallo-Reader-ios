@@ -244,8 +244,7 @@ export class DownloadManager {
    *
    * - PENDING/DOWNLOADING without a live run → PAUSED (interrupted work),
    * - PAUSED → re-broadcast Paused,
-   * - COMPLETED → Success only while the book is still on the shelf; otherwise the
-   *   row is dropped so the book can be downloaded again.
+   * - COMPLETED → keep download history independently of the shelf.
    */
   async restoreTasks(): Promise<void> {
     await taskMutex.withLock(async () => {
@@ -255,6 +254,11 @@ export class DownloadManager {
         if (task.status === 'PENDING' || task.status === 'DOWNLOADING') {
           // Android: getWorkInfosForUniqueWork("download_${task.id}") → unfinished work ⇒ skip.
           if (this.activeRuns.has(task.id)) continue;
+          if (await this.workerConfig.background?.restorable(task.id).catch(() => false)) {
+            this.broadcaster.updateState(task.id, DownloadStatePending);
+            await this.enqueueWorker(task.id, task.downloadUrl, task.title, task.format);
+            continue;
+          }
           this.log(`Restoring interrupted DOWNLOADING task to PAUSED: bookId=${task.id}`);
           await this.dao.updateProgressAndStatus(
             task.id,
@@ -274,16 +278,7 @@ export class DownloadManager {
             pausedState(task.downloadedBytes, task.totalBytes),
           );
         } else if (task.status === 'COMPLETED') {
-          // 书已不在书架的残留任务不能广播 Success，否则书库搜索
-          // 会一直显示「已存入书架」且无法重新下载；清掉任务行即可恢复下载。
-          if (await this.bookExistsForTask(task)) {
-            this.log(`Restoring COMPLETED task state in broadcaster: bookId=${task.id}`);
-            // Android `File(task.filePath).absolutePath` — platform paths are absolute.
-            this.broadcaster.updateState(task.id, successState(task.filePath));
-          } else {
-            this.log(`Dropping stale COMPLETED task (book removed from shelf): bookId=${task.id}`);
-            await this.dao.deleteTask(task.id);
-          }
+          this.broadcaster.updateState(task.id, successState(task.filePath));
         }
       }
     });
@@ -520,6 +515,7 @@ export class DownloadManager {
         await deleteQuietly(this.fs, joinPath(this.downloadsDir, `${base}.tmp`));
         await deleteQuietly(this.fs, joinPath(this.downloadsDir, `${base}.resume`));
         await deleteQuietly(this.fs, task.filePath);
+        await this.workerConfig.background?.discard(bookId);
         await this.dao.deleteTask(bookId);
         await this.secrets.remove(`download:${bookId}`);
         this.broadcaster.removeState(bookId);
@@ -584,7 +580,9 @@ export class DownloadManager {
         this.log(`Download run for ${bookId} ended: ${errorMessage(e) ?? 'unknown'}`);
       },
     );
-    this.activeRuns.set(bookId, { controller, promise: started });
+    const active = { controller, promise: started };
+    this.activeRuns.set(bookId, active);
+    void started.then(() => { if (this.activeRuns.get(bookId) === active) this.activeRuns.delete(bookId); });
   }
 
   /** Android `workManager.cancelUniqueWork("download_$id")`. */

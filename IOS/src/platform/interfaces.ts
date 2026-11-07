@@ -382,6 +382,8 @@ export interface SecureStore {
 
 export interface FileSystemApi {
   size?(path: string): Promise<number>;
+  readRange?(path: string, offset: number, length: number): Promise<Uint8Array>;
+  sha256?(path: string): Promise<Uint8Array>;
   move?(from: string, to: string): Promise<void>;
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, data: Uint8Array): Promise<void>;

@@ -6,7 +6,7 @@ import type { HttpStreamResponse } from '@platform/interfaces';
 
 const MAX_BYTES = 512 * 1024 * 1024, CHUNK_BYTES = 512 * 1024;
 export interface ByteHttpNative {
-  begin(options: { id: string; url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; maxBytes: number; redirect: 'follow' | 'manual' | 'error' }): Promise<{ status: number; headers: Record<string, string>; url: string; size: number }>;
+  begin(options: { id: string; url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; maxBytes: number; progressive?: boolean; redirect: 'follow' | 'manual' | 'error' }): Promise<{ status: number; headers: Record<string, string>; url: string; size: number }>;
   read(options: { id: string; offset: number; length: number }): Promise<{ data: string }>;
   cancel(options: { id: string }): Promise<void>;
   release(options: { id: string }): Promise<void>;
@@ -54,14 +54,15 @@ export class NativeByteHttpTransport implements NativeHttpTransport {
         if (options.dataType === 'file') { if (options.data.length > 44739244) throw new Error('HTTP 请求体超过 32MiB'); body = options.data; }
         else { const bytes = new TextEncoder().encode(options.data); if (bytes.length > 32 * 1024 * 1024) throw new Error('HTTP 请求体超过 32MiB'); body = bytesToBase64(bytes); }
       }
-      const response = await Promise.race([native.begin({ id, url: options.url, method: options.method, headers: options.headers ?? {}, timeoutMs, maxBytes,
+      const response = await Promise.race([native.begin({ id, url: options.url, method: options.method, headers: options.headers ?? {}, timeoutMs, maxBytes, ...(options.progressive ? { progressive: true } : {}),
         redirect: options.redirect ?? (options.disableRedirects ? 'manual' : 'follow'), ...(body === undefined ? {} : { body }) }), cancelled]);
       if (stopReason) throw stopReason;
       if (!Number.isSafeInteger(response.size) || response.size < 0 || response.size > maxBytes || !Number.isInteger(response.status) || response.status < 100 || response.status > 599 || typeof response.url !== 'string' || !response.headers || typeof response.headers !== 'object' || Array.isArray(response.headers) || Object.values(response.headers).some((value) => typeof value !== 'string')) throw new Error('原生 HTTP 响应信息无效');
       async function* chunks(): AsyncGenerator<Uint8Array> {
-        for (let offset = 0; offset < response.size; offset += CHUNK_BYTES) {
+        const chunkSize = options.progressive ? 64 * 1024 : CHUNK_BYTES;
+        for (let offset = 0; offset < response.size; offset += chunkSize) {
           if (stopReason) throw stopReason;
-          const length = Math.min(CHUNK_BYTES, response.size - offset), part = await Promise.race([native.read({ id, offset, length }), cancelled]);
+          const length = Math.min(chunkSize, response.size - offset), part = await Promise.race([native.read({ id, offset, length }), cancelled]);
           if (typeof part.data !== 'string' || part.data.length > Math.ceil(CHUNK_BYTES / 3) * 4) throw new Error('原生 HTTP 响应分块无效');
           const chunk = base64ToBytes(part.data); if (chunk.length !== length) throw new Error('原生 HTTP 响应分块不完整'); yield chunk;
         }

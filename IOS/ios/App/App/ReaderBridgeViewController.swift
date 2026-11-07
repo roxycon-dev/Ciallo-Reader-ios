@@ -12,6 +12,7 @@ class ReaderBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(ReaderWebsitePlugin())
         bridge?.registerPluginInstance(ReaderHttpPlugin())
         bridge?.registerPluginInstance(ReaderMangaModelsPlugin())
+        bridge?.registerPluginInstance(ReaderBackgroundDownloadsPlugin())
         bridge?.registerPluginInstance(ReaderTransferPlugin())
         bridge?.registerPluginInstance(ReaderTransferArchivePlugin())
     }

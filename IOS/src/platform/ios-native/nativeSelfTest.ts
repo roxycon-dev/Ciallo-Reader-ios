@@ -53,17 +53,44 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
     const resources = new NativePortableArchivePort();
     try {
       await platform.fs.writeFile(path, new Uint8Array([128, 0, 1, 255]));
+      assert(platform.fs.readRange && platform.fs.sha256, 'Native bounded file reads not installed');
+      const slice = await platform.fs.readRange!(path, 1, 2);
+      assert(Array.from(slice).join(',') === '0,1', 'Native byte range changed data');
       const descriptor = await resources.resource(prefix);
       assert(descriptor.kind === 'directory' && descriptor.files.length === 1 && descriptor.files[0]!.path === path && descriptor.files[0]!.size === 4, 'Native resource directory enumeration failed');
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
       const file = await resources.resource((await Filesystem.getUri({ path, directory: Directory.Documents })).uri);
       assert(file.kind === 'file' && file.files[0]!.sha256 === descriptor.files[0]!.sha256, 'Native absolute resource hashing differs');
+      const digest = await platform.fs.sha256!(path);
+      assert(Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('') === file.files[0]!.sha256, 'Bounded SHA-256 changed data');
       assert((await resources.resource('/etc/hosts')).kind === 'missing', 'Native resource escaped Documents');
     } finally { await platform.fs.delete(path); }
   });
   await check('Original Android ONNX models detect and recognize a comic panel, then render translated text', async () => {
     const { probeNativeManga } = await import('./nativeMangaProbe'); await probeNativeManga(platform);
   }, 90_000);
+  await check('Background URLSession publishes and releases the original binary download', async () => {
+    const { NativeBackgroundDownloads } = await import('./nativeBackgroundDownloads');
+    const { BUBBLE_MODEL } = await import('@core/mangatranslate/modelManager');
+    const background = new NativeBackgroundDownloads(), key = prefix + '-background';
+    try {
+      const result = await background.consume(key, 'fixture', {
+        url: BUBBLE_MODEL.urls.find((url) => url.startsWith('https://raw.githubusercontent.com/'))!,
+        method: 'GET', timeoutMs: 45_000, headers: { 'Accept-Encoding': 'identity' },
+      }, () => {}, async (response) => {
+        assert(response.status === 200 && response.size >= BUBBLE_MODEL.minBytes, 'Unexpected background response');
+        assert(await background.restorable(key), 'Completed background response was not durable');
+        const data = new Uint8Array(response.size); let offset = 0;
+        for await (const chunk of response.chunks) { data.set(chunk, offset); offset += chunk.length; }
+        assert(offset === data.length, 'Background binary response is incomplete');
+        const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+        assert(hash === BUBBLE_MODEL.sha256, 'Background binary changed bytes');
+        return true;
+      });
+      assert(result?.value, 'Native background session failed to complete');
+      assert(!await background.restorable(key), 'Background result was not released');
+    } finally { await background.discard(key); }
+  }, 60_000);
   await check('Native HTTP preserves bytes, bounds chunks and cancels real sockets', async () => {
     const { probeNativeHttp } = await import('./nativeHttpProbe'); await probeNativeHttp(platform);
   }, 40_000);

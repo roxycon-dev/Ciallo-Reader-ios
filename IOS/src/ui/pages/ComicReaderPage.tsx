@@ -2349,13 +2349,6 @@ function nodeTop(node: HTMLElement | undefined, index: number): number {
  * 这里按 `layout.slots` 的线性序号取 —— 与 Kotlin `ComicHarismCurlReader`
  * 把 spread 折算成 flat index 的做法一致。
  */
-function comicLayoutPageRefAt(layout: ComicLayout, spread: number): ComicPageRef {
-  const entry = layout.spreads[clampIndex(spread, layout.spreads.length)];
-  if (entry === undefined) throw new Error(`布局中没有第 ${String(spread)} 页`);
-  const slot = entry.slots[0];
-  if (slot === undefined) throw new Error(`第 ${String(spread)} 页没有槽位`);
-  return slot.ref;
-}
 
 /** E43：把 URL 加载成可上传纹理的 `HTMLImageElement`。 */
 async function loadImageElement(src: string): Promise<HTMLImageElement | null> {
@@ -2406,8 +2399,12 @@ function ComicCurlSurface(props: {
   readonly layout: ComicLayout;
   readonly loader: ComicPageLoaderPort;
   readonly currentSpread: number;
+  readonly config: ComicReaderConfig;
+  readonly bookState: ComicBookState;
+  readonly sizes: Readonly<Record<string, ComicSizeInfo>>;
 }): ReactNode {
-  const { layout, loader, currentSpread } = props;
+  const { layout, loader, currentSpread, config, bookState, sizes } = props;
+  const translation = useContext(ReaderTranslationContext);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   /**
    * WebGL2 可用性（一次性探测）。
@@ -2438,49 +2435,48 @@ function ComicCurlSurface(props: {
     // 纹理走 `setPageProvider`（对应 harism 的 `CurlView.PageProvider`）：
     // `ComicBitmap` 只有 {src,width,height}（无像素数组），故按 src 加载
     // ImageBitmap 再交给 `page.setTexture`，与 Kotlin 侧 updatePage 时序一致。
+    const subscriptions = new Map<object, () => void>();
     gl.setPageProvider({
       getPageCount: () => spreadCount,
       updatePage: (page, _width, _height, index) => {
-        void loader
-          .loadForDisplay({
-            ref: comicLayoutPageRefAt(layout, index),
-            cacheKey: `curl|${String(index)}`,
+        subscriptions.get(page)?.();
+        const slot = layout.spreads[index]?.slots[0];
+        if (!slot) return;
+        const cacheKey = cacheKeyOf(slot, config, bookState);
+        let epoch = 0;
+        let disposed = false;
+        const refresh = async () => {
+          const generation = ++epoch;
+          const bitmap = (config.translationEnabled ? translation?.get(cacheKey) : null) ?? await loader.loadForDisplay({
+            ref: slot.ref,
+            cacheKey,
             geometry: {
-              half: 'FULL',
-              splitPosition: 0,
-              rotationDeg: 0,
-              cropMode: 'OFF',
-              manualCrop: null,
+              half: slot.half,
+              splitPosition: effectiveSplitPosition(config, sizes[slot.ref.id]?.gutterPos ?? null),
+              rotationDeg: effectiveRotation(config.bookRotation, pageRotationOf(bookState, slot.ref.id)),
+              cropMode: config.cropMode,
+              manualCrop: config.manualCrop,
             },
-            tone: {
-              brightness: 1,
-              contrast: 1,
-              saturation: 1,
-              hue: 0,
-              gamma: 1,
-              sharpen: 0,
-              shadow: 0,
-              bw: false,
-              enhanceMode: 'OFF',
-              enhanceStrength: 0,
-            },
-            visible: true,
-          })
-          .then(async (bitmap) => {
-            const image = await loadImageElement(bitmap.src);
-            if (image === null) return;
-            const pix = htmlImageToPixImage(image);
-            if (pix === null) return;
-            page.setTexture(pix, CURL_SIDE_FRONT);
-          })
-          .catch(() => undefined);
+            tone: toneOf(config),
+            visible: index === currentSpread,
+          });
+          const image = await loadImageElement(bitmap.src);
+          if (disposed || generation !== epoch || !image) return;
+          const pix = htmlImageToPixImage(image);
+          if (pix) page.setTexture(pix, CURL_SIDE_FRONT);
+        };
+        const render = () => { void refresh().catch(() => {}); };
+        const unsubscribe = translation?.subscribePage(cacheKey, render);
+        subscriptions.set(page, () => { disposed = true; unsubscribe?.(); });
+        render();
       },
     });
     return () => {
+      for (const unsubscribe of subscriptions.values()) unsubscribe();
       gl.dispose();
       glRef.current = null;
     };
-  }, [layout, loader, spreadCount, currentSpread, glSupported]);
+  }, [layout, loader, spreadCount, currentSpread, glSupported, config, bookState, sizes, translation]);
 
   useEffect(() => {
     glRef.current?.setCurrentIndex(currentSpread);
@@ -2662,7 +2658,7 @@ function ComicPagedReader(props: PagedReaderProps): ReactNode {
       {/* E43：curl 档挂载 WebGL2 画布。未支持时 `WebCurlGl` 显式抛错并
           渲染 null，由外层 CSS 3D 容器接管（与 Kotlin 的 GL 不可用降级一致）。 */}
       {curl ? (
-        <ComicCurlSurface layout={layout} loader={loader} currentSpread={currentSpread} />
+        <ComicCurlSurface layout={layout} loader={loader} currentSpread={currentSpread} config={config} bookState={bookState} sizes={sizes} />
       ) : null}
       <div
         ref={scrollRef}
