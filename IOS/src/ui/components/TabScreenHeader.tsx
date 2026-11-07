@@ -45,7 +45,7 @@ export function TabScreenHeader(props: {
     fontSize: titleSize,
     fontFamily: DESIGN_TOKENS.font.family.serif,
     fontWeight: 700,
-    color: props.titleColor ?? DESIGN_TOKENS.color.darkCharcoal,
+    color: `var(--app-wallpaper-title, ${props.titleColor ?? DESIGN_TOKENS.color.darkCharcoal})`,
     transition: `font-size ${MOTION.headerCollapse}ms ${MOTION.easeOut}`,
   };
 

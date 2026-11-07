@@ -3,10 +3,11 @@ import { nonThenablePlugin } from './pluginProxy';
 import { base64ToBytes, bytesToBase64, type NativeHttpRequestOptions, type NativeHttpResponse, type NativeHttpTransport } from './capacitorHttpClient';
 import { nativeHttpScheduler } from './httpRequestScheduler';
 import type { HttpStreamResponse } from '@platform/interfaces';
+import { checkInsecureTlsRequest } from '@core/source/networkCalls';
 
 const MAX_BYTES = 512 * 1024 * 1024, CHUNK_BYTES = 512 * 1024;
 export interface ByteHttpNative {
-  begin(options: { id: string; url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; maxBytes: number; progressive?: boolean; redirect: 'follow' | 'manual' | 'error' }): Promise<{ status: number; headers: Record<string, string>; url: string; size: number }>;
+  begin(options: { id: string; url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; maxBytes: number; progressive?: boolean; insecureTls?: boolean; redirect: 'follow' | 'manual' | 'error' }): Promise<{ status: number; headers: Record<string, string>; url: string; size: number }>;
   read(options: { id: string; offset: number; length: number }): Promise<{ data: string }>;
   cancel(options: { id: string }): Promise<void>;
   release(options: { id: string }): Promise<void>;
@@ -33,6 +34,8 @@ export class NativeByteHttpTransport implements NativeHttpTransport {
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BYTES) throw new Error('HTTP 响应大小限制无效');
     if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 3_600_000) throw new Error('HTTP 超时设置无效');
     if (options.signal?.aborted) throw new DOMException('HTTP 请求已取消', 'AbortError');
+    const insecureTls = options.insecureTls === true;
+    if (insecureTls) checkInsecureTlsRequest(options.url, options.headers ?? {});
     const id = requestId(), native = this.native, waiting = new AbortController(), host = new URL(options.url).hostname.toLowerCase();
     let stopReason: Error | undefined, abort!: (error: Error) => void;
     const cancelled = new Promise<never>((_resolve, reject) => { abort = reject; });
@@ -54,8 +57,9 @@ export class NativeByteHttpTransport implements NativeHttpTransport {
         if (options.dataType === 'file') { if (options.data.length > 44739244) throw new Error('HTTP 请求体超过 32MiB'); body = options.data; }
         else { const bytes = new TextEncoder().encode(options.data); if (bytes.length > 32 * 1024 * 1024) throw new Error('HTTP 请求体超过 32MiB'); body = bytesToBase64(bytes); }
       }
-      const response = await Promise.race([native.begin({ id, url: options.url, method: options.method, headers: options.headers ?? {}, timeoutMs, maxBytes, ...(options.progressive ? { progressive: true } : {}),
-        redirect: options.redirect ?? (options.disableRedirects ? 'manual' : 'follow'), ...(body === undefined ? {} : { body }) }), cancelled]);
+      const response = await Promise.race([native.begin({ id, url: options.url, method: options.method, headers: options.headers ?? {}, timeoutMs, maxBytes,
+        ...(options.progressive ? { progressive: true } : {}), ...(insecureTls ? { insecureTls: true } : {}),
+        redirect: insecureTls ? 'error' : options.redirect ?? (options.disableRedirects ? 'manual' : 'follow'), ...(body === undefined ? {} : { body }) }), cancelled]);
       if (stopReason) throw stopReason;
       if (!Number.isSafeInteger(response.size) || response.size < 0 || response.size > maxBytes || !Number.isInteger(response.status) || response.status < 100 || response.status > 599 || typeof response.url !== 'string' || !response.headers || typeof response.headers !== 'object' || Array.isArray(response.headers) || Object.values(response.headers).some((value) => typeof value !== 'string')) throw new Error('原生 HTTP 响应信息无效');
       async function* chunks(): AsyncGenerator<Uint8Array> {

@@ -213,6 +213,8 @@ export interface HttpRequest {
   maxResponseBytes?: number;
   signal?: AbortSignal | undefined;
   redirect?: 'follow' | 'manual' | 'error';
+  /** Explicit per-request opt-in for an untrusted certificate on this HTTPS host only. */
+  insecureTls?: boolean;
   url: string;
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
   headers?: HttpHeader;

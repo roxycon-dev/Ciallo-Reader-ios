@@ -1,6 +1,7 @@
+import { AsyncMutex } from '@core/library/contentMutationGate';
 import type { JsSourceEngineApi } from '@core/source/js/jsSourceEngine';
 import type { CancellationSignal, HttpResponseSpec } from '@core/source/js/jsPlatform';
-import { checkSourceUrl } from '@core/source/networkCalls';
+import { checkInsecureTlsRequest, checkSourceUrl } from '@core/source/networkCalls';
 import type { HttpRequest, SecureStore } from '@platform/interfaces';
 import type { PlatformBundle } from '@platform/index';
 import type { SourceWorkerBoot, SourceWorkerOperation, SourceWorkerRequest, SourceWorkerResponse, WorkerBitmap } from './protocol';
@@ -59,6 +60,8 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
   private bootReject: ((reason: Error) => void) | null = null;
   private revision = 0;
   private executions = 0;
+  private readonly dispatchGate = new AsyncMutex();
+  private ownerLifetime = new AbortController();
   private hostLifetime = new AbortController();
   private lifecycle = new AbortController();
   private initializationCode = '';
@@ -117,14 +120,19 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
         value = await this.input(message.request.title, message.request.image, signal);
       } else if (message.request.method === 'verify') {
         checkSourceUrl(message.request.url);
-        value = JSON.stringify(await verifySourceWebsite(message.request.url, message.request.userAgent));
+        value = JSON.stringify(await verifySourceWebsite(message.request.url, message.request.userAgent, false, signal));
       } else {
         const request = message.request.request;
         checkSourceUrl(request.url);
         if (!/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/i.test(request.method)) throw new Error('无效的书源请求方法');
+        // The Worker can request relaxed trust only when its trusted source boot
+        // opted in, and the bridge must repeat that opt-in on this exact request.
+        const insecureTls = this.boot.insecureTls && request.insecureTls === true;
+        if (insecureTls) checkInsecureTlsRequest(request.url, request.headers);
         const response = await this.platform.http.request({
           url: request.url, method: request.method.toUpperCase() as NonNullable<HttpRequest['method']>, headers: request.headers,
           ...(request.body == null ? {} : { body: request.body }), timeoutMs: request.timeouts?.callMs ?? 60_000, signal, maxResponseBytes: 32 * 1024 * 1024,
+          ...(insecureTls ? { insecureTls: true } : {}),
         });
         const cookie = Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'set-cookie')?.[1];
         value = { status: response.status, finalUrl: response.url, headers: response.headers,
@@ -138,6 +146,33 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
   }
 
   private async run(operation: SourceWorkerOperation, signal: CancellationSignal = null): Promise<unknown> {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const owner = this.ownerLifetime.signal;
+    let dispatched = false;
+    let rejectWaiting!: (reason: unknown) => void;
+    const cancelled = new Promise<never>((_resolve, reject) => { rejectWaiting = reject; });
+    const abortWaiting = () => {
+      if (!dispatched) rejectWaiting(new DOMException('Aborted', 'AbortError'));
+    };
+    const disposeWaiting = () => { if (!dispatched) rejectWaiting(owner.reason); };
+    signal?.addEventListener('abort', abortWaiting, { once: true });
+    owner.addEventListener('abort', disposeWaiting, { once: true });
+    // The realm runs one operation at a time. A queued cancellation must never
+    // terminate the active operation or dispatch work after it was cancelled.
+    const work = this.dispatchGate.withLock(async () => {
+      if (owner.aborted) throw owner.reason;
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      dispatched = true;
+      return this.runInWorker(operation, signal);
+    });
+    try { return await Promise.race([work, cancelled]); }
+    finally {
+      signal?.removeEventListener('abort', abortWaiting);
+      owner.removeEventListener('abort', disposeWaiting);
+    }
+  }
+
+  private async runInWorker(operation: SourceWorkerOperation, signal: CancellationSignal): Promise<unknown> {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.executions++;
@@ -189,7 +224,13 @@ export class SourceWorkerEngine implements JsSourceEngineApi {
     return typeof result === 'string' ? result : null;
   }
   isLoggedIn(): boolean { return this.logged; }
-  dispose(): void { this.reset(); }
+  dispose(): void {
+    const lifetime = this.ownerLifetime;
+    this.ownerLifetime = new AbortController();
+    const reason = new Error('书源引擎已释放');
+    lifetime.abort(reason);
+    this.reset(reason);
+  }
   setLoggedIn(logged: boolean): void {
     this.logged = logged;
     this.preferences.update({ ...this.preferences.values, [`logged_${this.boot.sourceKey}`]: String(logged) });

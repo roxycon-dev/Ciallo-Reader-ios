@@ -976,10 +976,8 @@
    ⚠️ 排除 `--accent`（当前阅读 / 已选中）：它走的是 Kotlin L865 的
    `border(1.dp, MintPrimary)`，本文件 L463-466 本来就是 1px，不该被这条
    `border-width` 顺手改写（虽然改完同值，但留着意图更清楚）。
-   ⚠️ `.cc-god-card--selected` 不排除：它只改 `border-color`（Kotlin L1100），
-   线宽仍由 L631 的 0.5px 决定，所以选中态也需要跟着提到 1px。 */
+   神回卡保留 Android 的 0.5dp 线宽，选中时仅替换金边颜色。 */
 [data-theme='dark'] .cc-chapter-card:not(.cc-chapter-card--accent),
-[data-theme='dark'] .cc-god-card,
 [data-theme='dark'] .cc-pill {
   border-width: 1px;
 }

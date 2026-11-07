@@ -293,6 +293,7 @@ import { getPrivacyService } from '@platform/privacyRuntime';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GlassCard } from '@ui/components/GlassCard';
+import { clearVisualAsset, reloadVisualAssets, replaceVisualAsset, setWallpaperDim, setWallpaperMode, useVisualAssets } from '@ui/lib/appVisualAssets';
 import { TabScreenHeader } from '@ui/components/TabScreenHeader';
 import { AppButton } from '@ui/components/AppButton';
 import { showToast } from '@ui/toast';
@@ -313,6 +314,10 @@ import { PageTurnType } from '@ui/components/pageturn/PageTurnContainer';
 import { GodSettingsSection } from '@ui/components/god/GodSettingsSection';
 import { LibraryHelpBottomSheet } from '@ui/components/help/LibraryHelpBottomSheet';
 import { UPDATE_REPOSITORY } from '@ui/components/source/sourceCapabilities';
+import {
+  setRuntimeCardTweaks,
+  setRuntimeRenderQuality,
+} from '@ui/components/glassAppearanceRuntime';
 import '../../styles/settings.css';
 
 /* ── Theme.kt L16–30 `BasePrimaryColors` / `BaseSecondaryColors` ──
@@ -1094,11 +1099,10 @@ export function SettingsPage(props: SettingsPageProps = {}) {
   const loadedRef = useRef(false);
 
   /* ── SettingsTabScreen.kt local state ── */
-  const [splashPosterUri, setSplashPosterUri] = useState('');
+  const { poster, wallpaper, mode: appBgMode, dim: appBgDim } = useVisualAssets();
+  const splashPosterUri = poster?.url ?? '';
+  const appBgUri = wallpaper?.url ?? '';
   const [splashPureMode, setSplashPureMode] = useState(false);
-  const [appBgMode, setAppBgMode] = useState(0);
-  const [appBgUri, setAppBgUri] = useState('');
-  const [appBgDim, setAppBgDim] = useState(20);
   const [orientationLock, setOrientationLock] = useState(0);
   const [renderQuality, setRenderQuality] = useState(2);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
@@ -1218,10 +1222,6 @@ export function SettingsPage(props: SettingsPageProps = {}) {
           secondary,
           turn,
           splashPure,
-          appBgModeVal,
-          appBgDimVal,
-          appBgUriVal,
-          posterUriVal,
           orientation,
           quality,
           haptics,
@@ -1245,10 +1245,6 @@ export function SettingsPage(props: SettingsPageProps = {}) {
           settings.getInt('color_secondary_index', state.secondaryIndex),
           settings.getInt('page_turn_mode', state.pageTurnMode),
           settings.getBoolean('splash_pure_mode', false),
-          settings.getInt('app_background_mode', 0),
-          settings.getInt('app_background_dim', 20),
-          settings.getString('custom_app_background_uri', ''),
-          settings.getString('custom_splash_poster_uri', ''),
           settings.getInt('screen_orientation_lock', 0),
           settings.getInt('render_quality', 2),
           settings.getBoolean('haptics_enabled', true),
@@ -1271,12 +1267,10 @@ export function SettingsPage(props: SettingsPageProps = {}) {
         if (cancelled) return;
         useAppStore.setState({ primaryIndex: primary, secondaryIndex: secondary, pageTurnMode: turn });
         setSplashPureMode(splashPure);
-        setAppBgMode(appBgModeVal);
-        setAppBgDim(appBgDimVal);
-        setAppBgUri(appBgUriVal);
-        setSplashPosterUri(posterUriVal);
         setOrientationLock(orientation);
-        setRenderQuality(Math.max(0, Math.min(3, quality)));
+        const loadedQuality = Math.max(-1, Math.min(3, quality));
+        setRenderQuality(loadedQuality);
+        setRuntimeRenderQuality(loadedQuality);
         setHapticsEnabled(haptics);
         setRestReminderMinutes(restMinutes);
         setAutoNightMode(night);
@@ -1285,7 +1279,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
         setPreloadWifiOnly(wifiOnly);
         setIncognitoBrowsingEnabled(incognito);
         setFavoritesProtected(favorites);
-        setCardTweaks({
+        const loadedCardTweaks = {
           blurRadiusDp: blurDp,
           cornerRadiusDp: cornerDp,
           tiltMaxDeg: tiltDeg,
@@ -1294,7 +1288,9 @@ export function SettingsPage(props: SettingsPageProps = {}) {
           pressStrength: pressS,
           pressRadius: pressR,
           cardAlpha,
-        });
+        };
+        setCardTweaks(loadedCardTweaks);
+        setRuntimeCardTweaks(loadedCardTweaks);
       } catch {
         /* keep in-memory defaults when storage is unavailable */
       }
@@ -1347,6 +1343,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
       // false — the message survives only in the catch arm below.)
       await getPlatform().fs.writeFile(BACKUP_PATH, new Uint8Array(await file.arrayBuffer()));
       await backup.importBackup(BACKUP_PATH);
+      await reloadVisualAssets();
       const state = useAppStore.getState();
       const [primary, secondary, turn] = await Promise.all([
         settings.getInt('color_primary_index', state.primaryIndex),
@@ -1421,48 +1418,27 @@ export function SettingsPage(props: SettingsPageProps = {}) {
   }, [props.focusGodSettings]);
 
   /* Poster picker — GetContent("image/*") + copy to private dir */
-  const onPosterFile = useCallback(
-    (file: File | undefined) => {
-      if (!file) return;
-      const url = URL.createObjectURL(file);
-      setSplashPosterUri(url);
-      void persist((settings) => settings.setString('custom_splash_poster_uri', url));
-      showToast('海报已设置');
-    },
-    [persist],
-  );
+  const onPosterFile = useCallback((file: File | undefined) => {
+    if (!file) return;
+    void replaceVisualAsset('poster', file).then(() => showToast('海报已设置'),
+      (error: unknown) => showToast(error instanceof Error ? error.message : '图片设置失败'));
+  }, []);
 
   const clearPoster = useCallback(() => {
-    setSplashPosterUri('');
-    void persist((settings) => settings.setString('custom_splash_poster_uri', ''));
-    showToast('已还原默认海报');
-  }, [persist]);
+    void clearVisualAsset('poster').then(() => showToast('已还原默认海报'),
+      () => showToast('清除海报失败，请重试'));
+  }, []);
 
-  /* App background picker */
-  const onBgFile = useCallback(
-    (file: File | undefined) => {
-      if (!file) return;
-      const url = URL.createObjectURL(file);
-      setAppBgUri(url);
-      setAppBgMode(1);
-      void persist(async (settings) => {
-        await settings.setString('custom_app_background_uri', url);
-        await settings.setInt('app_background_mode', 1);
-      });
-      showToast('背景已设置（横竖屏自动裁剪填充）');
-    },
-    [persist],
-  );
+  const onBgFile = useCallback((file: File | undefined) => {
+    if (!file) return;
+    void replaceVisualAsset('wallpaper', file).then(() => showToast('背景已设置（横竖屏自动裁剪填充）'),
+      (error: unknown) => showToast(error instanceof Error ? error.message : '背景设置失败'));
+  }, []);
 
   const restoreDefaultBg = useCallback(() => {
-    setAppBgUri('');
-    setAppBgMode(0);
-    void persist(async (settings) => {
-      await settings.setString('custom_app_background_uri', '');
-      await settings.setInt('app_background_mode', 0);
-    });
-    showToast('已恢复默认背景');
-  }, [persist]);
+    void clearVisualAsset('wallpaper').then(() => showToast('已恢复默认背景'),
+      () => showToast('恢复默认背景失败，请重试'));
+  }, []);
 
   /* Theme color change — 600ms easeOut morph via CSS on swatches */
   const onPrimaryColorChange = useCallback(
@@ -1489,30 +1465,29 @@ export function SettingsPage(props: SettingsPageProps = {}) {
      The web repository clamps inside its setters, so the read-back is the value the
      setter round-tripped. ── */
   const onSharedCardTweaksChange = props.onSharedCardTweaksChange;
+  const tw = props.sharedCardTweaks ?? cardTweaks;
   const updateCardTweaks = useCallback(
     (transform: (prev: CardTweaks) => CardTweaks) => {
-      setCardTweaks((prev) => {
-        const next = transform(prev);
-        void persist(async (settings) => {
-          await settings.setFloat('card_blur_dp', next.blurRadiusDp);
-          await settings.setFloat('card_corner_dp', next.cornerRadiusDp);
-          await settings.setFloat('card_tilt_deg', next.tiltMaxDeg);
-          await settings.setFloat('card_cam_mult', next.cameraDistMult);
-          await settings.setFloat('card_tint_mix', next.tintMix);
-          await settings.setFloat('card_press_s', next.pressStrength);
-          await settings.setFloat('card_press_r', next.pressRadius);
-          await settings.setFloat('card_alpha', next.cardAlpha);
-        });
-        onSharedCardTweaksChange?.(next);
-        return next;
+      const next = transform(tw);
+      setCardTweaks(next);
+      setRuntimeCardTweaks(next);
+      void persist(async (settings) => {
+        await settings.setFloat('card_blur_dp', next.blurRadiusDp);
+        await settings.setFloat('card_corner_dp', next.cornerRadiusDp);
+        await settings.setFloat('card_tilt_deg', next.tiltMaxDeg);
+        await settings.setFloat('card_cam_mult', next.cameraDistMult);
+        await settings.setFloat('card_tint_mix', next.tintMix);
+        await settings.setFloat('card_press_s', next.pressStrength);
+        await settings.setFloat('card_press_r', next.pressRadius);
+        await settings.setFloat('card_alpha', next.cardAlpha);
       });
+      onSharedCardTweaksChange?.(next);
     },
-    [persist, onSharedCardTweaksChange],
+    [tw, persist, onSharedCardTweaksChange],
   );
 
   // Kotlin L884: `val tw = tweaksState?.value ?: prefs.readCardTweaks()` — the
   // MainActivity-owned shared value wins over the local load.
-  const tw = props.sharedCardTweaks ?? cardTweaks;
 
   return (
     <div className="page settings-page">
@@ -1563,11 +1538,11 @@ export function SettingsPage(props: SettingsPageProps = {}) {
             </div>
           </div>
           <input
-            ref={posterFileRef}
+            ref={posterFileRef} aria-label="开屏海报图片"
             className="settings-file-input"
             type="file"
             accept="image/*"
-            onChange={(event) => onPosterFile(event.target.files?.[0])}
+            onChange={(event) => { onPosterFile(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }}
           />
           {splashPosterUri ? (
             <>
@@ -1607,8 +1582,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
             ]}
             selected={appBgMode}
             onSelect={(mode) => {
-              setAppBgMode(mode);
-              void persist((settings) => settings.setInt('app_background_mode', mode));
+              void setWallpaperMode(mode).catch(() => showToast('背景设置失败'));
             }}
           />
           {appBgMode === 1 ? (
@@ -1636,10 +1610,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
                     value={appBgDim}
                     min={0}
                     max={50}
-                    onChange={(next) => {
-                      setAppBgDim(next);
-                      void persist((settings) => settings.setInt('app_background_dim', next));
-                    }}
+                    onChange={setWallpaperDim}
                     startText="0%"
                     endText="50%"
                     bubbleText={`${appBgDim}%`}
@@ -1663,11 +1634,11 @@ export function SettingsPage(props: SettingsPageProps = {}) {
                 ) : null}
               </div>
               <input
-                ref={bgFileRef}
+                ref={bgFileRef} aria-label="软件背景图片"
                 className="settings-file-input"
                 type="file"
                 accept="image/*"
-                onChange={(event) => onBgFile(event.target.files?.[0])}
+                onChange={(event) => { onBgFile(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }}
               />
             </>
           ) : null}
@@ -1793,6 +1764,7 @@ export function SettingsPage(props: SettingsPageProps = {}) {
           <div className="settings-spacer-10" />
           <SettingsSegmented
             options={[
+              { value: -1, label: '极简' },
               { value: 0, label: '流畅' },
               { value: 1, label: '均衡' },
               { value: 2, label: '高' },
@@ -1800,8 +1772,10 @@ export function SettingsPage(props: SettingsPageProps = {}) {
             ]}
             selected={renderQuality}
             onSelect={(next) => {
-              setRenderQuality(next);
-              void persist((settings) => settings.setInt('render_quality', next));
+              const normalized = Math.max(-1, Math.min(3, next));
+              setRenderQuality(normalized);
+              setRuntimeRenderQuality(normalized);
+              void persist((settings) => settings.setInt('render_quality', normalized));
             }}
           />
         </GlassCard>

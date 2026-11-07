@@ -32,12 +32,10 @@
  *   624-644   buildRequest()                       → buildRequest()
  *
  * Skipped lines / adaptations:
- *   - `createInsecureClient()` (lines 66-80) — a trust-all `X509TrustManager`
- *     plus `hostnameVerifier { true }` has no JS/browser equivalent: TLS trust
- *     is owned by the platform network layer, so `config.insecureTls` is
- *     honoured only by the *policy* check on line 53-54 (an insecure-TLS source
- *     must not send Authorization/Cookie), which IS ported. The insecure
- *     transport itself must be supplied by the injected client.
+ *   - `createInsecureClient()` (lines 66-80) — the source passes the opt-in on
+ *     each request; the iOS native transport scopes its trust exception to the
+ *     request's exact HTTPS host, disables cookies and redirects, while browser
+ *     fetch retains system trust. Credential-bearing headers are rejected first.
  *   - `okhttp3.Dns { … checkAddress(…) }` (lines 45-49) — the post-DNS private-IP
  *     guard needs a resolver. `src/core/source/networkCalls.ts` already exposes
  *     `checkAddress(host, address, allowed)`; the ported client calls it for the
@@ -76,7 +74,7 @@ import {
   parseHtml,
   selectElements,
 } from '../../parser/legadoRule';
-import { checkSourceUrl } from '../networkCalls';
+import { checkInsecureTlsRequest, checkSourceUrl } from '../networkCalls';
 import { SourceLog } from '../sourceLog';
 import { createSearchBook } from '../searchBook';
 import type { SearchBook } from '../searchBook';
@@ -198,13 +196,8 @@ export class JsonBookSource extends ComicSource {
   ): Promise<HttpResponse> {
     checkSourceUrl(url, this.configuredHost);
     const headers = init.headers ?? {};
-    if (
-      this.config.insecureTls &&
-      (headers['Authorization'] != null || headers['Cookie'] != null)
-    ) {
-      throw new SourceException('不安全 TLS 书源不能发送登录凭据，请启用证书验证');
-    }
-    return executeSourceRequest(this.client, url, init);
+    if (this.config.insecureTls) checkInsecureTlsRequest(url, headers);
+    return executeSourceRequest(this.client, url, { ...init, insecureTls: this.config.insecureTls });
   }
 
   /** Kotlin `bodyStr = response.body?.byteStream()…toString(Charsets.UTF_8) ?: ""`. */
@@ -212,14 +205,14 @@ export class JsonBookSource extends ComicSource {
     return response.body.byteLength === 0 ? '' : decodeCharset(response.body, null);
   }
 
-  async search(keyword: string): Promise<SourceResultType<SearchBook[]>> {
+  async search(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>> {
     try {
       if (this.searchItemCache.size > 1000) {
         this.searchItemCache.clear();
         this.searchRawCache.clear();
       }
       if (this.config.htmlSearch != null) {
-        return await this.searchHtml(keyword);
+        return await this.searchHtml(keyword, signal);
       }
       const encodedKeyword = formUrlEncode(keyword);
       const keywordB64 = base64NoWrap(keyword);
@@ -235,7 +228,7 @@ export class JsonBookSource extends ComicSource {
         this.config.search.body,
         encodedKeyword,
       );
-      const response = await this.proceed(fullUrl, request);
+      const response = await this.proceed(fullUrl, { ...request, ...(signal ? { signal } : {}) });
 
       if (!isSuccessful(response)) {
         return SourceResult.Error(
@@ -434,7 +427,7 @@ export class JsonBookSource extends ComicSource {
     }
   }
 
-  private async searchHtml(keyword: string): Promise<SourceResultType<SearchBook[]>> {
+  private async searchHtml(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>> {
     const rule = this.config.htmlSearch;
     if (rule == null) {
       return SourceResult.Error(new ParseError('缺少 htmlSearch 规则'));
@@ -456,7 +449,7 @@ export class JsonBookSource extends ComicSource {
             .replace('{page}', '1');
     let raw: string;
     try {
-      raw = await this.fetchHtml(url, rule.method, body);
+      raw = await this.fetchHtml(url, rule.method, body, signal);
     } catch (e) {
       SourceLog.log(this.name, `搜索失败「${keyword}」: ${e instanceof Error ? e.message : String(e)}`);
       throw e;
@@ -576,7 +569,7 @@ export class JsonBookSource extends ComicSource {
     return evalFirst(root, r);
   }
 
-  private async fetchHtml(url: string, method = 'GET', body: string | null = null): Promise<string> {
+  private async fetchHtml(url: string, method = 'GET', body: string | null = null, signal?: AbortSignal): Promise<string> {
     const headers: HttpHeader = {};
     const configured = this.config.search.headers;
     if (!Object.keys(configured).some((k) => k.toLowerCase() === 'user-agent')) {
@@ -598,7 +591,7 @@ export class JsonBookSource extends ComicSource {
       request = { method: 'GET', headers };
     }
     SourceLog.log(this.name, `请求 ${method} ${url.slice(0, 120)}`);
-    const response = await this.proceed(url, request);
+    const response = await this.proceed(url, { ...request, ...(signal ? { signal } : {}) });
     if (!isSuccessful(response)) {
       SourceLog.log(this.name, `HTTP ${response.status} ← ${method} ${url.slice(0, 120)}`);
       throw new NetworkError(`HTTP ${response.status} @ ${url.slice(0, 160)}`);

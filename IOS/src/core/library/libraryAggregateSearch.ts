@@ -34,6 +34,7 @@
  * - `CancellationException` → `AbortError` (the JS convention used across `core/`).
  */
 
+import { abortable, throwIfAborted } from '@core/download/abortable';
 import type { BookSource } from '@core/source/bookSource';
 import type { SearchBook } from '@core/source/searchBook';
 import type { SourceResult } from '@core/source/sourceResult';
@@ -91,15 +92,24 @@ export class ComicAggregateSearchSlots {
     this.available = permits;
   }
 
-  async withPermit<T>(fn: () => Promise<T>): Promise<T> {
+  async withPermit<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    throwIfAborted(signal);
     if (this.available > 0) {
       this.available -= 1;
     } else {
-      await new Promise<void>((resolve) => {
-        this.waiters.push(resolve);
+      await new Promise<void>((resolve, reject) => {
+        const wake = () => { signal?.removeEventListener('abort', abort); resolve(); };
+        const abort = () => {
+          const index = this.waiters.indexOf(wake);
+          if (index >= 0) this.waiters.splice(index, 1);
+          reject(new DOMException('搜索已取消', 'AbortError'));
+        };
+        this.waiters.push(wake);
+        signal?.addEventListener('abort', abort, { once: true });
       });
     }
     try {
+      throwIfAborted(signal);
       return await fn();
     } finally {
       const next = this.waiters.shift();
@@ -130,7 +140,7 @@ export class AsyncQueue<T> {
   async send(value: T): Promise<void> {
     while (!this.closed && this.buffer.length >= this.capacity) {
       await new Promise<void>((resolve) => {
-        this.takeWaiters.push(resolve);
+        this.sendWaiters.push(resolve);
       });
     }
     if (this.closed) return;
@@ -204,23 +214,28 @@ export class ComicAggregateSearch {
     keyword: string,
     variants: AsyncIterable<string[]> | string[][],
     onGroup: (group: LibraryAggregateGroup) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
+    throwIfAborted(signal);
     if (sources.length === 0) return;
     // Bounded, replayable per-source queues. A slow source cannot miss an earlier batch.
     const queues = sources.map(() => new AsyncQueue<string>(KEYWORD_VARIANTS_LIMIT));
+    const close = () => { for (const queue of queues) queue.close(); };
+    signal?.addEventListener('abort', close, { once: true });
 
     // Enqueue EVERY original request before aliases can take a permit. UNDISPATCHED
     // only acquires/queues the permit; the source itself always runs on dispatcher.
-    const originals = sources.map((source) => this.request(source, keyword));
+    const originals = sources.map((source) => this.request(source, keyword, signal));
 
     const feed = (async () => {
       const seen = new Set<string>([keywordKeysQuery(keyword)]);
       try {
         for await (const batch of variants as AsyncIterable<string[]>) {
+          throwIfAborted(signal);
           for (const query of batch) {
-            if (query.trim() === '') continue;
-            if (seen.size >= KEYWORD_VARIANTS_LIMIT) continue;
-            if (!seen.add(keywordKeysQuery(query))) continue;
+            const key = keywordKeysQuery(query);
+            if (!key || seen.size >= KEYWORD_VARIANTS_LIMIT || seen.has(key)) continue;
+            seen.add(key);
             for (const queue of queues) {
               await queue.send(query);
             }
@@ -230,25 +245,25 @@ export class ComicAggregateSearch {
         if (e instanceof Error && e.name === 'AbortError') throw e;
         // Metadata failure must not cancel original searches or an already queued alias.
       } finally {
-        for (const queue of queues) queue.close();
+        close();
       }
     })();
 
     const perSource = sources.map((source, index) =>
       (async () => {
         const books = new Map<string, SearchBook>();
-        let anySuccess = false;
         let lastError: string | null = null;
         let lastFailure: SourceException | null = null;
 
         const publish = (loading: boolean): void => {
+          if (signal?.aborted) return;
           onGroup({
             sourceId: source.id,
             sourceName: source.name,
             books: [...books.values()],
-            error: anySuccess ? null : lastError,
+            error: books.size > 0 ? null : lastError,
             loading,
-            failure: anySuccess ? null : lastFailure,
+            failure: books.size > 0 ? null : lastFailure,
           });
         };
 
@@ -257,7 +272,6 @@ export class ComicAggregateSearch {
             lastError = '搜索超时';
             lastFailure = new NetworkError('搜索超时');
           } else if (result.kind === 'success') {
-            anySuccess = true;
             for (const book of result.data) {
               // Keep first-hit order and all distinct resources in each source.
               if (!books.has(book.id)) {
@@ -274,34 +288,54 @@ export class ComicAggregateSearch {
         accept(await originals[index]);
         // Aliases stay sequential WITHIN a source, respecting its runtime/session.
         for await (const variant of queues[index] as AsyncQueue<string>) {
-          accept(await this.request(source, variant));
+          throwIfAborted(signal);
+          accept(await this.request(source, variant, signal));
         }
         publish(false);
       })(),
     );
 
-    await Promise.all([feed, ...perSource]);
+    try { await abortable(Promise.all([feed, ...perSource]), signal); }
+    finally { signal?.removeEventListener('abort', close); close(); }
   }
 
   /** Kotlin `private suspend fun request(source, keyword): SourceResult<List<SearchBook>>?`. */
   private async request(
     source: BookSource,
     keyword: string,
+    signal?: AbortSignal,
   ): Promise<SourceResult<SearchBook[]> | null> {
     try {
+      throwIfAborted(signal);
       this.onDispatched(source, keyword);
       return await this.searches.search(source, keyword, async () => {
         // Cooling sites and cache hits must not occupy another site's network slot.
         return this.slots.withPermit(async () => {
-          const result = await withTimeoutOrNull(this.timeoutFor(source), () =>
-            source.search(keyword),
-          );
+          const request = new AbortController();
+          const cancel = () => request.abort();
+          signal?.addEventListener('abort', cancel, { once: true });
+          const timeout = this.timeoutFor(source);
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          let result: SourceResult<SearchBook[]> | null;
+          try {
+            throwIfAborted(signal);
+            const work = abortable(source.search(keyword, request.signal), request.signal);
+            result = !Number.isFinite(timeout) || timeout >= Number.MAX_SAFE_INTEGER
+              ? await work
+              : await Promise.race([work, new Promise<null>((resolve) => {
+                timer = setTimeout(() => { resolve(null); cancel(); }, timeout);
+              })]);
+            throwIfAborted(signal);
+          } finally {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', cancel);
+          }
           return (
             result ??
             SourceResultNs.Error(new NetworkError('搜索超时'))
           );
-        });
-      });
+        }, signal);
+      }, signal);
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') throw e;
       const message = e instanceof Error ? e.message : String(e);

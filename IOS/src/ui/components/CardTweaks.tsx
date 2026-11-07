@@ -1,4 +1,10 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import {
   DEFAULT_CARD_TWEAKS,
   cardCameraDistance,
@@ -6,6 +12,10 @@ import {
   rescaleCornerRadius,
   type CardTweaks,
 } from '../../core/glass/cardTweaks';
+import {
+  getGlassCardTweaksSnapshot,
+  subscribeGlassAppearance,
+} from './glassAppearanceRuntime';
 
 /**
  * Kotlin → TS map
@@ -13,13 +23,11 @@ import {
  * - `ui/components/CardTweaks.kt` (42 non-blank lines)
  *   lines 13-28 `data class CardTweaks(...)` → core/glass/cardTweaks#CardTweaks
  *   line 31     `val LocalCardTweaks = staticCompositionLocalOf { CardTweaks() }`
- *               → `CardTweaksProvider` + `useCardTweaks()` below
+ *               → `CardTweaksProvider` + `useCardTweaks()` below; its unprovided
+ *               value is hydrated from the shared appearance runtime.
  *
- * SKIPPED (data layer, owned by the settings agent):
- * - lines 34-44 `PreferencesManager.readCardTweaks()`
- * - lines 47-57 `PreferencesManager.writeCardTweaks(t)`
- * Both are 9-field copies onto `PreferencesManager`; the settings store reads and
- * writes the same keys, so no logic is lost. See report.
+ * The preferences accessors are read by `glassAppearanceRuntime`; SettingsPage
+ * writes the same persisted keys and publishes optimistic values to that store.
  *
  * The pure derivations from the Kotlin comments are ported too:
  * - `rescaleCorners` (GlassCard.kt 202-214) → `rescaleCornerRadius`
@@ -35,9 +43,9 @@ export {
   rescaleCornerRadius,
 };
 
-const CardTweaksContext = createContext<CardTweaks>(DEFAULT_CARD_TWEAKS);
+const CardTweaksContext = createContext<CardTweaks | null>(null);
 
-/** `LocalCardTweaks provides …` — mount once near the app root. */
+/** Optional scoped override for previews and isolated surfaces. */
 export function CardTweaksProvider(props: {
   tweaks?: Partial<CardTweaks>;
   children: ReactNode;
@@ -51,7 +59,13 @@ export function CardTweaksProvider(props: {
   );
 }
 
-/** `LocalCardTweaks.current` — 未 provide 时回退历史视觉（CardTweaks.kt line 31）。 */
+/** `LocalCardTweaks.current` — reads an override or the persisted shared tweaks. */
 export function useCardTweaks(): CardTweaks {
-  return useContext(CardTweaksContext);
+  const providedTweaks = useContext(CardTweaksContext);
+  const runtimeTweaks = useSyncExternalStore(
+    subscribeGlassAppearance,
+    getGlassCardTweaksSnapshot,
+    getGlassCardTweaksSnapshot,
+  );
+  return providedTweaks ?? runtimeTweaks;
 }

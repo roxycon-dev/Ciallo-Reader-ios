@@ -162,6 +162,32 @@ export async function runNativeSelfTests(platform: PlatformBundle): Promise<void
       assert(tables.length === 1 && tables[0]?.name === 'books', 'Dictionary schema leaked into the bookshelf database');
     } finally { await db.close(); }
   }, 40_000);
+  await check('Native custom poster and wallpaper persist as private files and settings', async () => {
+    const [{ replaceVisualAsset, clearVisualAsset }, { SettingsRepository }] = await Promise.all([
+      import('@ui/lib/appVisualAssets'), import('@core/settings/settingsRepository'),
+    ]);
+    const settings = new SettingsRepository(platform.db);
+    const fixture = await platform.http.request({ url: '/splash/splash_ciallo_logo.png', timeoutMs: 10_000 });
+    assert(fixture.status === 200, 'Bundled poster fixture is missing');
+    const file = new File([fixture.body as Uint8Array<ArrayBuffer>], 'portrait.png', { type: 'image/png' });
+    const posterKey = 'custom_splash_poster_uri', wallpaperKey = 'custom_app_background_uri';
+    assert(!await settings.getString(posterKey, '') && !await settings.getString(wallpaperKey, ''), 'Native visual fixture expects an empty initial profile');
+    let poster = '', wallpaper = '';
+    try {
+      await replaceVisualAsset('poster', file);
+      await replaceVisualAsset('wallpaper', file);
+      [poster, wallpaper] = await Promise.all([settings.getString(posterKey, ''), settings.getString(wallpaperKey, '')]);
+      assert(poster.startsWith('custom_poster_') && wallpaper.startsWith('custom_app_bg_') && poster !== wallpaper &&
+        await settings.getInt('app_background_mode', 0) === 1, 'Image settings did not point to private durable files');
+      const [posterBytes, wallpaperBytes] = await Promise.all([platform.fs.readFile(poster), platform.fs.readFile(wallpaper)]);
+      assert([posterBytes, wallpaperBytes].every((bytes) => bytes.length === fixture.body.length &&
+        bytes.every((value, i) => value === fixture.body[i])), 'Image bytes did not round-trip from private storage');
+    } finally {
+      await clearVisualAsset('poster');
+      await clearVisualAsset('wallpaper');
+    }
+    assert(poster && wallpaper && !await platform.fs.exists(poster) && !await platform.fs.exists(wallpaper), 'Old private images were retained after clearing');
+  }, 30_000);
   await check('Native whole archive import remaps ids and rolls back SQLite and reader preferences', async () => {
     const { probeNativeArchiveImport } = await import('./archiveImportProbe'); await probeNativeArchiveImport(nonce);
   }, 60_000);

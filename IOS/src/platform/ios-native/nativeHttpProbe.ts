@@ -54,6 +54,26 @@ export async function probeNativeHttp(platform: PlatformBundle): Promise<void> {
     const waitForHandoff = resolveZLibraryDownloadWithWebView(url + '/slow', url + '/zlib-fixture-download', null, stopped.signal);
     stopped.abort();
     assert(await waitForHandoff === null, 'Cancelled hidden WKWebView still returned a download');
+    const website = registerPlugin<{
+      verify(options: { requestId: string; url: string }): Promise<{ verified: boolean; cookies: unknown[] }>;
+      cancelVerify(options: { requestId: string }): Promise<void>;
+    }>('ReaderWebsite');
+    const requestId = crypto.randomUUID(), laterId = crypto.randomUUID();
+    const beforeVerification = await fixture.fixture({ action: 'status' });
+    let settled = false;
+    const oldVerification = website.verify({ requestId, url: url + '/slow' }).finally(() => { settled = true; });
+    void oldVerification.catch(() => {});
+    try {
+      await wait((status) => status.slowStarted > beforeVerification.slowStarted);
+      await website.cancelVerify({ requestId: laterId });
+      assert(!settled, 'Unrelated cancellation stopped active verification');
+      await website.cancelVerify({ requestId });
+      const result = await oldVerification;
+      assert(!result.verified && result.cookies.length === 0, 'Cancelled verification imported cookies or reported success');
+      await wait((status) => status.cancelledSlowConnections > beforeVerification.cancelledSlowConnections);
+      const skipped = await website.verify({ requestId: laterId, url: url + '/binary' });
+      assert(!skipped.verified && skipped.cookies.length === 0, 'A cancellation that reached the bridge early still opened verification');
+    } finally { if (!settled) await website.cancelVerify({ requestId }); }
 
   } finally { await fixture.fixture({ action: 'stop' }); }
 }

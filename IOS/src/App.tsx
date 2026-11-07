@@ -40,7 +40,7 @@
  *   路由容器上播放**入场**那一半。出场（exit）那一半依赖返回栈，目前无法复现 ——
  *   同样登记为 E59。
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { SourceDialogs } from '@ui/sourceDialogs';
 import { GlobalDownloadCenter } from '@ui/components/library/DownloadCenter';
 import { SharedNovelTarget } from '@ui/sharedNovelTarget';
@@ -57,6 +57,7 @@ import { GodEditorPage } from '@ui/pages/GodEditorPage';
 import { GodRankingPage } from '@ui/pages/GodRankingPage';
 import { HomePage } from '@ui/pages/HomePage';
 import { LibraryPage } from '@ui/pages/LibraryPage';
+import { mountLibraryPaperRoute, pruneLibraryPaperRoutes } from '@ui/shared/paperRouteHost';
 import { pruneLibrarySearchSessions } from '@ui/pages/librarySearchSessions';
 import { pruneComicChapterRouteTargets } from '@ui/pages/comicChapterRouteTargets';
 import { DiscoverPage } from '@ui/pages/DiscoverPage';
@@ -64,6 +65,8 @@ import { OnboardingPage } from '@ui/pages/OnboardingPage';
 import { ReaderPage, setInlineImageDecoder } from '@ui/pages/ReaderPage';
 import { createFileInlineImageDecoder } from '@platform/readerImageResolver';
 import { getPlatform, getPlatformKind } from '@platform/index';
+import { useRenderQuality } from '@ui/components/GlassQuality';
+import { reloadVisualAssets, useVisualAssets } from '@ui/lib/appVisualAssets';
 import { createIosSettingsUpdateIo } from '@platform/ios-native/settingsUpdateRuntime';
 import { SettingsPage } from '@ui/pages/SettingsPage';
 import { DeviceTransferPage } from '@ui/pages/DeviceTransferPage';
@@ -244,6 +247,14 @@ function GodCoverCropRoute() {
 export function App() {
   const sourceManagementIo = useMemo(() => createSourceManagementIo(), []);
   const route = useAppStore((s) => s.route) as AppRoute;
+  const { wallpaper, mode: wallpaperMode, dim: wallpaperDim } = useVisualAssets();
+  const quality = useRenderQuality();
+  const activeWallpaper = wallpaperMode === 1 && quality !== 'MINIMAL' ? wallpaper : null;
+  const previousRoute = useRef<AppRoute>(route);
+  useEffect(() => {
+    if (previousRoute.current === 'deviceTransfer' && route !== 'deviceTransfer') void reloadVisualAssets();
+    previousRoute.current = route;
+  }, [route]);
   const routeHistory = useAppStore((s) => s.routeHistory);
   const librarySearchRequests = useAppStore((s) => s.librarySearchRequests);
   const autoNightMode = useAppStore((s) => s.autoNightMode);
@@ -267,6 +278,7 @@ export function App() {
       if (sessionId !== null) retainedSessionIds.add(sessionId);
     }
     pruneLibrarySearchSessions(retainedSessionIds);
+    pruneLibraryPaperRoutes(retainedRoutes);
     pruneComicChapterRouteTargets(retainedRoutes);
     useAppStore.getState().pruneLibrarySearchRequests(retainedSessionIds);
   }, [route, routeHistory]);
@@ -423,6 +435,11 @@ export function App() {
    * `prefers-reduced-motion: reduce` 时跳过 —— 与 Android `LocalReduceMotion` 分支一致。
    */
   const routeLayerRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const surface = routeLayerRef.current;
+    if (!surface || !isLibrarySearchRoute(route)) return;
+    return mountLibraryPaperRoute(route, surface);
+  }, [route]);
   useEffect(() => {
     const el = routeLayerRef.current;
     if (el === null) return;
@@ -445,7 +462,14 @@ export function App() {
   }, [route]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-wallpaper={activeWallpaper
+      ? (activeWallpaper.tone * (1 - wallpaperDim / 100) > 0.4 ? 'light' : 'dark') : undefined}>
+      {activeWallpaper && (
+        <div className="app-wallpaper" aria-hidden="true">
+          <img src={activeWallpaper.url} alt="" />
+          <span style={{ opacity: wallpaperDim / 100 }} />
+        </div>
+      )}
       <div className="app-route" key={route} ref={routeLayerRef} data-route={route}>
         {route === 'splash' ? <SplashPage /> : null}
         {route === 'onboarding' ? <OnboardingPage /> : null}

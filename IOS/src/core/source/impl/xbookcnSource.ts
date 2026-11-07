@@ -96,7 +96,7 @@ export class XbookcnSource extends ComicSource {
     const result = await this.getChapterText(chapterId, signal); if (result.kind === 'error') throw result.exception;
     return result.data.split('\n\n').map((value) => value.trim()).filter(Boolean).map((value) => ({ kind: 'text', value }));
   }
-  async search(keyword: string) { return this.result(async () => keyword.trim() ? XbookcnParser.books(await this.transport.html(`${this.home}/search?q=${encodeURIComponent(keyword.trim())}`, true)) : []); }
+  async search(keyword: string, signal?: AbortSignal) { return this.result(async () => keyword.trim() ? XbookcnParser.books(await this.transport.html(`${this.home}/search?q=${encodeURIComponent(keyword.trim())}`, true, signal)) : []); }
   async getDetail(id: string) { return this.result(async () => XbookcnParser.detail(await this.bookHtml(id), id)); }
   async refreshNovelDetail(id: string) { this.invalidateBook(id); return this.getDetail(id); }
   async getChapters(id: string) { return this.result(async () => XbookcnParser.chapters(await this.bookHtml(id), id)); }

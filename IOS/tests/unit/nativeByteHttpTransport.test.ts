@@ -58,4 +58,13 @@ describe('byte-preserving native HTTP adapter', () => {
     const { native, transport } = fixture(); await expect(transport.request({ url: 'https://source.test/a', method: 'GET', maxResponseBytes: 4 })).rejects.toThrow('信息无效');
     expect(vi.mocked(native.begin).mock.calls[0]![0].maxBytes).toBe(4); expect(native.read).not.toHaveBeenCalled(); expect(native.release).toHaveBeenCalledOnce();
   });
+  it('forwards an explicit insecure-TLS opt-in on HTTPS and refuses credentials or HTTP before native', async () => {
+    const { native, transport } = fixture(new Uint8Array()), client = new CapacitorHttpClient({ transport });
+    await client.request({ url: 'https://source.test/a', insecureTls: true, redirect: 'follow' });
+    expect(native.begin).toHaveBeenCalledWith(expect.objectContaining({ insecureTls: true, redirect: 'error' }));
+    await expect(client.request({ url: 'http://source.test/a', insecureTls: true })).rejects.toThrow('只支持 HTTPS');
+    await expect(client.request({ url: 'https://source.test/a', insecureTls: true, headers: { 'Proxy-Authorization': 'not-a-real-credential' } }))
+      .rejects.toThrow('不能发送登录或代理凭据');
+    expect(native.begin).toHaveBeenCalledTimes(1);
+  });
 });

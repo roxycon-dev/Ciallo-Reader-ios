@@ -52,6 +52,7 @@
  */
 
 import { createBookFormat, type BookFormat } from '../bookFormat';
+import { throwIfAborted } from '@core/download/abortable';
 import { SourceLog } from '../sourceLog';
 import { createSearchBook, type SearchBook } from '../searchBook';
 import { md5Hex } from './md5';
@@ -115,10 +116,13 @@ export class ZLibraryEapiClient {
     url: string,
     fields: Record<string, string>,
     referer: string | null = null,
+    signal?: AbortSignal,
   ): Promise<JsonObject | null> {
     try {
       const formBody: ZLibraryFormField[] = formBodyOf(fields);
-      const response = await this.httpClient.postForm(url, formBody, referer);
+      throwIfAborted(signal);
+      const response = await (signal ? this.httpClient.postForm(url, formBody, referer, {}, signal)
+        : this.httpClient.postForm(url, formBody, referer));
       const body = response.body;
       response.close();
       if (!response.isSuccessful) {
@@ -127,6 +131,7 @@ export class ZLibraryEapiClient {
       }
       return asObject(JSON.parse(body));
     } catch (e) {
+      throwIfAborted(signal);
       SourceLog.log(TAG, `eapi POST failed: ${url} ${errorMessage(e)}`);
       return null;
     }
@@ -184,12 +189,13 @@ export class ZLibraryEapiClient {
    * eapi 搜索。要求已登录（bipinkrish 库同样要求登录态）。
    * 返回的 SearchBook 会携带 eapiId / eapiHash，供多格式查询使用。
    */
-  async search(keyword: string, domain: string): Promise<SearchBook[]> {
+  async search(keyword: string, domain: string, signal?: AbortSignal): Promise<SearchBook[]> {
     if (!(await this.credentialStorage.isLoggedIn())) return [];
     const json = await this.postJson(
       `https://${domain}/eapi/book/search`,
       { message: keyword, limit: '30' },
       `https://${domain}/`,
+      signal,
     );
     if (json === null) return [];
     if (optInt(json, 'success', 0) !== 1) return [];

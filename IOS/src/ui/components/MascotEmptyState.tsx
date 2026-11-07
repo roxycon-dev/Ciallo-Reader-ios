@@ -54,8 +54,8 @@ export interface MascotEmptyStateProps {
 
 export function MascotEmptyState(props: MascotEmptyStateProps) {
   const quality = useRenderQuality();
-  // 流畅档（渲染画质=低）：跳过全部装饰性循环动画，静态展示以省电省性能
-  const mascotAnimOn = quality !== 'LOW';
+  // 极简 / 流畅档：跳过全部装饰性循环动画，静态展示以省电省性能
+  const mascotAnimOn = quality !== 'MINIMAL' && quality !== 'LOW';
   // 根据素材情绪选择动效；未给出 mood 时走 mascotMoodOf 的 IDLE 兜底分支
   const mood: MascotMood =
     props.mood ?? mascotMoodOf(mascotAssetKeyFor(props.mascotSrc));

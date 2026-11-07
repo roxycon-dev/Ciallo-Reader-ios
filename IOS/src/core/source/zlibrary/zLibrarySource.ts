@@ -158,6 +158,7 @@ import { type ZLibrarySessionManager } from './network/zLibrarySessionManager';
 import { parseHtmlDocument } from './parser/htmlDocument';
 import { ZLibraryParserManager } from './parser/zLibraryParserManager';
 import { guessFileFormatFromUrl } from './zLibraryParser';
+import { abortable, throwIfAborted } from '@core/download/abortable';
 import { type ZLibraryEapiClient } from './zLibraryEapiClient';
 import { type ZLibraryDomainResolver } from './zLibraryDomainResolver';
 import type { ZLibraryCredentialStorage } from './zLibraryCredentialStorage';
@@ -184,6 +185,7 @@ export interface ZLibrarySourceDeps {
     node: string,
     keyword: string,
     cookies: string | null,
+    signal?: AbortSignal,
   ) => Promise<WebViewSearchLike>;
   /** `android.webkit.CookieManager` seam used by `syncCookiesToWebView`. */
   readonly webViewCookies: HtmlRuntimeCookieStore | null;
@@ -479,10 +481,38 @@ export class ZLibrarySource extends BookSource {
     while (this.downloadBooks.size > 300) this.downloadBooks.delete(this.downloadBooks.keys().next().value!);
   }
 
-  override async search(keyword: string): Promise<SourceResultType<SearchBook[]>> {
+  override async search(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>> {
+    const resolveDomain = (force = false) => {
+      throwIfAborted(signal);
+      return abortable(force ? this.domainResolver.resolveDomain(true) : this.domainResolver.resolveDomain(), signal);
+    };
+    // Domain discovery and session priming may be shared with another screen.
+    const initialize = (domain: string, force = false) => {
+      throwIfAborted(signal);
+      return abortable(force ? this.deps.sessionManager.ensureSessionInitialized(domain, true)
+        : this.deps.sessionManager.ensureSessionInitialized(domain), signal);
+    };
+    const get = async (url: string, referer: string) => {
+      throwIfAborted(signal);
+      const result = await (signal ? this.deps.httpClient.get(url, referer, {}, null, signal)
+        : this.deps.httpClient.get(url, referer));
+      if (signal?.aborted) { result.close(); throwIfAborted(signal); }
+      return result;
+    };
+    const searchWeb = async (domain: string) => {
+      throwIfAborted(signal);
+      const cookies = await this.deps.credentialStorage.getCookies();
+      throwIfAborted(signal);
+      const result = await (signal ? this.deps.webViewSearch(domain, keyword, cookies, signal)
+        : this.deps.webViewSearch(domain, keyword, cookies));
+      throwIfAborted(signal);
+      return result;
+    };
+    const searchEapi = (domain: string) => signal ? this.eapiClient.search(keyword, domain, signal)
+      : this.eapiClient.search(keyword, domain);
     try {
-      const domain = await this.domainResolver.resolveDomain();
-      await this.deps.sessionManager.ensureSessionInitialized(domain);
+      const domain = await resolveDomain();
+      await initialize(domain);
 
       // 路径段必须用 %20 而非 +（URLEncoder 会把空格编成 +，多词搜索会失效）
       const encodedKw = javaUrlEncode(keyword).replace(/\+/g, '%20');
@@ -490,12 +520,13 @@ export class ZLibrarySource extends BookSource {
 
       let response: ZLibraryResponseLike;
       try {
-        response = await this.deps.httpClient.get(searchUrl, `https://${domain}/`);
+        response = await get(searchUrl, `https://${domain}/`);
       } catch {
-        const fallbackDomain = await this.domainResolver.resolveDomain(true);
-        await this.deps.sessionManager.ensureSessionInitialized(fallbackDomain, true);
+        throwIfAborted(signal);
+        const fallbackDomain = await resolveDomain(true);
+        await initialize(fallbackDomain, true);
         const fallbackSearchUrl = `https://${fallbackDomain}/s/${encodedKw}`;
-        response = await this.deps.httpClient.get(fallbackSearchUrl, `https://${fallbackDomain}/`);
+        response = await get(fallbackSearchUrl, `https://${fallbackDomain}/`);
       }
 
       let html = response.body;
@@ -524,9 +555,9 @@ export class ZLibrarySource extends BookSource {
           0,
           `search redirected off /s/: path=${finalUrl.pathname}`,
         );
-        const fallbackDomain = await this.domainResolver.resolveDomain(true);
-        await this.deps.sessionManager.ensureSessionInitialized(fallbackDomain, true);
-        const retryResponse = await this.deps.httpClient.get(
+        const fallbackDomain = await resolveDomain(true);
+        await initialize(fallbackDomain, true);
+        const retryResponse = await get(
           `https://${fallbackDomain}/s/${encodedKw}`,
           `https://${fallbackDomain}/`,
         );
@@ -548,18 +579,14 @@ export class ZLibrarySource extends BookSource {
         response.close();
         const finalHost = new URL(response.url).host;
         ZLibraryNetworkLogger.logParserResult('RETRY_EAPI', 0, `HTTP ${response.code}`);
-        const eapiBooks = await this.eapiClient.search(keyword, finalHost);
+        const eapiBooks = await searchEapi(finalHost);
         if (eapiBooks.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_EAPI', eapiBooks.length, 'eapi fallback');
           return this.rememberSearch(eapiBooks, finalHost);
         }
         // 513/529/500 等 HTTP 层全被挡（eapi 也被挡时返回空）：WebView
         // （Chromium TLS 指纹 + 会话 Cookie）是唯一能进的入口，再兜一次。
-        const webBooks = await this.deps.webViewSearch(
-          finalHost,
-          keyword,
-          await this.deps.credentialStorage.getCookies(),
-        );
+        const webBooks = await searchWeb(finalHost);
         await this.syncWebViewCookiesToHttp(webBooks.cookies, finalHost);
         if (webBooks.books.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'HTTP error fallback');
@@ -592,9 +619,9 @@ export class ZLibrarySource extends BookSource {
         if (!anyTitleHit) {
           response.close();
           ZLibraryNetworkLogger.logParserResult('RETRY_FALLBACK', books.length, 'results irrelevant to keyword');
-          const fallbackDomain = await this.domainResolver.resolveDomain(true);
-          await this.deps.sessionManager.ensureSessionInitialized(fallbackDomain, true);
-          const retryResponse = await this.deps.httpClient.get(
+          const fallbackDomain = await resolveDomain(true);
+          await initialize(fallbackDomain, true);
+          const retryResponse = await get(
             `https://${fallbackDomain}/s/${encodedKw}`,
             `https://${fallbackDomain}/`,
           );
@@ -627,7 +654,7 @@ export class ZLibrarySource extends BookSource {
         ) {
           ZLibraryNetworkLogger.logParserResult('EMPTY', 0, 'no parseable cards');
           // HTML 解析不出结果但页面结构正常：尝试 eapi 兜底，避免新版布局导致全空
-          const eapiBooks = await this.eapiClient.search(keyword, finalHost);
+          const eapiBooks = await searchEapi(finalHost);
           if (eapiBooks.length > 0) {
             ZLibraryNetworkLogger.logParserResult('SUCCESS_EAPI', eapiBooks.length, 'eapi empty fallback');
             return this.rememberSearch(eapiBooks, finalHost);
@@ -635,11 +662,7 @@ export class ZLibrarySource extends BookSource {
           return SourceResult.Success([]);
         }
         // 页面无任何书卡片标记：可能是 JS 渲染或新版挑战，交给 WebView 兜底
-        const webBooks = await this.deps.webViewSearch(
-          finalHost,
-          keyword,
-          await this.deps.credentialStorage.getCookies(),
-        );
+        const webBooks = await searchWeb(finalHost);
         await this.syncWebViewCookiesToHttp(webBooks.cookies, finalHost);
         if (webBooks.books.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'HTML empty, WebView fallback');
@@ -658,13 +681,10 @@ export class ZLibrarySource extends BookSource {
       );
       return this.rememberSearch(books, finalHost);
     } catch (e) {
+      throwIfAborted(signal);
       if (e instanceof SourceException) {
-        const challengeDomain = await this.domainResolver.resolveDomain();
-        const webBooks = await this.deps.webViewSearch(
-          challengeDomain,
-          keyword,
-          await this.deps.credentialStorage.getCookies(),
-        );
+        const challengeDomain = await resolveDomain();
+        const webBooks = await searchWeb(challengeDomain);
         await this.syncWebViewCookiesToHttp(webBooks.cookies, challengeDomain);
         if (webBooks.books.length > 0) {
           ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'Challenge fallback');
@@ -673,12 +693,8 @@ export class ZLibrarySource extends BookSource {
         ZLibraryNetworkLogger.logParserResult('FAILED', 0, e.message);
         return SourceResult.Error(e);
       }
-      const challengeDomain = await this.domainResolver.resolveDomain();
-      const webBooks = await this.deps.webViewSearch(
-        challengeDomain,
-        keyword,
-        await this.deps.credentialStorage.getCookies(),
-      );
+      const challengeDomain = await resolveDomain();
+      const webBooks = await searchWeb(challengeDomain);
       await this.syncWebViewCookiesToHttp(webBooks.cookies, challengeDomain);
       if (webBooks.books.length > 0) {
         ZLibraryNetworkLogger.logParserResult('SUCCESS_WEBVIEW', webBooks.books.length, 'Exception fallback');

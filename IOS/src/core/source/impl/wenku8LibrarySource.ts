@@ -116,7 +116,7 @@ export class Wenku8LibrarySource extends BookSource {
     return buildUrl(this.baseUrl, ['api/books', bookId]);
   }
 
-  private async json(url: string): Promise<JsonObject> {
+  private async json(url: string, signal?: AbortSignal): Promise<JsonObject> {
     // Kotlin L50 `response.body?.byteStream()?.use { it.readImportBytes(2 * 1024 * 1024) }`
     // — the shared request helper applies that bound (an over-limit body throws
     // `压缩包解压体积超过安全上限`, which `result()`'s `catch (e: Exception)` arm
@@ -127,6 +127,7 @@ export class Wenku8LibrarySource extends BookSource {
         Referer: this.baseUrl,
       },
       maxBytes: MAX_SOURCE_BODY_BYTES,
+      ...(signal ? { signal } : {}),
     });
     if (!isSuccessful(response)) {
       throw new NetworkError(`中文文库返回 HTTP ${response.status}`);
@@ -236,7 +237,7 @@ export class Wenku8LibrarySource extends BookSource {
     }
   }
 
-  async search(keyword: string): Promise<SourceResultType<SearchBook[]>> {
+  async search(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>> {
     return this.result(async () => {
       if (keyword.trim() === '') return [];
       const url = buildUrl(
@@ -248,7 +249,7 @@ export class Wenku8LibrarySource extends BookSource {
           ['limit', '24'],
         ],
       );
-      const items = optJsonArray(await this.json(url), 'items');
+      const items = optJsonArray(await this.json(url, signal), 'items');
       if (items == null) {
         throw new ParseError('未返回文库书籍列表');
       }

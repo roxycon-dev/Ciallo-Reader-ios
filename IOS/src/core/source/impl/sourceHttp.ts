@@ -23,6 +23,7 @@
  * like the pre-existing `src/core/source/networkCalls.ts`.
  */
 
+import { throwIfAborted } from '@core/download/abortable';
 import type { HttpClient, HttpHeader, HttpRequest, HttpResponse } from '@platform/interfaces';
 
 export type { HttpClient, HttpHeader, HttpRequest, HttpResponse };
@@ -119,6 +120,7 @@ export interface SourceRequestInit {
   timeoutMs?: number;
   maxBytes?: number;
   signal?: AbortSignal;
+  insecureTls?: boolean;
 }
 
 /**
@@ -133,6 +135,7 @@ export async function executeSourceRequest(
   url: string,
   init: SourceRequestInit = {},
 ): Promise<HttpResponse> {
+  throwIfAborted(init.signal);
   const req: HttpRequest = {
     url,
     method: init.method ?? 'GET',
@@ -141,8 +144,10 @@ export async function executeSourceRequest(
   if (init.body !== undefined) req.body = init.body;
   if (init.timeoutMs !== undefined) req.timeoutMs = init.timeoutMs;
   if (init.signal) req.signal = init.signal;
+  if (init.insecureTls === true) req.insecureTls = true;
   if (init.maxBytes !== undefined && Number.isFinite(init.maxBytes)) req.maxResponseBytes = init.maxBytes;
   const response = await http.request(req);
+  throwIfAborted(init.signal);
   readBounded(response.body, init.maxBytes ?? MAX_SOURCE_BODY_BYTES);
   return response;
 }

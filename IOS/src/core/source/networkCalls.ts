@@ -275,3 +275,18 @@ export function checkSourceUrl(url: string, allowedPrivateHost?: string | null):
     throw new Error('书源规则尝试访问未配置的内网地址');
   }
 }
+
+const INSECURE_TLS_CREDENTIAL_HEADERS = new Set([
+  'authorization', 'cookie', 'cookie2', 'set-cookie', 'proxy-authorization', 'proxy-authenticate',
+  'api-key', 'x-api-key', 'x-auth-token', 'x-access-token', 'x-client-secret',
+]);
+
+/** Fail closed before any platform transport gets an opted-in insecure-TLS request. */
+export function checkInsecureTlsRequest(url: string, headers: Record<string, unknown>): void {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { throw new Error('不安全 TLS 书源只支持 HTTPS'); }
+  if (parsed.protocol !== 'https:') throw new Error('不安全 TLS 书源只支持 HTTPS');
+  if (Object.keys(headers).some((name) => INSECURE_TLS_CREDENTIAL_HEADERS.has(name.toLowerCase()))) {
+    throw new Error('不安全 TLS 书源不能发送登录或代理凭据，请启用证书验证');
+  }
+}

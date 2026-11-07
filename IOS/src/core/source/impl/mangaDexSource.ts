@@ -265,7 +265,7 @@ export class MangaDexSource extends ComicSource {
   // Kotlin 72-129 search()
   // -------------------------------------------------------------------------
 
-  async search(keyword: string): Promise<SourceResultType<SearchBook[]>> {
+  async search(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>> {
     try {
       // 第九轮补强：镜像站（mangadex.live）的站内搜索只匹配罗马音/英文主标题
       // ——实测 航海王/海贼王/无职転生 均为 0 结果，而官方 API 的 title 搜索
@@ -273,8 +273,8 @@ export class MangaDexSource extends ComicSource {
       // 镜像结果直接可用（章节/图链路成熟），官方 API 结果带 mdapi: 前缀 id，
       // 详情/章节/图走官方 API 专用实现。
       const encoded = formUrlEncode(keyword);
-      const mirrorPromise = runCatchingAsync(() => this.searchMirror(encoded));
-      const officialPromise = this.searchOfficialApi(keyword);
+      const mirrorPromise = runCatchingAsync(() => this.searchMirror(encoded, signal));
+      const officialPromise = this.searchOfficialApi(keyword, signal);
       const mirrorResult = await mirrorPromise;
       const mirror = mirrorResult.ok ? mirrorResult.value : [];
       const official = await officialPromise;
@@ -331,8 +331,8 @@ export class MangaDexSource extends ComicSource {
   }
 
   /** 镜像站 HTML 搜索（原实现抽出，行为不变） */
-  private async searchMirror(encoded: string): Promise<SearchBook[]> {
-    const doc = parseHtmlDocument(await this.getHtml(`${BASE}/search?q=${encoded}`));
+  private async searchMirror(encoded: string, signal?: AbortSignal): Promise<SearchBook[]> {
+    const doc = parseHtmlDocument(await this.getHtml(`${BASE}/search?q=${encoded}`, false, false, signal));
     const books: SearchBook[] = [];
     for (const unit of doc.select('div.unit')) {
       const link = unit.selectFirst('a[href^=/manga/]');
@@ -383,7 +383,7 @@ export class MangaDexSource extends ComicSource {
    * 官方 API 在部分网络不可达（注释见类头），此时镜像路径独立支撑搜索。
    * 结果 id 带 "mdapi:" 前缀，getDetail/getChapters/getChapterImages 据此分派。
    */
-  private async searchOfficialApi(keyword: string): Promise<SearchBook[]> {
+  private async searchOfficialApi(keyword: string, signal?: AbortSignal): Promise<SearchBook[]> {
     const result = await runCatchingAsync(async () => {
       const encoded = formUrlEncode(keyword);
       const url =
@@ -394,6 +394,7 @@ export class MangaDexSource extends ComicSource {
       const response = await executeSourceRequest(this.http, url, {
         headers,
         maxBytes: MANGA_DEX_BODY_BYTES,
+        ...(signal ? { signal } : {}),
       });
       if (!isSuccessful(response)) {
         logInfo(`official api search HTTP ${response.status}`);
@@ -1100,7 +1101,7 @@ export class MangaDexSource extends ComicSource {
   // Kotlin 820-839 getHtml
   // -------------------------------------------------------------------------
 
-  private async getHtml(url: string, xhr = false, referer = false): Promise<string> {
+  private async getHtml(url: string, xhr = false, referer = false, signal?: AbortSignal): Promise<string> {
     const headers: HttpHeader = {
       'User-Agent': UA,
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -1110,6 +1111,7 @@ export class MangaDexSource extends ComicSource {
     const response = await executeSourceRequest(this.http, url, {
       headers,
       maxBytes: MANGA_DEX_BODY_BYTES,
+      ...(signal ? { signal } : {}),
     });
     if (!isSuccessful(response)) {
       logError(`HTTP ${response.status} for ${url.slice(0, 140)}`);

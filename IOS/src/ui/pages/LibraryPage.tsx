@@ -528,7 +528,7 @@ function LibraryCollapsingHeader(props: {
           className="lib-header__text"
           style={{ paddingTop: `${String(m.innerVertical)}px`, paddingBottom: `${String(m.innerVertical)}px` }}
         >
-          <p className="lib-header__title" style={{ fontSize: `${String(m.titleSize)}px`, color: props.titleColor }}>
+          <p className="lib-header__title" style={{ fontSize: `${String(m.titleSize)}px`, color: `var(--app-wallpaper-title, ${props.titleColor})` }}>
             {props.title}
           </p>
           {props.subtitle !== null ? (

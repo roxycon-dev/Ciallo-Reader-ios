@@ -3,7 +3,10 @@ import type { PlatformBundle } from '@platform/index';
 import type { SourceWorkerRequest, SourceWorkerResponse } from '@platform/sourceWorker/protocol';
 import { SourceWorkerEngine, EnginePreferences } from '@platform/sourceWorker/engine';
 
-const mocked = vi.hoisted(() => ({ workers: [] as { messages: SourceWorkerRequest[]; terminated: boolean; onmessage: ((event: { data: SourceWorkerResponse }) => void) | null; result(value?: string): void; host(): void }[] }));
+const mocked = vi.hoisted(() => ({
+  workers: [] as { messages: SourceWorkerRequest[]; terminated: boolean; onmessage: ((event: { data: SourceWorkerResponse }) => void) | null; result(value?: string): void; host(): void; hostVerify(): void }[],
+  verifySourceWebsite: vi.fn(),
+}));
 vi.mock('@platform/sourceWorker/entry.ts?worker&inline', () => ({ default: class {
   messages: SourceWorkerRequest[] = []; terminated = false; onmessage: ((event: { data: SourceWorkerResponse }) => void) | null = null;
   constructor() { mocked.workers.push(this); }
@@ -11,9 +14,11 @@ vi.mock('@platform/sourceWorker/entry.ts?worker&inline', () => ({ default: class
   terminate() { this.terminated = true; }
   result(value = 'ok') { const operation = this.messages.filter((message) => message.type === 'operation').at(-1)!; this.onmessage?.({ data: { type: 'result', id: operation.id, ok: true, logged: false, value } }); }
   host() { this.onmessage?.({ data: { type: 'host', id: 999, request: { method: 'http', request: { url: 'https://source.test/image', method: 'GET', headers: {} } } } }); }
+  hostVerify() { this.onmessage?.({ data: { type: 'host', id: 1000, request: { method: 'verify', url: 'https://source.test/', userAgent: 'ua' } } }); }
 } }));
+vi.mock('@platform/ios-native/websiteVerification', () => ({ verifySourceWebsite: mocked.verifySourceWebsite }));
 const engines: SourceWorkerEngine[] = [];
-afterEach(() => { for (const engine of engines.splice(0)) engine.dispose(); mocked.workers.splice(0); vi.useRealTimers(); });
+afterEach(() => { for (const engine of engines.splice(0)) engine.dispose(); mocked.workers.splice(0); mocked.verifySourceWebsite.mockReset(); vi.useRealTimers(); });
 function create(get = async (): Promise<string | null> => null) {
   const secure = { get, set: vi.fn(async () => {}), remove: vi.fn(async () => {}) };
   const http = { request: vi.fn<PlatformBundle['http']['request']>(async () => ({ status: 200, headers: {}, body: new Uint8Array(), url: 'https://source.test/image' })) };
@@ -45,6 +50,42 @@ describe('source Worker lifetime and bounded live realms', () => {
     const call = engine.call('test'), rejected = expect(call).rejects.toThrow('书源引擎已释放'); await until(() => mocked.workers[0]?.messages.some((message) => message.type === 'operation') ?? false);
     mocked.workers[0]!.host(); await until(() => http.request.mock.calls.length === 1); engine.dispose(); await rejected; expect(aborted).toBe(true);
     await Promise.resolve(); expect(mocked.workers[0]!.messages.some((message) => message.type === 'hostResult')).toBe(false);
+  });
+  it('passes Worker host lifetime cancellation through to native site verification', async () => {
+    const { engine } = create(), controller = new AbortController();
+    mocked.verifySourceWebsite.mockImplementationOnce((_url: string, _userAgent: string, _extractPage: boolean, signal?: AbortSignal) =>
+      new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+      }));
+    const call = engine.call('test', controller.signal), rejected = expect(call).rejects.toMatchObject({ name: 'AbortError' });
+    await until(() => mocked.workers[0]?.messages.some((message) => message.type === 'operation') ?? false);
+    mocked.workers[0]!.hostVerify();
+    await until(() => mocked.verifySourceWebsite.mock.calls.length === 1);
+    const signal = mocked.verifySourceWebsite.mock.calls[0]?.[3] as AbortSignal | undefined;
+    expect(signal).toBeDefined();
+    controller.abort();
+    await rejected;
+    expect(signal?.aborted).toBe(true);
+    expect(mocked.workers[0]!.messages.some((message) => message.type === 'hostResult')).toBe(false);
+  });
+  it('cancels a queued request without terminating the active realm or posting the cancelled operation', async () => {
+    const { engine } = create(), stop = new AbortController();
+    const active = engine.call('active');
+    await until(() => mocked.workers[0]?.messages.some((message) => message.type === 'operation') ?? false);
+    const skipped = expect(engine.call('queued', stop.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    const next = engine.call('next');
+    stop.abort();
+    await skipped;
+    const worker = mocked.workers[0]!;
+    expect(worker.terminated).toBe(false);
+    worker.result('active-result');
+    expect(await active).toBe('active-result');
+    await until(() => worker.messages.filter((message) => message.type === 'operation').length === 2);
+    expect(worker.messages.filter((message) => message.type === 'operation').map(({ operation }) => operation)).toEqual([
+      { method: 'call', code: 'active' }, { method: 'call', code: 'next' },
+    ]);
+    worker.result('next-result');
+    expect(await next).toBe('next-result');
   });
   it('replays trusted initialization code after idle reclamation and never reclaims an active call', async () => {
     vi.useFakeTimers(); const { engine } = create(); engine.setInitializationCode('restore-verified-user-agent');

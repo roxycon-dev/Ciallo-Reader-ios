@@ -283,11 +283,14 @@ export class JsComicSource extends ComicSource {
     return this.createMutex.withLock(async () => {
       let runtime = this.engine;
       if (runtime === null) {
+        // Login-capable sources always keep system certificate verification,
+        // even if an imported/local definition accidentally carries the flag.
+        const insecureTls = this.insecureTls && !this.loginRequired;
         runtime = this.deps.createEngine(
           this.deps.veneraRuntime(),
           this.script,
           this.sourceKey,
-          this.insecureTls,
+          insecureTls,
         );
         this.engine = runtime;
       }

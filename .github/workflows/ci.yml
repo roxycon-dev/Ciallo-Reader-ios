@@ -506,7 +506,7 @@ jobs:
             build 2>&1 | tee xcodebuild-device.log
           app=ios/DeviceDerivedData/Build/Products/Release-iphoneos/App.app
           test -f "$app/public/index.html"
-          xcrun lipo -verify_arch arm64 "$app/App"
+          xcrun lipo -archs "$app/App" | grep -qw arm64
           echo "已编译 iPhone/iPad arm64 Release。此构建未签名；可手动运行 CI 并启用 sign_device 导出测试用 IPA。" >> "$GITHUB_STEP_SUMMARY"
       - name: Install development signing assets
         if: github.event_name == 'workflow_dispatch' && inputs.sign_device

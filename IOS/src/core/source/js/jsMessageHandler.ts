@@ -54,6 +54,7 @@
 import { JSONArray, JSONObject, jsonWrap } from './json';
 import type { JsCookieJarStore } from './jsCookieJar';
 import type { JsHtmlStore } from './jsHtmlStore';
+import { checkInsecureTlsRequest } from '../networkCalls';
 import {
   cancellableDelay,
   ensureActive,
@@ -440,7 +441,7 @@ export class JsMessageHandler {
   ): Promise<Uint8Array | null> {
     if (this.deps.sourceProxy.matches(url)) {
       try {
-        this.requireNoCredentialsOnInsecureTls(headers);
+        this.requireNoCredentialsOnInsecureTls(url, headers);
         const response = await this.deps.http.execute({
           method: 'GET',
           url,
@@ -474,12 +475,9 @@ export class JsMessageHandler {
    * `comicReadAttempt` reports it as the CronetResult error, all exactly as on
    * Android.
    */
-  private requireNoCredentialsOnInsecureTls(headers: Record<string, string>): void {
+  private requireNoCredentialsOnInsecureTls(url: string, headers: Record<string, string>): void {
     if (!this.insecureTls) return;
-    const names = Object.keys(headers);
-    if (names.some((key) => key.toLowerCase() === 'cookie' || key.toLowerCase() === 'authorization')) {
-      throw new Error('不安全 TLS 书源不能发送登录凭据，请启用证书验证');
-    }
+    checkInsecureTlsRequest(url, headers);
   }
 
   /** Kotlin `private fun handleImage(msg: Map<*, *>): Any?`. */
@@ -890,7 +888,7 @@ export class JsMessageHandler {
       }
 
       // 证书有问题的源走 OkHttp（可忽略证书校验）；命中代理路由的请求也走 OkHttp（代理见 ProxySelector）
-      this.requireNoCredentialsOnInsecureTls(effectiveHeaders);
+      this.requireNoCredentialsOnInsecureTls(url, effectiveHeaders);
       const response = await this.deps.http.execute({
         method: httpMethod,
         url,
@@ -1048,7 +1046,7 @@ export class JsMessageHandler {
   ): Promise<CronetResult> {
     try {
       if (http) {
-        this.requireNoCredentialsOnInsecureTls(requestHeaders);
+        this.requireNoCredentialsOnInsecureTls(requestUrl, requestHeaders);
         const res = await this.deps.http.execute({
           method,
           url: requestUrl,

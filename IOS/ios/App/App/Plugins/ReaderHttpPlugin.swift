@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import Network
+import Security
 
 private func httpFailure(_ message: String) -> NSError { NSError(domain: "ReaderHttp", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
 
@@ -20,6 +21,10 @@ public class ReaderHttpPlugin: CAPPlugin, CAPBridgedPlugin {
     private let queue = DispatchQueue(label: "ciallo.http.requests", qos: .utility)
     private var requests: [String: NativeByteRequest] = [:]
     private var cancelled: [String: Date] = [:]
+    private static let insecureCredentialHeaders: Set<String> = [
+        "authorization", "cookie", "cookie2", "set-cookie", "proxy-authorization", "proxy-authenticate",
+        "api-key", "x-api-key", "x-auth-token", "x-access-token", "x-client-secret"
+    ]
     deinit { let pending = Array(requests.values); queue.async { for operation in pending { operation.dispose() } } }
     public override func load() {
         queue.async {
@@ -65,12 +70,20 @@ public class ReaderHttpPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let id = id(call), let raw = call.getString("url"), raw.utf8.count <= 16384,
               let url = URL(string: raw), Self.remote(url), let method = call.getString("method"),
               ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].contains(method) else { call.reject("HTTP 请求参数无效"); return }
-        let timeout = call.getDouble("timeoutMs") ?? 30000, policy = call.getString("redirect") ?? "follow", maximum = call.getDouble("maxBytes") ?? 512 * 1024 * 1024
-        guard timeout.isFinite, timeout >= 1, timeout <= 3600000, maximum.isFinite, maximum >= 1, maximum <= 512 * 1024 * 1024, maximum.rounded(.down) == maximum, ["follow", "manual", "error"].contains(policy) else { call.reject("HTTP 超时、大小或重定向设置无效"); return }
+        let timeout = call.getDouble("timeoutMs") ?? 30000
+        let requestedPolicy = call.getString("redirect") ?? "follow"
+        let insecureTls = call.getBool("insecureTls") == true
+        let policy = insecureTls ? "error" : requestedPolicy
+        let maximum = call.getDouble("maxBytes") ?? 512 * 1024 * 1024
+        guard timeout.isFinite, timeout >= 1, timeout <= 3600000, maximum.isFinite, maximum >= 1, maximum <= 512 * 1024 * 1024, maximum.rounded(.down) == maximum, ["follow", "manual", "error"].contains(requestedPolicy) else { call.reject("HTTP 超时、大小或重定向设置无效"); return }
         let headers = call.getObject("headers") ?? [:]
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout / 1000)
         request.httpMethod = method
         guard headers.count <= 256 else { call.reject("HTTP 请求头过多"); return }
+        if insecureTls && (url.scheme?.lowercased() != "https" || headers.keys.contains(where: { Self.insecureCredentialHeaders.contains($0.lowercased()) })) {
+            call.reject("不安全 TLS 书源仅支持无登录或代理凭据的 HTTPS 请求")
+            return
+        }
         var headerBytes = 0
         for (key, value) in headers {
             guard let value = value as? String, key.range(of: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$", options: .regularExpression) != nil,
@@ -92,7 +105,9 @@ public class ReaderHttpPlugin: CAPPlugin, CAPBridgedPlugin {
                 guard root.resolvingSymlinksInPath().path == root.path else { throw httpFailure("HTTP 缓存目录无效") }
                 let file = root.appendingPathComponent(id + ".body")
                 let operation = try NativeByteRequest(request: request, file: file, queue: self.queue, timeout: timeout / 1000,
-                                                      maximum: Int64(maximum), redirect: policy, progressive: call.getBool("progressive") == true,
+                                                      maximum: Int64(maximum), redirect: policy,
+                                                      insecureTlsHost: insecureTls ? url.host?.lowercased() : nil,
+                                                      progressive: call.getBool("progressive") == true,
                                                       resolve: { result in
                     switch result {
                     case .success(let response): call.resolve(response)
@@ -257,6 +272,7 @@ private final class NativeByteRequest: NSObject, URLSessionDataDelegate, @unchec
     private var completed = false
     private var output: FileHandle?
     private let request: URLRequest, queue: DispatchQueue, timeout: TimeInterval, redirect: String
+    private let insecureTlsHost: String?
     private let progressive: Bool
     private var resolve: ((Result<[String: Any], Error>) -> Void)?
     private let terminal: () -> Void
@@ -264,10 +280,12 @@ private final class NativeByteRequest: NSObject, URLSessionDataDelegate, @unchec
     private var response: HTTPURLResponse?
     private var redirects = 0
     private let maximum: Int64
-    init(request: URLRequest, file: URL, queue: DispatchQueue, timeout: TimeInterval, maximum: Int64, redirect: String, progressive: Bool,
+    init(request: URLRequest, file: URL, queue: DispatchQueue, timeout: TimeInterval, maximum: Int64, redirect: String,
+         insecureTlsHost: String?, progressive: Bool,
          resolve: @escaping (Result<[String: Any], Error>) -> Void, terminal: @escaping () -> Void) throws {
         self.maximum = maximum
         self.request = request; self.file = file; self.queue = queue; self.timeout = timeout; self.redirect = redirect
+        self.insecureTlsHost = insecureTlsHost
         self.progressive = progressive; self.resolve = resolve; self.terminal = terminal
         super.init()
         guard FileManager.default.createFile(atPath: file.path, contents: nil, attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]) else { throw httpFailure("无法创建 HTTP 缓存") }
@@ -276,12 +294,44 @@ private final class NativeByteRequest: NSObject, URLSessionDataDelegate, @unchec
     func start() {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = timeout; configuration.timeoutIntervalForResource = timeout
-        configuration.httpCookieStorage = .shared; configuration.urlCredentialStorage = nil; configuration.urlCache = nil
+        if insecureTlsHost != nil {
+            configuration.httpCookieStorage = nil
+            configuration.httpShouldSetCookies = false
+            configuration.httpCookieAcceptPolicy = .never
+        } else {
+            configuration.httpCookieStorage = .shared
+        }
+        configuration.urlCredentialStorage = nil; configuration.urlCache = nil
         let delegates = OperationQueue(); delegates.maxConcurrentOperationCount = 1; delegates.underlyingQueue = queue
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: delegates); self.session = session
         let timer = DispatchSource.makeTimerSource(queue: queue); self.timer = timer
         timer.schedule(deadline: .now() + timeout); timer.setEventHandler { [weak self] in self?.abort(httpFailure("HTTP 请求超时")) }; timer.resume()
         task = session.dataTask(with: request); task?.resume()
+    }
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard let expectedHost = insecureTlsHost else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        let space = challenge.protectionSpace
+        if space.isProxy {
+            completionHandler(.rejectProtectionSpace, nil)
+            return
+        }
+        if space.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+           space.host.lowercased() == expectedHost,
+           let trust = space.serverTrust {
+            completionHandler(.useCredential, URLCredential(trust: trust))
+            return
+        }
+        if space.authenticationMethod == NSURLAuthenticationMethodServerTrust {
+            // A mismatched challenge host keeps normal system trust.
+            completionHandler(.performDefaultHandling, nil)
+        } else {
+            // Do not use credentials stored for this host in the relaxed-TLS path.
+            completionHandler(.rejectProtectionSpace, nil)
+        }
     }
     private func publish(_ result: Result<[String: Any], Error>) {
         let callback = resolve; resolve = nil; callback?(result)

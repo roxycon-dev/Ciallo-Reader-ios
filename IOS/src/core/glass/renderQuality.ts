@@ -23,6 +23,7 @@
  *              更浓郁的色彩饱和、按压凝胶缩放。旗舰机专属。
  */
 export const RenderQuality = {
+  MINIMAL: { id: -1, label: '极简', realtimeGlass: false },
   LOW: { id: 0, label: '流畅', realtimeGlass: false },
   MID: { id: 1, label: '均衡', realtimeGlass: false },
   HIGH: { id: 2, label: '高', realtimeGlass: true },
@@ -31,8 +32,9 @@ export const RenderQuality = {
 
 export type RenderQualityName = keyof typeof RenderQuality;
 
-/** Kotlin `RenderQuality.entries` → ordered LOW → MAX. */
+/** Kotlin `RenderQuality.entries` → ordered MINIMAL → MAX. */
 export const RENDER_QUALITY_LIST: readonly RenderQualityName[] = [
+  'MINIMAL',
   'LOW',
   'MID',
   'HIGH',
@@ -67,5 +69,5 @@ export function isMax(quality: RenderQualityName): boolean {
 }
 
 export function isLow(quality: RenderQualityName): boolean {
-  return quality === 'LOW';
+  return quality === 'MINIMAL' || quality === 'LOW';
 }

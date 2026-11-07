@@ -66,7 +66,10 @@ export function GlassCard(props: {
 
   // Android's card shape defaults to the live CardTweaks radius and scales an
   // explicitly supplied shape from that same 16dp reference point.
-  const radius = rescaleCornerRadius(props.radius ?? null, tweaks.cornerRadiusDp);
+  const minimal = qualityId === RenderQuality.MINIMAL.id;
+  const radius = minimal
+    ? props.radius ?? 16
+    : rescaleCornerRadius(props.radius ?? null, tweaks.cornerRadiusDp);
   const styleRadius = props.style?.borderRadius;
   const effectRadius =
     typeof styleRadius === 'number'
@@ -156,17 +159,21 @@ export function GlassCard(props: {
   const baseStyle: CSSProperties = {
     borderRadius: radius,
     padding: padding > 0 ? padding : undefined,
-    backgroundColor: surface.background,
+    ...(minimal
+      ? { background: tintBase, border: 0, boxShadow: 'none', opacity: 1 }
+      : {
+          backgroundColor: surface.background,
+          boxShadow: glassShadowCss({
+            qualityId,
+            isMax,
+            elevationPx: pressLiftPx(isMax, visualPress.handDown, tiltMag),
+            primary,
+            tiltMag,
+          }),
+          opacity: tweaks.cardAlpha,
+        }),
     backdropFilter: hasBackdrop ? surface.backdropFilter : 'none',
     WebkitBackdropFilter: hasBackdrop ? surface.WebkitBackdropFilter : 'none',
-    boxShadow: glassShadowCss({
-      qualityId,
-      isMax,
-      elevationPx: pressLiftPx(isMax, visualPress.handDown, tiltMag),
-      primary,
-      tiltMag,
-    }),
-    opacity: tweaks.cardAlpha,
     transform: cardTransform,
     transitionDuration: reduceMotion ? '0ms' : undefined,
     ...props.style,
@@ -175,6 +182,7 @@ export function GlassCard(props: {
   const className = [
     'glass-card',
     interactive ? 'glass-card--interactive' : '',
+    minimal ? 'glass-card--minimal' : '',
     isMax ? 'glass-card--max' : '',
     props.className ?? '',
   ]
@@ -246,15 +254,17 @@ export function GlassCard(props: {
     () => crystalPrismColors(primary, secondary),
     [primary, secondary],
   );
-  const prism = cssTextToStyle(
-    prismBorderCss({
-      radius: effectRadius,
-      isPressed: visualPress.handDown,
-      qualityId,
-      strokeTint,
-      prismColors,
-    }),
-  );
+  const prism = minimal
+    ? null
+    : cssTextToStyle(
+        prismBorderCss({
+          radius: effectRadius,
+          isPressed: visualPress.handDown,
+          qualityId,
+          strokeTint,
+          prismColors,
+        }),
+      );
   const bevel =
     qualityId > RenderQuality.LOW.id
       ? cssTextToStyle(bevelCss({ radius: effectRadius, strokeTint }))
@@ -329,11 +339,13 @@ export function GlassCard(props: {
           style={bevel}
         />
       ) : null}
-      <span
-        aria-hidden="true"
-        className="glass-card__layer glass-card__edge glass-card__prism"
-        style={prism}
-      />
+      {prism ? (
+        <span
+          aria-hidden="true"
+          className="glass-card__layer glass-card__edge glass-card__prism"
+          style={prism}
+        />
+      ) : null}
       {props.children}
     </div>
   );

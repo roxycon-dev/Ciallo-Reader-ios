@@ -1,4 +1,10 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import {
   RENDER_QUALITY_LIST,
   RenderQuality,
@@ -6,6 +12,10 @@ import {
   renderQualityOf,
   type RenderQualityName,
 } from '../../core/glass/renderQuality';
+import {
+  getGlassQualitySnapshot,
+  subscribeGlassAppearance,
+} from './glassAppearanceRuntime';
 
 /**
  * Kotlin → TS map
@@ -17,19 +27,19 @@ import {
  *   line 32    `val LocalRenderQuality = staticCompositionLocalOf { RenderQuality.HIGH }`
  *              → `RenderQualityProvider` + `useRenderQuality()` below.
  *
- * `staticCompositionLocalOf` maps onto React context; the default `{ HIGH }` is
- * preserved as `DEFAULT_RENDER_QUALITY`.
+ * `staticCompositionLocalOf` maps onto React context; when no explicit provider
+ * exists the hook reads the live persisted quality from `glassAppearanceRuntime`.
  */
 
 export { RENDER_QUALITY_LIST, RenderQuality, renderQualityOf };
 export type { RenderQualityName };
 
-/** GlassQuality.kt line 32 — 未 provide 时回退 RenderQuality.HIGH。 */
+/** GlassQuality.kt default — also used before the preference runtime hydrates. */
 export const DEFAULT_RENDER_QUALITY: RenderQualityName = 'HIGH';
 
-const RenderQualityContext = createContext<RenderQualityName>(DEFAULT_RENDER_QUALITY);
+const RenderQualityContext = createContext<RenderQualityName | null>(null);
 
-/** `LocalRenderQuality provides …` — mount once near the app root. */
+/** Optional scoped override for previews and isolated surfaces. */
 export function RenderQualityProvider(props: {
   quality: RenderQualityName;
   children: ReactNode;
@@ -42,9 +52,15 @@ export function RenderQualityProvider(props: {
   );
 }
 
-/** `LocalRenderQuality.current` — reads the active quality tier. */
+/** `LocalRenderQuality.current` — reads an override or the persisted live tier. */
 export function useRenderQuality(): RenderQualityName {
-  return useContext(RenderQualityContext);
+  const providedQuality = useContext(RenderQualityContext);
+  const runtimeQuality = useSyncExternalStore(
+    subscribeGlassAppearance,
+    getGlassQualitySnapshot,
+    getGlassQualitySnapshot,
+  );
+  return providedQuality ?? runtimeQuality;
 }
 
 /** `LocalRenderQuality.current.realtimeGlass`. */
@@ -57,7 +73,7 @@ export function renderQualityFromId(id: number): RenderQualityName {
   return renderQualityOf(id);
 }
 
-/** The four user-facing tier labels, verbatim: '流畅' / '均衡' / '高' / '极致'. */
+/** The five user-facing tier labels, including Android's minimal fallback. */
 export const RENDER_QUALITY_LABELS: readonly string[] = RENDER_QUALITY_LIST.map(
   (name) => RenderQuality[name].label,
 );

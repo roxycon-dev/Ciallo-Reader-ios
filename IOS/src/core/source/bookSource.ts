@@ -36,7 +36,7 @@ export abstract class BookSource {
     return sourceRequiresLogin(this.capabilities);
   }
 
-  abstract search(keyword: string): Promise<SourceResultType<SearchBook[]>>;
+  abstract search(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>>;
   abstract getDetail(bookId: string): Promise<SourceResultType<SearchBook>>;
   abstract getDownloadInfo(bookId: string): Promise<SourceResultType<DownloadInfo>>;
   abstract login(credential: LoginCredential): Promise<SourceResultType<boolean>>;

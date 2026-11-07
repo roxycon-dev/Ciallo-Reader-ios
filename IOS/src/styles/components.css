@@ -41,6 +41,10 @@
   transform: scale(0.98);
 }
 
+.glass-card--minimal.glass-card--interactive:active {
+  transform: none;
+}
+
 /* MAX-tier layers (MaxFx.kt / MaxCardEffects.kt / GlassCard.kt) */
 
 .glass-card--max {

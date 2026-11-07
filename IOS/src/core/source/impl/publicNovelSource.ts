@@ -54,13 +54,13 @@ export class PublicNovelSource extends ComicSource {
   private async result<T>(block: () => Promise<T>): Promise<Result<T>> { try { return SourceResult.Success(await block()); } catch (error) { if (error instanceof Error && error.name === 'AbortError') throw error; return SourceResult.Error(error instanceof SourceException ? error : new ParseError(error instanceof Error ? error.message : `${this.name} 读取失败`)); } }
   override async getShareUrl(id: string) { return this.bookUrl(id); }
   override async getCoverHeaders() { return { Referer: this.home }; }
-  async search(keyword: string) { return this.result(async () => {
+  async search(keyword: string, signal?: AbortSignal) { return this.result(async () => {
     const query = keyword.trim(); if (!query) return [];
     const url = new URL(this.id === 'ihuaben' ? 'https://so.ihuaben.com/search' : this.id === 'sfacg' ? 'https://s.sfacg.com/' : 'index.php', this.home);
     if (this.id === 'ihuaben') url.searchParams.set('keyword', query);
     else if (this.id === 'sfacg') { url.searchParams.set('Key', query); url.searchParams.set('S', '1'); }
     else { url.searchParams.set('c', 'book'); url.searchParams.set('a', 'search'); url.searchParams.set('keywords', query); }
-    const doc = await this.page(url.toString());
+    const doc = await this.page(url.toString(), signal);
     if (this.id === 'sfacg') {
       const books = doc.select('a[href*="book.sfacg.com/Novel/"]').flatMap((anchor) => { const id = /\/Novel\/([0-9]+)/.exec(anchor.attr('href'))?.[1]; const title = anchor.text().trim(); return id && title ? [createSearchBook({ id, sourceId: this.id, title, author: '', format: 'epub', language: '中文', novelInfo: createNovelInfo({ translation: '中文原创', notice: '只支持整本公开作品；目录含 VIP 或锁定章节时会拒绝整本下载。' }) })] : []; });
       return [...new Map(books.map((book) => [book.id, book])).values()];

@@ -31,6 +31,7 @@ import type { BookRow, Bookmark, ChapterRow } from '@core/library/bookTypes';
 import type { BootstrapAniListResult } from '@core/startup/bootstrapAnilist';
 import type { CropParams } from '@core/god/godTypes';
 // E50：shared-element 转场（对应 Kotlin `MainActivity.kt:472` 的 `SharedTransitionLayout`）。
+import { closeLibraryPaperRoute } from '@ui/shared/paperRouteHost';
 import { withSharedElementTransition } from '@ui/shared/viewTransitions';
 
 export type RouteKey =
@@ -432,7 +433,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { route: current, routeHistory } = get();
     const route = routeHistory.at(-1) ?? fallback;
     if (current === route) return;
-    changePaperRoute(current, route, () => set({ route, routeHistory: routeHistory.slice(0, -1) }));
+    const commit = () => {
+      if (get().route === current) set({ route, routeHistory: routeHistory.slice(0, -1) });
+    };
+    if (isLibrarySearchRoute(current) && closeLibraryPaperRoute(current, commit)) return;
+    changePaperRoute(current, route, commit);
   },
   setTab: (activeTab) => set({ activeTab }),
   setReaderTheme: (readerTheme) => set({ readerTheme }),

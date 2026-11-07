@@ -974,6 +974,7 @@ export class LibraryViewModel {
               this.uiStateState.update((current) => withComicSearchGroup(current, group));
             }
           },
+          job.signal,
         );
       }),
     );
@@ -1437,6 +1438,7 @@ export class LibraryViewModel {
               this.uiStateState.value = librarySearchResults(group.books, group.loading);
             }
           },
+          job.signal,
         );
         if (requestSeq !== this.searchRequestSeq) return;
         if (collected.length > 0) {

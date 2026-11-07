@@ -64,26 +64,26 @@ export class FanqieSource extends ComicSource {
     return createSearchBook({ id, sourceId: this.id, title, author: text(data, index ? 'authorName' : 'author'), cover: text(data, index ? 'coverImgUrl' : 'thumb_url') || null,
       format: 'epub', language: '中文', description: synopsis, novelInfo: createNovelInfo({ synopsis, status, category: text(data, index ? 'bookType' : 'category') || null, translation: '中文网文', notice }) });
   }
-  async search(keyword: string) { return this.result(async () => {
+  async search(keyword: string, signal?: AbortSignal) { return this.result(async () => {
     const query = keyword.trim(); if (!query) return [];
-    const direct = /^(?:https:\/\/fanqienovel\.com\/page\/)?([0-9]{18,20})\/?(?:\?.*)?$/.exec(query); if (direct) { const detail = await this.getDetail(direct[1]!); if (detail.kind === 'error') throw detail.exception; return [detail.data]; }
+    const direct = /^(?:https:\/\/fanqienovel\.com\/page\/)?([0-9]{18,20})\/?(?:\?.*)?$/.exec(query); if (direct) { const detail = await this.getDetail(direct[1]!, signal); if (detail.kind === 'error') throw detail.exception; return [detail.data]; }
     const found = new Map<string, SearchBook>(); let succeeded = false, failure: unknown;
     try {
-      const data = await this.json(this.url('https://novel.snssdk.com/api/novel/channel/homepage/search/search/v1/', { device_platform: 'android', parent_enterfrom: 'novel_channel_search.tab.', offset: '0', aid: '1967', q: query }));
+      const data = await this.json(this.url('https://novel.snssdk.com/api/novel/channel/homepage/search/search/v1/', { device_platform: 'android', parent_enterfrom: 'novel_channel_search.tab.', offset: '0', aid: '1967', q: query }), true, signal);
       for (const row of objects(object(data['data'])['ret_data']).filter((row) => String(row['genre']) === '0')) { try { const book = this.book(row); found.set(book.id, book); } catch { /* Unusable result, possibly a removed work. */ } } succeeded = true;
-    } catch (error) { failure = error; }
+    } catch (error) { if (signal?.aborted) throw error; failure = error; }
     try {
-      const data = await this.json(this.url('https://www.shuhuangdian.com/api/book/search', { keyword: query, page: '1', pageSize: '20' }));
+      const data = await this.json(this.url('https://www.shuhuangdian.com/api/book/search', { keyword: query, page: '1', pageSize: '20' }), true, signal);
       for (const row of objects(object(data['data'])['books']).filter((row) => row['site'] === '番茄' && text(row, 'id').startsWith('fq'))) { try { const book = this.book(row, true); if (!found.has(book.id)) found.set(book.id, book); } catch { /* Incomplete secondary index entry. */ } } succeeded = true;
-    } catch (error) { failure = error; }
+    } catch (error) { if (signal?.aborted) throw error; failure = error; }
     if (!succeeded) throw failure;
     return [...found.values()].sort((a, b) => Number(normalizeIdentity(b.title) === normalizeIdentity(query)) - Number(normalizeIdentity(a.title) === normalizeIdentity(query)));
   }); }
-  async getDetail(id: string) { return this.result(async () => {
+  async getDetail(id: string, signal?: AbortSignal) { return this.result(async () => {
     validId(id); let book: SearchBook | null = null;
-    try { const data = await this.json(this.api('detail', 'book_id', id)); const row = objects(object(data['data'])['book_infos']).find((row) => text(row, 'book_id') === id); if (row) book = this.book(row); } catch { /* Secondary public index has independent coverage. */ }
-    if (!book) { const data = await this.json(this.url('https://www.shuhuangdian.com/api/book', { id: 'fq' + id })); const row = object(object(data['data'])['bookInfo']); if (row['bookId'] !== id || row['site'] !== '番茄') throw new ParseError('番茄详情归属异常'); book = this.book(row, true); }
-    const toc = await this.getChapters(id); if (toc.kind === 'error') throw toc.exception;
+    try { const data = await this.json(this.api('detail', 'book_id', id), true, signal); const row = objects(object(data['data'])['book_infos']).find((row) => text(row, 'book_id') === id); if (row) book = this.book(row); } catch (error) { if (signal?.aborted) throw error; /* Secondary public index has independent coverage. */ }
+    if (!book) { const data = await this.json(this.url('https://www.shuhuangdian.com/api/book', { id: 'fq' + id }), true, signal); const row = object(object(data['data'])['bookInfo']); if (row['bookId'] !== id || row['site'] !== '番茄') throw new ParseError('番茄详情归属异常'); book = this.book(row, true); }
+    const toc = await this.getChapters(id, signal); if (toc.kind === 'error') throw toc.exception;
     return { ...book, novelInfo: createNovelInfo({ ...book.novelInfo, chapterCount: toc.data.length, latestChapter: toc.data.at(-1)!.title }) };
   }); }
   async refreshNovelDetail(id: string) { return this.getDetail(id); }
@@ -97,7 +97,7 @@ export class FanqieSource extends ComicSource {
       return createComicChapter({ id: `${this.home}reader/${validId(text(row, 'itemId'))}`, title, volume: text(row, 'volume_name') || null, order });
     });
   }
-  async getChapters(id: string) { return this.result(async () => this.parseChapters(object((await this.json(this.url('/api/reader/directory/detail', { bookId: validId(id) }), false))['data']))); }
+  async getChapters(id: string, signal?: AbortSignal) { return this.result(async () => this.parseChapters(object((await this.json(this.url('/api/reader/directory/detail', { bookId: validId(id) }), false, signal))['data']))); }
   parseParts(data: ObjectData): NovelPart[] {
     if (![0, 200].includes(Number(data['code'] ?? -1))) throw new ParseError('番茄正文接口暂时不可用');
     const html = text(data, 'content') || text(object(data['data']), 'content');

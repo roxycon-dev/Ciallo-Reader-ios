@@ -151,7 +151,7 @@ export class AutoNovelSource extends ComicSource {
     return buildUrl(this.baseUrl, ['api/novel', parts[0] as string, parts[1] as string]);
   }
 
-  private async json(url: string): Promise<JsonObject> {
+  private async json(url: string, signal?: AbortSignal): Promise<JsonObject> {
     // Kotlin L62 `response.body?.byteStream()?.use { it.readImportBytes(2 * 1024 * 1024) }`
     // — the shared request helper applies that bound (an over-limit body throws
     // `压缩包解压体积超过安全上限`, which `result()`'s `catch (e: Exception)` arm
@@ -164,6 +164,7 @@ export class AutoNovelSource extends ComicSource {
         Referer: this.baseUrl,
       },
       maxBytes: MAX_SOURCE_BODY_BYTES,
+      ...(signal ? { signal } : {}),
     });
     if (response.status === 401) {
       throw new LoginRequired();
@@ -177,13 +178,13 @@ export class AutoNovelSource extends ComicSource {
     return parseJsonObjectOrThrow(decodeUtf8(response.body));
   }
 
-  private async detail(bookId: string, fresh = false): Promise<JsonObject> {
+  private async detail(bookId: string, fresh = false, signal?: AbortSignal): Promise<JsonObject> {
     return this.metadataMutex.withLock(async () => {
       const cached = this.metadata.get(bookId);
       if (cached !== undefined && !fresh && elapsedRealtime() - cached.at < 60_000) {
         return cached.data;
       }
-      const data = await this.json(this.path(bookId));
+      const data = await this.json(this.path(bookId), signal);
       this.metadata.put(bookId, { at: elapsedRealtime(), data });
       return data;
     });
@@ -279,12 +280,12 @@ export class AutoNovelSource extends ComicSource {
     }
   }
 
-  async search(keyword: string): Promise<SourceResultType<SearchBook[]>> {
+  async search(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>> {
     return this.result(async () => {
       const query = keyword.trim();
       if (query === '') return [];
       if (['re0', 'rezero'].includes(query.toLowerCase().replace(/[ :：-]/g, ''))) {
-        return [this.book('syosetu/n2267be', await this.detail('syosetu/n2267be'))];
+        return [this.book('syosetu/n2267be', await this.detail('syosetu/n2267be', false, signal))];
       }
       const url = buildUrl(
         this.baseUrl,
@@ -300,7 +301,7 @@ export class AutoNovelSource extends ComicSource {
           ['sort', '0'],
         ],
       );
-      const items = optJsonArray(await this.json(url), 'items');
+      const items = optJsonArray(await this.json(url, signal), 'items');
       if (items == null) {
         throw new ParseError('未返回小说列表');
       }

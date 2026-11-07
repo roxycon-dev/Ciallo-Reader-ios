@@ -29,6 +29,7 @@
  *   the same filter/append/trim/sort/associate pipeline.
  */
 
+import { abortable, throwIfAborted } from '@core/download/abortable';
 import type { BookSource } from '@core/source/bookSource';
 import type { SearchBook } from '@core/source/searchBook';
 import type { SourceResult } from '@core/source/sourceResult';
@@ -49,8 +50,12 @@ interface Site {
   cache: Map<string, SiteCacheEntry>;
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  if (ms <= 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try { await abortable(new Promise<void>((resolve) => { timer = setTimeout(resolve, ms); }), signal); }
+  finally { clearTimeout(timer); }
 }
 
 /** Kotlin `now: () -> Long = { System.nanoTime() / 1_000_000 }`. */
@@ -100,7 +105,9 @@ export class SourceSearchCoordinator {
     source: BookSource,
     keyword: string,
     request?: () => Promise<SourceResult<SearchBook[]>>,
+    signal?: AbortSignal,
   ): Promise<SourceResult<SearchBook[]>> {
+    throwIfAborted(signal);
     const query = keyword.trim();
     let site = this.sites.get(source.id);
     if (site === undefined) {
@@ -112,16 +119,18 @@ export class SourceSearchCoordinator {
     const cachedNow = cachedIn(current, source, query, this.now(), this.cacheMs);
     if (cachedNow !== null) return cachedNow;
 
-    return current.gate.withLock(async () => {
+    return abortable(current.gate.withLock(async () => {
+      throwIfAborted(signal);
       const cachedLocked = cachedIn(current, source, query, this.now(), this.cacheMs);
       if (cachedLocked !== null) return cachedLocked;
       const finishedAt = current.finishedAt;
       if (finishedAt !== null) {
-        await delay(Math.max(0, this.spacingMs - (this.now() - finishedAt)));
+        await delay(Math.max(0, this.spacingMs - (this.now() - finishedAt)), signal);
       }
       try {
         const result =
-          request !== undefined ? await request() : await source.search(query);
+          request !== undefined ? await request() : signal ? await source.search(query, signal) : await source.search(query);
+        throwIfAborted(signal);
         // Empty results and failures may be temporary throttling responses.
         if (result.kind === 'success' && result.data.length > 0) {
           const at = this.now();
@@ -140,6 +149,6 @@ export class SourceSearchCoordinator {
       } finally {
         current.finishedAt = this.now();
       }
-    });
+    }), signal);
   }
 }

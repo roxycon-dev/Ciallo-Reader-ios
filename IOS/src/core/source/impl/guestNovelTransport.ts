@@ -24,7 +24,7 @@ export function sourceResponseText(bytes: Uint8Array, headers: Record<string, st
   try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^\uFEFF/u, ''); }
   catch { return decodeCharset(bytes, 'gb18030'); }
 }
-export interface GuestVerification { (url: string, userAgent: string): Promise<{ cookie?: string; html?: string }> }
+export interface GuestVerification { (url: string, userAgent: string, signal?: AbortSignal): Promise<{ cookie?: string; html?: string }> }
 export class GuestNovelTransport {
   constructor(private readonly http: HttpClient, readonly home: string, readonly name: string,
     private readonly hosts: Set<string> = new Set([new URL(home).host]), private readonly verify?: GuestVerification) {}
@@ -47,7 +47,7 @@ export class GuestNovelTransport {
       const html = sourceResponseText(response.body, response.headers);
       const content = xbook && parseHtmlDocument(html).selectFirst('article.reading-text, #search-books, main header h1, section ol li a[href*="/book/"]');
       const problem = content ? null : sourceResponseProblem(html);
-      if (problem && xbook && this.verify && attempt === 0) { const solved = await abortable(this.verify(url, userAgent), signal); cookie = solved.cookie ?? ''; if (cookie) continue; }
+      if (problem && xbook && this.verify && attempt === 0) { const solved = await abortable(this.verify(url, userAgent, signal), signal); cookie = solved.cookie ?? ''; if (cookie) continue; }
       if (problem) throw new ParseError(problem);
       if (html.includes('\uFFFD')) throw new ParseError('源站文字编码异常，未导入不完整文本');
       return html;

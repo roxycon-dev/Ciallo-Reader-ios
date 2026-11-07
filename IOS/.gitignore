@@ -29,3 +29,8 @@ native-build/
 **/xcuserdata/
 *.xcuserstate
 scripts/.tmp-*
+tsc-baseline.txt
+tsc-out.txt
+vitest-baseline.txt
+vitest_output.txt
+vitest.audit.config.ts

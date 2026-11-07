@@ -130,7 +130,7 @@ export class IxdzsSource extends BookSource {
    * not carry, so it is returned next to the parsed document for `absUrl` use
    * (jsoup resolves relative attributes against it).
    */
-  private async page(url: string): Promise<{ doc: HtmlDocument; baseUrl: string }> {
+  private async page(url: string, signal?: AbortSignal): Promise<{ doc: HtmlDocument; baseUrl: string }> {
     // Kotlin L47 `response.body?.byteStream()?.use { it.readImportBytes(2 * 1024 * 1024) }`
     // — the shared request helper applies that bound (an over-limit body throws
     // `压缩包解压体积超过安全上限`, which `result()`'s generic arm maps to
@@ -142,6 +142,7 @@ export class IxdzsSource extends BookSource {
           'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/139.0.0.0 Mobile Safari/537.36',
       },
       maxBytes: MAX_SOURCE_BODY_BYTES,
+      ...(signal ? { signal } : {}),
     });
     if (!isSuccessful(response)) {
       throw new NetworkError(`爱下电子书返回 HTTP ${response.status}`);
@@ -242,11 +243,11 @@ export class IxdzsSource extends BookSource {
     }
   }
 
-  async search(keyword: string): Promise<SourceResultType<SearchBook[]>> {
+  async search(keyword: string, signal?: AbortSignal): Promise<SourceResultType<SearchBook[]>> {
     return this.result(async () => {
       if (keyword.trim() === '') return [];
       const url = buildUrl(this.baseUrl, ['bsearch'], [['q', keyword.trim()]]);
-      const { doc, baseUrl } = await this.page(url);
+      const { doc, baseUrl } = await this.page(url, signal);
       const books: SearchBook[] = [];
       for (const info of doc.select('.l-info')) {
         const link = info.selectFirst('h3.bname a[href]');

@@ -1,3 +1,4 @@
+import { useVisualAssets } from '@ui/lib/appVisualAssets';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { randomPosterStyle, randomSplashQuote } from '@core/mascot/splashQuotes';
 import { useAppStore } from '@ui/state/appStore';
@@ -94,28 +95,9 @@ export function SplashPage() {
    * load success/failure is detected with the same onLoad/onError pair that
    * stands in for `BitmapFactory.decodeStream` returning null.
    */
-  const [customPosterUri, setCustomPosterUri] = useState('');
+  const { poster, ready: posterReady } = useVisualAssets();
+  const customPosterUri = poster?.url ?? '';
   const [customPosterState, setCustomPosterState] = useState<'idle' | 'ok' | 'fail'>('idle');
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { getPlatform } = await import('@platform/index');
-        const { SettingsRepository } = await import('@core/settings/settingsRepository');
-        const uri = await new SettingsRepository(getPlatform().db).getString(
-          'custom_splash_poster_uri',
-          '',
-        );
-        if (!cancelled && uri !== '') setCustomPosterUri(uri);
-      } catch {
-        // 读不到设置就用默认程序化海报（与 Kotlin 解码失败的兜底同一语义）
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   /**
    * Kotlin L152-158:
@@ -126,7 +108,7 @@ export function SplashPage() {
    */
   const showCustomPoster = customPosterState === 'ok';
   const showProceduralPoster =
-    customPosterState !== 'ok' && (customPosterUri === '' || customPosterState === 'fail');
+    posterReady && customPosterState !== 'ok' && (customPosterUri === '' || customPosterState === 'fail');
 
   // randomQuote = remember(splashQuotes) { splashQuotes.random() }
   // defaultPosterStyle = remember { (0..2).random() }

@@ -38,8 +38,8 @@ export async function registerAppBuiltinSources(
     new AutoNovelSource({ client: http }),
     new Wenku8LibrarySource({ client: http, ...(fs ? { fs } : {}) }),
     new IxdzsSource({ client: http }),
-    new XbookcnSource({ client: http, verify: async (url, userAgent) => {
-      const result = await verifySourceWebsite(url, userAgent);
+    new XbookcnSource({ client: http, verify: async (url, userAgent, signal) => {
+      const result = await verifySourceWebsite(url, userAgent, false, signal);
       const target = new URL(url);
       return { cookie: result.cookies.filter((cookie) => {
         const domain = cookie.domain.replace(/^\./, '');

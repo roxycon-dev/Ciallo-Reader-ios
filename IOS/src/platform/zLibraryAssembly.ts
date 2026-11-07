@@ -99,9 +99,9 @@ export async function installAppZLibrary(manager: SourceManager, platform: Platf
   const health = new EndpointHealthChecker(transport, dns);
   const domainResolver = new ZLibraryDomainResolver(new ZLibraryEndpointProvider(prefs(platform, 'zlib_domain_cache'), nodeConfig,
     createNodeManagerPort(nodeManager), health, new RemoteEndpointProvider(prefs(platform, 'zlib_remote_config'), transport), transport, credentials), health);
-  const webViewSearch = async (node: string, keyword: string): Promise<WebViewSearchLike> => {
+  const webViewSearch = async (node: string, keyword: string, _cookies?: string | null, signal?: AbortSignal): Promise<WebViewSearchLike> => {
     const url = `https://${node}/s/${encodeURIComponent(keyword)}`;
-    const result = await verifySourceWebsite(url, navigator.userAgent, true);
+    const result = await verifySourceWebsite(url, navigator.userAgent, true, signal);
     if (!result.verified) return { books: [], cookies: null, pageHasZlibMarkers: false, stillChallenged: true };
     const cookie = result.cookies.map((entry) => `${entry.name}=${entry.value}`).join('; ');
     if (cookie) await cookieJar.syncFromRawCookieString(cookie, node);

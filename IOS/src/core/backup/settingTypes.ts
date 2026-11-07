@@ -108,6 +108,7 @@ export const INT_RANGES: Record<string, IntRange> = {
   page_turn_mode: { min: 0, max: 4 },
   screen_orientation_lock: { min: 0, max: 2 },
   font_family_index: { min: 0, max: 20 },
+  render_quality: { min: -1, max: 3 },
   app_background_mode: { min: 0, max: 1 },
   app_background_dim: { min: 0, max: 50 },
   daily_goal_minutes: { min: 0, max: 1440 },

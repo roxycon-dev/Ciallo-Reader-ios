@@ -16,6 +16,8 @@ export interface NativeHttpRequestOptions {
   maxResponseBytes?: number;
   signal?: AbortSignal;
   redirect?: 'follow' | 'manual' | 'error';
+  /** Per-request custom-source opt-in; never affects browser fetch or other requests. */
+  insecureTls?: boolean;
   disableRedirects?: boolean;
   url: string;
   method: string;
@@ -169,6 +171,7 @@ export class CapacitorHttpClient implements HttpClient {
       responseType: 'arraybuffer',
       ...(req.signal ? { signal: req.signal } : {}),
       ...(req.redirect ? { redirect: req.redirect } : {}),
+      ...(req.insecureTls === true ? { insecureTls: true } : {}),
       ...(req.maxResponseBytes === undefined ? {} : { maxResponseBytes: req.maxResponseBytes }),
       ...(req.redirect === 'manual' || req.redirect === 'error' ? { disableRedirects: true } : {}),
     };

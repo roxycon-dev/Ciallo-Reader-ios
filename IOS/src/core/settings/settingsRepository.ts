@@ -478,7 +478,7 @@ export class PreferencesManager {
     return this.repo.getInt('color_secondary_index', 2)
   }
   renderQuality(): Promise<number> {
-    return this.repo.getInt('render_quality', 2).then((v) => Math.min(Math.max(v, 0), 3))
+    return this.repo.getInt('render_quality', 2).then((v) => Math.min(Math.max(v, -1), 3))
   }
   dailyGoalMinutes(): Promise<number> {
     return this.repo.getInt('daily_goal_minutes', 60).then((v) => Math.min(Math.max(v, 5), 480))
@@ -668,7 +668,7 @@ export class PreferencesManager {
   }
 
   setRenderQuality(v: number): Promise<void> {
-    return this.repo.setInt('render_quality', Math.min(Math.max(v, 0), 3))
+    return this.repo.setInt('render_quality', Math.min(Math.max(v, -1), 3))
   }
 
   /** legacyDailyTotals — keys of form daily_read_time_YYYY-MM-DD. */

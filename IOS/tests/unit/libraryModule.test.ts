@@ -245,6 +245,74 @@ describe('ComicAggregateSearch.kt', () => {
     expect(peak).toBe(2);
   });
 
+  it('dispatches each normalized alias once and keeps a later error when no books were found', async () => {
+    const sent: string[] = [];
+    const source = {
+      id: 'book-source', name: '书源',
+      async search(keyword: string) {
+        sent.push(keyword);
+        return keyword === 'other'
+          ? { kind: 'error' as const, exception: new Error('别名源站失败') }
+          : { kind: 'success' as const, data: [] };
+      },
+    };
+    const groups: Array<{ loading: boolean; error: string | null }> = [];
+    const runner = new ComicAggregateSearch({ searches: new SourceSearchCoordinator(0, 0) });
+    await runner.searchExpanded([source as never], 'Original', [
+      [' ORIGINAL ', 'Alias', ' alias '], ['Alias', 'other'],
+    ], (group) => groups.push(group));
+    expect(sent).toEqual(['Original', 'Alias', 'other']);
+    expect(groups.at(-1)).toMatchObject({ loading: false, error: '别名源站失败' });
+  });
+
+  it('cancels the active source request and releases a cancelled queued permit', async () => {
+    const stop = new AbortController();
+    const sent: string[] = [];
+    let sourceSignal: AbortSignal | undefined;
+    let started!: () => void;
+    const active = new Promise<void>((resolve) => { started = resolve; });
+    const makeSource = (id: string) => ({
+      id, name: id,
+      async search(_keyword: string, signal: AbortSignal) {
+        sent.push(id);
+        if (id !== 'first') return { kind: 'success' as const, data: [] };
+        sourceSignal = signal;
+        started();
+        await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }));
+        return { kind: 'success' as const, data: [] };
+      },
+    });
+    const runner = new ComicAggregateSearch({ slots: new ComicAggregateSearchSlots(1), searches: new SourceSearchCoordinator(0, 0) });
+    const updates: unknown[] = [];
+    const result = runner.searchExpanded([makeSource('first') as never, makeSource('queued') as never],
+      'cancelled', [], (group) => updates.push(group), stop.signal);
+    const cancelled = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await active;
+    stop.abort();
+    await cancelled;
+    expect(sourceSignal?.aborted).toBe(true);
+    expect(updates).toEqual([]);
+    await runner.searchExpanded([makeSource('new') as never], 'fresh', [], () => {});
+    expect(sent).toEqual(['first', 'new']);
+  });
+
+  it('aborts the source transport on timeout and reports that timeout to the group', async () => {
+    let received: AbortSignal | undefined;
+    const source = {
+      id: 'timeout', name: '超时书源',
+      async search(_keyword: string, signal: AbortSignal) {
+        received = signal;
+        await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }));
+        return { kind: 'success' as const, data: [] };
+      },
+    };
+    const groups: unknown[] = [];
+    const runner = new ComicAggregateSearch({ requestTimeoutMs: 20, searches: new SourceSearchCoordinator(0, 0) });
+    await runner.searchExpanded([source as never], 'timeout', [], (group) => groups.push(group));
+    expect(received?.aborted).toBe(true);
+    expect(groups.at(-1)).toMatchObject({ loading: false, error: '搜索超时' });
+  });
+
   it('withComicSearchGroup promotes books-first groups and recomputes running', () => {
     const emptyLoading = libraryAggregateGroup('a', 'A', [], null, true);
     const emptyDone = libraryAggregateGroup('b', 'B', [], null, false);
