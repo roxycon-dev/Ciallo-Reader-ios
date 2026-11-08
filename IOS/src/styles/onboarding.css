@@ -1,0 +1,194 @@
+/* Onboarding page — ported from Android OnboardingScreen.kt dimensions. */
+
+.onboarding-page {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  /* Brush.verticalGradient(surfaceVariant 0.3 → background) */
+  background: linear-gradient(180deg, rgba(238, 238, 238, 0.3) 0%, #ffffff 100%);
+  padding: 0;
+}
+
+/* Skip TextButton: TopEnd padding(16.dp) */
+.onboarding-skip {
+  position: absolute;
+  top: calc(16px + var(--safe-top, 0px));
+  right: 16px;
+  z-index: 2;
+  border: 0;
+  background: transparent;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-medium-gray, #61666d);
+  cursor: pointer;
+}
+
+/* Main content: fillMaxWidth, Center, padding(horizontal 24) */
+.onboarding-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0 24px;
+  overflow: hidden;
+}
+
+.onboarding-slide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 480px;
+}
+
+/* slideInHorizontally(tween 300) + fadeIn */
+.onboarding-slide--enter {
+  animation: onboarding-slide-in 300ms ease-out;
+}
+
+@keyframes onboarding-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Badge: clip(RoundedCornerShape(50)), MintPrimary 0.15f, padding(h14 v6), 12sp Bold */
+.onboarding-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 50px;
+  background: rgba(5, 150, 105, 0.15);
+  color: var(--color-primary, #059669);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.onboarding-spacer-24 {
+  height: 24px;
+}
+
+.onboarding-spacer-32 {
+  height: 32px;
+}
+
+.onboarding-spacer-16 {
+  height: 16px;
+}
+
+/* Illustration Card: size(200.dp), RoundedCornerShape(24.dp), surface, shadow 4dp */
+.onboarding-card {
+  width: 200px;
+  height: 200px;
+  border-radius: 24px;
+  background: var(--color-surface, #ffffff);
+  box-shadow: 0 4px 12px rgba(24, 25, 28, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Image size(140.dp).padding(8.dp) */
+.onboarding-mascot {
+  font-size: 84px;
+  line-height: 1;
+}
+
+/* Title: 24sp Bold, onBackground, center, padding(horizontal 8) */
+.onboarding-title {
+  margin: 0;
+  padding: 0 8px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+  text-align: center;
+}
+
+/* Description: 14sp, onSurfaceVariant, center, lineHeight 22sp, padding(horizontal 16) */
+.onboarding-desc {
+  margin: 0;
+  padding: 0 16px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--color-medium-gray, #61666d);
+  text-align: center;
+}
+
+/* Bottom Column: fillMaxWidth, BottomCenter, padding(24) */
+.onboarding-bottom {
+  width: 100%;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Dots Row: padding(bottom 24) */
+.onboarding-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 24px;
+}
+
+/* dot: padding(horizontal 4), size(if selected 18x8 else 8x8), CircleShape */
+.onboarding-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  border-radius: 999px;
+  background: rgba(97, 102, 109, 0.3);
+  transition: width var(--motion-normal, 250ms) var(--ease-out, ease),
+    background var(--motion-normal, 250ms) var(--ease-out, ease);
+}
+
+.onboarding-dot--selected {
+  width: 18px;
+  background: var(--color-primary, #059669);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   触发：设置 → 护眼与提醒 → 夜间模式（auto_night_mode）
+        → MainActivity.kt L213 MyApplicationTheme(darkTheme = autoNightMode)
+   ══════════════════════════════════════════════════════════════ */
+
+/* 页面底：OnboardingScreen.kt L84-91
+   `Brush.verticalGradient(surfaceVariant.copy(alpha = 0.3f) → background)`。
+   原来烘死在白底上的 rgba(238,238,238,0.3) → #ffffff 只在浅色成立。 */
+[data-theme='dark'] .onboarding-page {
+  /* 深色档：#18191c 底上叠 7% 白，才等价于「surfaceVariant 30% 提亮」；
+     末端接 --color-light-bg（Theme.kt L72 DarkCharcoal #18191c）。 */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, var(--color-light-bg) 100%);
+}
+
+/* 插画卡：Android `Card` + `shadow(4.dp)`。底色已由 --color-surface 自动翻成
+   #222428，但 0 4px 12px rgba(24,25,28,0.1) 这条「深色投影」在深色卡下完全看不见，
+   卡片会糊进页面 —— 补一条 divider 发丝线把边界画出来。 */
+[data-theme='dark'] .onboarding-card {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--color-divider-gray);
+}
+
+/* 分页点：OnboardingScreen.kt L221 `onSurfaceVariant.copy(alpha = 0.3f)`。
+   rgba(97,102,109,0.3) 就是浅色 onSurfaceVariant 的 30%；深色档取
+   Theme.kt 的 --color-medium-gray(#9aa0a6) 同一 alpha。 */
+[data-theme='dark'] .onboarding-dot {
+  background: rgba(154, 160, 166, 0.3);
+}
+
+/* 权重兜底：`[data-theme='dark'] .onboarding-dot`（0-2-0）高于
+   `.onboarding-dot--selected`（0-1-0），选中点的主色会被基础规则吃掉。 */
+[data-theme='dark'] .onboarding-dot--selected {
+  background: var(--color-primary, #059669);
+}

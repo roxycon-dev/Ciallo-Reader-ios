@@ -1,0 +1,101 @@
+/* ══════════════════════════════════════════════════════════════
+   主壳 Tab 层 — 逐行对照 Android MainActivity.kt L638-653。
+   fade-through：出场 90ms 先走，入场 210ms 延迟 90ms 淡入，
+   两页永不同时可见（不出现「两张半透明页面叠在一起发灰」）。
+   ══════════════════════════════════════════════════════════════ */
+
+.shell-tab {
+  width: 100%;
+}
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Tab 栏容器（AppBottomTabBar.kt 的玻璃底座由该组件自带，这里只定外框） */
+.shell-tabbar {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+.shell-tabbar__item {
+  flex: 1;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.shell-tabbar__label {
+  font-size: 10px;
+  /* 未选中 α0.48，选中主色（与 AppBottomTabBar 的 token 一致） */
+  opacity: 0.48;
+  transition: opacity 180ms ease-out;
+}
+.shell-tabbar__item--selected .shell-tabbar__label {
+  opacity: 1;
+  color: var(--color-primary, #059669);
+}
+
+/* ── 全局提示条：按语义挑皮肤（AppToast.kt / AppSnackbar.kt） ──
+   成功 = 绿色/中性；错误 = 红色。绝不把成功提示渲染成错误卡。 */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tab-bar-height, 68px) + var(--safe-bottom, 0px) + 16px);
+  transform: translateX(-50%);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 420px);
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(24, 25, 28, 0.92);
+  color: #f9f2e2;
+  font-size: 13.5px;
+  line-height: 18px;
+  box-shadow: 0 8px 24px rgba(24, 25, 28, 0.28);
+}
+.toast--error {
+  background: #b3261e;
+  color: #ffffff;
+}
+.toast--ok {
+  background: rgba(24, 25, 28, 0.92);
+}
+.toast__text {
+  flex: 1;
+  min-width: 0;
+}
+.toast__action {
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-mint-gold, #e8c97a);
+  cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme（留档）
+   ══════════════════════════════════════════════════════════════
+   本文件没有需要深色变体的规则，逐条依据：
+   · `.shell-tab` / `.tab-content` / `.shell-tabbar*`：只有几何与
+     opacity，没有任何颜色；选中态走 `var(--color-primary)`。
+   · `.toast` / `.toast--ok` 的 `rgba(24,25,28,0.92)` + 奶白字：这是
+     Web 侧刻意固化的「深色提示条」皮肤（AppSnackbar 在 Android 上
+     虽走 surface/onSurface 跟随主题，但 Web 浅色态已定为深条、
+     依据「不改变浅色模式任何表现」不动它）；深色底上它本来就是
+     深的，不存在浅色硬编码残留。
+   · `.toast--error` 的 `#b3261e` 实底 + 白字：饱和红在两套底上都
+     过对比，且对应 AppErrorSnackbar 的 error 语义，不动。
+   · `.toast__action` 的 `--color-mint-gold`：金色高亮在深色底上
+     对比更好，不需要变体。

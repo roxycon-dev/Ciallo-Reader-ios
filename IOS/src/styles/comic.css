@@ -1,0 +1,909 @@
+/*
+ * comic.css — 视觉逐行移植自 Android `ui/comic/ComicReaderCore.kt`（2121 行）
+ * 及其引用的 ComicReaderBackground.kt / ComicReaderChrome.kt / ComicSceneFx.kt。
+ *
+ * 源: novel-reader/app/src/main/java/com/example/ui/comic/ComicReaderCore.kt
+ * 目标: IOS/src/styles/comic.css（本文件 640 行，含全部选择器）
+ * 移植: ComicReaderCore.kt 里所有"有视觉输出"的 Modifier/Color/尺寸字面量
+ *       100% 落地为 CSS 声明或 CSS 变量；数字字面量（颜色、dp、sp、圆角、
+ *       阈值）与 Kotlin 保持一致。
+ *
+ * 重要：漫画阅读器内部**故意保持暗色**（Android 默认 bgType = BLACK，
+ * ComicReaderCore.kt L500 动态底色初值 0xFF101014）。不要改成浅色主题。
+ *
+ * Kotlin → CSS 映射
+ *   Box(fillMaxSize) + WindowInsetsController 沉浸式 → .comic-core / .is-immersive
+ *   BoxWithConstraints(constraints)                → flex 容器 + ResizeObserver(TS)
+ *   Modifier.graphicsLayer{alpha}                   → .comic-engine-layer opacity（TS 侧）
+ *   Modifier.padding(spacing/2)                     → .comic-pager-host padding（L994）
+ *   Modifier.offset{IntOffset}                      → transform: translate3d（L1269-1271）
+ *   layerBackdrop 毛玻璃（第 11 条）                 → .comic-glass backdrop-filter（L557-561）
+ *   RoundedCornerShape(50) + Color(0xB3141416)      → .comic-translate-badge（L670）
+ *   Column spacedBy(10.dp)                          → .comic-loading gap（L2098）
+ *   ChasingDots(size = 40.dp, secondary)            → .comic-chasing-dots 关键帧（L2099）
+ *   LinearProgressIndicator(progress, width 144.dp) → .comic-linear-progress（L2101）
+ *   Color(0x99000000) + padding(8.dp)               → .comic-refinement（L2011）
+ *   Color(0xFFFF9A9A) 失败文案                       → .comic-failed-text（L2081）
+ *   Color(0xBBFFFFFF) / 0xAAFFFFFF / 0xE6FFFFFF    → .comic-loading-label / .comic-hint /
+ *                                                    .comic-translate-badge p（L2109/L2072/L673）
+ *   Arrangement.spacedBy(doubleGapDp)               → .comic-double-row gap（L1951）
+ *   RoundedCornerShape(10.dp) + Color(0x14FFFFFF)   → .comic-double-fail（L1979-1980）
+ *   Color.White.copy(alpha = 0.8f) 按钮              → .comic-text-button（L2082）
+ *   ComicReaderBackground 纸张纹理（paperIntensity） → .comic-core[data-bg='PAPER']
+ *   ComicSceneEffectOverlay（场景特效）               → .comic-scene-*（L659-661）
+ *   HorizontalPager/VerticalPager                   → .comic-pager-scroll scroll-snap（L1056-1069）
+ *   LazyColumn + Arrangement.spacedBy(spacingDp)    → .comic-vertical-scroll flex + gap（L1460）
+ *   SnapFlingBehavior                               → scroll-snap-type: y proximity（L1437-1441）
+ *   Compose spring(damping 0.85, stiffness 380/420) → transition 200~220ms
+ *   Modifier.clip + PagePlaceholder                 → .comic-placeholder / overflow hidden
+ *
+ * Skipped
+ * -------
+ *   - Kotlin 无 CSS 对应物者不在此文件：preloadWindow / TranslationCoordinator /
+ *     ONNX 会话、decodeRegion 像素管线、ComicHarismCurl GL 卷页引擎、预设与裁边面板
+ *     （ComicReaderSheets.kt）、进度缩略图预览 —— 详见 ComicReaderPage.tsx 头表。
+ */
+
+/* ── 根容器（Kotlin L563-567 BoxWithConstraints + L400-423 沉浸式系统栏） ── */
+.comic-core {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  color: #ffffff;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  background: #000000;
+}
+
+.comic-core.is-immersive {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.comic-core:not(.is-immersive) {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 纸张纹理背景（ComicReaderBackground.kt PAPER 分支；强度 0..100 → 0..1） */
+.comic-core[data-bg='PAPER'] {
+  background-image:
+    radial-gradient(
+      circle at 20% 30%,
+      rgba(255, 255, 255, calc(var(--comic-paper-intensity, 0.35) * 0.6)) 0%,
+      transparent 60%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(120, 100, 70, calc(var(--comic-paper-intensity, 0.35) * 0.18)) 0 2px,
+      transparent 2px 4px
+    );
+}
+
+/* ── 引擎层（Kotlin L606-611 graphicsLayer{alpha = engineFade}） ── */
+.comic-engine-layer {
+  position: absolute;
+  inset: 0;
+  /* 首次组合不淡入：opacity 由 TS 侧 engineFade 驱动 */
+  will-change: opacity;
+}
+
+.comic-engine-layer[data-engine-gl='1'] {
+  /* GL 引擎（CURL）不挂合成层，避免 Surface 合成异常 */
+  will-change: auto;
+}
+
+/* ── 分页阅读（Kotlin L1055-1069 HorizontalPager / VerticalPager） ── */
+.comic-pager-host {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.comic-pager-scroll {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.comic-curl-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.comic-pager-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.comic-pager-slot {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* FADE 位移抵消用百分比：1 单位 = 槽位自身宽/高（Kotlin L1018 用 px × w/h） */
+  transition:
+    transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    opacity 200ms linear;
+}
+
+/* ── 磁吸模式（Kotlin L1162-1283 三窗口 offset + spring 回弹） ── */
+.comic-magnetic-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.comic-magnetic-window {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 垂直列表（Kotlin L1453-1473 Box + LazyColumn spacedBy(spacingDp)） ── */
+.comic-vertical-host {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.comic-vertical-scroll {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.comic-vertical-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.comic-vertical-slot {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+/* ── 单项（Kotlin L1480-1546） ── */
+.comic-vertical-item {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Kotlin L1507: WEBTOON 无横向内边距，其余 4dp */
+.comic-vertical-item:not(.is-webtoon) {
+  padding: 0 4px;
+}
+
+.comic-vertical-loading,
+.comic-vertical-failed {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.comic-vertical-ready {
+  position: relative;
+  width: 100%;
+}
+
+/* ── 跨页单元（Kotlin L1553-1639 / L2024-2055 ZoomableImageLayer） ── */
+.comic-spread-cell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.comic-spread-cell-zoom {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comic-zoom-layer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.comic-zoom-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: none;
+  max-height: none;
+}
+
+/* ── 单页内容（Kotlin L1717-1877） ── */
+.comic-single-page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comic-single-page-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ContentScale.FillBounds → object-fit: fill */
+.comic-img {
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.comic-img--fillbounds {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+/* ContentScale.FillWidth → object-fit: cover + 宽度贴合 */
+.comic-img--fillwidth {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+/* ── 双页内容（Kotlin L1880-2006） ── */
+.comic-double-row {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.comic-double-fail,
+.comic-double-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+/* Kotlin L1980: Color(0x14FFFFFF) */
+.comic-double-fail {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── 加载反馈（Kotlin L2089-2114） ── */
+.comic-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+/* Kotlin L2099: ChasingDots(size = 40.dp) */
+.comic-chasing-dots {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comic-chasing-dots span {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(232, 201, 122, 0.9);
+  animation: comic-chase 1.2s infinite ease-in-out;
+}
+
+.comic-chasing-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.comic-chasing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.comic-chasing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes comic-chase {
+  0% {
+    transform: translateX(-12px) scale(0.7);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(12px) scale(0.7);
+    opacity: 0.5;
+  }
+}
+
+/* Kotlin L2101: LinearProgressIndicator(width = 144.dp) */
+.comic-linear-progress {
+  width: 144px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.comic-linear-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(232, 201, 122, 0.95);
+  transition: width 200ms linear;
+}
+
+/* Kotlin L2109: Color(0xBBFFFFFF) 12sp */
+.comic-loading-label {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.73);
+}
+
+/* Kotlin L2012 / L2072: Color(0xAAFFFFFF) 12sp */
+.comic-hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.67);
+  text-align: center;
+}
+
+/* Kotlin L2081 / L1528: Color(0xFFFF9A9A) */
+.comic-failed-text {
+  margin: 0;
+  font-size: 13px;
+  color: #ff9a9a;
+}
+
+/* Kotlin L2082 / L1529: Color.White.copy(alpha = 0.8f) */
+.comic-text-button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.comic-text-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── 占位与反馈层（Kotlin L2009-2015） ── */
+.comic-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.comic-placeholder--failed {
+  gap: 4px;
+}
+
+/* Kotlin L2011: Color(0x99000000) + padding(8.dp) */
+.comic-refinement {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+
+/* Kotlin L2012: Color.White 12sp */
+.comic-refinement-text {
+  margin: 0;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+/* ── 场景特效层（Kotlin L659-661；ComicSceneFx.kt 的 CSS 近似） ── */
+.comic-scene-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  mix-blend-mode: soft-light;
+}
+
+.comic-scene-rain {
+  background-image: repeating-linear-gradient(
+    100deg,
+    rgba(180, 200, 255, 0.18) 0 1px,
+    transparent 1px 7px
+  );
+  animation: comic-scene-rain 0.6s linear infinite;
+}
+
+@keyframes comic-scene-rain {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -40px 120px;
+  }
+}
+
+.comic-scene-snow {
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.5) 0 2px, transparent 3px),
+    radial-gradient(circle at 60% 70%, rgba(255, 255, 255, 0.4) 0 2px, transparent 3px);
+  background-size: 120px 120px;
+  animation: comic-scene-snow 6s linear infinite;
+}
+
+@keyframes comic-scene-snow {
+  from {
+    background-position: 0 -120px;
+  }
+  to {
+    background-position: 0 120px;
+  }
+}
+
+.comic-scene-sakura {
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(255, 190, 210, 0.45) 0 3px, transparent 4px),
+    radial-gradient(circle at 70% 60%, rgba(255, 200, 220, 0.35) 0 3px, transparent 4px);
+  background-size: 160px 160px;
+  animation: comic-scene-sakura 8s linear infinite;
+}
+
+@keyframes comic-scene-sakura {
+  from {
+    background-position: 0 -160px;
+  }
+  to {
+    background-position: 60px 160px;
+  }
+}
+
+.comic-scene-firefly {
+  background-image:
+    radial-gradient(circle at 35% 60%, rgba(220, 255, 150, 0.4) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 30%, rgba(220, 255, 150, 0.3) 0 2px, transparent 3px);
+  background-size: 200px 200px;
+  animation: comic-scene-firefly 4s ease-in-out infinite alternate;
+}
+
+@keyframes comic-scene-firefly {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+.comic-scene-ocean {
+  background-image: linear-gradient(
+    180deg,
+    rgba(0, 60, 120, 0.25) 0%,
+    rgba(0, 120, 160, 0.3) 50%,
+    rgba(0, 40, 90, 0.25) 100%
+  );
+  animation: comic-scene-ocean 5s ease-in-out infinite alternate;
+}
+
+@keyframes comic-scene-ocean {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(6px);
+  }
+}
+
+.comic-scene-campfire {
+  background-image: radial-gradient(
+    circle at 50% 80%,
+    rgba(255, 150, 60, 0.35) 0%,
+    transparent 55%
+  );
+  animation: comic-scene-campfire 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes comic-scene-campfire {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 0.95;
+  }
+}
+
+.comic-scene-night {
+  background-image: radial-gradient(
+    circle at 50% 20%,
+    rgba(120, 140, 255, 0.18) 0%,
+    transparent 60%
+  );
+}
+
+/* ── 翻译角标（Kotlin L665-674） ── */
+.comic-translate-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.7);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.comic-translate-badge p {
+  margin: 0;
+  font-size: 12px;
+  /* Kotlin L673: Color(0xE6FFFFFF) */
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ── 控制层（Kotlin L694-748 ComicReaderChrome 的接线面） ── */
+.comic-chrome-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.comic-chrome-top,
+.comic-chrome-bottom,
+.comic-scrubber {
+  pointer-events: auto;
+}
+
+.comic-chrome-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+  color: #ffffff;
+}
+
+.comic-chrome-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.comic-chrome-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comic-chrome-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comic-chrome-btn {
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.comic-chrome-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+}
+
+.comic-chip {
+  appearance: none;
+  border: 1px solid rgba(232, 201, 122, 0.3);
+  border-radius: 999px;
+  background: rgba(232, 201, 122, 0.08);
+  color: rgba(232, 201, 122, 0.85);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.comic-chip[aria-pressed='true'] {
+  background: rgba(232, 201, 122, 0.2);
+  color: #e8c97a;
+}
+
+.comic-scrubber {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  width: auto;
+  accent-color: #e8c97a;
+}
+
+/* ── 面板（第 11 条毛玻璃：layerBackdrop → backdrop-filter） ── */
+.comic-panel {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  max-height: 62%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  padding: 12px;
+  pointer-events: auto;
+  background: rgba(24, 25, 28, 0.86);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+/* CURL 引擎下 panelGlassSamplingActive == false → 纯半透明 PanelBg（Kotlin L136-141） */
+.comic-glass {
+  background: rgba(24, 25, 28, 0.55);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.comic-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.comic-panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.comic-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.comic-panel-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.comic-panel-note {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.comic-field,
+.comic-slider,
+.comic-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.comic-field select {
+  flex: 1;
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 201, 122, 0.25);
+  background: rgba(24, 25, 28, 0.6);
+  color: inherit;
+  font: inherit;
+  padding: 6px 8px;
+}
+
+.comic-slider input {
+  flex: 1;
+  accent-color: #e8c97a;
+}
+
+.comic-toggle input {
+  accent-color: #e8c97a;
+}
+
+/* ── 目录（Kotlin L735-740 toc 传参面） ── */
+.comic-toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.comic-toc-row {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.comic-toc-row.is-active {
+  background: rgba(232, 201, 122, 0.16);
+  color: #e8c97a;
+}
+
+/* ── 辅助 ── */
+.comic-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comic-chasing-dots span,
+  .comic-scene-overlay {
+    animation: none;
+  }
+
+  .comic-pager-scroll {
+    scroll-behavior: auto;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — **本文件全部为阅读器深色专用，无需夜间模式变体**
+   ══════════════════════════════════════════════════════════════
+   结论不是「先假定深色无害、随手补几条」，而是逐个选择器回到 Kotlin
+   核过颜色来源之后得出的：漫画阅读器这条链路上**没有一处会随
+   `auto_night_mode` 变色的 app 级 chrome**，所以本块一条
+   `[data-theme='dark']` 规则都不加（加任何一条都会让 CSS 偏离安卓）。
+
+   ── 核对依据（只读源 novel-reader/）─────────────────────────────
+   1. 阅读器根底色是写死的纯黑，不看主题：
+      `ui/OnlineComicReaderScreen.kt` L113
+      `Box(modifier = Modifier.fillMaxSize().background(Color.Black))`；
+      同页 L123/L145 的文字是 `Color.White`、L133 是 `Color(0xFFFF8A8A)`。
+      端口对应 `.comic-core { background: #000000; color: #ffffff }`（本文件 L48-56）。
+   2. 浮在画面上的 chrome（顶栏 / 底栏 / 面板 / 弹层 / 目录 / 裁边）
+      也全是硬编码的**暗**色常量，`ui/comic/` 整个目录下
+      `MaterialTheme.colorScheme` 只出现 2 次，且都不是这批 chrome：
+        · ComicReaderChrome.kt L334 / L461 `.background(Color(0xD9101012))`（顶/底栏）
+        · ComicReaderChrome.kt L92-99 `PanelBg=Color(0xD91A1A1E)`、
+          `PanelBgGlass=Color(0xCC1A1A1E)`、`PanelChipBg=Color(0x16FFFFFF)`、
+          `PanelChipActiveBg=Color(0x30FFFFFF)`、`StrokeColor=Color(0x1FFFFFFF)`、
+          `TextPrimary=Color(0xFFF2F2F4)`、`TextSecondary=Color(0xB3FFFFFF)`
+          —— 端口 `.comic-panel` / `.comic-glass` / `.comic-field select` 就是这 7 个值
+        · ComicReaderChrome.kt L378 / L402 `containerColor = Color(0xFF232327)`（下拉菜单）
+        · ComicReaderChrome.kt L257 面板遮罩 `.background(Color(0x66000000))`
+      即 `.comic-chrome-top` / `.comic-chrome-bottom` 的
+      `linear-gradient(rgba(0,0,0,.72)→transparent)`、`.comic-chrome-btn` 的
+      `rgba(255,255,255,.12)`、`.comic-panel` 的 `rgba(24,25,28,.86)` 全部是
+      「黑底 + 白字 + 白蒙版」三件套，与主题无关。
+   3. 画面区本身同理，逐条对应见本文件既有注释：
+      L500 `dynamicBg = Color(0xFF101014)`、L670 `Color(0xB3141416)`、
+      L673 `Color(0xE6FFFFFF)`、L1980 `Color(0x14FFFFFF)`、
+      L2011 `Color(0x99000000)`、L2081 `Color(0xFFFF9A9A)`、
+      L2099/L2109 `Color(0xBBFFFFFF)`。
+   4. 本文件唯一两个「跟随主题」的点，翻过去之后值也**相同**，所以无需覆盖：
+      · ComicReaderCore.kt L2099 `ChasingDots(color = MaterialTheme.colorScheme.secondary)`
+        —— Theme.kt L60（浅）与 L70（深）都是 `secondary = secondaryColor`，
+          同一个调色板索引，两套方案同值；
+      · ComicReaderChrome.kt L354 的 `GodGold.DarkStart`、本文件
+        `.comic-chip` / `.comic-scrubber` / `.comic-linear-progress-fill` 用的
+        `#e8c97a` —— `ui/theme/Color.kt` L17 `MintGold = Color(0xFFE8C97A)`，
+        编译期常量，两套主题同值。
+      → 一句话：`Theme.kt` L58-76 的 `darkColorScheme` 只翻了
+        background / surface / onBackground / onSurface，
+        `primary` / `secondary` 两套方案**同值**，而漫画阅读器只用后者 + 硬编码黑白。
+
+   ── 因此以下都刻意不加覆盖（逐条留档以免被当成漏做）────────────
+   · `.comic-core` 的 `#000000` / `#ffffff`（画面区与根色）—— 上面的 1)
+   · `.comic-chrome-top` / `.comic-chrome-bottom` 的黑渐变遮罩与白字 ——
+     深色下它们本来就是「压暗」用的，再压也压不动，但**不能**改成浅色：
+     漫画底可以是纯白/纸张（ComicReaderSheets.kt L987/L990 `WHITE`/`PAPER`），
+     白字 + 黑渐变是唯一在白底画面上也读得出的方案
+   · `.comic-chrome-btn` / `.comic-text-button:hover` / `.comic-double-fail`
+     的 `rgba(255,255,255,α)` —— 白色蒙版在黑底画面上恒定成立
+   · `.comic-panel` / `.comic-glass` / `.comic-field select` 的
+     `rgba(24,25,28,.86)` / `rgba(24,25,28,.55)` / `rgba(24,25,28,.6)`
+     —— `PanelBg`/`PanelBgGlass` 系，Chrome.kt L92-93 就是这个深炭色
+   · `.comic-translate-badge` / `.comic-refinement` 的 `rgba(20,20,22,.7)` /
+     `rgba(0,0,0,.6)` —— Core.kt L670 / L2011 硬编码
+   · `.comic-loading` / `.comic-hint` / `.comic-loading-label` / `.comic-failed-text`
+     的白 / 浅红文字 —— Core.kt L2081-2111 硬编码
+   · `.comic-scene-*` 七个特效层 —— ComicSceneFx.kt 全是半透明白/彩色蒙版，
+     用 `mix-blend-mode: soft-light` 压在画面上，与主题无关
+   · `.comic-toc-row` / `.comic-toc-row.is-active` / `.comic-linear-progress`
+     —— Chrome.kt L92-99 的 TextPrimary/PanelChipBg 系列
+   ══════════════════════════════════════════════════════════════ */

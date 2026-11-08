@@ -1,0 +1,42 @@
+{
+  "purpose": "Read-only Android authority for portable CI parity checks",
+  "files": [
+    {
+      "path": "app/src/main/java/com/example/data/BackupArchive.kt",
+      "sha256": "4960bc89adfeacddb617dc66a5485aba9f45b18b8a168ffa4d5e91e7f0ab93ed"
+    },
+    {
+      "path": "app/src/main/java/com/example/data/BackupManager.kt",
+      "sha256": "258d95902768c3d65536fbb4891051145909e3b390d580a64802a24f0b61279b"
+    },
+    {
+      "path": "app/src/main/java/com/example/source/anilist/CjkFoldMap.kt",
+      "sha256": "183a8d19e45bea56e8f0c4eee7b3fc0965d3e848ab38a5ed6fa465bcd7cde6b9"
+    },
+    {
+      "path": "app/src/main/java/com/example/source/anilist/TitleNormalizer.kt",
+      "sha256": "9b467584625a5a83a63ff6680087783cc5c04467bc205ee63dd2e370546d5420"
+    },
+    {
+      "path": "app/src/main/java/com/example/ui/help/LibraryHelpBottomSheet.kt",
+      "sha256": "4decdbae99bf724123e912ed97622ffb796803be1c09eda4deba1c9dc86a3257"
+    },
+    {
+      "path": "app/src/main/java/com/example/ui/help/JsonSourceGuideCard.kt",
+      "sha256": "017499774fc2c8e5b686cafe626def987720136c2527926a5417b965345471da"
+    },
+    {
+      "path": "app/src/main/java/com/example/ui/help/FaqExpandableItem.kt",
+      "sha256": "949602fc5e1c5e1c7a1f83f12543bdc4d90029312fe77ad53e86a570e2b29e22"
+    },
+    {
+      "path": "app/schemas/com.example.data.AppDatabase/12.json",
+      "sha256": "21b1bac1c481533b2844b8efa212118a4cb084e3db13881dad3af375743a30cd"
+    },
+    {
+      "path": "app/src/main/res/values/splash_quotes.xml",
+      "sha256": "5aa6819abe8d6a5936ad3acaa692a0fc2ebb27e450621e5b32ac993a0f03321a"
+    }
+  ],
+  "captured": "2026-10-28"
+}

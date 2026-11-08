@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CAPACITOR_DEBUG</key>
+	<string>$(CAPACITOR_DEBUG)</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Ciallo Reader</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.aistudio.ciallo.reader.detail</string>
+			<key>CFBundleURLSchemes</key>
+			<array><string>ciallo</string></array>
+		</dict>
+	</array>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh_CN</string>
+		<string>en</string>
+	</array>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+
+	<!-- ===================================================================
+	     Android 权限 → iOS NS*UsageDescription 对照
+	     Android 源：novel-reader/app/src/main/AndroidManifest.xml
+	     Android 权限逐条：
+	       android.permission.INTERNET
+	       android.permission.REQUEST_INSTALL_PACKAGES
+	       android.permission.FOREGROUND_SERVICE
+	       android.permission.FOREGROUND_SERVICE_DATA_SYNC
+	       android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK
+	       android.permission.ACCESS_NETWORK_STATE
+	       android.permission.READ_EXTERNAL_STORAGE (maxSdkVersion=32)
+	       android.permission.READ_MEDIA_IMAGES
+	       android.permission.VIBRATE
+	     （AndroidManifest.xml 里**没有** CAMERA / RECORD_AUDIO / POST_NOTIFICATIONS）
+	     =================================================================== -->
+
+	<!-- Android READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE → 相册读取
+	     Android 侧没有任何文案（系统对话框由 OS 提供），iOS 必须自备文案。 -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册，以便导入本地图片作为漫画封面与内页。</string>
+
+	<!-- 相册写入：Android READ_MEDIA_IMAGES + MediaStore 写入路径 → iOS 写入相册 -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>需要保存图片到相册，例如导出漫画内页。</string>
+
+	<!-- AndroidManifest.xml 未声明 CAMERA（源码无相机调用），此处按 CI 要求预置。
+	     未调用相机 API 时不会触发系统弹窗。 -->
+	<key>NSCameraUsageDescription</key>
+	<string>需要使用相机，以便扫描书籍封面或拍摄书页。</string>
+
+	<!-- AndroidManifest.xml 未声明 RECORD_AUDIO；TtsPlugin 只用 AVSpeechSynthesizer 播放，
+	     不录音。此处预置，未调用麦克风 API 时不会弹窗。 -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>需要使用麦克风，以便录制朗读音频。</string>
+
+	<!-- Android VIBRATE → iOS 无 NS*UsageDescription。
+	     @capacitor/haptics 走 UIFeedbackGenerator，系统不弹权限框。 -->
+
+	<!-- Android INTERNET / ACCESS_NETWORK_STATE → iOS 无对应键。
+	     android:usesCleartextTraffic="true" 的对等物就是下面的 ATS 例外。 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+
+	<!-- Keep the app's private library, protected books and transfer staging in
+	     its sandbox. Explicit import/export uses document pickers and share sheets. -->
+	<key>UIFileSharingEnabled</key>
+	<false/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>用于发现同一 Wi-Fi 或热点中的设备，经双方核对校验码后加密传输书籍与阅读数据。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ciallo-xfer._tcp</string>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>CFBundleDocumentTypes</key>
+	<array><dict>
+		<key>CFBundleTypeName</key><string>Ciallo 迁移包</string>
+		<key>CFBundleTypeRole</key><string>Viewer</string>
+		<key>LSHandlerRank</key><string>Alternate</string>
+		<key>LSItemContentTypes</key><array><string>com.ciallo.transfer</string><string>public.zip-archive</string></array>
+	</dict></array>
+	<key>UTExportedTypeDeclarations</key>
+	<array><dict>
+		<key>UTTypeIdentifier</key><string>com.ciallo.transfer</string>
+		<key>UTTypeDescription</key><string>Ciallo 迁移包</string>
+		<key>UTTypeConformsTo</key><array><string>public.zip-archive</string></array>
+		<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>ciallo</string></array><key>public.mime-type</key><string>application/vnd.ciallo.transfer+zip</string></dict>
+	</dict></array>
+
+	<!-- Android FOREGROUND_SERVICE_MEDIA_PLAYBACK → iOS 后台音频模式（TTS 朗读续播） -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+
+	<!-- AndroidManifest.xml 未声明 POST_NOTIFICATIONS；iOS 通知同样没有 NS* 用途说明键，
+	     权限由 UNUserNotificationCenter.requestAuthorization 运行时申请。 -->
+</dict>
+</plist>

@@ -1,0 +1,82 @@
+name: ios
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: IOS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Tokens check
+        run: npm run tokens
+      - name: Unit + parity tests
+        run: npm test
+
+  ios-build:
+    runs-on: macos-26
+    needs: web-ci
+    defaults:
+      run:
+        working-directory: IOS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: IOS/package-lock.json
+      - name: Assert Xcode (Capacitor 8 requires Xcode 26+)
+        run: |
+          xcodebuild -version
+          xcodebuild -version | grep -E 'Xcode 26\.' || (echo 'ERROR: Xcode 26+ required for Capacitor 8' && exit 1)
+      - name: Install
+        run: npm ci
+      - name: Build web
+        run: npm run build
+      - name: Sync Capacitor
+        run: npx cap sync ios
+      - name: Build iOS (simulator, unsigned)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+      - name: Archive unsigned IPA (simulator build packaged as artifact placeholder)
+        run: |
+          cd ios/App
+          mkdir -p artifacts
+          # Unsigned device IPA requires a signing identity; simulator .app is zipped for distribution testing.
+          APP_PATH=$(find build -name 'App.app' | head -n1)
+          if [ -z "$APP_PATH" ]; then echo 'App.app not found'; exit 1; fi
+          ditto -c -k --keepParent "$APP_PATH" artifacts/CialloReader-sim.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ciallo-ios-sim
+          path: IOS/ios/App/artifacts/CialloReader-sim.app.zip
+          if-no-files-found: error

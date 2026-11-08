@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#18191C" />
+    <link rel="icon" type="image/png" href="/splash/splash_ciallo_logo.png" />
+    <title>Ciallo Reader</title>
+    <!--
+      ⚠️ 必须排在主 bundle **之前**：iOS 16.0 的 WKWebView 跑在
+      `capacitor://localhost` 这个自定义 scheme 上，而自定义 scheme 不算
+      secure context，`crypto.randomUUID`（secure-context-only）会缺席，
+      书源导入 / 书籍分享 / 本地漫画导入三处会直接抛 TypeError。
+      这一个 import 把它用 `crypto.getRandomValues` 补回来；原生有则不动。
+      详见 `docs/SAFARI16_COMPAT.md`。
+    -->
+    <script type="module" src="/src/platform/web/polyfills.ts"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

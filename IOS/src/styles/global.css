@@ -1,0 +1,73 @@
+/* Global reset — tokens are injected per-component from @ui/tokens */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  background: #18191c;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+.app-route {
+  position: relative;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+button {
+  font: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — 审计留档：本文件无需 `[data-theme='dark']` 规则
+   ══════════════════════════════════════════════════════════════
+   `html, body` 的底色 #18191c = Android `DarkCharcoal`
+   （ui/theme/Color.kt；Theme.kt L72 深色 background 同值）。它是 WebView
+   的「窗口底」，正常情况下永远被 .app-shell（theme.css L187，
+   `background: var(--color-light-bg)` 随 token 翻转）盖住。
+   Android 侧窗口层（res/values/themes.xml）只在**启动交接**那一刻可见：
+   主窗口由 Compose 全幅绘制、`LocalOverscrollConfiguration` 被置 null
+   （Theme.kt L135-138，无过滚动露底），真正露底的开屏窗口钉的是
+   splash_background = #0F141C（同族深色）。Web 的深色窗口底对应的就是
+   这几个「窗口层可见时刻」，与主题无关，故两种主题都不覆盖。
+   ══════════════════════════════════════════════════════════════ */
+/* Startup stays outside routing until database and settings are ready. */
+.startup-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: #0f141c;
+  color: #f3f4f6;
+  text-align: center;
+}
+.startup-page h1 { font-size: 22px; }
+.startup-page p { max-width: 32rem; overflow-wrap: anywhere; }
+.startup-page button {
+  padding: 12px 24px;
+  border: 0;
+  border-radius: 18px;
+  background: #c7dcff;
+  color: #142139;
+  font: inherit;
+}

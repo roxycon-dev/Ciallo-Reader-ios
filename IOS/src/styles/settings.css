@@ -1,0 +1,1513 @@
+/* settings.css — line-by-line port of Android SettingsTabScreen.kt visuals
+   Sources: SettingsTabScreen.kt, SettingsControls.kt, ColorMorph.kt, AppSwitch.kt,
+            Theme.kt (BasePrimaryColors/BaseSecondaryColors), Color.kt, DesignTokens.kt
+   Default theme is LIGHT: white bg, dark text (#1A1A1E), green accents (#059669). */
+
+.settings-page {
+  background: var(--color-light-bg, #ffffff);
+  color: var(--color-on-light, #18191c);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  min-height: calc(100dvh - var(--tab-bar-height, 68px));
+}
+
+/* LazyColumn: contentPadding 16, verticalArrangement spacedBy(16.dp) */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* ── SettingsSectionHeader (SettingsTabScreen.kt:1563–1575)
+   13sp SemiBold, letterSpacing 0.1sp, green accent per shot4 facts ── */
+.settings-section-header {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  color: var(--color-primary, #059669);
+}
+
+/* ── GlassCard overrides for settings (radius 16.dp per Android item cards) ── */
+.settings-page .glass-card {
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 2px 8px rgba(24, 25, 28, 0.06);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+/* Inner preview glass card: radius 12.dp, primary tint alpha 0.16 */
+.settings-preview-card {
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(5, 150, 105, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(24, 25, 28, 0.04);
+}
+
+/* ── Section card inner rows ── */
+.settings-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.settings-card-title-row__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-card-title-row__label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.settings-card-title-row__label--semibold {
+  font-weight: 600;
+}
+
+.settings-card-icon {
+  color: var(--color-primary, #059669);
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-card-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.settings-spacer-8 { height: 8px; }
+.settings-spacer-10 { height: 10px; }
+.settings-spacer-12 { height: 12px; }
+.settings-spacer-14 { height: 14px; }
+.settings-spacer-16 { height: 16px; }
+.settings-spacer-20 { height: 20px; }
+
+.settings-divider {
+  height: 1px;
+  width: 100%;
+  border: 0;
+  margin: 0;
+  background: rgba(227, 229, 231, 0.5);
+}
+
+/* ── AppSwitch — Android AppSwitch.kt defaults: 60×32, circle 24, pad 4 ── */
+.app-switch {
+  position: relative;
+  width: 60px;
+  height: 32px;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  background: rgba(227, 229, 231, 0.85);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 200ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-switch__thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+  transition: transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.app-switch--on {
+  background: var(--color-primary, #059669);
+}
+
+.app-switch--on .app-switch__thumb {
+  transform: translateX(28px);
+}
+
+/* ── SegmentedPillSelector — SettingsControls.kt:80–212
+   height 48, pill 50%, surface 0.55, primary border 0.30,
+   indicator glass gradient primary 0.22 → secondary 0.16, border primary 0.45 1.5px,
+   text 12sp selected primary Bold / unselected onSurfaceVariant Medium ── */
+.settings-segmented {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  overflow: hidden;
+}
+
+.settings-segmented__indicator {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(5, 150, 105, 0.22),
+    rgba(16, 185, 129, 0.16)
+  );
+  border: 1.5px solid rgba(5, 150, 105, 0.45);
+  box-sizing: border-box;
+  pointer-events: none;
+  transition: transform 280ms cubic-bezier(0.34, 1.3, 0.64, 1),
+    width 280ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.settings-segmented__option {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-medium-gray, #61666d);
+  cursor: pointer;
+  padding: 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 180ms var(--ease-out, ease), font-weight 180ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-segmented__option--active {
+  color: var(--color-primary, #059669);
+  font-weight: 700;
+}
+
+/* ── ColorMorphSwatch — ColorMorph.kt:122–191
+   size 44, selected +14 (=58), corner →14, rotation 90°, check 20 white ── */
+.color-swatch-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  width: 100%;
+  gap: 4px;
+}
+
+.color-swatch {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+  transition: width 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    height 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    border-radius 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    opacity 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 6px rgba(24, 25, 28, 0.12);
+}
+
+.color-swatch--selected {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+.color-swatch__check {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 280ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    transform 280ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  pointer-events: none;
+}
+
+.color-swatch--selected .color-swatch__check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.settings-sublabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-medium-gray, #61666d);
+  margin: 0;
+}
+
+/* ── Live preview card (外观与主题) ── */
+.preview-room-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.preview-room-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.preview-room-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary, #059669);
+  flex-shrink: 0;
+}
+
+.preview-room-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-secondary-chip {
+  flex-shrink: 0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #fff;
+  background: var(--color-secondary, #10b981);
+  line-height: 16px;
+}
+
+/* AppLiquidButton — primary full-width liquid pill */
+.liquid-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary, #059669) 0%,
+    var(--color-secondary, #10b981) 100%
+  );
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.28);
+  transition: transform 150ms var(--ease-out, ease), opacity 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.liquid-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ── PageTurnSelectorRow — SettingsControls.kt:214–320
+   radius 14, padding h14 v12; selected gradient primary 0.16→secondary 0.10
+   + border primary 0.55; unselected outlineVariant 0.35 ── */
+.page-turn-android-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(227, 229, 231, 0.35);
+  background: transparent;
+  font-family: var(--font-sans);
+  color: var(--color-on-light, #18191c);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, transform 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page-turn-android-row:active {
+  transform: scale(0.97);
+}
+
+.page-turn-android-row--selected {
+  border: 1.5px solid rgba(5, 150, 105, 0.55);
+  background: linear-gradient(
+    90deg,
+    rgba(5, 150, 105, 0.16),
+    rgba(16, 185, 129, 0.1)
+  );
+}
+
+.page-turn-android-row__preview {
+  flex-shrink: 0;
+  width: 40px;
+  height: 54px;
+  border-radius: 6px;
+  background: rgba(24, 25, 28, 0.06);
+  border: 1px solid var(--color-divider-gray, #e3e5e7);
+  position: relative;
+  overflow: hidden;
+}
+
+.page-turn-android-row__preview-line {
+  position: absolute;
+  left: 6px;
+  height: 3px;
+  border-radius: 1.5px;
+  background: rgba(24, 25, 28, 0.22);
+}
+
+.page-turn-android-row--selected .page-turn-android-row__preview-line {
+  background: rgba(16, 185, 129, 0.38);
+}
+
+.page-turn-android-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.page-turn-android-row__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.page-turn-android-row--selected .page-turn-android-row__title {
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.page-turn-android-row__desc {
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+  line-height: 1.4;
+}
+
+.page-turn-android-row__check {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: transparent;
+}
+
+.page-turn-android-row--selected .page-turn-android-row__check {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary, #059669),
+    var(--color-secondary, #10b981)
+  );
+  color: #fff;
+}
+
+/* ── SettingsSlider (FluidSlider stand-in) ── */
+.settings-slider {
+  position: relative;
+  width: 100%;
+  padding-top: 28px;
+  padding-bottom: 4px;
+}
+
+.settings-slider__bubble {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  border-radius: 10px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(24, 25, 28, 0.12);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.settings-slider input[type='range'] {
+  width: 100%;
+  height: 28px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+}
+
+.settings-slider input[type='range']::-webkit-slider-runnable-track {
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(26, 26, 30, 0.5);
+  box-shadow: inset 0 1px 0 rgba(5, 150, 105, 0.3),
+    0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+.settings-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary, #059669);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.4);
+  margin-top: 3px;
+}
+
+.settings-slider input[type='range']::-moz-range-track {
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(26, 26, 30, 0.5);
+}
+
+.settings-slider input[type='range']::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary, #059669);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.4);
+}
+
+.settings-slider__ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.settings-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.settings-value-row__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.settings-value-row__value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+/* ── Splash poster preview: height 130.dp, radius 12 ── */
+.poster-preview {
+  width: 100%;
+  height: 130px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(227, 229, 231, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.poster-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── App background preview: height 160.dp, dim overlay + center card ── */
+.bg-preview {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(227, 229, 231, 0.55);
+}
+
+.bg-preview__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bg-preview__dim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+}
+
+.bg-preview__card {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 12px;
+  color: #1a1a1e;
+}
+
+.bg-preview__card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1a1e;
+  margin: 0;
+}
+
+.bg-preview__card-sub {
+  font-size: 11px;
+  color: rgba(26, 26, 30, 0.65);
+  margin: 2px 0 0;
+}
+
+/* ── Settings button rows ── */
+.settings-button-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.settings-button-row .app-button {
+  flex: 1;
+}
+
+/* ── Link / manage text button ── */
+.settings-link-btn {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary, #059669);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 14px;
+  padding: 6px 12px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-link-btn:active {
+  opacity: 0.75;
+}
+
+/* ── Navigation rows (cache / help) ── */
+.settings-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-light, #18191c);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-nav-row:active {
+  opacity: 0.85;
+}
+
+.settings-nav-row__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-nav-row__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.settings-nav-row__title--15 {
+  font-size: 15px;
+}
+
+.settings-nav-row__desc {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+  line-height: 1.4;
+}
+
+.settings-nav-row__desc--12 {
+  font-size: 12px;
+}
+
+.settings-chevron {
+  color: rgba(97, 102, 109, 0.5);
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.settings-chevron svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ── About card ── */
+.settings-about {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 20px;
+  text-align: center;
+}
+
+.settings-about__name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.settings-about__version {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.settings-about__tagline {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: rgba(97, 102, 109, 0.7);
+}
+
+.settings-about__star {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 50px;
+  border: 0;
+  padding: 11px 16px;
+  background: rgba(5, 150, 105, 0.09);
+  color: var(--color-primary, #059669);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-about__star svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-about__hint {
+  margin: 5px 0 0;
+  font-size: 10px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── Card tweak panel (AnimatedVisibility stand-in) ── */
+.card-tweak-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 280ms var(--ease-out, ease),
+    opacity 220ms var(--ease-out, ease),
+    padding-top 220ms ease;
+}
+
+.card-tweak-panel--open {
+  max-height: 900px;
+  opacity: 1;
+}
+
+.card-tweak-panel__reset-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.card-tweak-slider__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+  margin-bottom: 2px;
+}
+
+.card-tweak-slider__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.card-tweak-slider__value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+/* ── Custom minutes dialog (CustomMinutesDialog + AcrylicDialog) ── */
+.settings-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(24, 25, 28, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.settings-dialog {
+  width: 86%;
+  max-width: 400px;
+  border-radius: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 32px 40px rgba(5, 150, 105, 0.14),
+    0 8px 16px rgba(24, 25, 28, 0.18);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-dialog::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.72),
+    rgba(255, 255, 255, 0.08)
+  );
+  pointer-events: none;
+}
+
+.settings-dialog__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.settings-dialog__body {
+  margin-top: 12px;
+}
+
+.settings-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.minutes-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.minutes-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+  border-radius: 12px;
+  background: rgba(5, 150, 105, 0.08);
+  padding: 8px 18px;
+  min-width: 96px;
+  text-align: center;
+}
+
+.minutes-input {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(5, 150, 105, 0.35);
+  padding: 0 14px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--color-on-light, #18191c);
+  background: rgba(255, 255, 255, 0.9);
+  outline: none;
+}
+
+.minutes-input:focus {
+  border-color: var(--color-primary, #059669);
+}
+
+.stepper-icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(227, 229, 231, 0.9);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--color-on-light, #18191c);
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.stepper-icon-btn:active {
+  transform: scale(0.94);
+}
+
+/* ── Privacy manage modal (PrivacyManageOverlay stand-in) ── */
+.privacy-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  max-height: 40dvh;
+  overflow-y: auto;
+}
+
+.privacy-manage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(227, 229, 231, 0.6);
+}
+
+.privacy-manage-row:last-child {
+  border-bottom: 0;
+}
+
+.privacy-manage-row__name {
+  font-size: 14px;
+  color: var(--color-on-light, #18191c);
+}
+
+/* ── Hidden file inputs ── */
+.settings-file-input {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * settings.css — MODULE A EXTEND PASS
+ * Source: novel-reader/app/src/main/java/com/example/ui/SettingsTabScreen.kt
+ *         (1691 lines total / 1615 non-blank / 1528 code)
+ * Append-only: nothing above this banner was modified or removed.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Kotlin L1618: `SettingsSectionHeader` colour correction ──
+ * The first pass coloured this green ("green accent per shot4 facts"). The Kotlin is
+ * explicit: `adaptiveTitleColor().copy(alpha = 0.62f)`, and `adaptiveTitleColor()`
+ * (ui/AppBackground.kt:46) is `Color(0xFF1A1A1E)` on a light background. The header is
+ * 次级色 at 62%, not the primary — the comment at L1610–1612 says exactly why: a
+ * 14sp-Bold primary heading out-shouted the row titles and the whole page read as
+ * "all headings". Override below (higher specificity wins, order irrelevant).
+ * 13sp SemiBold / letterSpacing 0.1.sp stay as they were. */
+.settings-page .settings-section-header {
+  color: rgba(26, 26, 30, 0.62);
+}
+
+/* ── Kotlin L331–343: `settingsLeading` — the back `leading` button ──
+ * `AppIconButton(onClick = backAction) { Icon(Icons.AutoMirrored.Filled.ArrowBack,
+ *  contentDescription = "返回", tint = onSurface) }`. The button sits in
+ * TabScreenHeader's `leading` slot, which already carries the header's 20.dp
+ * horizontal padding, so only the icon metrics live here. */
+.settings-header-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--color-on-light, #18191c);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-header-back:active {
+  opacity: 0.55;
+}
+
+.settings-header-back svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+/* ── Spacers the About card needs (Kotlin Spacer(2/4/6/14.dp)) ──
+ * Kotlin uses `Spacer(modifier = Modifier.height(n.dp))` inside the About Column.
+ * `.settings-spacer-4/-14` did not exist yet; `-6` and `-2` are new too (the existing
+ * `-6` at the blue-light block was inline-styled). */
+.settings-spacer-2 { height: 2px; }
+.settings-spacer-4 { height: 4px; }
+.settings-spacer-6 { height: 6px; }
+
+/* ── Kotlin L1363–1367 / L1385–1388 / L1402–1409: the About card's text rows ──
+ * `Text("版本 $versionName", fontSize = 12.sp, color = onSurfaceVariant)`
+ * → `.settings-about__version` (unchanged).
+ * `Text(message, fontSize = 10.sp, color = onSurfaceVariant)` for `updateMessage`
+ * → `.settings-about__update` (NEW).
+ * `Text("检查正式版本，确认后下载并打开系统安装页面。", fontSize = 10.sp,
+ *  color = onSurfaceVariant.copy(alpha = 0.65f))` → `.settings-about__hint-strong`
+ *  (NEW — the 65% alpha is the whole point, it is a subtitle to the hint below it).
+ * `.settings-about__tagline` (11.sp, alpha 0.7) and `.settings-about__hint` (10.sp,
+ * alpha 1.0) already existed and are unchanged. */
+.settings-about__update {
+  margin: 0;
+  max-width: 320px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--color-medium-gray, #61666d);
+  /* Kotlin wraps `updateMessage` freely (it can be a multi-sentence failure reason,
+     e.g. "检查更新失败：…；…。可稍后重试或打开 GitHub 发布页。"). */
+  overflow-wrap: anywhere;
+}
+
+.settings-about__hint-strong {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  line-height: 1.5;
+  color: rgba(97, 102, 109, 0.65);
+}
+
+/* ── Kotlin L1391–1395 / L1398–1400: the two About `TextButton`s ──
+ * M3 `TextButton` = a flat label, primary-coloured, min-height 40.dp (40 for the
+ * touch target, 12.sp label). They sit centred under the 检查更新 button. */
+.settings-about__textbtn {
+  margin-top: 4px;
+  min-height: 32px;
+  border: 0;
+  padding: 4px 12px;
+  background: transparent;
+  color: var(--color-primary, #059669);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-about__textbtn:active {
+  opacity: 0.55;
+}
+
+/* ── Kotlin L1385–1386: `Spacer(Modifier.height(6.dp))` above `updateMessage` ── */
+/* (styled inline at the call site; the class is declared above for parity) */
+
+/* ── Kotlin L1424–1427: the star pill's `Icon(Star, size = 16.dp)` ── */
+/* `.settings-about__star svg` already carries width/height 16px — unchanged. */
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * Kotlin L163–198 — 恢复备份 confirm AlertDialog
+ * M3 `AlertDialog`: 28.dp container radius (expressive shape), 24.dp padding,
+ * 24.sp title, 16 body sp onSurfaceVariant, and a TextButton + TextButton action row
+ * aligned End with 8.dp between them. Reuses the existing `.settings-dialog` glass
+ * shell (same surface `CustomMinutesDialog` uses) — only the body text is new.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+.settings-dialog__text {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* Kotlin L167/L197: `TextButton(enabled = !backupBusy, …)` — the disabled state of the
+ * flat label button. `.settings-link-btn` already has the enabled styling. */
+.settings-link-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * Kotlin L1465–1502 — 新建分类 AlertDialog
+ * `text = { OutlinedTextField(value = newCategoryText, onValueChange = …,
+ *  label = { Text("名称") }, singleLine = true) }` → `.settings-dialog__field`.
+ * M3 `OutlinedTextField`: 56.dp min height, 1.dp outline in onSurfaceVariant at 38%
+ * alpha, 16.dp corner radius, label inset 12.dp floating to the top border.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+.settings-dialog__field {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 56px;
+  border: 1px solid rgba(97, 102, 109, 0.38);
+  border-radius: 16px;
+  padding: 18px 16px 8px;
+  background: transparent;
+  color: var(--color-on-light, #18191c);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.settings-dialog__field:focus {
+  border-color: var(--color-primary, #059669);
+  border-width: 2px;
+  padding: 17px 15px 7px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * Kotlin L1628–1691 — CardTweakSlider's two-state animation
+ *
+ * KDoc (L1623–1626):
+ *   "标签行与滑条容器零间距、共用同一左右内边距，视觉强关联"
+ *   "FluidSlider 容器 = 2.5×barH：底部 1×barH 轨道 + 顶部 1.5×barH 气泡预留空区。
+ *    标签行与气泡同处预留空区：静止时标签可见；拖动开始整行淡出、让数值气泡独占该
+ *    区域（不遮任何文字），松手后淡回 —— 两态互斥永不叠印。"
+ *
+ * Implementation: `CardTweakSlider` carries `data-dragging`, and the label row is
+ * overlaid 30px above the track (Kotlin's `.offset(y = (-30).dp)`, L1656) with a
+ * 140 ms opacity transition (L1646–1650 `animateFloatAsState(tween(140))`). The bubble
+ * sinks behind the track at rest and rises on drag (`.settings-slider--sunk`).
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+.card-tweak-slider {
+  position: relative;
+  /* 2.5 × barHeight(28px) = 70px: the track at the bottom, the bubble airspace above. */
+  padding-bottom: 0;
+}
+
+/* Kotlin L1652–1657: the label Row, `.align(BottomCenter).padding(horizontal = 4.dp)
+ * .offset(y = (-30).dp).graphicsLayer { alpha = labelAlpha }`. */
+.card-tweak-slider .card-tweak-slider__label-row {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: -30px;
+  margin-bottom: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 140ms var(--ease-out, ease);
+}
+
+.card-tweak-slider[data-dragging='true'] .card-tweak-slider__label-row {
+  opacity: 0;
+}
+
+/* The slider itself fills the 2.5×barH container; `FluidSlider` puts the track in the
+ * bottom 1×barH, so the track needs the extra bottom padding the Android view has. */
+.card-tweak-slider .settings-slider {
+  padding-bottom: 0;
+}
+
+/* ── Kotlin L1677–1689: the FluidSlider inside CardTweakSlider ──
+ * At rest `hideLabel()` has run, so the bubble sits down inside/behind the bar. On
+ * drag `showLabel()` raises it by METABALL_RISE_DISTANCE (1.1 × barH) with an
+ * OvershootInterpolator over 400 ms (FluidSlider.kt L570–584); the overshoot is
+ * approximated by a slightly springy cubic-bezier since CSS has no overshoot easing
+ * primitive that also animates `translate`. */
+.settings-slider--sunk .settings-slider__bubble {
+  transform: translateY(0) scale(0.82);
+  opacity: 0.34;
+  transition:
+    transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 400ms var(--ease-out, ease);
+}
+
+.settings-slider--sunk[data-dragging='true'] .settings-slider__bubble {
+  transform: translateY(-22px) scale(1);
+  opacity: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   ─────────────────────────────────────────────────────────────────────────────
+   触发：`<html data-theme="dark">`，由 App.tsx 在 设置 → 护眼与提醒 → 夜间模式
+   （Android `auto_night_mode`）打开时写入；消费方是 MainActivity.kt L213
+   `MyApplicationTheme(darkTheme = autoNightMode)`。
+   ⚠️ 绝不用 `@media (prefers-color-scheme: dark)`：`isSystemInDarkTheme()` 只是
+   Theme.kt L35 的**参数默认值**，已被 MainActivity 覆盖，理由见 theme.css L97-106。
+
+   本块只追加覆盖，既有规则一行未改、未删（浅色态零回归，见
+   docs/PARITY_EXCEPTIONS.md E55）。
+   底座 token 直接复用 theme.css L107-125：
+     --color-light-bg #18191c ｜ --color-surface #222428 ｜ --color-on-light #d4d4d4
+     --color-medium-gray #9aa0a6 ｜ --color-divider-gray #2f3238
+   需要「同一 token 加透明度」的地方统一写
+   `color-mix(in srgb, var(--token) N%, transparent)`（components.css L696-700 已用同款），
+   这样 alpha 关系在两个主题里一模一样，切主题时不会出现只有一半跟着变的东西。
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── GlassCard 面（L36-44）──
+ * Kotlin `GlassCard(tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))`
+ * （GlassCard.kt L271 + L564，78% 对应「均衡」档），浅色端口把 surface 写死成
+ * rgba(255,255,255,0.78)。深色 surface = #222428（L73），所以 alpha 不变、只换 token。
+ *
+ * 描边 `rgba(255,255,255,0.45)` **刻意不动**：Kotlin 的 strokeTint =
+ * `lerp(Color.White, primary, 0.38f)`（GlassCard.kt L284）、alpha 0.40（L902-903），
+ * 与主题无关，深色下照样画亮边 —— 它正好承担了本文件的「深色面分离」职责。
+ *
+ * 阴影必须换：浅色 0 2px 8px rgba(24,25,28,0.06) 在 #18191c 上等于没有。
+ * Kotlin 自己也有第二层「看得见的那层」——GlassCard.kt L528-533 Layer 7A 的
+ * primary 彩色柔光（ambient 0.10 / spot 0.14，MAX 档更浓）。深色就换成它：
+ * 深色底上只有主题色柔光能拉开层次，纯黑投影不能。 */
+[data-theme='dark'] .settings-page .glass-card {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 78%, transparent);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-primary, #059669) 18%, transparent);
+}
+
+/* ── L47-53 `.settings-preview-card` 刻意不动 ──
+ * Kotlin SettingsTabScreen.kt L657-661 是 `GlassCard(tint = primary.copy(0.16f))`：
+ * 底色是主题色染体、描边是同一条白棱镜边，两者都与主题无关，深色下照样成立。
+ * 它的 0.04 黑投影在浅色里本来也≈没有，深色靠那条 0.35 白描边分离已经够了。 */
+
+/* ── L104-110 `.settings-divider` —— DividerGray@0.5 ──
+ * 浅色 #E3E5E7@0.5 浮在白卡上是一条极淡的缝；深色的 --color-divider-gray
+ * (#2F3238) 已经是「比 surface 亮一点点」的低对比色，再乘 0.5 就彻底看不见了，
+ * 所以这里用满量 token（比 surface 亮 13 L*），保住「一条缝」的读法。 */
+[data-theme='dark'] .settings-divider {
+  background: var(--color-divider-gray);
+}
+
+/* ── L113-125 `.app-switch` 关闭态轨道 —— surfaceVariant@0.85 ──
+ * 浅色端口写的是 DividerGray#E3E5E7@0.85。深色下 #2F3238@0.85 落在 #222428 的卡片上
+ * 几乎等于卡片本身，开关会看着像「没画」。M3 的关闭轨道其实是 surfaceVariant
+ * （darkColorScheme 默认 #43474E），本仓库用 --color-medium-gray（#9AA0A6）近似，
+ * 取 M3 同款 0.32 emphasis 后落在 ~#3F4247，轨道与卡片分得开、拇指也压得住。
+ * ⚠️ 限定 .settings-page：`.app-switch` 在 components.css L297 还有一份全局实现
+ * （隐私/书源/书架页共用，旋钮叫 `__knob`），本文件的 `__thumb` 只有设置页在用。 */
+[data-theme='dark'] .settings-page .app-switch {
+  background: color-mix(in srgb, var(--color-medium-gray, #61666d) 32%, transparent);
+}
+
+/* `.app-switch__thumb` 的 `background: #fff` 刻意不动：Android SquishyToggleSwitch
+ * 与 iOS UISwitch 的关闭态旋钮都是白色圆片，白旋钮在深色轨道上反而更清楚；
+ * 只有轨道需要改色。 */
+
+/* ── L151-160 `.settings-segmented` —— Kotlin L104-106 `surface.copy(alpha = 0.55f)` ──
+ * 浅色端口写死 rgba(255,255,255,0.55)（= 浅色 surface），深色换成 #222428@0.55。
+ * 内部指示器与选中文字都是 primary/secondary 系，无需覆盖。 */
+[data-theme='dark'] .settings-segmented {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 55%, transparent);
+}
+
+/* ── L234 `.color-swatch` 阴影 —— 唯一一处「补面」以外的色板边缘 ──
+ * Kotlin ColorMorph.kt L165-181 根本没有投影（色块靠 `color.copy(alpha = 0.72f)`
+ * 的明度差自己分层），这层 0 2px 6px rgba(24,25,28,0.12) 是端口自造的。
+ * 深色底上黑投影无效，未选中色块又是 72% 半透明、边缘更糊，所以改成 1px 白色发丝环：
+ * 44px 小圆块在深色卡片上靠这条边就能读出形状。 */
+[data-theme='dark'] .color-swatch {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+/* ── L351 `.page-turn-android-row` 未选中描边 —— Kotlin L264 `outlineVariant.copy(0.35f)` ──
+ * 浅色 outlineVariant = #E3E5E7@0.35 看得见；深色 token 是 #2F3238，@0.35 叠在
+ * #222428 上基本归零，未选中行会整个消失。这里改用满量 --color-divider-gray
+ * （仍是 outlineVariant 系、仍是「比 surface 略亮」，只是不再乘 0.35）。 */
+[data-theme='dark'] .page-turn-android-row {
+  border-color: var(--color-divider-gray);
+}
+
+/* ── L379/L390 翻页预览的「纸面」与文字线 ──
+ * Kotlin L612-613 是 `onSurface.copy(0.06f)` / `onSurface.copy(0.22f)` —— onSurface
+ * 随主题翻转（浅色 #18191C，深色 NightText #D4D4D4）。端口把浅色那一组写死了，
+ * 深色必须整体翻到浅墨，否则预览块变全黑、文字线完全看不见。 */
+[data-theme='dark'] .page-turn-android-row__preview {
+  background: color-mix(in srgb, var(--color-on-light, #18191c) 6%, transparent);
+}
+
+[data-theme='dark'] .page-turn-android-row__preview-line {
+  background: color-mix(in srgb, var(--color-on-light, #18191c) 22%, transparent);
+}
+
+/* ── L451-464 `.settings-slider__bubble` 数值气泡 ──
+ * 浅色是 `#fff` + 0.12 黑投影：白药丸压在任何底上都靠投影分层。深色下 #D4D4D4 药丸会
+ * 和卡片糊在一起，改为 --color-surface(#222428) + --color-divider-gray 发丝边
+ * （任务要求的「深色面给一条 hairline」），投影同步加深。全局 `* { box-sizing: border-box }`
+ * （theme.css L138）已生效，这 1px 边不会撑动气泡定位。
+ * 文字是 primary（L459），两套主题一致。 */
+[data-theme='dark'] .settings-slider__bubble {
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider-gray);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+
+/* ── L476-508 滑条轨道（WebKit + Firefox 两条都要）──
+ * Kotlin SettingsControls.kt L513 硬编码 `Color(0xFF1A1A1E).copy(alpha = 0.50f)`
+ * （KDoc L429 原话「深色半透明轨道」）——这是安卓在深色下的既有缺陷：#1A1A1E@0.5
+ * 叠在 #18191c 上对比度约 1.03:1，轨道等于消失、滑块拖不动。这里必须偏离 Kotlin，
+ * 换成 onSurface@0.20（= #D4D4D4 的一层薄墨，落点 ~#3F4247）。
+ * 投影同步翻面：浅色的 `0 1px 2px rgba(255,255,255,0.2)`（Kotlin L531 的白色高光线）
+ * 在浅色轨道上只是微光、在深色轨道上会完全看不见，改成真正的接触投影；
+ * 内层 primary 0.30 斜面（L519）保留 —— 它在两个主题里都成立。 */
+[data-theme='dark'] .settings-slider input[type='range']::-webkit-slider-runnable-track {
+  background: color-mix(in srgb, var(--color-on-light, #18191c) 20%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-primary, #059669) 30%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='dark'] .settings-slider input[type='range']::-moz-range-track {
+  background: color-mix(in srgb, var(--color-on-light, #18191c) 20%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--color-primary, #059669) 30%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+/* 拇指的 `border: 2px solid #fff`（Kotlin L574）刻意不动：白环是 primary 色块与
+ * 轨道之间的分隔环，深色轨道变浅之后白环与绿色主体的对比反而更清楚。 */
+
+/* ── L545 / L564 海报与背景预览的空态底 ──
+ * Coil 的 AsyncImage 没有占位色，这层 DividerGray@0.55 是端口自造的骨架底。
+ * 深色换成满量 --color-divider-gray(#2F3238)：它是卡片面 #222428 之上唯一还能被
+ * 看见的骨架色。图片一旦加载出来就被 `<img>` 完全盖住，不影响有图的情况。 */
+[data-theme='dark'] .poster-preview,
+[data-theme='dark'] .bg-preview {
+  background: var(--color-divider-gray);
+}
+
+/* ── L582-605 `.bg-preview__card*` 刻意不动 ──
+ * Kotlin SettingsTabScreen.kt L484 `previewCardColor = Color.White.copy(alpha = 0.92f)`
+ * 是**写死的 White**，与 colorScheme 无关（这是「自定义背景」预览里模拟悬浮卡的一小块，
+ * 两个主题里都显示浅色卡），L518-523 的 `previewCardColor.onColor()` 同理。
+ * 深色下继续保持白卡 + #1A1A1E 才是与安卓一致，强行翻色反而会失真。 */
+
+/* ── L686 `.settings-chevron` —— MediumGray@0.5 ──
+ * 纯装饰图标。深色 MediumGray 变 #9AA0A6，比浅色亮，所以 alpha 略提（0.5 → 0.55）
+ * 补回「比正文弱一档」的层次，又不至于抢标题。 */
+[data-theme='dark'] .settings-chevron {
+  color: color-mix(in srgb, var(--color-medium-gray, #61666d) 55%, transparent);
+}
+
+/* ── L722 `.settings-about__tagline` / L1029 `.settings-about__hint-strong` ──
+ * 两处都是 MediumGray@0.7 / @0.65（Kotlin L1391-1409 的 onSurfaceVariant 家族）。
+ * 深色 MediumGray(#9AA0A6) 在 #18191c 上本身对比约 6.7:1、够亮，alpha 保持
+ * 0.7 / 0.65 就够，按原比例写回 token 即可。 */
+[data-theme='dark'] .settings-about__tagline {
+  color: color-mix(in srgb, var(--color-medium-gray, #61666d) 70%, transparent);
+}
+
+[data-theme='dark'] .settings-about__hint-strong {
+  color: color-mix(in srgb, var(--color-medium-gray, #61666d) 65%, transparent);
+}
+
+/* ── L963 `.settings-page .settings-section-header` —— 段标题 ──
+ * 浅色值 `rgba(26,26,30,0.62)` 来自 Kotlin L1618
+ * `adaptiveTitleColor().copy(alpha = 0.62f)`，而 `adaptiveTitleColor()`
+ * （AppBackground.kt L46-47）按背景亮度二选一：`if (tone > 0.4f) Color(0xFF1A1A1E)
+ * else Color.White`。夜间模式把整页背景换成 #18191c，就落在 else 分支 = 白字，
+ * 所以这里换成 on-light token 同款 0.62 —— 不是简单的灰度翻转，是 Kotlin 的另一条分支。 */
+[data-theme='dark'] .settings-page .settings-section-header {
+  color: color-mix(in srgb, var(--color-on-light, #18191c) 62%, transparent);
+}
+
+/* ── L814-817 `.settings-dialog`（AcrylicDialog 亚克力立牌）──
+ * 浅色 `rgba(255,255,255,0.92)` 对应 Kotlin AcrylicDialog.kt L39/L54 的
+ * `MaterialTheme.colorScheme.surface.copy(alpha = …)`，深色换成 #222428@0.92。
+ * 描边 `rgba(255,255,255,0.6)` 与顶部 2.5px 聚光带（`::before`，L824-838，
+ * 对应 Kotlin L56-69 的 Color.White 0.08/0.72）都是**光源高光、与主题无关**，
+ * 刻意保留：深色玻璃板本来就该有一条亮顶棱，而且这条亮边正是对话框与遮罩之间的分隔。
+ * 阴影：0 32px 40px primary@0.14（Kotlin L44-45 ambient 0.14 / spot 0.18）在深色上
+ * 依然是唯一有效的一层，抬到 0.20；0 8px 16px rgba(24,25,28,0.18)（Kotlin L48-51 的
+ * Black@0.18/0.22 接触投影）在 #18191c 上失效，改成 rgba(0,0,0,0.55) 压在遮罩之上。 */
+[data-theme='dark'] .settings-dialog {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 92%, transparent);
+  box-shadow:
+    0 32px 40px color-mix(in srgb, var(--color-primary, #059669) 20%, transparent),
+    0 8px 16px rgba(0, 0, 0, 0.55);
+}
+
+/* ── L886 `.minutes-input`（CustomMinutesDialog 的 OutlinedTextField）──
+ * 浅色 `rgba(255,255,255,0.9)`；深色必须换，否则 #D4D4D4 的正文（L885 已走
+ * --color-on-light）会落在白底上直接糊掉。alpha 保持 0.9 对齐 Kotlin L358-362 的
+ * 字段规格；填充与同族的 `.settings-dialog`（surface@0.92）几乎同色，M3 的
+ * OutlinedTextField 本来就是透明容器 + 描边定位，边界由 primary@0.35 描边给出。 */
+[data-theme='dark'] .minutes-input {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 90%, transparent);
+}
+
+/* ── L894-908 `.stepper-icon-btn`（± 步进按钮）──
+ * 浅色是 DividerGray@0.9 描边 + 白@0.78 填充。深色下填充换成 surface@0.78 后与对话框
+ * 几乎同色，圆形按钮的边界全靠那条描边，所以描边改用 on-light@0.24 的发丝环
+ * （M3 的 outline 在深色下就是浅色环），保证 40px 圆形点击区看得见。 */
+[data-theme='dark'] .stepper-icon-btn {
+  border-color: color-mix(in srgb, var(--color-on-light, #18191c) 24%, transparent);
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 78%, transparent);
+}
+
+/* ── L930 `.privacy-manage-row` 分隔线 —— DividerGray@0.6 ──
+ * 与 `.settings-divider` 同理：深色的 DividerGray 已经很暗，再乘 0.6 会被
+ * dialog 的 surface 吃掉，改用满量 token。 */
+[data-theme='dark'] .privacy-manage-row {
+  border-bottom-color: var(--color-divider-gray);
+}
+
+/* ── L1093 `.settings-dialog__field`（新建分类 AlertDialog 的 OutlinedTextField）──
+ * Kotlin L1085 注释写明是「1.dp outline in onSurfaceVariant at 38% alpha」，
+ * 端口写死 rgba(97,102,109,0.38) = 浅色 onSurfaceVariant。深色换成
+ * --color-medium-gray(#9AA0A6)@0.38，落点 ~#404346，输入框边界清楚。 */
+[data-theme='dark'] .settings-dialog__field {
+  border-color: color-mix(in srgb, var(--color-medium-gray, #61666d) 38%, transparent);
+}
+
+/* ── 以下刻意不覆盖（两套主题取值相同，逐条给出依据）──────────────────────────
+ * · `.settings-dialog-scrim`（L802）`rgba(24,25,28,0.35)`：对应 Kotlin
+ *   LiquidGlass.kt L439-440 `radialGlassScrim()` 的 Color.Black@0.25→0.65，
+ *   写死 Black、与主题无关；对话框与遮罩之间靠白棱镜描边分层，不靠遮罩深浅。
+ * · `.color-swatch__check`（L249）、`.preview-secondary-chip`（L307）、
+ *   `.liquid-button`（L324）的 `#fff`：分别压在 primary / secondary 饱和色块上
+ *   （Kotlin L682 / L108 / AppLiquidButton），两套主题都必须是白字。
+ * · `.settings-slider__ends`（L516）、`.settings-value-row__label`（L530）、
+ *   `.settings-about__version`（L716）、`.settings-dialog__text`（L1071）、
+ *   `.page-turn-android-row__desc`（L418）、`.settings-sublabel`（L265）等
+ *   一律写的是 `var(--color-medium-gray, …)` / `var(--color-on-light, …)`，
+ *   theme.css L115-117 已让这两个 token 在夜间模式自动翻转，无需再写覆盖。 */
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   iOS 16.0 降级块 —— `color-mix()` 是 **Safari 16.2** 才支持的
+   ══════════════════════════════════════════════════════════════════════════════
+   部署目标是 iOS 16.0（Info.plist `MinimumOSVersion`），WKWebView = Safari 16.0
+   引擎。`color-mix()` 在 16.0/16.1 上**整条声明被丢弃**（不是「算错」，
+   是解析期就 invalid at parse time → drop the whole declaration），于是上面
+   夜间块里所有 `background` / `box-shadow` / `border-color` / `color` 全部回落到
+   `unset` —— 深色模式下对话框、面板、开关轨道、预览块、滑条轨道会直接消失或
+   变成透明，**夜间模式看起来就是「没生效」**。
+
+   修法：**只追加**一个 `@supports not` 兜底块（既有规则一行未改、未删），
+   选择器与特异度逐条对齐上面的夜间块，所以同特异度下靠「在后面」取胜。
+   折叠公式（`transparent` 在 color-mix 里是 `rgba(0,0,0,0)`，按预乘 alpha 混合）：
+
+       color-mix(in srgb, C P%, transparent)  ≡  rgba(r_C, g_C, b_C, P%)
+
+   C 的取值按 `[data-theme='dark']` 下的真实 token 解（theme.css L142-160）：
+       --color-surface       #222428 → rgba(34, 36, 40, …)
+       --color-on-light      #d4d4d4 → rgba(212, 212, 212, …)
+       --color-medium-gray   #9aa0a6 → rgba(154, 160, 166, …)
+       --color-primary       #059669 → rgba(5, 150, 105, …)
+   `--color-primary` 会被「主题色」设置项运行时改写，所以 primary 的兜底是
+   「按出厂默认绿 #059669 折好的静态值」：默认主题下与 16.2+ **逐位相同**，
+   用户换过主题色时退成不带 alpha 的默认绿 —— 视觉差异仅此一项，已登记
+   `docs/PARITY_EXCEPTIONS.md` E86。 ══════════════════════════════════════════ */
+@supports not (color: color-mix(red, blue)) {
+  /* L1205-1208 .settings-page .glass-card */
+  [data-theme='dark'] .settings-page .glass-card {
+    background: rgba(34, 36, 40, 78%);
+    box-shadow: 0 4px 16px rgba(5, 150, 105, 18%);
+  }
+  /* L1230-1232 .settings-page .app-switch */
+  [data-theme='dark'] .settings-page .app-switch {
+    background: rgba(154, 160, 166, 32%);
+  }
+  /* L1241-1243 .settings-segmented */
+  [data-theme='dark'] .settings-segmented {
+    background: rgba(34, 36, 40, 55%);
+  }
+  /* L1266-1268 .page-turn-android-row__preview */
+  [data-theme='dark'] .page-turn-android-row__preview {
+    background: rgba(212, 212, 212, 6%);
+  }
+  /* L1270-1272 .page-turn-android-row__preview-line */
+  [data-theme='dark'] .page-turn-android-row__preview-line {
+    background: rgba(212, 212, 212, 22%);
+  }
+  /* L1294-1299 / L1301-1306 滑条轨道（WebKit + Firefox 两条） */
+  [data-theme='dark'] .settings-slider input[type='range']::-webkit-slider-runnable-track {
+    background: rgba(212, 212, 212, 20%);
+    box-shadow:
+      inset 0 1px 0 rgba(5, 150, 105, 30%),
+      0 1px 3px rgba(0, 0, 0, 0.55);
+  }
+  [data-theme='dark'] .settings-slider input[type='range']::-moz-range-track {
+    background: rgba(212, 212, 212, 20%);
+    box-shadow:
+      inset 0 1px 0 rgba(5, 150, 105, 30%),
+      0 1px 3px rgba(0, 0, 0, 0.55);
+  }
+  /* L1329-1331 .settings-chevron */
+  [data-theme='dark'] .settings-chevron {
+    color: rgba(154, 160, 166, 55%);
+  }
+  /* L1337-1339 .settings-about__tagline */
+  [data-theme='dark'] .settings-about__tagline {
+    color: rgba(154, 160, 166, 70%);
+  }
+  /* L1341-1343 .settings-about__hint-strong */
+  [data-theme='dark'] .settings-about__hint-strong {
+    color: rgba(154, 160, 166, 65%);
+  }
+  /* L1351-1353 .settings-section-header */
+  [data-theme='dark'] .settings-page .settings-section-header {
+    color: rgba(212, 212, 212, 62%);
+  }
+  /* L1364-1369 .settings-dialog */
+  [data-theme='dark'] .settings-dialog {
+    background: rgba(34, 36, 40, 92%);
+    box-shadow:
+      0 32px 40px rgba(5, 150, 105, 20%),
+      0 8px 16px rgba(0, 0, 0, 0.55);
+  }
+  /* L1376-1378 .minutes-input */
+  [data-theme='dark'] .minutes-input {
+    background: rgba(34, 36, 40, 90%);
+  }
+  /* L1384-1387 .stepper-icon-btn */
+  [data-theme='dark'] .stepper-icon-btn {
+    border-color: rgba(212, 212, 212, 24%);
+    background: rgba(34, 36, 40, 78%);
+  }
+  /* L1400-1402 .settings-dialog__field */
+  [data-theme='dark'] .settings-dialog__field {
+    border-color: rgba(154, 160, 166, 38%);
+  }
+}

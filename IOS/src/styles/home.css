@@ -1,0 +1,1300 @@
+/* home.css — line-by-line visual port of HomeScreen.kt + supporting Android components.
+ *
+ * Android sources:
+ * - ui/HomeScreen.kt (layout, text, dimensions)
+ * - ui/components/GlassCard.kt (light theme glass)
+ * - ui/components/TabScreenHeader.kt
+ * - ui/components/AppBottomTabBar.kt (floating pill)
+ * - ui/shelf/ShelfChips.kt (CategoryPill / action chips)
+ * - ui/theme/Color.kt / design/DesignTokens.kt
+ *
+ * Light theme facts from Color.kt + shot1.jpg:
+ * - Background: pure white #FFFFFF
+ * - Title ink: DarkCharcoal #18191C
+ * - Secondary ink: MediumGray #61666D
+ * - Divider: #E3E5E7
+ * - MintGold #E8C97A only for streak/progress accents
+ * - Primary green #059669 (dynamic palette index 2)
+ * - Glass: white translucent + faint primary wash, soft dual shadow
+ */
+
+:root {
+  --home-primary: #059669;
+  --home-primary-rgb: 5, 150, 105;
+  --home-secondary: #10b981;
+  --home-secondary-rgb: 16, 185, 129;
+  --home-gold: #e8c97a;
+  --home-gold-rgb: 232, 201, 122;
+  --home-title: #18191c;
+  --home-body: #61666d;
+  --home-divider: #e3e5e7;
+  --home-bg: #ffffff;
+  --home-glass-bg: rgba(255, 255, 255, 0.82);
+  --home-glass-bg-soft: rgba(255, 255, 255, 0.78);
+  --home-glass-border: rgba(255, 255, 255, 0.45);
+  --home-shadow-ambient: 0 8px 24px rgba(var(--home-primary-rgb), 0.1);
+  --home-shadow-contact: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --home-card-shadow: 0 12px 32px rgba(var(--home-primary-rgb), 0.1),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  --home-font-serif: "Noto Serif SC", "Songti SC", Georgia, serif;
+  --home-font-sans: "Noto Sans SC", "PingFang SC", "Helvetica Neue", sans-serif;
+}
+
+/* ── Page shell (HomeScreen.kt Column: statusBarsPadding + h16 v8) ── */
+.home-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: calc(100dvh - 80px);
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 16px
+    calc(24px + 96px + env(safe-area-inset-bottom, 0px));
+  background: var(--home-bg);
+  color: var(--home-title);
+  font-family: var(--home-font-sans);
+}
+
+.home-page__header-slot {
+  margin: 0;
+}
+
+.home-page__gap-12 {
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+/* ── GlassCard light theme (GlassCard.kt light path) ── */
+.glass-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+  /* themedTint = lerp(white@0.82, primary, 0.08) → white glass with ~8% primary wash */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(var(--home-primary-rgb), 0.06) 55%,
+      rgba(255, 255, 255, 0.86) 100%
+    ),
+    rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  /* strokeTint = lerp(White, primary, 0.38) */
+  border: 1px solid rgba(var(--home-primary-rgb), 0.14);
+  /* Layer 7A ambient primary glow + Layer 7B contact shadow */
+  box-shadow: var(--home-shadow-ambient), var(--home-shadow-contact);
+  color: var(--home-title);
+  font-family: inherit;
+}
+
+.glass-card--interactive {
+  cursor: pointer;
+}
+
+/* ── TabScreenHeader (TabScreenHeader.kt) ── */
+.tab-screen-header {
+  border-radius: 24px;
+}
+
+.tab-screen-header__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+
+.tab-screen-header__leading,
+.tab-screen-header__trailing {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tab-screen-header__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tab-screen-header__title {
+  margin: 0;
+  font-family: var(--home-font-serif);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--home-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-screen-header__subtitle {
+  margin: 0;
+  font-family: var(--home-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 1.5px;
+  color: var(--home-body);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: opacity 180ms cubic-bezier(0, 0, 0.58, 1),
+    height 220ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.tab-screen-header__subtitle--hidden {
+  opacity: 0;
+  height: 0;
+}
+
+/* Header trailing search field (HomeScreen.kt OutlinedTextField) */
+.home-header-search {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 56px;
+  padding: 0 8px 0 16px;
+  border-radius: 24px;
+  background: #fff;
+  border: 1px solid #d0d3d7;
+}
+
+.home-header-search:focus-within {
+  border-color: var(--home-primary);
+}
+
+.home-header-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--home-title);
+}
+
+.home-header-search__input::placeholder {
+  color: #9aa0a6;
+}
+
+.home-header-search__close {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #f4f4f4;
+  color: #3c4043;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Section titles (HomeScreen.kt: 20sp bold serif, adaptiveTitleColor) ── */
+.home-section-title {
+  margin: 0;
+  font-family: var(--home-font-serif);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--home-title);
+}
+
+/* ── Hero "正在阅读" (HomeScreen.kt item key = hero_section) ── */
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.home-hero__title {
+  margin: 0 0 8px;
+}
+
+.home-hero__card {
+  border-radius: 20px;
+  padding: 16px;
+}
+
+.home-hero__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.home-hero__cover {
+  position: relative;
+  flex: 0 0 auto;
+  width: 110px;
+  height: 155px;
+  border-radius: 12px;
+  overflow: hidden;
+  /* Cover fallback Brush: MintSecondary → #1B143F → MintPrimary */
+  background: linear-gradient(
+    135deg,
+    var(--home-secondary) 0%,
+    #1b143f 50%,
+    var(--home-primary) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+}
+
+.home-hero__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.home-hero__cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  text-align: center;
+  color: #fff;
+}
+
+.home-hero__cover-fallback-icon {
+  color: var(--home-gold);
+  margin-bottom: 10px;
+}
+
+.home-hero__cover-fallback-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: #fff;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Decorative spine: fillMaxHeight × width(6.dp), black 0.15 */
+.home-hero__spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.home-hero__meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-hero__book-title {
+  margin: 0;
+  font-family: var(--home-font-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--home-title);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-hero__author {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--home-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-hero__progress-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-top: 14px;
+  gap: 10px;
+}
+
+/* LinearProgressIndicator: height 6.dp, CircleShape, MintPrimary track black 0.05 */
+.home-progress {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.home-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--home-primary);
+  transition: width 250ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+/* "已读 X%" — 12sp bold MintGold (achievement accent only) */
+.home-hero__progress-label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--home-gold);
+  white-space: nowrap;
+}
+
+.home-hero__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* AppButton Primary Small (AppButton.kt AppButtonSize.Small = 36dp height) */
+.home-btn-continue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--home-font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  /* Primary variant: vertical gradient primary → primaryVariant, top inner highlight */
+  background: linear-gradient(
+    180deg,
+    rgba(var(--home-primary-rgb), 0.92) 0%,
+    rgba(var(--home-primary-rgb), 0.78) 100%
+  );
+  box-shadow: 0 8px 16px rgba(var(--home-primary-rgb), 0.35);
+  transition: transform 150ms cubic-bezier(0, 0, 0.58, 1),
+    box-shadow 150ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.home-btn-continue:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: 0 2px 8px rgba(var(--home-primary-rgb), 0.25);
+}
+
+/* ── Bookshelf section header + action chips ── */
+.home-shelf-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.home-shelf-header__actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* HomeActionChip: glass capsule icon+label; emphasized = primary text */
+.home-action-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(24, 25, 28, 0.1);
+  background: rgba(24, 25, 28, 0.06);
+  color: rgba(24, 25, 28, 0.72);
+  font-family: var(--home-font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: transform 150ms cubic-bezier(0, 0, 0.58, 1),
+    background 170ms cubic-bezier(0, 0, 0.58, 1),
+    color 170ms cubic-bezier(0, 0, 0.58, 1),
+    border-color 170ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.home-action-chip:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.home-action-chip--emphasized {
+  background: rgba(var(--home-primary-rgb), 0.12);
+  border-color: rgba(var(--home-primary-rgb), 0.35);
+  color: var(--home-primary);
+  font-weight: 600;
+}
+
+.home-action-chip__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+/* Screenshot import link style: green "+ 导入新书 +" */
+.home-import-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--home-primary);
+  font-family: var(--home-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.home-import-link:active {
+  opacity: 0.75;
+  transform: scale(0.97);
+}
+
+/* ── Category pills (ShelfChips.kt CategoryPill) ── */
+.home-category-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.home-category-row::-webkit-scrollbar {
+  display: none;
+}
+
+.category-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 16px;
+  border: 0.5px solid rgba(24, 25, 28, 0.1);
+  background: rgba(24, 25, 28, 0.06);
+  color: rgba(24, 25, 28, 0.72);
+  font-family: var(--home-font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: transform 150ms cubic-bezier(0, 0, 0.58, 1),
+    background 170ms cubic-bezier(0, 0, 0.58, 1),
+    color 170ms cubic-bezier(0, 0, 0.58, 1),
+    border-color 170ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.category-pill:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.category-pill--selected {
+  background: var(--home-primary);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.category-pill--locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.category-pill__label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-pill__lock {
+  display: inline-flex;
+  margin-left: 5px;
+  opacity: 0.45;
+}
+
+.category-pill--selected .category-pill__lock {
+  opacity: 0.9;
+}
+
+.category-pill__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: rgba(24, 25, 28, 0.08);
+  color: rgba(24, 25, 28, 0.62);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.category-pill--selected .category-pill__count {
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+}
+
+/* ── Book grid (HomeScreen.kt LazyVerticalGrid, cover aspect 0.72) ── */
+.home-book-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 20px;
+  width: 100%;
+}
+
+@media (min-width: 480px) {
+  .home-book-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 720px) {
+  .home-book-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .home-book-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.home-book-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-book-card__cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 0.72;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    #f4f4f4 0%,
+    #e3e5e7 55%,
+    rgba(var(--home-secondary-rgb), 0.3) 100%
+  );
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  /* consistentShadow(8.dp, ambient black 0.10, spot black 0.16) */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: transform 180ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.home-book-card:active .home-book-card__cover {
+  transform: scale(0.96);
+}
+
+.home-book-card__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.home-book-card__cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  color: var(--home-title);
+}
+
+.home-book-card__cover-icon {
+  color: rgba(var(--home-primary-rgb), 0.6);
+}
+
+.home-book-card__cover-title {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  color: var(--home-title);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-book-card__cover-type {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(var(--home-gold-rgb), 0.8);
+}
+
+.home-book-card__spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.home-book-card__title {
+  margin: 6px 0 0;
+  width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--home-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-book-card__finished {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--home-gold);
+}
+
+.home-book-card__progress {
+  width: 100%;
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(24, 25, 28, 0.1);
+  overflow: hidden;
+}
+
+.home-book-card__progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: rgba(var(--home-primary-rgb), 0.85);
+}
+
+.home-book-card__progress-label {
+  margin: 2px 0 0;
+  width: 100%;
+  font-size: 9px;
+  color: rgba(24, 25, 28, 0.55);
+}
+
+/* ── Reading statistics (HomeScreen.kt bottom_stats item) ── */
+.home-stats {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.home-stats__title {
+  margin: 0 0 8px;
+}
+
+.home-stats__card {
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+}
+
+.home-stats__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.home-stats__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.home-stats__today {
+  margin: 0;
+  font-family: var(--home-font-sans);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--home-title);
+}
+
+.home-stats__today em {
+  font-style: normal;
+  color: var(--home-title);
+}
+
+.home-stats__subtitle {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: rgba(24, 25, 28, 0.6);
+}
+
+/* Streak badge: MintGold 0.12 bg + 0.25 border, radius 12.dp */
+.home-stats__streak {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(var(--home-gold-rgb), 0.12);
+  border: 1px solid rgba(var(--home-gold-rgb), 0.25);
+  color: var(--home-gold);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.home-stats__streak-star {
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ── Empty state spacer matching browse-phase 24.dp tail ── */
+.home-tail-spacer {
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+/* ── Floating pill tab bar (AppBottomTabBar.kt) ── */
+.app-tabbar-shell {
+  /* container only — positioning set inline in AppBottomTabBar.tsx */
+}
+
+.glass-tabbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-evenly;
+  position: relative;
+  border-radius: 999px;
+  overflow: hidden;
+  color: #1a1a1e;
+  /* MID glass: surface alpha 0.78 + primary tint gradient from tabBarGlassTint */
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.2) 0%,
+      rgba(var(--home-primary-rgb), 0.28) 22%,
+      rgba(var(--home-primary-rgb), 0.22) 62%,
+      rgba(0, 0, 0, 0.1) 100%
+    ),
+    rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  /* Dual consistentShadow: ambient primary 0.18 elev 24 + contact black elev 8 */
+  box-shadow:
+    0 12px 32px rgba(var(--home-primary-rgb), 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.16),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+  /* Outer thin outline stroke (white 0.34 → 0.10 vertical) */
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* Top 1dp inner glint line (tabBarGlassTint) */
+.glass-tabbar::before {
+  content: "";
+  position: absolute;
+  top: 1.5px;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.38) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Selected indicator: top 2.dp, height 3.dp, width 40% of item */
+.app-tabbar-indicator {
+  position: absolute;
+  top: 2px;
+  height: 3px;
+  border-radius: 999px;
+  background: #1a1a1e;
+  pointer-events: none;
+  z-index: 1;
+  transition: left 400ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    width 400ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.app-tabbar-item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px 14px;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 150ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.app-tabbar-item:active {
+  transform: scale(0.88);
+}
+
+.app-tabbar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+.app-tabbar-item--selected .app-tabbar-icon {
+  transform: scale(1.15);
+  transition: transform 400ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.app-tabbar-item--selected {
+  color: #1a1a1e;
+}
+
+/* TAB_UNSELECTED_ALPHA = 0.48 */
+.app-tabbar-item--unselected {
+  color: rgba(26, 26, 30, 0.48);
+}
+
+.app-tabbar-label {
+  margin-top: 2px;
+  font-size: 10px;
+  font-family: var(--home-font-sans);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  transition: opacity 180ms cubic-bezier(0, 0, 0.58, 1),
+    height 180ms cubic-bezier(0, 0, 0.58, 1),
+    margin 180ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.app-tabbar-label--hidden {
+  opacity: 0;
+  height: 0;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+/* TabBadge: size 18.dp count>0 else 9.dp, #E5484D, ring 1.5.dp barBase */
+.app-tabbar-badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 18px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e5484d;
+  border: 1.5px solid rgba(255, 255, 255, 0.78);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.app-tabbar-badge--empty {
+  min-width: 9px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border-width: 1.5px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   ══════════════════════════════════════════════════════════════
+   触发：`<html data-theme="dark">`，由 App.tsx L153 在 设置 → 护眼与提醒 →
+   夜间模式（Android `auto_night_mode`）打开时写到 `<html>`；消费方是
+   MainActivity.kt L213 `MyApplicationTheme(darkTheme = autoNightMode)`。
+   绝不用 `@media (prefers-color-scheme: dark)` —— `isSystemInDarkTheme()`
+   只是 Theme.kt L35 的**参数默认值**，已被 MainActivity 覆盖（theme.css L97-106）。
+
+   本块只追加，既有规则一行未改、未删（浅色态零回归）。
+   底座 token 直接复用 theme.css L107-125：
+     --color-light-bg #18191c ｜ --color-surface #222428 ｜ --color-on-light #d4d4d4
+     --color-medium-gray #9aa0a6 ｜ --color-divider-gray #2f3238
+   需要「同一个 token 加透明度」的地方统一写
+   `color-mix(in srgb, var(--token, <浅色值>) N%, transparent)`
+   （settings.css L1187-1189 / statistics.css 同款），
+   这样 alpha 关系在两个主题里一模一样，切主题时不会出现「只有一半跟着变」的控件。
+
+   深色下的分离度（任务第 7 条）：`rgba(0,0,0,α)` 的投影落在 #18191c 上等于
+   没有，所以每一处「原本靠投影分层」的容器都换成 ① 略亮的填充 或 ② 1px 亮色
+   发丝线，并逐条注明；Kotlin 侧写死的 `0.5.dp` 描边（ShelfChips.kt L118、
+   HomeScreen.kt L2392）在 Web 上会被抗锯齿吃掉至少半像素，一律提到 1px 并调亮。
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 1. 本文件私有 token 的翻面 ──────────────────────────────────
+   home.css L21-41 的 `:root` 块把这些值声明在 `<html>` 上，浅色端口把它们
+   烤死成了 #18191c / #61666d / #ffffff。在 `.home-page` 元素上重新声明一遍 ——
+   「元素自身的声明」永远压过「从 :root 继承来的同名声明」，所以整棵子树里所有
+   `var(--home-title|--home-body|--home-bg)` 的消费者一次翻好，且不外溢到别的 tab。
+   覆盖到的消费者：.home-page 自身、.glass-card（L88）、.tab-screen-header__title(L128)、
+   .tab-screen-header__subtitle(L141)、.home-section-title(L206)、
+   .home-hero__book-title(L310)、.home-hero__author(L320)、.home-book-card__*(L651/L664/L693)、
+   .home-stats__today(L769/L774)。 */
+[data-theme='dark'] .home-page {
+  --home-title: var(--color-on-light, #d4d4d4);
+  --home-body: var(--color-medium-gray, #9aa0a6);
+  --home-bg: var(--color-light-bg, #18191c);
+}
+
+/* ── 2. GlassCard（L67-90）—— 白玻璃 → 深色 surface 玻璃 ──
+   Kotlin `themedTint = lerp(tint, primary, 0.08f)`（GlassCard.kt L280-284），
+   浅色 tint 是 `surface.copy(alpha = 0.82f)` 的白，深色 tint 必须是
+   `surface.copy(alpha = 0.82f)` 的 #222428 —— alpha 不变、只换底色。
+   描边 `rgba(var(--home-primary-rgb), 0.14)` 在 #222428 上算出来是 rgb(32,47,44)，
+   与卡片底色几乎同色，等于没有描边；按任务第 7 条补成 1px 亮色发丝线。
+   阴影：0 2px 8px rgba(0,0,0,0.08)（Kotlin L537-540 的 Black@0.08/0.15 接触层）
+   在 #18191c 上失效，改用 GlassCard.kt L526-533 Layer 7A 的 primary 彩色柔光 ——
+   深色底上只有主题色柔光能拉开层次。限定 `.home-page`：`.glass-card` 是全 App
+   复用组件（components.css L25 也有定义），其它页面由各自的夜间块负责。 */
+[data-theme='dark'] .home-page .glass-card {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface, #ffffff) 92%, transparent) 0%,
+      color-mix(in srgb, var(--color-primary, #059669) 8%, transparent) 55%,
+      color-mix(in srgb, var(--color-surface, #ffffff) 86%, transparent) 100%
+    ),
+    color-mix(in srgb, var(--color-surface, #ffffff) 82%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 12px 32px color-mix(in srgb, var(--color-primary, #059669) 18%, transparent),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* ── 3. 页头搜索框（L155-197）── Kotlin HomeScreen.kt L914-919 / L947-949 ──
+   Kotlin 这里有完整的深色分支，本块逐值照抄，不做任何猜测：
+   L915 barBgColor        = #222428（CSS 浅色值 #fff）
+   L948-949 容器色        = #2B2D31（CSS 浅色值 #fff）
+   L947 unfocusedBorder   = #383A40（CSS 浅色值 #d0d3d7）
+   L917 searchTextColor   = Color.White（CSS 浅色值 var(--home-title) → 浅色 #18191c）
+   L916 placeholderColor  = Color.LightGray@0.6f = rgb(211,211,211)@0.6
+                            （CSS 浅色值 #9aa0a6 恰好就是深色 --color-medium-gray，两边同值，不动）
+   L918 iconBtnBgColor    = #2B2D31（CSS 浅色值 #f4f4f4）
+   L919 iconCloseTint     = Color.LightGray（CSS 浅色值 #3c4043）
+   ⚠️ `.home-header-search:focus-within`（L166）是 (0,2,0)，与本块同特异度且在上面，
+   不补一条 (0,3,0) 的话聚焦时的绿色描边会被深色规则吃掉 → 必须重新钉一次。 */
+[data-theme='dark'] .home-header-search {
+  background: #2b2d31;
+  border-color: #383a40;
+}
+
+[data-theme='dark'] .home-header-search:focus-within {
+  border-color: var(--color-primary, #059669);
+}
+
+[data-theme='dark'] .home-header-search__input {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .home-header-search__close {
+  background: #2b2d31;
+  color: #d3d3d3;
+}
+
+/* ── 4. Hero 卡的 LinearProgressIndicator 轨道（L335-341）────────────
+   Kotlin HomeScreen.kt L1232 `trackColor = Color.Black.copy(alpha = 0.05f)` ——
+   Android 侧也是写死的黑 5%，这是它在深色下的既有缺陷：#18191c 上叠 5% 黑
+   等于 rgb(24,25,28) → rgb(23,23,26)，6px 圆头轨道会彻底消失。这里必须
+   偏离 Kotlin，换成 onSurface@0.14（#D4D4D4 的一层薄墨，落点 ~#333436），
+   轨道与卡片底 #222428 分得开、绿色进度条也压得住。 */
+[data-theme='dark'] .home-progress {
+  background: color-mix(in srgb, var(--color-on-light, #d4d4d4) 14%, transparent);
+}
+
+/* ── 5. 分类 / 操作 chip（ShelfChips.kt CategoryPill / HomeActionChip）──
+   Kotlin 两处都写成 `onSurface.copy(alpha = n)`（ShelfChips.kt L106/L115/L120/L170、
+   HomeScreen.kt L2390/L2394），只是浅色端口把 onSurface 烤成了 rgba(24,25,28,n)。
+   深色下 onSurface = NightText #D4D4D4，alpha 原样保留即可 —— 这样「未选中」
+   的层次在两个主题里完全一致。
+   ⚠️ Kotlin L118 / L2392 的描边是 `0.5.dp`：Web 上 0.5px 会被抗锯齿吃掉至少
+   半像素，深色底再吃一次就什么都不剩，所以按任务第 7 条提到 1px 并把 alpha
+   从 0.10 提到 0.16。
+   ⚠️ 特异度：`.home-action-chip--emphasized`(L441) 与 `.category-pill--selected`(L522)
+   是 (0,1,0) 的变体、且带自己的 background/border-color/color，
+   裸选择器 (0,2,0) 会把它们一起刷掉 → 必须 :not() 排除。 */
+[data-theme='dark'] .home-action-chip:not(.home-action-chip--emphasized) {
+  background: color-mix(in srgb, var(--color-surface, #ffffff) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-on-light, #d4d4d4) 16%, transparent);
+  color: color-mix(in srgb, var(--color-on-light, #d4d4d4) 72%, transparent);
+}
+
+[data-theme='dark'] .category-pill:not(.category-pill--selected) {
+  background: color-mix(in srgb, var(--color-on-light, #d4d4d4) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-on-light, #d4d4d4) 16%, transparent);
+  color: color-mix(in srgb, var(--color-on-light, #d4d4d4) 72%, transparent);
+}
+
+/* 计数角标：ShelfChips.kt L170 `onSurface.copy(0.08f)` / L179 `contentColor@0.62f`。
+   `.category-pill--selected .category-pill__count`（L567）是 (0,2,0)，与本块同特异度
+   且在上面 → 用 `:not(--selected)` 把作用域缩到未选中态（否则会把选中态的白 24%
+   蒙版和 62% 墨色一起刷掉）。 */
+[data-theme='dark'] .category-pill:not(.category-pill--selected) .category-pill__count {
+  background: color-mix(in srgb, var(--color-on-light, #d4d4d4) 12%, transparent);
+  color: color-mix(in srgb, var(--color-on-light, #d4d4d4) 62%, transparent);
+}
+
+/* ── 6. 书架网格的封面占位渐变（L614-630）── Kotlin HomeScreen.kt L1522-1535 ──
+   Kotlin 这里有完整的深色分支，逐值照抄：
+     L1525 #2B2D31  ｜ L1526 #1E2022 ｜ L1527 MintSecondary@0.15f
+   （浅色分支就是 CSS L620-625 的 #F4F4F4 → #E3E5E7 → MintSecondary@0.3）。
+   这条渐变同时承担了任务第 7 条要求的「深色面的分离」：#2B2D31 明显亮于页面底
+   #18191c，封面边界由填充本身给出；L1562 的 1dp 黑 7% 描边在深色下依旧照抄
+   （Kotlin 没分支它），另外补一圈 rgba(255,255,255,0.07) 外发丝环，
+   让深色封面在深色页面上也有一条可读的外轮廓。 */
+[data-theme='dark'] .home-book-card__cover {
+  background: linear-gradient(
+    180deg,
+    #2b2d31 0%,
+    #1e2022 55%,
+    color-mix(in srgb, var(--color-secondary, #10b981) 15%, transparent) 100%
+  );
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+/* ── 7. 网格卡的 3dp 章节进度轨道（L710-717）── Kotlin L1739 ──
+   `trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)`。
+   onSurface 翻成 #D4D4D4 后 10% 只有 rgb(42,42,44)，而这条轨道只有 3px 高、
+   再乘以页面底的 #18191c 就几乎读不出来 —— 按 statistics.css「16px 热力格」
+   同类处理把 alpha 抬到 0.16，落点 ~#3D3D3F。 */
+[data-theme='dark'] .home-book-card__progress {
+  background: color-mix(in srgb, var(--color-on-light, #d4d4d4) 16%, transparent);
+}
+
+/* "x/y 章"：Kotlin L1744 `onSurface.copy(alpha = 0.55f)`，alpha 原样保留。 */
+[data-theme='dark'] .home-book-card__progress-label {
+  color: color-mix(in srgb, var(--color-on-light, #d4d4d4) 55%, transparent);
+}
+
+/* ── 8. 底部统计卡副标题（L777-781）── Kotlin L1960 ──
+   `MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)`，随主题自动翻转，
+   alpha 不变。 */
+[data-theme='dark'] .home-stats__subtitle {
+  color: color-mix(in srgb, var(--color-on-light, #d4d4d4) 60%, transparent);
+}
+
+/* ── 9. 悬浮 Tab 栏（AppBottomTabBar.kt）── 全面反色 ──
+   Kotlin AppBottomTabBar.kt L170 `barBase = lerp(colorScheme.surface, primary, 0.06f)`，
+   L172 `contrast = barBase.onColor()`，而 `onColor()`（Color.kt L48）是
+   `if (luminance() > 0.5f) Color(0xFF1A1A1E) else Color.White`：
+     浅色 barBase ≈ 白 → contrast = #1A1A1E（CSS L822/L868/L911 的现状）
+     深色 barBase = #222428 → 亮度 ~0.019 → contrast = **Color.White**
+   所以选中态图标/文字/指示条在夜间必须变成纯白，未选中态是 White@0.48。
+   栏体底 `rgba(255,255,255,0.78)` = L304 `surface.copy(alpha = 0.78f)`，深色换
+   surface@0.78；黑色投影（0 4px 12px / 0 2px 6px）在 #18191c 上失效，加深到
+   0.45/0.5 压在遮罩之上，并保留原有的 primary 环境光。
+   描边 rgba(255,255,255,0.22)（L841）= Kotlin L93 `TabBarNeutralOutlineColor =
+   Color.White.copy(alpha = 0.22f)`、顶部 `::before` 高光（L845-860）= L382
+   `Color.White.copy(alpha = 0.38f)`：两者都是写死的白、与主题无关，**刻意不动** ——
+   深色玻璃栏本来就该有这条亮边，而它正是与页面底色之间的分隔。 */
+[data-theme='dark'] .glass-tabbar {
+  color: #ffffff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      color-mix(in srgb, var(--color-primary, #059669) 28%, transparent) 22%,
+      color-mix(in srgb, var(--color-primary, #059669) 22%, transparent) 62%,
+      rgba(0, 0, 0, 0.22) 100%
+    ),
+    color-mix(in srgb, var(--color-surface, #ffffff) 78%, transparent);
+  box-shadow:
+    0 12px 32px color-mix(in srgb, var(--color-primary, #059669) 24%, transparent),
+    0 4px 12px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='dark'] .app-tabbar-item--selected {
+  color: #ffffff;
+}
+
+/* TAB_UNSELECTED_ALPHA = 0.48（Kotlin L469 `contrast.copy(alpha = TAB_UNSELECTED_ALPHA)`），
+   alpha 不变，只是 contrast 换了分支。 */
+[data-theme='dark'] .app-tabbar-item--unselected {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+/* 指示条用的也是 contrast（theme.css L1306 `background: var(--color-on-light)` 的对应物）。 */
+[data-theme='dark'] .app-tabbar-indicator {
+  background: #ffffff;
+}
+
+/* 角标描边 `1.5px solid rgba(255,255,255,0.78)` = Kotlin L343 `ringColor = barBase` ——
+   barBase 随主题翻转，所以夜间要换成深色 surface@0.78，否则白环会在红角标上糊成一团。
+   角标底 `#e5484d`（L949）与数字白字（L951）是写死的 Color(0xFFE5484D)/Color.White，两边同值。 */
+[data-theme='dark'] .app-tabbar-badge {
+  border-color: color-mix(in srgb, var(--color-surface, #ffffff) 78%, transparent);
+}
+
+/* ── 10. 以下刻意不覆盖（两套主题取值相同，逐条给出依据）──────────────────
+ * · `.home-btn-continue`（L366-388）/ `.hp-btn-continue`：primary 绿色胶囊 +
+ *   白字（Kotlin AppButton Primary Small），两种底色上对比都够。
+ * · `.home-import-link`（L457）/ `.home-action-chip--emphasized`（L441）/
+ *   `.category-pill--selected`（L522）：Kotlin L2393 `MintPrimary.copy(0.40f)`
+ *   描边 + L114 `accent.copy(bgAlpha)` 填充，primary 在两种底上都过对比。
+ * · `.home-hero__cover`（L233-249）的 `border: 1px solid rgba(255,255,255,0.25)`：
+ *   占位封面渐变本身就含 #1B143F（深色），白 25% 描边在两个主题里都是对的边界。
+ * · `.home-hero__spine`（L288）/ `.home-book-card__spine`（L678）的
+ *   `rgba(0,0,0,0.15/0.20)`：Kotlin L1635 `Color.Black.copy(0.2f)` 的封面书脊阴影，
+ *   压在彩色封面上（不是压在页面上），两个主题都需要这层压暗。
+ * · `.home-hero__cover-fallback`（L258）/ `__title`（L275）的白字：压在
+ *   MintSecondary→#1B143F→MintPrimary 的深色封面上，白字对比度两个主题相同。
+ * · `.home-stats__streak`（L784-797）：MintGold@0.12 底 + @0.25 描边 + 金字
+ *   （Kotlin L1966-1967 写死 MintGold），金色在 #18191c 上约 8:1。
+ * · `.app-tabbar-badge`（L941-951）的底色 `#e5484d` 与白字：Kotlin L415/L423
+ *   写死的 Color(0xFFE5484D) + Color.White。
+ * · `.home-header-search__input::placeholder`（L181）的 `#9aa0a6`：恰好等于深色
+ *   --color-medium-gray，翻了也是同一个值，属于冗余覆盖。
+ * · `.home-card-shadow` / `--home-glass-bg` / `--home-glass-bg-soft` /
+ *   `--home-glass-border` / `--home-divider`：全文件零引用（L21-41 声明后无人
+ *   var()），补夜间值属于凭空发明，不动。
+ * ⚠️ 已知限制（CSS-only 改不动，需要改 TSX，超出本次范围）：
+ *   · `.tab-screen-header__title` 的 `glassTitleColor()`（Color.kt L56-61）在
+ *     Android 里是运行时按壁纸亮度算的；本端口已用 `--home-title`（见第 1 节）
+ *     近似，夜间得到 #D4D4D4 而非 Kotlin 分支里的 Color.White —— 差 0x2F，
+ *     可读性一致，不再单独覆盖。
+ *   · 书架卡与 Hero 卡的「呼吸」位移动画在两个主题下一致，无需变体。 */
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   iOS 16.0 降级块 —— `color-mix()` 是 **Safari 16.2** 才支持的
+   ══════════════════════════════════════════════════════════════════════════════
+   部署目标是 iOS 16.0（`ios/App/App.xcodeproj/project.pbxproj` 的
+   `IPHONEOS_DEPLOYMENT_TARGET = 16.0`），WKWebView = Safari 16.0 引擎。
+   `color-mix()` 在 16.0/16.1 上是**解析期就 invalid at parse time** → 整条声明
+   被丢弃（不是「算错」），于是上面所有 `background` / `box-shadow` /
+   `border-color` / `color` 回落成 `unset` —— 深色模式下的面板、对话框、开关
+   轨道、滑条轨道、骨架屏会直接消失或变透明，**夜间模式看起来就是「没生效」**。
+
+   修法：**只追加**这一个 `@supports not` 兜底块（既有规则一行未改、未删），
+   选择器与特异度逐条对齐上面的夜间块，所以同特异度下靠「在后面」取胜。
+
+   折叠公式（CSS Color 4 §color-mix，两个操作数都先预乘 alpha）：
+
+       color-mix(in srgb, C P%, transparent)  ≡  rgba(R_C, G_C, b_C, P%)
+
+   token 取值按 `[data-theme='dark']` 下的真实值解（theme.css L142-160
+   `darkColorScheme`）：
+
+       --color-surface #222428 ｜ --color-on-light #d4d4d4
+       --color-medium-gray #9aa0a6 ｜ --color-divider-gray #2f3238
+       --color-primary #059669 ｜ --color-secondary #10b981 ｜ --color-danger #dc2626
+
+   ⚠️ `--color-primary` 全仓没有任何写入点（`grep -rn "setProperty('--color" src/`
+   只有 App.tsx 的两个 `--app-bottom-inset*`），换主题色那一项只改内联
+   `--home-primary`（HomePage.tsx L2019）。所以这里的静态绿与 16.2+ 的
+   **逐位相同**，不存在「用户换色后退色」的问题。
+   ══════════════════════════════════════════════════════════════════════════ */
+@supports not (color: color-mix(red, blue)) {
+  [data-theme='dark'] .home-page .glass-card {
+    background: linear-gradient( 180deg, rgba(34, 36, 40, 92%) 0%, rgba(5, 150, 105, 8%) 55%, rgba(34, 36, 40, 86%) 100% ), rgba(34, 36, 40, 82%)
+    box-shadow: 0 12px 32px rgba(5, 150, 105, 18%), 0 4px 12px rgba(0, 0, 0, 0.45)
+  }
+  [data-theme='dark'] .home-progress {
+    background: rgba(212, 212, 212, 14%)
+  }
+  [data-theme='dark'] .home-action-chip:not(.home-action-chip--emphasized) {
+    background: rgba(34, 36, 40, 8%)
+    border: 1px solid rgba(212, 212, 212, 16%)
+    color: rgba(212, 212, 212, 72%)
+  }
+  [data-theme='dark'] .category-pill:not(.category-pill--selected) {
+    background: rgba(212, 212, 212, 6%)
+    border: 1px solid rgba(212, 212, 212, 16%)
+    color: rgba(212, 212, 212, 72%)
+  }
+  [data-theme='dark'] .category-pill:not(.category-pill--selected) .category-pill__count {
+    background: rgba(212, 212, 212, 12%)
+    color: rgba(212, 212, 212, 62%)
+  }
+  [data-theme='dark'] .home-book-card__cover {
+    background: linear-gradient( 180deg, #2b2d31 0%, #1e2022 55%, rgba(16, 185, 129, 15%) 100% )
+  }
+  [data-theme='dark'] .home-book-card__progress {
+    background: rgba(212, 212, 212, 16%)
+  }
+  [data-theme='dark'] .home-book-card__progress-label {
+    color: rgba(212, 212, 212, 55%)
+  }
+  [data-theme='dark'] .home-stats__subtitle {
+    color: rgba(212, 212, 212, 60%)
+  }
+  [data-theme='dark'] .glass-tabbar {
+    background: linear-gradient( 180deg, rgba(255, 255, 255, 0.12) 0%, rgba(5, 150, 105, 28%) 22%, rgba(5, 150, 105, 22%) 62%, rgba(0, 0, 0, 0.22) 100% ), rgba(34, 36, 40, 78%)
+    box-shadow: 0 12px 32px rgba(5, 150, 105, 24%), 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.5)
+  }
+  [data-theme='dark'] .app-tabbar-badge {
+    border-color: rgba(34, 36, 40, 78%)
+  }
+}
