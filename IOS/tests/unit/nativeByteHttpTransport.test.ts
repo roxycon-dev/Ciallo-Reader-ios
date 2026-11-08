@@ -64,7 +64,7 @@ describe('byte-preserving native HTTP adapter', () => {
     expect(native.begin).toHaveBeenCalledWith(expect.objectContaining({ insecureTls: true, redirect: 'error' }));
     await expect(client.request({ url: 'http://source.test/a', insecureTls: true })).rejects.toThrow('只支持 HTTPS');
     await expect(client.request({ url: 'https://source.test/a', insecureTls: true, headers: { 'Proxy-Authorization': 'not-a-real-credential' } }))
-      .rejects.toThrow('不能发送登录或代理凭据');
+      .rejects.toThrow('不能发送登录凭据');
     expect(native.begin).toHaveBeenCalledTimes(1);
   });
 });

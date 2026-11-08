@@ -126,28 +126,32 @@ describe('cardCameraDistance (GlassCard.kt lines 436-437)', () => {
 
 describe('GlassQuality.kt', () => {
   it('enum ids and labels are preserved', () => {
+    expect(RenderQuality.MINIMAL).toEqual({ id: -1, label: '极简', realtimeGlass: false });
     expect(RenderQuality.LOW).toEqual({ id: 0, label: '流畅', realtimeGlass: false });
     expect(RenderQuality.MID).toEqual({ id: 1, label: '均衡', realtimeGlass: false });
     expect(RenderQuality.HIGH).toEqual({ id: 2, label: '高', realtimeGlass: true });
     expect(RenderQuality.MAX).toEqual({ id: 3, label: '极致', realtimeGlass: true });
   });
 
-  it('entries order is LOW → MAX', () => {
-    expect(RENDER_QUALITY_LIST).toEqual(['LOW', 'MID', 'HIGH', 'MAX']);
+  it('entries order is MINIMAL → MAX', () => {
+    expect(RENDER_QUALITY_LIST).toEqual(['MINIMAL', 'LOW', 'MID', 'HIGH', 'MAX']);
   });
 
   it('of(id) resolves every valid id, and falls back to HIGH otherwise', () => {
     expect(RENDER_QUALITY_LIST.map((n) => renderQualityOf(RenderQuality[n].id))).toEqual([
+      'MINIMAL',
       'LOW',
       'MID',
       'HIGH',
       'MAX',
     ]);
     expect(renderQualityOf(99)).toBe('HIGH');
-    expect(renderQualityOf(-1)).toBe('HIGH');
+    expect(renderQualityOf(-2)).toBe('HIGH');
+    expect(renderQualityOf(-1)).toBe('MINIMAL');
   });
 
   it('realtimeGlass is id >= HIGH.id', () => {
+    expect(realtimeGlass('MINIMAL')).toBe(false);
     expect(realtimeGlass('LOW')).toBe(false);
     expect(realtimeGlass('MID')).toBe(false);
     expect(realtimeGlass('HIGH')).toBe(true);
@@ -157,6 +161,7 @@ describe('GlassQuality.kt', () => {
   it('isMax / isLow', () => {
     expect(isMax('MAX')).toBe(true);
     expect(isMax('HIGH')).toBe(false);
+    expect(isLow('MINIMAL')).toBe(true);
     expect(isLow('LOW')).toBe(true);
     expect(isLow('MID')).toBe(false);
   });

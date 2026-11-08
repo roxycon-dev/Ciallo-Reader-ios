@@ -315,7 +315,7 @@ private final class NativeByteRequest: NSObject, URLSessionDataDelegate, @unchec
             return
         }
         let space = challenge.protectionSpace
-        if space.isProxy {
+        if space.isProxy() {
             completionHandler(.rejectProtectionSpace, nil)
             return
         }

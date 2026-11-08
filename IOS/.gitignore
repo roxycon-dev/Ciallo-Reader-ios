@@ -23,6 +23,8 @@ test-results/
 .ci-*
 .probe*.cjs
 *.tsbuildinfo
+__pycache__/
+*.pyc
 parity/android-export/.gradle/
 parity/android-export/build/
 native-build/

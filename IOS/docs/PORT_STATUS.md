@@ -4,8 +4,15 @@
 
 ## 已修改和验证
 
+### 2026-11-08 增量
+
+- 修复 `812de53` 云端门禁暴露的 6 处偏差，全部以 Android 只读源为权威逐值核对：① `ReaderHttpPlugin.swift:318` `space.isProxy` → `space.isProxy()`（URLProtectionSpace 是方法，原生编译唯一报错）；② 不安全 TLS 凭据拦截文案改回 Android 逐字「不安全 TLS 书源不能发送登录凭据，请启用证书验证」（`networkCalls.ts`， extended 头黑名单与 HTTPS-only 闸门保留，对应硬化的测试断言同步）；③ `INT_RANGES` 删去 `render_quality`（Android `BackupArchive.kt:135` when 表无此项，落 else 全整数范围，恢复不钳制）；④ `PreferencesManager.renderQuality()` getter 去钳制返原值（Android L211 getter 不钳制、setter `coerceIn(-1,3)`，消费侧 `renderQualityOf` 落 HIGH，与 Android `RenderQuality.of` 一致）；⑤ `glassTokens.test.ts` 过期断言更新为五档 MINIMAL(-1)→MAX（Android `GlassQuality.kt` 含 MINIMAL，of(-1)=MINIMAL）。本地 4 个相关测试文件 144 项、完整 tsc 通过。
+- E55 核实关闭：开屏在 Android 明暗恒为同一支深色（`SplashScreen.kt` 无条件 `Color(0xFF0F141C)`、无 `values-night/`），splash.css 已逐值照搬，无需深色分支；「7 处白」系 grep 误计注释。详见 PARITY_EXCEPTIONS E55。
+- E8 子代理中途请求失败，遗留的 webAgslShader.ts 半成品重构（删 FBO 字段但 render 仍引用）已恢复到 `812de53` 可编译态；其核对出的 Android 权威常量（DENT_AMBIENT=0.8、固定光源 (0,-0.6)）属实，留待重新接线时逐值落入。
+
 ### 2026-11-07 增量
 
+- 检查点 `812de53` 已推送（Git 传输被本机代理阻断，经 GitHub REST Git API 重建同一对象树，远端 SHA 与本地一致）。生产构建、改动文件 ESLint、壁纸/海报 WebKit 验收（跨页显示、海报留存、还原默认）通过；下载中心点击处理改为零参数适配器，类型错误清零。本机门禁 scratch 产物（tsc/vitest 基线输出、audit 配置）已 gitignore，未混入提交；用户 Android 侧的 PROJECT_GUIDE.md 更新不属于本移植，未纳入。ci 与 native-ios 已手动触发，原生验收计数升至 21（新增海报/壁纸私有文件字节往返）。
 - `8c29266` 的完整类型、Lint、单元、WebKit 和 Release 模拟器构建通过，原生模拟器 20 项全过。真机 SDK 编译日志已显示 `BUILD SUCCEEDED` 和 arm64；同一 CI 只在最后的架构检查参数顺序处报错，已改用 `lipo -archs`。签名及实体 iPhone/iPad 安装尚未进行。
 - 聚合书名搜索现在去重别名，空结果不吞掉后续错误。取消会释放网络名额、停止可取消的书源请求与验证窗口；取消队列中尚未开始的脚本任务，不再打断同一 Worker 的活动任务。新增的原生验收会检查验证弹窗和错误 ID 取消是否隔离。
 - 独立书名搜索接入 Android 相同系数的轻量页面弹簧，进入、退出不使用 WebKit 全页快照，极简和系统减少动态效果直接切换。新版 Xbook 目录、搜索、返回、整本下载与在线/离线阅读验收通过。带真实触发源的逐像素纸张变形仍有 CSS 渲染差异。

@@ -181,3 +181,38 @@
   font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — **本文件无需夜间模式变体，一条 `[data-theme='dark']` 规则不加**
+   ══════════════════════════════════════════════════════════════
+   E55 审计曾预判「splash.css 7 处白，开屏在深色模式下仍为白底」——
+   逐行核对 Android 权威后这个预判不成立：开屏在 Android 上**明暗两种
+   模式都是同一支深色**，本文件已逐值照搬，深色模式下无需（也不得）翻转。
+
+   ── 核对依据（只读源 novel-reader/）─────────────────────────────
+   1. `ui/SplashScreen.kt` L132-138：根 Box 无条件
+      `background(Color(0xFF0F141C))`，全文 `MaterialTheme.colorScheme` /
+      `isSystemDark()` 出现 0 次 —— Compose 开屏不读主题，恒为深色。
+      → `.splash-page` 的 `background: #0f141c`（SplashPage.tsx 另以
+      inline `backgroundColor: '#0F141C'` 双保险，单测 pinned）。
+   2. 系统冷启动闪屏 `res/values/themes.xml` L36-42：
+      `splash_background = #FF0F141C`，`windowSplashScreenBackground` /
+      `windowSplashScreenIconBackgroundColor` 同引用；**`values-night/`
+      目录不存在**，无任何深色变体资源 —— 明暗同值，注释明言
+      「背景色取 Compose 侧开屏页的同一支底色（0xFF0F141C）」。
+   3. 本文件仅有的 3 处 `rgba(255, 255, 255, …)` 全部是 Android
+      `Color.White.copy(alpha = …)` 在**深色海报之上**的半透白，
+      深色模式下同样正确，Android 侧没有对应深色分支：
+        · L292  Surface `White 0.08`        → `.splash-card` 底
+        · L201  Text `White 0.9`            → `.splash-quote` 字
+        · L209  Text `White 0.5`            → `.splash-skip` 字
+      （海报渐变三套 palette、底部 Black 0.82 scrim  likewise 均为
+      Kotlin 字面量，与主题无关，见 SplashPage.tsx posterPalette。）
+   4. 审计的「7 处白」实为 `grep -inc white` 把**注释里**引用 Kotlin
+      `Color.White` API 的 7 处字样（L9/19/21/22/104/163/174）计成了
+      声明；真正的白色声明只有上述 3 处半透白，页面底色从来不是白。
+
+   结论：按 Kotlin 实际写法处理（同 comicSheets.css 的先例），不发明
+   Android 侧不存在的深色分支；若给 `.splash-page` 等翻成 token 深色，
+   反而偏离 `splash_background #FF0F141C` 的逐值 parity。
+   ══════════════════════════════════════════════════════════════ */

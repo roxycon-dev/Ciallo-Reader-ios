@@ -287,6 +287,6 @@ export function checkInsecureTlsRequest(url: string, headers: Record<string, unk
   try { parsed = new URL(url); } catch { throw new Error('不安全 TLS 书源只支持 HTTPS'); }
   if (parsed.protocol !== 'https:') throw new Error('不安全 TLS 书源只支持 HTTPS');
   if (Object.keys(headers).some((name) => INSECURE_TLS_CREDENTIAL_HEADERS.has(name.toLowerCase()))) {
-    throw new Error('不安全 TLS 书源不能发送登录或代理凭据，请启用证书验证');
+    throw new Error('不安全 TLS 书源不能发送登录凭据，请启用证书验证');
   }
 }

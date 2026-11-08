@@ -478,7 +478,7 @@ export class PreferencesManager {
     return this.repo.getInt('color_secondary_index', 2)
   }
   renderQuality(): Promise<number> {
-    return this.repo.getInt('render_quality', 2).then((v) => Math.min(Math.max(v, -1), 3))
+    return this.repo.getInt('render_quality', 2)
   }
   dailyGoalMinutes(): Promise<number> {
     return this.repo.getInt('daily_goal_minutes', 60).then((v) => Math.min(Math.max(v, 5), 480))
