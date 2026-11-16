@@ -69,6 +69,47 @@
 
 **本轮门禁（2026-11-16 四轮最终）**：`tsc --noEmit` **0 error**；`eslint src tests --max-warnings=0` **0 problem**；`vitest run` **281 文件 / 5501 用例全绿**（`hookTimeout` 20s → 60s：两个 jsdom + 内存 SQLite 的套件 setup 实测 21–30s；`maxWorkers` 4 → 2：`jsSandbox` 的 watchdog、`mangaJaNaiFull` 的吞吐收缩、`transferProtocol` 的断点续传三条按真实墙钟判定，4 个 fork 抢 CPU 会误判）；`vite build` 成功（1.2 s）；Playwright 现状见上一节。
 
+### CI 首跑定位（2026-11-16 六轮）
+
+GitHub Actions `ci` run #37（push `3595f64`）挂在 `gates` 的第三道门禁：
+
+```
+Gate 1/4 — typecheck                  success
+Gate 2/4 — lint                       success
+Gate 3/4 — unit + parity tests        failure
+```
+
+根因：`tests/helpers/androidReference.ts` 优先读工作区的 `novel-reader/` 权威树，
+只有目标文件不存在才回落到 `IOS/tests/reference/android/`。本地工作区里 Android 树完整，
+所以 281 文件全绿；干净 clone 里 `novel-reader/` 只有 5 个 JS asset
+（`app/src/main/assets/{js_extra,venera}/*.js`，远端 main 唯一被 `git add -f` 的部分），
+没有 Kotlin 源码，于是回落到只覆盖 11 个文件的快照。
+
+精确复现（不改工作区）：把 `IOS/` 复制到临时目录，同级放一个只含那 5 个文件的
+`novel-reader/`，`node_modules` 用 junction 指回去，跑 `npx vitest run`：
+
+```
+FAIL  tests/unit/i18nStrings.test.ts          [ import 期 ENOENT: i18n/Strings.kt ]
+FAIL  tests/unit/pullOutHostsParity.test.ts   [ import 期 ENOENT: ui/components/PullOutMotion.kt ]
+FAIL  tests/unit/wenkuShelfCore.test.ts       [ import 期 ENOENT: ui/wenku/ArchiveShelf.kt ]
+FAIL  tests/unit/helpContent.test.ts          [ 断言：快照里的 FaqExpandableItem.kt 已过期 ]
+Test Files  4 failed | 277 passed (281)
+     Tests  1 failed | 5362 passed (5363)
+```
+
+修复：把权威树整体放进快照，而不是继续逐个补文件（补了还会漂移）。
+
+| 快照内容 | 文件 | 体积 |
+|---|---|---|
+| `app/src/main/java`（478 个 `.kt`） | 权威 Kotlin 源码 | — |
+| `app/schemas` | Room 导出（12/13/…） | 0.1 MB |
+| `app/src/main/res/values` + `drawable-nodpi` | 文案与吉祥物资源 | 0.2 MB |
+| 过期副本（`FaqExpandableItem.kt`） | 从 live 刷新 | — |
+| 合计（已剔除 `.mimosa` 工具缓存） | **559** | **7.0 MB** |
+
+同一模拟环境复跑：`Test Files 281 passed / Tests 5501 passed`。
+真实工作区 7 个受影响文件复跑：282 用例全绿。
+
 ### 安装包（IPA）构建通道（2026-11-16 五轮）
 
 **结论先行**：IPA 只能由 macOS + Xcode 26 生成（arm64 Mach-O / actool / ibtool / onnxruntime xcframework / codesign 缺一不可）。本机是 Windows，没有这条工具链，因此本轮把「出包」拆成「Windows 侧能做完的」+「Mac 侧一条命令」两段，并修掉三个会让 Mac 构建直接失败的硬伤。

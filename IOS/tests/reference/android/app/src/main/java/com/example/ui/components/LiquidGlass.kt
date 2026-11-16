@@ -1,0 +1,429 @@
+package com.example.ui.components
+
+import android.graphics.Bitmap
+import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.kashif_e.backdrop.Backdrop
+import com.kashif_e.backdrop.BackdropEffectScope
+import com.kashif_e.backdrop.backdrops.CanvasBackdrop
+import com.kashif_e.backdrop.backdrops.PreBlurredBackdrop
+import com.kashif_e.backdrop.backdrops.rememberLayerBackdrop
+import com.kashif_e.backdrop.drawBackdrop
+import com.kashif_e.backdrop.effects.blur
+import com.kashif_e.backdrop.effects.colorControls
+import com.kashif_e.backdrop.effects.lens
+import com.kashif_e.backdrop.effects.vibrancy
+import com.kashif_e.backdrop.highlight.Highlight
+import com.kashif_e.backdrop.highlight.HighlightStyle
+import com.kashif_e.backdrop.shadow.InnerShadow
+import com.kashif_e.backdrop.shadow.Shadow
+
+/**
+ * 当前窗口的玻璃采样源：由 MainActivity 在背景图/底色层上挂 layerBackdrop 后提供。
+ * 页面内容卡（GlassCard）用它做与底部 Tab 栏完全同源的真实内容模糊。
+ */
+val LocalGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
+/**
+ * 是否具备实时 RenderEffect 模糊能力。
+ *
+ * Android 12（API 31）才引入 `RenderEffect`；KMPLiquidGlass 在更低版本上
+ * 会把 blur / colorControls / vibrancy / lens **全部静默 no-op**
+ * （见 `backdrop/.../platform/PlatformEffects.kt` 的 `PlatformCapabilities`），
+ * 结果是 backdrop 以「未模糊的原始内容」直接透出——玻璃卡看起来像一块
+ * 透明玻璃叠了张清晰底图，毛玻璃质感完全丢失。
+ *
+ * 因此所有玻璃调用点都必须经此判断走降级路径。
+ */
+val supportsRealtimeBlur: Boolean
+    get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+/** 降级时给半透明基底额外加厚的 alpha（弥补没有真实模糊带来的「太透」）。 */
+private const val GLASS_FALLBACK_ALPHA_BOOST = 0.20f
+
+/**
+ * 无 RenderEffect 能力时的毛玻璃降级：
+ * 「加厚的半透明基底 + 柔和透光渐变 + 噪点纹理」近似磨砂介质，
+ * 观感是「更实一点的磨砂面板」，绝不是透明 / 消失。
+ */
+private fun Modifier.frostedGlassFallback(shape: Shape, surfaceColor: Color): Modifier = this
+    .background(
+        surfaceColor.copy(alpha = (surfaceColor.alpha + GLASS_FALLBACK_ALPHA_BOOST).coerceAtMost(1f)),
+        shape
+    )
+    .drawWithCache {
+        val medium = Brush.linearGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.12f),
+                    Color.Transparent,
+                    Color.Transparent,
+                    Color.Black.copy(alpha = 0.05f)
+                )
+            )
+        val topLight = Brush.verticalGradient(
+                colors = listOf(Color.White.copy(alpha = 0.14f), Color.Transparent),
+                startY = 0f,
+                endY = size.height * 0.22f
+            )
+        val topSize = Size(size.width, size.height * 0.22f)
+        onDrawWithContent {
+            drawRect(brush = medium)
+            drawRect(
+                brush = topLight,
+                topLeft = Offset.Zero,
+                size = topSize
+            )
+            drawContent()
+        }
+    }
+    .filmGrain(alpha = 0.05f)
+
+/**
+ * 静态背景的预烘焙模糊 backdrop（由 MainActivity 提供）。
+ * 玻璃卡用它做"整屏只模糊一次"的贴图采样；null 或未就绪时自动回退实时模糊。
+ */
+val LocalPreBlurredGlass = staticCompositionLocalOf<PreBlurredBackdrop?> { null }
+
+/**
+ * KMPLiquidGlass 官方 API 封装：
+ * - 同一窗口内的玻璃层（书库搜索历史、页面内浮层）使用 [rememberLayerBackdrop] 捕获真实内容；
+ * - 弹窗/底部弹层（Popup 独立窗口，无法跨窗口采样）使用 [rememberThemedGlassBackdrop]，
+ *   以主题渐变作为 Backdrop 内容，再经 drawBackdrop 的 blur/colorControls/lens 产生液态玻璃质感。
+ */
+
+/**
+ * 捕获同一窗口内的真实内容作为 Backdrop。
+ * 用法：`Modifier.layerBackdrop(backdrop)` 放在需要透出的内容层上，
+ * 玻璃元素再用 [Modifier.liquidGlass] 采样。
+ */
+@Composable
+fun rememberScreenGlassBackdrop() = rememberLayerBackdrop()
+
+/**
+ * 为 Popup / Dialog 场景创建主题化渐变 Backdrop。
+ * 使用 KMPLiquidGlass 官方 [CanvasBackdrop] API，不自行实现模糊。
+ */
+@Composable
+fun rememberThemedGlassBackdrop(): Backdrop {
+    val surface = MaterialTheme.colorScheme.surface
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    return remember(surface, primary, secondary) {
+        val gradient = themeGradient(primary, secondary)
+        CanvasBackdrop {
+            drawRect(surface)
+            drawRect(gradient)
+        }
+    }
+}
+
+/** 玻璃面板专用渐变：比通用渐变更明显的层次，白色背景上也能看出玻璃质感。 */
+@Composable
+fun rememberGlassPanelBackdrop(): Backdrop {
+    val surface = MaterialTheme.colorScheme.surface
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    return remember(surface, primary, secondary) {
+        val gradient = Brush.linearGradient(
+            colors = listOf(primary.copy(alpha = 0.06f), Color.Transparent,
+                secondary.copy(alpha = 0.05f), primary.copy(alpha = 0.06f))
+        )
+        CanvasBackdrop {
+            // 关键：不画不透明底色，让 Dialog 背后被实时模糊的真实内容透过来
+            drawRect(androidx.compose.ui.graphics.Color.Transparent)
+            drawRect(gradient)
+        }
+    }
+}
+
+/**
+ * KMPLiquidGlass 官方 `Modifier.drawBackdrop` 的封装：
+ * 液态玻璃表面 = backdrop（真实内容或主题渐变）+ blur + colorControls + lens + 高光 + 内外阴影。
+ */
+fun Modifier.liquidGlass(
+    backdrop: Backdrop,
+    shape: Shape,
+    surfaceColor: Color = Color.Transparent,
+    blurRadius: Dp = 18.dp,
+    refraction: Boolean = false,
+    saturation: Float = 1.30f,
+    refractionHeight: Dp = 16.dp,
+    refractionAmount: Dp = 28.dp,
+    highlightEnabled: Boolean = true
+): Modifier =
+    // ── 跨机型降级（API < 31 无 RenderEffect）──────────────────────────
+    // KMPLiquidGlass 的 blur 在低版本静默 no-op，backdrop 会以未模糊的
+    // 原始内容透出（= 清晰玻璃，毛玻璃质感丢失）。降级为「加厚半透明
+    // 基底 + 柔和透光渐变 + 噪点」，观感接近磨砂而不是消失。
+    if (!supportsRealtimeBlur) {
+        frostedGlassFallback(shape = shape, surfaceColor = surfaceColor)
+    } else drawBackdrop(
+    backdrop = backdrop,
+    shape = { shape },
+    effects = {
+        colorControls(
+            brightness = 0.04f,
+            contrast = 1.02f,
+            saturation = saturation
+        )
+        vibrancy()
+        blur(radius = blurRadius.toPx())
+        if (refraction) {
+            lens(
+                refractionHeight = refractionHeight.toPx(),
+                refractionAmount = refractionAmount.toPx(),
+                depthEffect = true,
+                chromaticAberration = false
+            )
+        }
+    },
+    highlight = {
+        if (!highlightEnabled) null else Highlight(
+            width = 1.2.dp,
+            blurRadius = 1.dp,
+            alpha = 0.8f,
+            style = HighlightStyle.Default
+        )
+    },
+    shadow = { Shadow(radius = 24.dp, color = Color.Black.copy(alpha = 0.16f)) },
+    innerShadow = { InnerShadow(radius = 5.dp, color = Color.Black.copy(alpha = 0.10f)) },
+    onDrawSurface = { drawRect(surfaceColor) }
+)
+
+/** DrawScope 小工具：绘制主题化渐变（供 CanvasBackdrop 使用）。 */
+private fun themeGradient(
+    primary: Color,
+    secondary: Color
+): Brush = Brush.linearGradient(
+            colors = listOf(
+                primary.copy(alpha = 0.14f),
+                Color.Transparent,
+                secondary.copy(alpha = 0.10f),
+                primary.copy(alpha = 0.12f)
+            )
+        )
+
+/**
+ * 预烘焙路径的效果链：必须与 [Modifier.liquidGlass] 的实时链逐参数一致，
+ * 这样烘焙位图与实时回退的输出才完全相同。lambda 需被 remember 保持实例稳定。
+ */
+@Composable
+fun rememberGlassFxChain(blurRadiusPx: Float): BackdropEffectScope.() -> Unit =
+    remember(blurRadiusPx) {
+        {
+            colorControls(
+                brightness = 0.04f,
+                contrast = 1.02f,
+                saturation = 1.30f
+            )
+            vibrancy()
+            blur(radius = blurRadiusPx)
+        }
+    }
+
+/**
+ * 玻璃卡静态采样：效果已整屏预烘焙进 [PreBlurredBackdrop] 的位图，
+ * 此处效果链仅复刻 blur 造成的外扩（padding），保证采样窗口与实时路径一致。
+ * 位图未就绪时 backdrop 内部自动回退实时路径，视觉与旧行为一致。
+ */
+fun Modifier.liquidGlassStatic(
+    backdrop: PreBlurredBackdrop,
+    shape: Shape,
+    surfaceColor: Color,
+    blurRadiusPx: Float
+): Modifier =
+    // ── 跨机型降级（API < 31 无 RenderEffect）：同 [liquidGlass] ──
+    if (!supportsRealtimeBlur) {
+        frostedGlassFallback(shape = shape, surfaceColor = surfaceColor)
+    } else drawBackdrop(
+    backdrop = backdrop,
+    shape = { shape },
+    effects = {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
+            blurRadiusPx > padding
+        ) {
+            padding = blurRadiusPx
+        }
+    },
+    highlight = {
+        Highlight(
+            width = 1.2.dp,
+            blurRadius = 1.dp,
+            alpha = 0.8f,
+            style = HighlightStyle.Default
+        )
+    },
+    shadow = { Shadow(radius = 24.dp, color = Color.Black.copy(alpha = 0.16f)) },
+    innerShadow = { InnerShadow(radius = 5.dp, color = Color.Black.copy(alpha = 0.10f)) },
+    onDrawSurface = { drawRect(surfaceColor) }
+)
+
+private var grainBitmap: Bitmap? = null
+
+private fun createGrainBitmap(): Bitmap {
+    val bmp = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+    val rnd = java.util.Random(42)
+    for (x in 0 until 64) {
+        for (y in 0 until 64) {
+            val v = 128 + rnd.nextInt(56) - 28
+            bmp.setPixel(x, y, android.graphics.Color.rgb(v, v, v))
+        }
+    }
+    return bmp
+}
+
+/** 极细噪点纹理（film grain），打破纯数字模糊的塑料感。 */
+fun Modifier.filmGrain(alpha: Float = 0.04f): Modifier = this.drawWithCache {
+    val bmp = grainBitmap ?: createGrainBitmap().also { grainBitmap = it }
+    val shader = ImageShader(
+        image = bmp.asImageBitmap(),
+        tileModeX = TileMode.Repeated,
+        tileModeY = TileMode.Repeated
+    )
+    val brush = ShaderBrush(shader)
+    onDrawBehind {
+        drawRect(
+            brush = brush,
+            alpha = alpha,
+            blendMode = BlendMode.Overlay
+        )
+    }
+}
+
+/** 沿边缘一圈的低饱和虹彩渐变描边（sweep 渐变，亚克力立牌折光）。 */
+fun Modifier.iridescentBorder(
+    shape: Shape,
+    colors: List<Color>,
+    width: Dp = 2.dp,
+    alpha: Float = 0.22f
+): Modifier = this.drawWithCache {
+    val brush = Brush.sweepGradient(
+        colors = colors.map { it.copy(alpha = alpha) },
+        center = Offset(size.width / 2f, size.height / 2f)
+    )
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val stroke = Stroke(width.toPx())
+    onDrawBehind {
+        when (outline) {
+            is Outline.Rounded -> drawRoundRect(
+                brush = brush,
+                cornerRadius = outline.roundRect.topLeftCornerRadius,
+                style = stroke
+            )
+            is Outline.Rectangle -> drawRect(
+                brush = brush,
+                style = stroke
+            )
+            else -> Unit
+        }
+    }
+}
+
+/**
+ * 物理厚度倒角高光（Inner Bevel Lighting）：
+ * 左上受光面珍珠白柔光，右下背光面暗调接触线，赋予玻璃卡片真实的毫米级切角晶体厚度感。
+ */
+fun Modifier.crystalInnerBevel(
+    shape: Shape,
+    width: Dp = 1.dp
+): Modifier = this.drawWithCache {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val lightBrush = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.35f),
+            Color.White.copy(alpha = 0.12f),
+            Color.Transparent,
+            Color.Black.copy(alpha = 0.08f)
+        ),
+        start = Offset(0f, 0f),
+        end = Offset(size.width, size.height)
+    )
+    val stroke = Stroke(width.toPx())
+    onDrawBehind {
+        when (outline) {
+            is Outline.Rounded -> drawRoundRect(
+                brush = lightBrush,
+                cornerRadius = outline.roundRect.topLeftCornerRadius,
+                style = stroke
+            )
+            is Outline.Rectangle -> drawRect(
+                brush = lightBrush,
+                style = stroke
+            )
+            else -> Unit
+        }
+    }
+}
+
+/** 径向渐变背景遮罩：中心（弹窗位置）亮、四周暗，模拟聚光灯打在立牌上。 */
+fun Modifier.radialGlassScrim(): Modifier = this.drawWithCache {
+    val brush = Brush.radialGradient(
+            colors = listOf(
+                Color.Black.copy(alpha = 0.25f),
+                Color.Black.copy(alpha = PullOutConfig.SCRIM)
+            ),
+            center = Offset(size.width * 0.5f, size.height * 0.78f),
+            radius = size.maxDimension * 0.95f
+        )
+    onDrawBehind { drawRect(brush) }
+}
+
+/** 从主题强调色推导虹彩边缘三色（同色系邻近色，不引入无关色相）。 */
+@Composable
+fun rememberIridescentColors(): List<Color> {
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    return remember(primary, secondary) {
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(primary.toArgb(), hsv)
+        val hue = hsv[0]
+        val warm = Color.hsv((hue + 28f) % 360f, 0.45f, 1f)
+        val cool = Color.hsv((hue - 28f + 360f) % 360f, 0.42f, 1f)
+        listOf(primary, warm, secondary, cool, primary)
+    }
+}
+
+/**
+ * 顶级水晶棱镜多段色散（模拟施华洛世奇光学晶体 / VisionOS 玻璃边缘的分光色散）。
+ * 色散序列：主色 -> 晨曦金 -> 珍珠白高光 -> 翡翠水绿 -> 薰衣草紫 -> 主色
+ */
+@Composable
+fun rememberCrystalPrismColors(): List<Color> {
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    return remember(primary, secondary) {
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(primary.toArgb(), hsv)
+        val hue = hsv[0]
+        val warmGold = Color.hsv((hue + 32f) % 360f, 0.40f, 1f)
+        val pearlSheen = Color(0xFFEAF5F8)
+        val coolViolet = Color.hsv((hue - 32f + 360f) % 360f, 0.38f, 1f)
+        listOf(primary, warmGold, pearlSheen, secondary, coolViolet, primary)
+    }
+}
+

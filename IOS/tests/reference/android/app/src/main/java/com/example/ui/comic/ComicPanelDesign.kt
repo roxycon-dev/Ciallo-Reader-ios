@@ -1,0 +1,317 @@
+package com.example.ui.comic
+
+import com.example.ui.design.DesignTokens
+import com.example.ui.design.ReadingPalette
+
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.semantics
+import com.example.ui.theme.MintPrimary
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import com.example.ui.reader.readingGlass
+import com.example.ui.feedback.AppMotion
+import com.example.ui.wenku.LocalWenkuIconContact
+import com.example.ui.wenku.WenkuIcon
+import com.example.ui.wenku.WenkuIconContact
+import com.example.ui.wenku.WenkuMotion
+import com.example.ui.wenku.WenkuSymbol
+import com.example.ui.wenku.rememberWenkuAccessibility
+
+/* ══════════════ 漫画面板设计系统（第七轮第 3 条） ══════════════
+ *
+ * 苹果式精致/克制路线的阅读设置面板组件族：模块化玻璃卡片、图标 Tab、
+ * 带明确背景色块的选中态、统一的自绘滑条与开关。全部组件只依赖既有的
+ * Panel* 色彩令牌与品牌薄荷绿，无霓虹/发光/重投影——高级感来自留白、
+ * 层级、控件比例与材质，而不是堆装饰。书架（第 5 条）与隐私窗口（第 6 条）
+ * 沿用同一套语言。
+ */
+
+/** 玻璃卡片内层：极淡的白雾填充 + 细描边（模块化区块分隔的"玻璃描边"） */
+internal val PanelCardBg = Color(0x12FFFFFF)
+internal val PanelCardStroke = Color(0x26FFFFFF)
+
+/** 选中背景（品牌薄荷绿 18% 透明度填充）——明确但克制的选中反馈。
+ *  MintPrimary 是 @Composable getter（MaterialTheme 动态取色），故此二函数同样标注。 */
+@Composable
+private fun selectedBg(): Color = MintPrimary.copy(alpha = 0.18f)
+
+@Composable
+private fun selectedStroke(): Color = MintPrimary.copy(alpha = 0.55f)
+
+/**
+ * 模块化玻璃卡片：面板内每个功能区块的容器。
+ * 独立圆角卡片形成清晰的视觉分组（替代"标题文字 + 留白"的旧分隔方式）。
+ */
+@Composable
+internal fun PanelSectionCard(
+    title: String? = null,
+    icon: ImageVector? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .padding(vertical = DesignTokens.SpaceXs)
+            .animateContentSize(tween(180))
+            .readingGlass(RoundedCornerShape(DesignTokens.RadiusXl), strong = true)
+            .padding(horizontal = DesignTokens.SpaceLg, vertical = DesignTokens.SpaceComfortable)
+    ) {
+        if (title != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                icon?.let {
+                    Icon(it, null, tint = MintPrimary.copy(alpha = 0.9f), modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(DesignTokens.SpaceCompact))
+                }
+                Text(title, color = TextPrimary, fontSize = DesignTokens.TypeSection, fontWeight = FontWeight.SemiBold, lineHeight = DesignTokens.TypeSectionLineHeight)
+            }
+            Spacer(Modifier.height(DesignTokens.SpaceSm))
+        }
+        content()
+    }
+}
+
+/** Tab 定义（图标 + 文字） */
+internal data class PanelTabData(val label: String, val icon: WenkuSymbol)
+
+/**
+ * 图标 Tab 导航行：作为完整导航区域设计——图标在上文字在下，统一高度与间距，
+ * 选中 = 薄荷半透明填充 + 细边框（不再只靠文字变色），未选中弱化。
+ */
+@Composable
+internal fun PanelTabRow(
+    tabs: List<PanelTabData>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .readingGlass(RoundedCornerShape(DesignTokens.RadiusNavigation))
+            .horizontalScroll(rememberScrollState())
+            .selectableGroup()
+            .padding(DesignTokens.SpaceXs),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceXs)
+    ) {
+        tabs.forEachIndexed { index, tab ->
+            PanelTab(tab, index == selected, { onSelect(index) }, Modifier.width(58.dp), compact = true)
+        }
+    }
+}
+/** Read-only status is text, never a switch that cannot be operated. */
+@Composable
+internal fun PanelHint(text: String) {
+    Text(text, color = TextSecondary, fontSize = DesignTokens.TypeCaption, lineHeight = DesignTokens.TypeCaptionLineHeight,
+        modifier = Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceXs))
+}
+
+/** A scrollable rail gives tablets enough room for all seven categories. */
+@Composable
+internal fun PanelTabRail(tabs: List<PanelTabData>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.width(92.dp).verticalScroll(rememberScrollState()).selectableGroup(),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.SpaceXs)) {
+        tabs.forEachIndexed { index, tab ->
+            PanelTab(tab, index == selected, { onSelect(index) }, Modifier.fillMaxWidth(), compact = false)
+        }
+    }
+}
+
+@Composable
+private fun PanelTab(tab: PanelTabData, active: Boolean, onSelect: () -> Unit, modifier: Modifier, compact: Boolean) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    var activation by remember { mutableIntStateOf(0) }
+    val animate = rememberWenkuAccessibility().decorativeMotion
+    val press = animateFloatAsState(
+        targetValue = if (animate && pressed) .96f else 1f,
+        animationSpec = if (pressed) WenkuMotion.contactSpec() else WenkuMotion.settleSpec(),
+        label = "comicSettingsTabPress"
+    )
+    val background by animateColorAsState(
+        targetValue = if (active) selectedBg() else Color.Transparent,
+        animationSpec = tween(if (animate) 160 else 0),
+        label = "comicSettingsTabTint"
+    )
+    val tint = if (active) MintPrimary else TextSecondary
+    val shape = RoundedCornerShape(if (compact) DesignTokens.RadiusControl else DesignTokens.RadiusNavigation)
+    Column(
+        modifier
+            .selectable(active, interactionSource = interaction, indication = null, role = Role.Tab) {
+                activation++
+                onSelect()
+            }
+            .graphicsLayer { scaleX = press.value; scaleY = press.value }
+            .readingGlass(shape)
+            .background(background)
+            .then(if (compact && active) Modifier.border(.5.dp, selectedStroke(), shape) else Modifier)
+            .padding(vertical = if (compact) DesignTokens.SpaceTight else DesignTokens.SpaceSm),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        val size = if (compact) 19.dp else 21.dp
+        CompositionLocalProvider(LocalWenkuIconContact provides WenkuIconContact(pressed, activation)) {
+            WenkuIcon(tab.icon, size = size, tint = tint, active = active, animated = animate, entrance = false)
+        }
+        Spacer(Modifier.height(if (compact) 3.dp else DesignTokens.SpaceCompact))
+        Text(
+            tab.label,
+            color = tint,
+            fontSize = if (compact) DesignTokens.TypeCaption else DesignTokens.TypeLabel,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1
+        )
+    }
+}
+/**
+ * 面板统一滑条（自绘）：细玻璃轨道 + 薄荷填充 + 白色圆钮（轻按压光环）。
+ * 全面板唯一的滑条样式（纸纹/间距/滤镜/增强强度等共用），与 FluidSlider 的
+ * 液态语言同源但为紧凑面板做了收敛——不放大尺寸、不加气泡。
+ * 水平位移超过 slop 且水平分量占优才接管（与外层垂直滚动正确仲裁）。
+ */
+@Composable
+internal fun PanelSlider(
+    value: Float, onValueChange: (Float) -> Unit, valueRange: ClosedFloatingPointRange<Float>,
+    onValueChangeFinished: () -> Unit = {}, steps: Int = 0, enabled: Boolean = true,
+    modifier: Modifier = Modifier, reverse: Boolean = false,
+    formatLabel: (Float) -> String = { if (valueRange == 0f..1f) "${(it * 100).roundToInt()}%" else "${it.roundToInt()}" },
+) {
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides TextPrimary) {
+    com.example.ui.components.LiquidSlider(value, onValueChange, modifier, valueRange, steps, enabled, reverse,
+        onValueChangeFinished = onValueChangeFinished, formatLabel = formatLabel)
+    }
+}
+
+/**
+ * 面板统一开关（自绘玻璃胶囊）：品牌绿轨道 + 白色圆钮弹性滑动，
+ * 与 M3 Switch 相比更轻薄、与玻璃面板同材质。全面板唯一开关样式。
+ */
+@Composable
+internal fun PanelSwitch(
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val t by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = AppMotion.press(),
+        label = "panelSwitch"
+    )
+    val trackColor = lerpColor(ReadingPalette.SwitchTrack, MintPrimary.copy(alpha = 0.85f), t)
+    val travel = with(LocalDensity.current) { DesignTokens.SpaceLoose.toPx() }
+    Box(
+        modifier
+            .width(46.dp)
+            .height(28.dp)
+            .readingGlass(CircleShape)
+            .background(trackColor)
+            .border(
+                0.5.dp,
+                lerpColor(ReadingPalette.ControlTrack, MintPrimary.copy(alpha = 0.6f), t),
+                CircleShape
+            )
+            .clickableNoRipple { onChange(!checked) }
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.CenterStart)
+                .offset { IntOffset((3.dp.toPx() + t * travel).roundToInt(), 0) }
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+        )
+    }
+}
+
+private fun lerpColor(a: Color, b: Color, t: Float): Color = Color(
+    red = a.red + (b.red - a.red) * t,
+    green = a.green + (b.green - a.green) * t,
+    blue = a.blue + (b.blue - a.blue) * t,
+    alpha = a.alpha + (b.alpha - a.alpha) * t,
+)
+
+/** 选中态背景色（供 SegmentRow 等复用） */
+@Composable
+internal fun panelSelectedBg(): Color = selectedBg()
+
+/** 选中态描边色 */
+@Composable
+internal fun panelSelectedStroke(): Color = selectedStroke()
+
+/** 背景类型色卡（阅读背景的可视化选择） */
+internal data class PanelBgSwatch(val label: String, val fill: Color, val gradient: Brush? = null)
+
+/** Decorative marker inside a labelled row or selected option; avoid duplicate TalkBack announcements. */
+@Composable
+internal fun PanelDecorativeIcon(
+    imageVector: ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    Icon(imageVector, contentDescription = null, tint = tint,
+        modifier = modifier.clearAndSetSemantics { })
+}

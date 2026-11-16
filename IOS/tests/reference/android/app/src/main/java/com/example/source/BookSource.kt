@@ -1,0 +1,55 @@
+package com.example.source
+
+import com.example.i18n.tr
+
+interface BookSource {
+    val id: String
+    val name: String
+    val capabilities: SourceCapabilities
+    val requiresLogin: Boolean get() = capabilities.requiresLogin
+
+    val supportsDiscoverMetadata: Boolean get() = false
+    suspend fun getDiscoverMetadata(bookId: String): SourceResult<SearchBook> =
+        SourceResult.Error(SourceException.ParseError(tr("书源没有轻量元数据接口")))
+    suspend fun discoverCatalog(resolveDynamic: Boolean = false): SourceResult<com.example.discover.DiscoverCatalog> =
+        SourceResult.Success(com.example.discover.DiscoverCatalog())
+    suspend fun discover(query: com.example.discover.DiscoverQuery): SourceResult<com.example.discover.DiscoverPage> =
+        SourceResult.Success(com.example.discover.DiscoverPage(supported = false, notice = "该书源未提供此维度数据"))
+
+    suspend fun search(keyword: String): SourceResult<List<SearchBook>>
+    suspend fun getDetail(bookId: String): SourceResult<SearchBook>
+    /** Cover requests are shared by ebook and chapter sources. */
+    suspend fun getCoverHeaders(url: String): Map<String, String> = emptyMap()
+    /** Public work detail page; never a chapter, image, or download endpoint. */
+    suspend fun getShareUrl(bookId: String): String? = DetailLink.valid(bookId)
+    suspend fun getDownloadInfo(bookId: String): SourceResult<DownloadInfo>
+    suspend fun login(credential: LoginCredential): SourceResult<Boolean>
+    suspend fun logout()
+    suspend fun isLoggedIn(): Boolean
+
+    /** Source-provided account registration page, when available. */
+    suspend fun getRegistrationUrl(): String? = null
+
+    /**
+     * 返回书籍可用的下载格式列表。默认实现返回空列表（不支持多格式选择）。
+     * 调用方可凭此展示"选择格式"弹窗；空列表表示直接走 [getDownloadInfo] 默认格式。
+     */
+    suspend fun getAvailableFormats(book: SearchBook): SourceResult<List<BookFormat>> =
+        SourceResult.Success(emptyList())
+
+    /**
+     * 按指定格式获取下载信息。默认实现忽略 [preferredFormat]，与单参数版本一致。
+     */
+    suspend fun getDownloadInfo(
+        bookId: String,
+        preferredFormat: String? = null
+    ): SourceResult<DownloadInfo> = getDownloadInfo(bookId)
+
+    suspend fun getAuthenticationState(): AuthenticationState {
+        return if (capabilities.downloadRequiresLogin) {
+            if (isLoggedIn()) AuthenticationState.Authenticated else AuthenticationState.Required
+        } else {
+            AuthenticationState.NotRequired
+        }
+    }
+}

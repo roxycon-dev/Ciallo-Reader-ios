@@ -1,0 +1,2473 @@
+package com.example.ui
+
+import com.example.i18n.tr
+
+import com.example.ui.wenku.wenkuPagePart
+import com.example.ui.wenku.wenkuTabTitle
+import com.example.ui.wenku.WenkuSectionHeader
+import com.example.ui.components.pullOutCombinedClickable
+import com.example.ui.components.PullOutTextButton
+import com.example.ui.components.PullOutVisibility
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.R
+import com.example.data.Book
+import com.example.data.CategoryEntity
+import com.example.ui.components.AppButton
+import com.example.ui.components.AppActionButton
+import com.example.ui.components.AppButtonSize
+import com.example.ui.components.AppButtonVariant
+import com.example.ui.components.AppIconButton
+import com.example.ui.components.GlassCard
+import com.example.ui.components.CollapsingTabScreenHeader
+import com.example.ui.components.rememberHeaderCollapsedSource
+import com.example.ui.components.scrollTiltSource
+import com.example.ui.components.StarryNightBackground
+import com.example.ui.components.GlassDialogWindowEffect
+import com.example.ui.components.filmGrain
+import com.example.ui.components.iridescentBorder
+import com.example.ui.components.liquidGlass
+import com.example.ui.components.radialGlassScrim
+import com.example.ui.components.rememberGlassPanelBackdrop
+import com.example.ui.components.rememberIridescentColors
+import com.example.ui.theme.MintGold
+import com.example.ui.theme.MintPrimary
+import com.example.ui.theme.MintSecondary
+import com.example.ui.theme.clickableWithFeedback
+import com.example.ui.theme.glassTitleColor
+import com.example.ui.theme.LocalAppBottomInset
+import kotlin.math.roundToInt
+import android.widget.Toast
+import kotlinx.coroutines.launch
+import com.example.ui.components.paperDismiss
+import com.example.ui.wenku.WenkuActionSheet
+import com.example.ui.wenku.WenkuSymbol
+import com.example.ui.wenku.WenkuTextButton
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.lifecycle.lifecycleScope
+import com.example.ui.theme.AppFonts
+import me.trishiraj.shadowglow.consistentShadow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.components.AppToast
+import com.example.ui.shelf.shelfCapture
+import com.example.ui.feedback.LocalReduceMotion
+import com.example.ui.feedback.AppMotion
+import com.example.ui.wenku.ArchiveShelf
+import com.example.ui.wenku.WenkuLoadedContentSequence
+import com.example.ui.shelf.ShelfSearchField
+import com.example.ui.shelf.ShelfSearchPlane
+import com.example.ui.shelf.ShelfSearchState
+import com.example.ui.shelf.rememberShelfSearchState
+import com.example.ui.wenku.WenkuExpandableSearch
+import com.example.ui.wenku.WenkuMotion
+import com.example.ui.wenku.wenkuPaperFlight
+import com.example.ui.wenku.wenkuReveal
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+@Composable
+@androidx.compose.animation.ExperimentalSharedTransitionApi
+fun HomeScreen(
+    books: List<Book>,
+    categories: List<CategoryEntity>,
+    onBookClick: (Book) -> Unit,
+    onImportClick: (String) -> Unit,
+    onAddCategory: (String) -> Unit,
+    /**
+     * 书架当前选中的分类（**由 MainActivity 持有**）。
+     *
+     * ⚠️ 以前这是 HomeScreen 自己的 `remember`，而打开书籍是 `navController.navigate`
+     * 跳到另一个目的地 —— HomeScreen 会**整体离开组合**，回来时状态重新初始化成「默认」。
+     * 用户眼里就是「点进一本书再退出，分类被重置回默认了」。所以必须提到页面外。
+     */
+    shelfCategory: String = com.example.data.DEFAULT_CATEGORY,
+    onShelfCategoryChange: (String) -> Unit = {},
+    onSettingsClick: () -> Unit,
+    onNavigateToShelf: () -> Unit,
+    onNavigateToStats: () -> Unit,
+    /** 今日已阅读秒数（daily_read_time_<今天>；第七轮第 4 条：卡片显示"今日"口径） */
+    todayReadSecondsFlow: kotlinx.coroutines.flow.StateFlow<Long>,
+    streakDaysFlow: kotlinx.coroutines.flow.StateFlow<Int>,
+    onDeleteBook: (Book) -> Unit,
+    onMoveBook: (Book, String) -> Unit,
+    onDeleteCategory: ((com.example.data.CategoryEntity, (Boolean) -> Unit) -> Unit)? = null,
+    /* ── 隐私模式（第七轮第 6 条）：状态由 MainActivity 从 MainViewModel 注入 ── */
+    privacyModeEnabled: Boolean = false,
+    protectedCategoryNames: Set<String> = emptySet(),
+    unlockedCategoryIds: Set<Int> = emptySet(),
+    onUnlockCategory: (suspend (com.example.data.CategoryEntity, String) -> Boolean)? = null,
+    onToggleCategoryProtected: ((com.example.data.CategoryEntity, Boolean) -> Unit)? = null,
+    /* ══════════════ 「我喜欢的」板块：与「我的书架」平行 ══════════════ */
+    /** 收藏聚合列表（收藏 + 进度 + 已下载话数） */
+    favoriteItems: List<com.example.data.favorite.FavoriteItem> = emptyList(),
+    /** "sourceId::comicId" 集合：书架卡片右下角小心形 */
+    favoriteKeys: Set<String> = emptySet(),
+    /** 点击「我喜欢的」卡片 → 直接进漫画主页面（在线阅读，不走下载） */
+    onOpenFavorite: (com.example.data.favorite.FavoriteItem) -> Unit = {},
+    favoriteShareSource: (String) -> com.example.source.BookSource? = { null },
+    onCheckFavoriteUpdates: () -> Unit = {},
+    /** 拖拽/操作栏：把收藏移动到分类 */
+    onMoveFavoritesToCategory: (List<String>, String) -> Unit = { _, _ -> },
+    /** 取消喜欢（无损：不影响下载与阅读进度） */
+    onRemoveFavorites: (List<String>) -> Unit = {},
+    /** 书架批量「喜欢」：返回（成功数，无来源被跳过的数量） */
+    onFavoriteSelectedBooks: ((List<Book>) -> Pair<Int, Int>)? = null,
+    /**
+     * 把书拖到「我喜欢的」某个分类上：加入收藏并**直接归入该分类**。
+     * 返回 (成功本数, 因无来源被跳过本数)。
+     */
+    onFavoriteSelectedBooksToCategory: ((List<Book>, String) -> Pair<Int, Int>)? = null,
+    /** 删除下载（软删除 + 撤销窗口） */
+    onDeleteDownloads: ((List<Book>) -> Unit)? = null,
+    /** 撤销 Snackbar：message + 撤销动作 */
+    onShowUndo: ((String, () -> Unit) -> Unit)? = null,
+    /** 新建分类后把收藏放进去 */
+    onCreateFavoriteCategoryThenMove: ((List<String>) -> Unit)? = null,
+    /** 「我喜欢的」自己的分类（独立于书架 categories） */
+    favoriteCategories: List<String> = emptyList(),
+    /** 隐私模式里的开关：为 true 时「我喜欢的」需先验证 PIN 才显示内容 */
+    favoritesProtected: Boolean = false,
+    onVerifyPrivacyPin: (suspend (String) -> Boolean)? = null,
+    onAddFavoriteCategory: (String) -> Unit = {},
+    onRenameFavoriteCategory: (String, String) -> Unit = { _, _ -> },
+    onDeleteFavoriteCategory: (String) -> Unit = {},
+    /** 标记为已读完（本地书） */
+    onMarkFinished: (Book) -> Unit = {},
+    search: ShelfSearchState = rememberShelfSearchState(),
+) {
+    val str = com.example.i18n.LocalStrings.current
+    // 卡片实际圆角：飞行层的起飞形状要和它完全一致，否则第一帧会"圆角变尖角"。
+    // 排列书架上的书本转角固定 14dp（与 1.5.x 的观感一致），不再跟随「自定义卡片参数」的圆角滑条：
+    // 那个滑条一调大，书架上的书就会变得过于圆润。飞行动画的起点/落点也用同一个值，
+    // 保证首帧与卡片严丝合缝。
+    val shelfCardRadius = 14.dp
+    val sharedTransitionScope = com.example.LocalSharedTransitionScope.current
+    val reduceMotion = LocalReduceMotion.current
+    val shelfMotion = com.example.ui.shelf.rememberShelfMotionState()
+    val animatedVisibilityScope = com.example.LocalNavAnimatedVisibilityScope.current
+    val streakDays by streakDaysFlow.collectAsStateWithLifecycle()
+
+    val currentlyReading = remember(books) {
+        val result = if (books.isEmpty()) {
+            Book(id = -1, title = "Empty", filePath = "")
+        } else {
+            books.maxByOrNull { it.lastReadTime } ?: books.first()
+        }
+        result
+    }
+
+    val shelfContext = LocalContext.current
+    val shelfPrefs = remember(shelfContext) { com.example.data.PreferencesManager(shelfContext) }
+    var use3dShelf by remember(shelfPrefs) { mutableStateOf(shelfPrefs.shelfUses3dView) }
+    var use3dFavorites by remember(shelfPrefs) { mutableStateOf(shelfPrefs.favoritesUse3dView) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    fun dismissSearchKeyboard() {
+        search.requestKeyboard = false
+        focusManager.clearFocus()
+        keyboard?.hide()
+    }
+    fun closeShelfSearch() {
+        dismissSearchKeyboard()
+        search.close()
+    }
+
+    // ⚠️ 分类**不再**是本页的 remember：打开书籍会走 navController 跳到另一个目的地，
+    // 本页整体离开组合，回来时 remember 重新初始化 → 分类被重置成「默认」。
+    // 现在由 MainActivity 持有并通过 [shelfCategory] 传入。
+    val selectedCategory = shelfCategory
+    // 第七轮第 6.1 条：不再有聚合视图"全部"——所选分类必须是真实存在的分类行；
+    // 分类列表异步到达/删除后失效时回退到"默认"
+    LaunchedEffect(categories) {
+        val names = categories.map { it.name }
+        if (names.isNotEmpty() && selectedCategory !in names) {
+            onShelfCategoryChange(
+                if (names.contains(com.example.data.DEFAULT_CATEGORY)) {
+                    com.example.data.DEFAULT_CATEGORY
+                } else names.first()
+            )
+        }
+    }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var newCategoryText by remember { mutableStateOf("") }
+    /* ── 「我喜欢的」板块的分类：新建 / 重命名 / 删除（只动收藏分类，碰不到书架） ── */
+    var showAddFavoriteCategoryDialog by remember { mutableStateOf(false) }
+    var newFavoriteCategoryText by remember { mutableStateOf("") }
+    var favCategorySheetFor by remember { mutableStateOf<String?>(null) }
+    var favCategoryRenameFor by remember { mutableStateOf<String?>(null) }
+    var favCategoryDeleteFor by remember { mutableStateOf<String?>(null) }
+    // 隐私交互状态（第七轮第 6.3 条）：长按分类 → 分类操作面板；受保护分类进入 → PIN 验证
+    var categorySheetFor by remember { mutableStateOf<com.example.data.CategoryEntity?>(null) }
+    var pinVerifyFor by remember { mutableStateOf<com.example.data.CategoryEntity?>(null) }
+
+    /* ── 「我喜欢的」板块：与「我的书架」平行，同一页往下滚即是 ── */
+    var favoriteCategory by remember { mutableStateOf(com.example.ui.favorite.ALL_FAV_CATEGORY) }
+    /** 隐私：本进程内是否已验证过 PIN（与受保护分类同一套密码） */
+    var favoritesUnlocked by remember { mutableStateOf(false) }
+    var favoritesPinFor by remember { mutableStateOf(false) }
+    // 只在隐私模式整体开启时才上锁：否则关掉隐私模式后这里会永远要求验证、又验证不过
+    val favoritesLocked = favoritesProtected && privacyModeEnabled && !favoritesUnlocked
+    var favoriteSort by remember { mutableStateOf(com.example.ui.favorite.FavoriteSort.RECENT_FAVORITE) }
+    var favoriteRefreshing by remember { mutableStateOf(false) }
+    /** 多选 / 拖拽状态机（书架书籍：长按进入 → 滑动连选 → 再长按拖到分类或 ♡） */
+    val shelfSelection = com.example.ui.shelf.rememberShelfSelectionState()
+    /** 首次使用的一次性提示：最多显示 3 次 */
+    var showDragHint by remember { mutableStateOf(false) }
+    var newShelfCategoryDropKeys by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingCategoryMove by remember { mutableStateOf<PendingCategoryMove?>(null) }
+
+    val refreshScope = rememberCoroutineScope()
+
+    // 进入书架页触发一次收藏更新检测（限流在仓库里）
+    LaunchedEffect(Unit) {
+        favoriteRefreshing = true
+        onCheckFavoriteUpdates()
+        kotlinx.coroutines.delay(1500)
+        favoriteRefreshing = false
+    }
+    // 首次进入多选的一次性提示：最多展示 3 次（次数持久化，之后不再打扰）
+    var dragHintShown by remember { mutableIntStateOf(shelfPrefs.shelfDragHintShown) }
+    LaunchedEffect(shelfSelection.phase) {
+        if (shelfSelection.phase == com.example.ui.shelf.ShelfPhase.SELECTING && dragHintShown < 3) {
+            showDragHint = true
+            dragHintShown += 1
+            shelfPrefs.shelfDragHintShown = dragHintShown
+        }
+    }
+
+    /** 批量操作目标：0 = 我的书架，1 = 我喜欢的，-1 = 无 */
+    var bulkCategoryTarget by remember { mutableIntStateOf(-1) }
+    var showMoreSheet by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val shareScope = (context as? androidx.activity.ComponentActivity)?.lifecycleScope ?: refreshScope
+    var preparingShare by remember { mutableStateOf(false) }
+    fun prepareShare(action: suspend () -> String?) {
+        if (preparingShare) return
+        preparingShare = true
+        shareScope.launch {
+            try {
+                action()?.let { AppToast.makeText(context, it, Toast.LENGTH_LONG).show() }
+            } finally { preparingShare = false }
+        }
+    }
+
+    // 第七轮第 6.3 条验收缺口修复：受保护分类在"锁定"状态（隐私模式开启、标记保护、
+    // 本进程未通过 PIN 解锁）时内容不得可见——包括重启后初始选中恰好是受保护分类的
+    // 场景（旧逻辑只挡"切换进入"的点击，不挡默认选中直达）。
+    val inaccessibleCategories = remember(
+        privacyModeEnabled, protectedCategoryNames, unlockedCategoryIds, categories, pinVerifyFor?.id
+    ) {
+        if (!privacyModeEnabled) emptySet()
+        else {
+            val unlockedNames = categories.filter { it.id in unlockedCategoryIds && it.id != pinVerifyFor?.id }
+                .map { it.name }.toSet()
+            protectedCategoryNames - unlockedNames
+        }
+    }
+    val selectedCategoryLocked = selectedCategory in inaccessibleCategories
+    SideEffect { shelfMotion.hideBooks = selectedCategoryLocked; shelfMotion.hideFavorites = favoritesLocked }
+
+    val filteredBooks = remember(books, selectedCategory, selectedCategoryLocked) {
+        if (selectedCategoryLocked) emptyList()
+        else books.filter { it.category == selectedCategory }
+    }
+
+    // 书架排序：0=默认导入顺序 1=按标题 A-Z 2=最近阅读优先
+    var sortBy by remember { mutableIntStateOf(0) }
+    // library_reflow.dart: keep every card anchored to its previous rect for one 420ms pass.
+    // The clock is a plain float state so `begin()` can snapshot synchronously at 0 before the
+    // order changes; the animation writes it in a coroutine.
+    val shelfReflow = com.example.ui.wenku.rememberWenkuReflowState()
+    var shelfReflowClock by remember { mutableFloatStateOf(1f) }
+    val shelfReflowScope = rememberCoroutineScope()
+    var categoryToDelete by remember { mutableStateOf<com.example.data.CategoryEntity?>(null) }
+    val sortedBooks = remember(filteredBooks, sortBy) {
+        when (sortBy) {
+            1 -> filteredBooks.sortedBy { it.title.lowercase() }
+            2 -> filteredBooks.sortedByDescending { it.lastReadTime }
+            else -> filteredBooks
+        }
+    }
+
+    // 「我喜欢的」板块：分类筛选 + 排序（与书架各自的选中项互不干涉）
+    /** 自建的收藏分类（不含兜底的「默认」）：只有一个「默认」时不显示分类栏 */
+    val favCustomCategories = remember(favoriteCategories) {
+        favoriteCategories.filter { it != com.example.data.favorite.FAV_DEFAULT_CATEGORY }
+    }
+    LaunchedEffect(pendingCategoryMove, categories, favoriteCategories) {
+        val pending = pendingCategoryMove ?: return@LaunchedEffect
+        if (pending.forFavorites) {
+            if (pending.name !in favoriteCategories) return@LaunchedEffect
+            onMoveFavoritesToCategory(
+                pending.keys.map { it.removePrefix(com.example.ui.shelf.SHELF_KEY_FAV_PREFIX) }, pending.name
+            )
+        } else {
+            if (categories.none { it.name == pending.name }) return@LaunchedEffect
+            books.filter { it.id.toString() in pending.keys }.forEach { onMoveBook(it, pending.name) }
+        }
+        pendingCategoryMove = null
+    }
+    val favFiltered = remember(favoriteItems, favoriteCategory) {
+        if (favoriteCategory == com.example.ui.favorite.ALL_FAV_CATEGORY) favoriteItems
+        else favoriteItems.filter { it.favorite.categoryName == favoriteCategory }
+    }
+    val favSorted = remember(favFiltered, favoriteSort) {
+        when (favoriteSort) {
+            com.example.ui.favorite.FavoriteSort.RECENT_FAVORITE ->
+                favFiltered.sortedByDescending { it.favorite.favoritedAt }
+            com.example.ui.favorite.FavoriteSort.RECENT_READ ->
+                favFiltered.sortedByDescending { it.progress?.lastReadAt ?: 0L }
+            com.example.ui.favorite.FavoriteSort.RECENT_UPDATE ->
+                favFiltered.sortedByDescending { it.favorite.latestChapterUpdateAt }
+            com.example.ui.favorite.FavoriteSort.TITLE ->
+                favFiltered.sortedBy { it.favorite.title.lowercase() }
+            com.example.ui.favorite.FavoriteSort.CUSTOM ->
+                favFiltered.sortedBy { it.favorite.sortOrder }
+        }
+    }
+
+    // 「我喜欢的」复用同一台 3D 书架：收藏不是 Book，这里映射成书架条目
+    // （id 用负的稳定 hash，避免和真实 book.id 撞；只用于绘制与点击回查）。
+    val favShelfBooks = remember(favSorted) {
+        favSorted.map { item ->
+            val fav = item.favorite
+            val cover = fav.localThumbPath ?: fav.coverUrl
+            com.example.data.Book(
+                id = -(kotlin.math.abs(item.key.hashCode()) + 1),
+                title = fav.title,
+                author = fav.author.ifBlank { str.t("未知作者") },
+                filePath = "",
+                coverUri = cover,
+                contentType = "COMIC",
+                totalChapters = item.downloadedChapters,
+                lastReadTime = item.progress?.lastReadAt ?: fav.favoritedAt,
+            ).apply { isCoverValid = fav.localThumbPath != null }
+        }
+    }
+    val favById = remember(favSorted) { favShelfBooks.zip(favSorted).associate { it.first.id to it.second } }
+
+
+    categoryToDelete?.let { cat ->
+        val isDefault = cat.name == com.example.data.DEFAULT_CATEGORY
+        WenkuActionSheet(if (isDefault) str.t("无法删除") else str.t("删除分类"), onDismiss = { categoryToDelete = null }) {
+            Text(if (isDefault) str.t("默认分类不可删除。")
+                else "「${cat.name}」中的书籍将移到「默认」分类。")
+            if (isDefault) {
+                WenkuTextButton(str.t("知道了"), paperDismiss {}, Modifier.fillMaxWidth(), wenkuSymbol = WenkuSymbol.Check)
+            } else {
+                WenkuTextButton(
+                    str.t("删除"),
+                    onClick = paperDismiss {
+                        onDeleteCategory?.invoke(cat) { deleted ->
+                            if (deleted && selectedCategory == cat.name) onShelfCategoryChange(com.example.data.DEFAULT_CATEGORY)
+                            if (!deleted) AppToast.makeText(context, str.t("无法删除分类"), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.error,
+                    wenkuSymbol = WenkuSymbol.Delete,
+                )
+                WenkuTextButton(str.t("取消"), paperDismiss {}, Modifier.fillMaxWidth(), wenkuSymbol = WenkuSymbol.Close)
+            }
+        }
+    }
+
+    // 批量分类 Sheet（我的书架 / 我喜欢的 共用组件，语义各自不同）
+    // bulkCategoryTarget：0 = 我的书架的书；1 = 我喜欢的条目
+    if (bulkCategoryTarget >= 0) {
+        val forFavorites = bulkCategoryTarget == 1
+        val pickedKeys = shelfSelection.selected.toList()
+        com.example.ui.shelf.CategoryPickerSheet(
+            categories = if (forFavorites) listOf(com.example.data.favorite.FAV_DEFAULT_CATEGORY) + favCustomCategories
+                else categories.map { it.name },
+            title = str.t("移动到分类"),
+            onPick = { name ->
+                if (forFavorites) {
+                    val keys = pickedKeys.filter { com.example.ui.shelf.isFavShelfKey(it) }
+                        .map { it.removePrefix(com.example.ui.shelf.SHELF_KEY_FAV_PREFIX) }
+                    val old = keys.mapNotNull { k ->
+                        favSorted.find { it.key == k }?.let { k to it.favorite.categoryName }
+                    }
+                    onMoveFavoritesToCategory(keys, name)
+                    onShowUndo?.invoke("已移动 ${keys.size} 本到『$name』") {
+                        old.forEach { (k, c) -> onMoveFavoritesToCategory(listOf(k), c) }
+                    }
+                } else {
+                    val list = books.filter { it.id.toString() in pickedKeys }
+                    list.forEach { onMoveBook(it, name) }
+                    onShowUndo?.invoke("已移动 ${list.size} 本到『$name』") {
+                        list.forEach { onMoveBook(it, it.category) }
+                    }
+                }
+                shelfSelection.exitSelection()
+                bulkCategoryTarget = -1
+            },
+            onDismiss = { bulkCategoryTarget = -1 },
+            onCreate = { name ->
+                pendingCategoryMove = PendingCategoryMove(name, pickedKeys, forFavorites)
+                if (forFavorites) onAddFavoriteCategory(name) else onAddCategory(name)
+                shelfSelection.exitSelection()
+            },
+        )
+    }
+
+    // 「更多」菜单：我的书架 → 标记为已读完；我喜欢的 → 检查更新
+    if (showMoreSheet) {
+        com.example.ui.shelf.MoreActionSheet(
+            actions = listOf(str.t("标记为已读完") to WenkuSymbol.Check, str.t("取消全选") to WenkuSymbol.CloseCircle),
+            onDismiss = { showMoreSheet = false },
+            onPick = { label ->
+                when (label) {
+                    str.t("标记为已读完") -> {
+                        sortedBooks.filter { it.id.toString() in shelfSelection.selected }
+                            .forEach { onMarkFinished(it) }
+                        shelfSelection.exitSelection()
+                    }
+                    str.t("取消全选") -> shelfSelection.exitSelection()
+                }
+                showMoreSheet = false
+            },
+        )
+    }
+
+    // 两套分类共用新建窗口的 UI，保存回调各自独立。
+    if (showAddCategoryDialog) {
+        val dropKeys = newShelfCategoryDropKeys
+        CategoryNameSheet(
+            title = str.t("新建书架分类"),
+            description = tr("用于「我的书架」里的本地书籍。"),
+            name = newCategoryText,
+            onNameChange = { newCategoryText = it },
+            onDismiss = {
+                showAddCategoryDialog = false
+                newShelfCategoryDropKeys = emptyList()
+            },
+            onConfirm = { name ->
+                if (dropKeys.isNotEmpty()) pendingCategoryMove = PendingCategoryMove(name, dropKeys, forFavorites = false)
+                onAddCategory(name)
+                AppToast.makeText(context, com.example.i18n.categoryCreated(name), android.widget.Toast.LENGTH_SHORT).show()
+                newCategoryText = ""
+                showAddCategoryDialog = false
+            },
+        )
+    }
+
+    /* ── 「我喜欢的」分类：新建 / 重命名 / 删除（独立体系，与书架分类互不影响） ── */
+
+    if (showAddFavoriteCategoryDialog) {
+        CategoryNameSheet(
+            title = str.t("新建收藏分类"),
+            description = tr("只用于「我喜欢的」，不会出现在书架的分类里。"),
+            name = newFavoriteCategoryText,
+            onNameChange = { newFavoriteCategoryText = it },
+            onDismiss = { showAddFavoriteCategoryDialog = false },
+            onConfirm = { name ->
+                onAddFavoriteCategory(name)
+                newFavoriteCategoryText = ""
+                showAddFavoriteCategoryDialog = false
+            },
+        )
+    }
+
+    favCategorySheetFor?.let { name ->
+        com.example.ui.shelf.MoreActionSheet(
+            actions = listOf(str.t("重命名分类") to WenkuSymbol.Edit, str.t("删除分类") to WenkuSymbol.Delete),
+            onPick = { action ->
+                when (action) {
+                    str.t("重命名分类") -> favCategoryRenameFor = name
+                    str.t("删除分类") -> favCategoryDeleteFor = name
+                }
+            },
+            onDismiss = { favCategorySheetFor = null },
+        )
+    }
+
+    favCategoryRenameFor?.let { original ->
+        var text by remember(original) { mutableStateOf(original) }
+        CategoryNameSheet(
+            title = str.t("重命名分类"), description = tr("「我喜欢的」中的收藏会保留。"),
+            name = text, onNameChange = { text = it },
+            confirmLabel = str.t("保存"),
+            onDismiss = { favCategoryRenameFor = null },
+            onConfirm = { name ->
+                onRenameFavoriteCategory(original, name)
+                if (favoriteCategory == original) favoriteCategory = name
+            },
+        )
+    }
+
+    favCategoryDeleteFor?.let { name ->
+        WenkuActionSheet(str.t("删除收藏分类"), onDismiss = { favCategoryDeleteFor = null }) {
+            Text("「$name」中的收藏会移到「默认」分类。")
+            WenkuTextButton(
+                str.t("删除"),
+                onClick = paperDismiss {
+                    onDeleteFavoriteCategory(name)
+                    if (favoriteCategory == name) favoriteCategory = com.example.ui.favorite.ALL_FAV_CATEGORY
+                },
+                modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.error,
+                wenkuSymbol = WenkuSymbol.Delete,
+            )
+            WenkuTextButton(str.t("取消"), paperDismiss {}, Modifier.fillMaxWidth(), wenkuSymbol = WenkuSymbol.Close)
+        }
+    }
+
+    /* ── 「我喜欢的」隐私锁：验证 PIN 后本进程内一直可见 ── */
+    if (favoritesPinFor) {
+        com.example.ui.privacy.PrivacyPinOverlay(
+            mode = com.example.ui.privacy.PinEntryMode.VERIFY,
+            onPinVerified = { pin -> onVerifyPrivacyPin?.invoke(pin) ?: false },
+            onAccepted = { favoritesUnlocked = true },
+            onDismiss = { favoritesPinFor = false },
+        )
+    }
+
+    /**
+     * 数据自愈：把掉进「不存在的分类」的书捞回默认分类。
+     *
+     * ⚠️ 为什么会存在这种书：落点几何表只写不删，分类被删/改名后矩形仍然生效，
+     * 手指划过那块空白会"命中"一个不存在的分类名，书就被写上了这个分类 ——
+     * 于是它在**任何**分类下都不显示，用户眼里就是"书莫名其妙找不到了"。
+     * 这些书在数据库里好好的，只是分类名是孤儿，所以能救回来。
+     *
+     * 只在分类列表已经加载出来之后才动手（否则一上来会把所有书都当孤儿）。
+     */
+    LaunchedEffect(books, categories) {
+        if (categories.isEmpty()) return@LaunchedEffect
+        val names = categories.map { it.name }.toHashSet()
+        val orphans = books.filter { it.category !in names }
+        if (orphans.isNotEmpty()) {
+            android.util.Log.w("ShelfHeal", "捞回 ${orphans.size} 本掉进不存在分类的书")
+            orphans.forEach { onMoveBook(it, com.example.data.DEFAULT_CATEGORY) }
+        }
+    }
+
+    /**
+     * 拖拽宿主用来裁剪几何表的"存活名单"。
+     *
+     * ⚠️ 几何表只写不删（`onGloballyPositioned` 没有 dispose 回调）：书被移动到别的
+     * 分类后它的矩形会永久留下，变成点不动/选不中的幽灵热区。所以每次书目变化都要
+     * 把"现在真实存在的 key"交给宿主裁一遍。
+     * 用 remember 包住，避免每次重组都新建一个 Set 把宿主的 LaunchedEffect 反复重启。
+     */
+    val shelfAliveKeys = remember(sortedBooks, favSorted) {
+        val s = HashSet<String>()
+        sortedBooks.forEach { s.add(it.id.toString()) }
+        favSorted.forEach { s.add(com.example.ui.shelf.favShelfKey(it.key)) }
+        s
+    }
+
+    /** 书架网格自身在窗口中的位置（命中兜底要用） */
+    var booksGridRoot by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    // 主书架滚动 → 卡片惯性倾斜信号源（任务书「整卡倾斜」§2）；同时驱动头部折叠（原声明在内容分支内，头部够不到，上提）
+    val homeGridState = rememberLazyGridState()
+    homeGridState.scrollTiltSource()
+    val homeHeaderCollapsedSource = rememberHeaderCollapsedSource(homeGridState)
+
+    /**
+     * 命中**兜底**：卡片的坐标回调不可靠（槽位复用时整帧都不触发，见
+     * [com.example.ui.shelf.ShelfSelectionState.registerItem]），所以再准备一条
+     * 直接问网格「现在哪些格子摆在屏幕的哪」的路子。网格自己是常驻节点，
+     * 坐标一定是最新的，于是切换分类后的**第一次**点击也能命中。
+     */
+    val booksFallbackHit: (androidx.compose.ui.geometry.Offset) -> String? = { root ->
+        val g = booksGridRoot
+        var hit: String? = null
+        for (info in homeGridState.layoutInfo.visibleItemsInfo) {
+            val ox = g.x + info.offset.x
+            val oy = g.y + info.offset.y
+            if (root.x >= ox && root.x <= ox + info.size.width &&
+                root.y >= oy && root.y <= oy + info.size.height
+            ) {
+                hit = info.key.toString()
+                break
+            }
+        }
+        hit
+    }
+
+    StarryNightBackground(showLamp = true) {
+        com.example.ui.shelf.ShelfSelectionHost(
+            state = shelfSelection,
+            categories = categories.map { it.name },
+            currentCategory = selectedCategory,
+            showFavoriteTarget = true,
+            gesturesEnabled = !search.mounted && !(use3dShelf && shelfSelection.phase == com.example.ui.shelf.ShelfPhase.BROWSE),
+            onDropToCategory = drop@{ keys, name ->
+                // ⚠️ 最后一道保险：落点矩形可能残留（分类被删了、改名了，矩形还在），
+                // 一旦把书写进一个**不存在的分类名**，它在任何分类下都不显示 ——
+                // 对用户来说就是「书凭空消失了」。宁可这次不动，也不能把书弄丢。
+                if (categories.none { it.name == name }) {
+                    onShowUndo?.invoke("『$name』不是可用的分类，没有移动") { }
+                    return@drop
+                }
+                // ⚠️ 被拖的条目**不一定是书**：「我喜欢的」的卡片也会被拖上来，
+                // 它们的 key 带 fav:: 前缀。曾经这里只写
+                // `sortedBooks.filter { it.id.toString() in keys }`，收藏一条都匹配不到
+                // ⇒ list 为空 ⇒ 什么都不做，但提示照弹 —— 表现就是
+                // 「我喜欢的拖进分类，提示操作出错，而且确实没移动到别的分类」。
+                val bookKeys = keys.filterNot { com.example.ui.shelf.isFavShelfKey(it) }
+                val favKeys = keys
+                    .filter { com.example.ui.shelf.isFavShelfKey(it) }
+                    .map { it.removePrefix(com.example.ui.shelf.SHELF_KEY_FAV_PREFIX) }
+
+                val list = books.filter { it.id.toString() in bookKeys }
+                list.forEach { onMoveBook(it, name) }
+                // 收藏落到书架分类胶囊 → 归到「我喜欢的」的**同名**分类。
+                // 两套分类表是分开的（categories / favorite_categories），但用户眼里
+                // "分类"就是那个名字：拖到哪个名字就归到哪个名字。
+                // 名字在收藏侧还不存在也没关系，仓库的 ensureFavoriteCategory 会先建。
+                val favUndo = if (favKeys.isNotEmpty()) {
+                    val prev = favKeys.mapNotNull { k ->
+                        favoriteItems.find { it.key == k }?.favorite?.categoryName?.let { k to it }
+                    }
+                    onMoveFavoritesToCategory(favKeys, name)
+                    prev
+                } else emptyList()
+
+                val total = list.size + favKeys.size
+                if (total > 0) {
+                    onShowUndo?.invoke("已移动 $total 本到『$name』") {
+                        list.forEach { onMoveBook(it, selectedCategory) }
+                        favUndo.forEach { (k, old) -> onMoveFavoritesToCategory(listOf(k), old) }
+                    }
+                }
+            },
+            onDropToFavorite = { keys ->
+                val list = sortedBooks.filter { it.id.toString() in keys }
+                val (ok, skipped) = onFavoriteSelectedBooks?.invoke(list) ?: (0 to 0)
+                val msg = if (skipped > 0) com.example.i18n.favouritesAddedPartial(ok, skipped) else com.example.i18n.favouritesAdded(ok)
+                onShowUndo?.invoke(msg) { }
+            },
+            onDropToFavoriteCategory = { keys, name ->
+                // 同理：**先按 key 前缀分流**。
+                // - 书架的书 → 加入「我喜欢的」并归入该分类（原有行为）；
+                // - 「我喜欢的」自己的卡片 → 直接改它所属的分类。
+                val bookKeys = keys.filterNot { com.example.ui.shelf.isFavShelfKey(it) }
+                val favKeys = keys
+                    .filter { com.example.ui.shelf.isFavShelfKey(it) }
+                    .map { it.removePrefix(com.example.ui.shelf.SHELF_KEY_FAV_PREFIX) }
+
+                val list = books.filter { it.id.toString() in bookKeys }
+                val (ok, skipped) = if (list.isNotEmpty()) {
+                    onFavoriteSelectedBooksToCategory?.invoke(list, name) ?: (0 to 0)
+                } else (0 to 0)
+
+                val favUndo = if (favKeys.isNotEmpty()) {
+                    val prev = favKeys.mapNotNull { k ->
+                        favoriteItems.find { it.key == k }?.favorite?.categoryName?.let { k to it }
+                    }
+                    if (prev.any { (_, old) -> old != name }) onMoveFavoritesToCategory(favKeys, name)
+                    prev
+                } else emptyList()
+
+                val msg = when {
+                    favKeys.isNotEmpty() && list.isEmpty() ->
+                        "已移动 ${favKeys.size} 本到『$name』"
+                    skipped > 0 -> "已加入『$name』$ok 本，$skipped 本无来源已跳过"
+                    else -> "已加入『$name』$ok 本"
+                }
+                onShowUndo?.invoke(msg) {
+                    favUndo.forEach { (k, old) -> onMoveFavoritesToCategory(listOf(k), old) }
+                }
+            },
+            onCreateCategoryThenDrop = { keys ->
+                newShelfCategoryDropKeys = keys
+                showAddCategoryDialog = true
+            },
+            aliveKeys = shelfAliveKeys,
+            favoriteCategories = favCustomCategories,
+            fallbackHit = booksFallbackHit,
+            onTapItem = onTapItem@ { key ->
+                // 多选名单**按板块独立**：一旦进入多选，另一板块的卡片一律直接 return
+                // —— 不改名单、不给触觉反馈、不进入拖拽。于是「书架里点我喜欢的卡片」
+                // 或反过来都不会把两个栏目混进同一个名单（浏览态不受影响，照旧打开）。
+                if (shelfSelection.phase != com.example.ui.shelf.ShelfPhase.BROWSE &&
+                    !shelfSelection.accepts(key)
+                ) {
+                    return@onTapItem
+                }
+                if (com.example.ui.shelf.isFavShelfKey(key)) {
+                    val fav = favSorted.find { com.example.ui.shelf.favShelfKey(it.key) == key }
+                    when {
+                        fav == null -> Unit
+                        shelfSelection.phase == com.example.ui.shelf.ShelfPhase.BROWSE -> onOpenFavorite(fav)
+                        shelfSelection.isRecentAutoSelect() -> Unit
+                        else -> shelfSelection.toggle(key)
+                    }
+                } else {
+                    val tapped = sortedBooks.find { it.id.toString() == key }
+                    when {
+                        tapped == null -> Unit
+                        shelfSelection.phase == com.example.ui.shelf.ShelfPhase.BROWSE -> {
+                            // R14：封面飞行入口（仅小说；漫画走 comic_reader，没有落点）。
+                            // 几何直接读封面登记表，贴图读 WenkuCoverSnapshots 里已光栅化的那一张；
+                            // 覆盖层等到阅读器 arrive() 之后才真正开画。
+                            if (!tapped.isComic) {
+                                val cover = shelfSelection.coverRect(key)
+                                if (cover != null) {
+                                    com.example.ui.wenku.WenkuFlightBridge.begin(
+                                        bookKey = key,
+                                        bounds = cover,
+                                        image = com.example.ui.wenku.WenkuCoverSnapshots.get(key),
+                                        radius = shelfCardRadius
+                                    )
+                                }
+                            }
+                            onBookClick(tapped)
+                        }
+                        // 长按刚自动选中这本，紧随其后的抬手不算一次点击（否则会立刻取消选中）
+                        shelfSelection.isRecentAutoSelect() -> Unit
+                        else -> shelfSelection.toggle(key)
+                    }
+                }
+            },
+            scrollBy = { homeGridState.scrollBy(it) },
+            coverOf = { key -> ShelfDragCover(books = books, key = key, favorites = favSorted) },
+            modifier = Modifier.fillMaxSize(),
+        ) { itemBounds ->
+                    // 整页内容 + 多选浮层同处一个 Box：浮层用 align 叠上去，
+                    // 绝不参与 Column 的布局，因此不会把内容顶下去。
+                    Box(modifier = Modifier.fillMaxSize()) {
+                    // 本次多选名单归属于哪个板块（进入多选时由第一个被长按的条目决定）。
+                    // 顶栏的「全选/取消全选」和操作栏的 hint 都要按它分流 ——
+                    // 不能再靠"哪一边的选中列表恰好非空"去猜，那正是"混选"的来源。
+                    val favScope = shelfSelection.scope ==
+                        com.example.ui.shelf.ShelfSelectionScope.FAV
+                    // 顶栏「全选」的作用域名单 + 是否已全选。
+                    // 在这里（AnimatedVisibility 之外）算好，避免把顶栏那段代码撑长。
+                    val selectableKeys = if (favScope) {
+                        favSorted.map { com.example.ui.shelf.favShelfKey(it.key) }
+                    } else {
+                        sortedBooks.map { it.id.toString() }
+                    }
+                    val allSelected = selectableKeys.isNotEmpty() &&
+                        selectableKeys.all { it in shelfSelection.selected }
+                    val selectionVisible = shelfSelection.phase != com.example.ui.shelf.ShelfPhase.BROWSE
+                    var outgoingCount by remember { mutableIntStateOf(0) }
+                    var outgoingAllSelected by remember { mutableStateOf(false) }
+                    SideEffect {
+                        if (selectionVisible) {
+                            outgoingCount = shelfSelection.selected.size
+                            outgoingAllSelected = allSelected
+                        }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                    ) {
+                        CollapsingTabScreenHeader(
+                            fractionSource = { if (!search.mounted && homeHeaderCollapsedSource()) 1f else 0f },
+                            focusDriven = true,
+                            title = tr("书架"),
+                            subtitle = "BOOKSHELF & READING",
+                            titleColor = glassTitleColor(),
+                            titleOpacity = { 1f - WenkuMotion.ease.transform(search.motion.value) },
+                            trailing = { Spacer(Modifier.width(46.dp)) },
+                            overlay = { compact ->
+                                WenkuExpandableSearch(
+                                    compactFraction = compact,
+                                    expanded = search.expanded,
+                                    motion = search.motion,
+                                    value = search.query,
+                                    onValueChange = { search.query = it },
+                                    hint = when (search.field) {
+                                        ShelfSearchField.Any -> str.t("输入书名或作者")
+                                        ShelfSearchField.Title -> str.t("输入书名")
+                                        ShelfSearchField.Author -> str.t("输入作者")
+                                    },
+                                    focusRequester = searchFocusRequester,
+                                    onOpen = search::open,
+                                    onClose = ::closeShelfSearch,
+                                    requestKeyboard = search.requestKeyboard,
+                                    onKeyboardRequested = { search.requestKeyboard = false }
+                                )
+                            }
+                        )
+
+                        ShelfSearchPlane(
+                            state = search,
+                            books = books,
+                            favorites = favoriteItems,
+                            inaccessibleCategories = inaccessibleCategories,
+                            favoritesLocked = favoritesLocked,
+                            onBookClick = { book -> dismissSearchKeyboard(); onBookClick(book) },
+                            onFavoriteClick = { item -> dismissSearchKeyboard(); onOpenFavorite(item) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                        Box(Modifier.fillMaxSize()) {
+                        BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val shelfWidth = maxWidth
+                        // 书架/收藏统一限宽 1280dp 并居中（两侧留白按实宽算），
+                        // 窄屏仍是 16dp 边距；只改视口内边距，不动网格坐标与拖拽命中。
+                        val shelfSidePadding =
+                            ((shelfWidth - 1280.dp) / 2f).coerceAtLeast(0.dp) + 16.dp
+                        Column(Modifier.fillMaxSize()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // MAIN INTERFACE SCROLLABLE LAYOUT
+                        // 「我喜欢的」是并列板块：即使书架一本本地书都没有，只要还有收藏，
+                        // 也得把整页（含收藏板块）渲染出来 —— 只有两边都空才走整页空态。
+                        if (books.isEmpty() && favoriteItems.isEmpty()) {
+                            // EXQUISITE EMPTY STATE
+                            var isVisible by remember { mutableStateOf(false) }
+                            LaunchedEffect(Unit) {
+                                isVisible = true
+                            }
+                            val alpha by animateFloatAsState(
+                                targetValue = if (isVisible) 1f else 0f,
+                                animationSpec = tween(durationMillis = 400, easing = EaseOut),
+                                label = "empty_alpha"
+                            )
+                            val offsetY by animateDpAsState(
+                                targetValue = if (isVisible) 0.dp else (-8).dp,
+                                animationSpec = tween(durationMillis = 400, easing = EaseOut),
+                                label = "empty_offset"
+                            )
+
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .alpha(alpha)
+                                    .offset(y = offsetY),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                com.example.ui.components.MascotEmptyState(
+                                    mascotResId = com.example.ui.mascot.MascotSpriteSheet.sadDrawable,
+                                    title = str.t("「书架空空如也」"),
+                                    description = tr("您的书架还没有任何书哦！Roxy 觉得有点寂寞。您可以点击下方按钮导入本地电子书，或者直接去在线书库挑选精彩的小说！"),
+                                    actionLabel = str.t("立即前往在线书库"),
+                                    onActionClick = onNavigateToShelf,
+                                    testTagPrefix = "books_empty_state"
+                                )
+                    
+                                Spacer(modifier = Modifier.height(8.dp))
+                    
+                                PullOutTextButton(
+                                    onClick = { onImportClick(com.example.data.DEFAULT_CATEGORY) },
+                                    modifier = Modifier.wenkuTabTitle(2, strength = .7f).testTag("empty_bookshelf_import_button")
+                                ) {
+                                    Text(str.t("或者 导入本地 TXT / EPUB / Comic 文件"), color = MintPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        } else {
+                            // RICH PREMIUM CONTENT STATE
+                            val screenWidthDp = shelfWidth.value.toInt()
+                            // 多设备一致：按宽度自适应列数（手机3列 / 折叠展开与小平板4列 / 宽平板最多6列），
+                            // 不再只有 3/4 两档——宽屏拉伸大卡片的问题源头
+                            val cols = ((screenWidthDp + 24) / 150).coerceIn(3, 6)
+
+                            // 第七轮第 6.3 条：Herostr.t("正在阅读")卡片同样是内容泄漏面——
+                            // 其书籍所在分类处于锁定态时整卡隐藏（PIN 解锁后恢复）
+                            val heroCategoryLocked = remember(
+                                currentlyReading.category, privacyModeEnabled,
+                                protectedCategoryNames, unlockedCategoryIds, categories
+                            ) {
+                                if (!privacyModeEnabled) false
+                                else if (currentlyReading.category !in protectedCategoryNames) false
+                                else categories.find { it.name == currentlyReading.category }?.id !in unlockedCategoryIds
+                            }
+
+                            // 第九轮修复⑤续：曾在此处叠加"内容纱罩"全尺寸渐变矩形（浅色主题下
+                            // 呈半透明白色大矩形盖住整个内容区，用户反馈遮挡/点击异常）——已从
+                            // 视图层彻底移除，书籍网格直接承载在页面背景之上。
+                            // ⚠️ 多选态顶部栏**不在这里**。
+                            // 它曾经是 Column 的一个子节点（用 expandVertically 展开），
+                            // 一旦出现就把下方整屏内容顶下去 ~56dp：
+                            //   · 长按瞬间整页跳一下（用户反馈的"闪烁"）；
+                            //   · 更要命的是 itemRects 记录的书卡位置瞬间全部失效，
+                            //     手指还按着却命中到了另一张卡 → 选中又被取消。
+                            // 现在改成页面顶部的**浮层**（见下方 Box 里的 align(TopCenter)），
+                            // 不占布局高度，内容一动不动。
+
+                            WenkuLoadedContentSequence(
+                                contentKey = selectedCategory to sortBy,
+                                modifier = Modifier.weight(1f).fillMaxWidth()
+                            ) {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(cols),
+                                state = homeGridState,
+                                // ⚠️ 拖拽中必须关掉网格自身的滚动：
+                                // 宿主虽然会 consume 掉指针事件，但网格在更早的 pass 里已经把它
+                                // 当成一次普通滑动吃掉了 —— 实测手指拖着书往上走时，
+                                // 背景自己滚了 800px，把分类栏整条滚出屏幕，根本没法放。
+                                // 拖拽期间的滚动改由宿主的边缘自动滚动（scrollBy）独占。
+                                userScrollEnabled = shelfSelection.phase !=
+                                    com.example.ui.shelf.ShelfPhase.DRAGGING,
+                                // ⚠️ 网格自身的 root 位置：命中兜底要用（见 [booksFallbackHit]）。
+                                // 网格是**常驻**节点，切换分类不会重建它，所以它的坐标一定是最新的；
+                                // 而卡片会复用槽位，坐标回调可能整帧不触发。
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = shelfSidePadding)
+                                    .onGloballyPositioned { booksGridRoot = it.positionInRoot() },
+                                // 3D 书架自带标题条：不给底部留白的话，它会正好压在悬浮 Tab 栏下面。
+                                contentPadding = PaddingValues(bottom = LocalAppBottomInset.current + 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                if (!heroCategoryLocked && books.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "hero_section") {
+                                    // 2. HERO: RECENTLY READ BIG BOOK CARD (pre-calculated and remembered at top)
+
+                                    val heroCoverData = remember(currentlyReading.coverUri, currentlyReading.isCoverValid) {
+                                        if (currentlyReading.coverUri.isNullOrEmpty()) null
+                                        else if (currentlyReading.coverUri!!.startsWith("content://")) {
+                                            android.net.Uri.parse(currentlyReading.coverUri!!)
+                                        } else if (currentlyReading.isCoverValid) {
+                                            val path = if (currentlyReading.coverUri!!.startsWith("file://")) currentlyReading.coverUri!!.substring(7) else currentlyReading.coverUri!!
+                                            java.io.File(path)
+                                        } else {
+                                            null
+                                        }
+                                    }
+                                    val heroHasValidCover = heroCoverData != null
+
+                                    val context = androidx.compose.ui.platform.LocalContext.current
+                                    val heroImageRequest = remember(currentlyReading.coverUri, heroCoverData) {
+                                        if (heroCoverData == null) null else {
+                                            coil.request.ImageRequest.Builder(context)
+                                                .data(heroCoverData)
+                                                .memoryCacheKey(currentlyReading.coverUri)
+                                                .diskCacheKey(currentlyReading.coverUri)
+                                                .crossfade(true)
+                                                .build()
+                                        }
+                                    }
+
+                                    Column {
+                                        Text(
+                                            text = str.t("正在阅读"),
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = adaptiveTitleColor(),
+                                            fontFamily = AppFonts.Serif,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+
+                                        GlassCard(
+                                            modifier = Modifier
+                                                .fillMaxWidth(),
+                                            shape = RoundedCornerShape(20.dp),
+                                            contentPadding = PaddingValues(16.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                // Large exquisite procedural book cover with light novel style
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(width = 110.dp, height = 155.dp)
+                                                        .background(
+                                                            Brush.linearGradient(
+                                                                colors = listOf(
+                                                                    MintSecondary,
+                                                                    Color(0xFF1B143F),
+                                                                    MintPrimary
+                                                                )
+                                                            ),
+                                                            RoundedCornerShape(12.dp)
+                                                        )
+                                                        .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                                        .consistentShadow(6.dp, RoundedCornerShape(12.dp))
+                                                        .clip(RoundedCornerShape(12.dp)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (heroHasValidCover && heroImageRequest != null) {
+                                                        AsyncImage(
+                                                            model = heroImageRequest,
+                                                            contentDescription = currentlyReading.title,
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            contentScale = ContentScale.Crop
+                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .background(
+                                                                    Brush.horizontalGradient(
+                                                                        colors = listOf(
+                                                                            Color.Black.copy(alpha = 0.15f),
+                                                                            Color.Transparent,
+                                                                            Color.Black.copy(alpha = 0.05f)
+                                                                        ),
+                                                                        startX = 0f,
+                                                                        endX = 40f
+                                                                    )
+                                                                )
+                                                        )
+                                                    } else {
+                                                        Column(
+                                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                                            verticalArrangement = Arrangement.Center,
+                                                            modifier = Modifier.padding(12.dp)
+                                                        ) {
+                                                            Icon(
+                                                                Icons.Filled.AutoAwesome,
+                                                                contentDescription = null,
+                                                                tint = MintGold,
+                                                                modifier = Modifier.size(24.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.height(10.dp))
+                                                            Text(
+                                                                text = currentlyReading.title,
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color.White,
+                                                                maxLines = 3,
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                textAlign = TextAlign.Center,
+                                                                lineHeight = 16.sp
+                                                            )
+                                                        }
+                                                    }
+
+                                                    // Decorative spine overlay on top of everything
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxHeight()
+                                                            .width(6.dp)
+                                                            .background(Color.Black.copy(alpha = 0.15f))
+                                                            .align(Alignment.CenterStart)
+                                                    )
+                                                }
+
+                                                Spacer(modifier = Modifier.width(16.dp))
+
+                                                Column(
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text = currentlyReading.title,
+                                                        fontSize = 18.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        fontFamily = AppFonts.Serif
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = str.byAuthor(currentlyReading.author),
+                                                        fontSize = 13.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                                    // Calculate progress percentage safely
+                                                    val progressPercent = if (currentlyReading.totalChapters > 0) {
+                                                        (currentlyReading.currentChapterIndex * 100) / currentlyReading.totalChapters
+                                                    } else {
+                                                        32 // Beautiful fallback progress
+                                                    }
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        LinearProgressIndicator(
+                                                            progress = { progressPercent / 100f },
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .height(6.dp)
+                                                                .clip(CircleShape),
+                                                            color = MintPrimary,
+                                                            trackColor = Color.Black.copy(alpha = 0.05f),
+                                                        )
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Text(
+                                                            text = str.readPercent(progressPercent),
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MintGold
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                                    com.example.ui.wenku.WenkuPillButton(
+                                                        text = str.t("继续阅读"),
+                                                        onClick = { onBookClick(currentlyReading) },
+                                                        primary = true,
+                                                        modifier = Modifier.align(Alignment.End)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                item(span = { GridItemSpan(maxLineSpan) }, key = "bookshelf_header") {
+                                    // 3. MAIN SECTION: MY BOOKSHELF
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        ShelfRegionHeading(
+                                            "01", "PERSONAL COLLECTION", str.t("我的书架"),
+                                            str.books(sortedBooks.size),
+                                        ) {
+                                            ShelfViewControl(use3dShelf) {
+                                                use3dShelf = !use3dShelf
+                                                shelfPrefs.shelfUses3dView = use3dShelf
+                                            }
+                                        }
+                                        FlowRow(
+                                            modifier = Modifier.fillMaxWidth().wenkuPagePart(2),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            HomeActionChip(
+                                                icon = Icons.Filled.Sort,
+                                                label = when (sortBy) { 0 -> str.t("默认排序"); 1 -> str.t("按字母"); else -> str.t("最近阅读") },
+                                                emphasized = sortBy > 0,
+                                                wenkuSymbol = com.example.ui.wenku.WenkuSymbol.Filter
+                                            ) {
+                                                com.example.ui.shelf.keepShelfViewportForSort(homeGridState)
+                                                shelfReflowClock = 0f
+                                                shelfReflow.begin { shelfReflowClock }
+                                                shelfReflowScope.launch {
+                                                    androidx.compose.animation.core.animate(
+                                                        initialValue = 0f,
+                                                        targetValue = 1f,
+                                                        animationSpec = androidx.compose.animation.core.tween(
+                                                            durationMillis = 420,
+                                                            easing = androidx.compose.animation.core.LinearEasing
+                                                        )
+                                                    ) { value, _ -> shelfReflowClock = value }
+                                                    shelfReflow.end()
+                                                }
+                                                sortBy = (sortBy + 1) % 3
+                                            }
+                                            HomeActionChip(
+                                                icon = Icons.Filled.Add,
+                                                label = str.t("导入新书"),
+                                                emphasized = true,
+                                                wenkuSymbol = com.example.ui.wenku.WenkuSymbol.ImportFile
+                                            ) { onImportClick(selectedCategory) }
+                                            HomeActionChip(
+                                                icon = Icons.Filled.Category,
+                                                label = str.t("新建分类"),
+                                                emphasized = false,
+                                                wenkuSymbol = com.example.ui.wenku.WenkuSymbol.FolderAdd
+                                            ) { showAddCategoryDialog = true }
+                                        }
+
+                                        // 第七轮第 5.2/6.1 条：分类 Tab——可横向滚动的真实分类列表
+                                        // （"全部"聚合视图已移除，"默认"为不可删除的真实分类）。
+                                        // 受保护分类带锁标记，进入需 PIN 验证；长按弹出分类操作面板。
+                                        // ⚠️ 拖拽期间要关掉分类栏自己的横向滚动：手指在胶囊上左右
+                                        // 挪动时会把这排胶囊滑走，落点矩形跟着漂，
+                                        // 表现就是"手指明明没对准分类，却触发了放进分类"。
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(
+                                                    rememberScrollState(),
+                                                    enabled = shelfSelection.phase !=
+                                                        com.example.ui.shelf.ShelfPhase.DRAGGING,
+                                                )
+                                                .padding(vertical = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            categories.forEach { cat ->
+                                                val isSelected = selectedCategory == cat.name
+                                                val isProtected = privacyModeEnabled &&
+                                                    protectedCategoryNames.contains(cat.name)
+                                                val isUnlocked = unlockedCategoryIds.contains(cat.id)
+                                                val locked = isProtected && !isUnlocked
+                                                // 拖拽放置目标就是这一排分类胶囊本身（不再另起底部 Dock）。
+                                                //
+                                                // ⚠️ 当前所处的分类**不注册**为落点。
+                                                // 之前注册了，结果 endDrag() 认为"命中了某个 target"
+                                                // → 直接 phase=BROWSE 并清空选中；而业务层又判定
+                                                // "放进当前分类 = 没动" 走回弹 —— 于是书弹回来了，
+                                                // 多选却被退掉了，用户的选中白费。
+                                                // 不注册就是落在非放置区：保持选中 + 优雅回弹，正合预期。
+                                                val isCurrentCategory = cat.name == selectedCategory
+                                                val dropId = com.example.ui.shelf.dropTargetOfCategory(cat.name)
+                                                com.example.ui.shelf.CategoryPill(
+                                                    name = cat.name,
+                                                    selected = isSelected,
+                                                    locked = locked,
+                                                    count = books.count { it.category == cat.name },
+                                                    onClick = {
+                                                        when {
+                                                            // 受保护且未解锁 → 先验证 PIN，通过后才进入
+                                                            locked -> pinVerifyFor = cat
+                                                            // 已解锁或普通分类 → 直接切换
+                                                            else -> onShelfCategoryChange(cat.name)
+                                                        }
+                                                    },
+                                                    onLongClick = { categorySheetFor = cat },
+                                                    modifier = if (isCurrentCategory) Modifier
+                                                    else shelfSelection.dropTargetModifier(dropId),
+                                                    dropHighlight = !isCurrentCategory &&
+                                                        shelfSelection.hoverTarget == dropId,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (sortedBooks.isNotEmpty() && !selectedCategoryLocked && use3dShelf &&
+                                    shelfSelection.phase == com.example.ui.shelf.ShelfPhase.BROWSE) {
+                                    item(span = { GridItemSpan(maxLineSpan) }, key = "bookshelf_3d") {
+                                        ArchiveShelf(
+                                            books = sortedBooks,
+                                            onBookClick = onBookClick,
+                                            modifier = Modifier.fillMaxWidth().wenkuReveal(0),
+                                            scopeKey = "shelf:$selectedCategory"
+                                        )
+                                    }
+                                }
+
+            if (sortedBooks.isEmpty()) {
+                                    item(span = { GridItemSpan(maxLineSpan) }, key = "empty_state", contentType = "fullspan") {
+                                        if (selectedCategoryLocked) {
+                                            // 6.3：受保护分类锁定态——不显示内容，引导验证密码
+                                            // 第九轮修复⑤：不再整块白色大卡（用户反馈"书架下面盖了
+                                            // 一层透明白色矩形"）——改为克制的行内玻璃胶囊，锁定
+                                            // 提示+验证按钮一行呈现，与书架玻璃语言一致。
+                                            val lockedCat = categories.find { it.name == selectedCategory }
+                                            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(18.dp))
+                                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.42f))
+                                                        .border(
+                                                            0.5.dp,
+                                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                                                            RoundedCornerShape(18.dp)
+                                                        )
+                                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        Icons.Filled.Lock,
+                                                        contentDescription = null,
+                                                        tint = MintPrimary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(12.dp))
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = com.example.i18n.categoryLocked(selectedCategory),
+                                                            fontSize = 14.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = adaptiveTitleColor()
+                                                        )
+                                                        Text(
+                                                            text = tr("验证隐私密码后即可查看其中的书籍"),
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                                                        )
+                                                    }
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(14.dp))
+                                                            .background(MintPrimary.copy(alpha = 0.14f))
+                                                            .border(
+                                                                0.5.dp,
+                                                                MintPrimary.copy(alpha = 0.45f),
+                                                                RoundedCornerShape(14.dp)
+                                                            )
+                                                            .clickableWithFeedback { lockedCat?.let { pinVerifyFor = it } }
+                                                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                                                    ) {
+                                                        Text(
+                                                            str.t("验证密码查看"),
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MintPrimary
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            com.example.ui.components.MascotEmptyState(
+                                                mascotResId = com.example.ui.mascot.MascotSpriteSheet.sadDrawable,
+                                                title = str.t("「分类下没有图书」"),
+                                                description = com.example.i18n.categoryEmpty(selectedCategory),
+                                                actionLabel = str.t("在此分类下导入新书"),
+                                                onActionClick = { onImportClick(selectedCategory) },
+                                                testTagPrefix = "category_empty_state"
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    if (!use3dShelf || shelfSelection.phase != com.example.ui.shelf.ShelfPhase.BROWSE) {
+                                    itemsIndexed(
+                                        items = sortedBooks,
+                                        key = { _, book -> book.id },
+                                        contentType = { _, _ -> "book" }
+                                    ) { index, book ->
+                                        com.example.ui.wenku.WenkuReflowItem(
+                                            key = book.id,
+                                            state = shelfReflow,
+                                            order = index
+                                        ) {
+                                        val coverData = remember(book.coverUri, book.isCoverValid) {
+                                            if (book.coverUri.isNullOrEmpty()) null
+                                            else if (book.coverUri!!.startsWith("content://")) {
+                                                android.net.Uri.parse(book.coverUri!!)
+                                            } else if (book.isCoverValid) {
+                                                val path = if (book.coverUri!!.startsWith("file://")) book.coverUri!!.substring(7) else book.coverUri!!
+                                                java.io.File(path)
+                                            } else {
+                                                null
+                                            }
+                                        }
+                                        val hasValidCover = coverData != null
+
+                                        val context = androidx.compose.ui.platform.LocalContext.current
+                                        val imageRequest = remember(book.coverUri, coverData) {
+                                            if (coverData == null) null else {
+                                                coil.request.ImageRequest.Builder(context)
+                                                    .data(coverData)
+                                                    .memoryCacheKey(book.coverUri)
+                                                    .diskCacheKey(book.coverUri)
+                                                    // 封面飞行的贴图要把这张 drawable 光栅化成
+                                                    // 软件位图；硬件位图画不进软件 Canvas，这里直接要软件位图。
+                                                    .allowHardware(false)
+                                                    .crossfade(true)
+                                                    .build()
+                                            }
+                                        }
+
+                                        // 手势全部由 ShelfSelectionHost 处理（长按 / 连选 / 拖拽 / 点击）。
+                                        // 卡片这里只读取宿主的按压态做视觉反馈——自己再挂
+                                        // pointerInput 会在 down 时抢走事件，导致长按失效。
+                                        val isPressed = shelfSelection.pressedKey == book.id.toString()
+                                        // 长按由拖拽宿主接管：卡片只反映"被选中"的抬起状态
+                                        // 被"拿起"跟手拖拽的那本（原位留给虚线凹槽）。
+                                        // 注意：这里的缩放语义必须是"内缩"，不能是"放大"——
+                                        // 曾经同时叠加 1.05（抬起）与 0.94（选中）两个 scale，
+                                        // 相乘 ≈ 0.987 等于互相抵消，还给所有选中项加了 8dp 上浮，
+                                        // 长按瞬间整屏卡片会集体跳一下。抬起的手感已经完全交给
+                                        // 跟随手指的幽灵卡（放大 + 投影）承担，原位只负责"让位"。
+                                        val isDragged = book.id.toString() in shelfSelection.dragging
+                                        // ⚠️ 归位飞行期间（~560ms）卡片必须继续藏着：
+                                        // 松手瞬间 dragging 就空了，只按 dragging 判定的话书会立刻浮现，
+                                        // 而幽灵卡还在半空 —— 屏幕上同时出现两个不对齐的书。
+                                        val isFlyingHome = book.id.toString() in shelfSelection.flyingHome
+                                        val scaleAnim by animateFloatAsState(
+                                            targetValue = if (isDragged) 0.92f else 1f,
+                                            animationSpec = com.example.ui.feedback.AppMotion.springSettle,
+                                            label = "book_drag_scale"
+                                        )
+
+                                        // 多选态：未选中的书变暗到 0.85（选中的不变）—— 用弹簧过渡，避免硬跳。
+                                        // 被拿起来拖拽、以及正在飞回原位的那本都淡到 0：
+                                        // 原位不能留下任何色块，只由宿主层的极淡虚线轮廓标出"位置给你留着"。
+                                        val dimTarget = if (isDragged || isFlyingHome) 0f
+                                        else if (shelfSelection.phase == com.example.ui.shelf.ShelfPhase.BROWSE) 1f
+                                        else if (book.id.toString() in shelfSelection.selected) 1f else 0.85f
+                                        val scaleTarget = if (book.id.toString() in shelfSelection.selected) {
+                                            com.example.ui.feedback.AppMotion.SELECTED_SCALE
+                                        } else 1f
+                                        val dimAlpha by animateFloatAsState(
+                                            targetValue = dimTarget,
+                                            animationSpec = com.example.ui.feedback.AppMotion.springDefault,
+                                            label = "book_dim",
+                                        )
+                                        val selectedScale by animateFloatAsState(
+                                            targetValue = scaleTarget,
+                                            animationSpec = com.example.ui.feedback.AppMotion.springDefault,
+                                            label = "book_selected_scale",
+                                        )
+                                        // 按压反馈由宿主的 pressedKey 驱动（卡片自己不抢手势）
+                                        val pressScale by animateFloatAsState(
+                                            targetValue = if (isPressed) 1f - .04f * com.example.ui.components.LocalCardTweaks.current.pressStrength else 1f,
+                                            animationSpec = com.example.ui.feedback.AppMotion.springDefault,
+                                            label = "book_press",
+                                        )
+
+                                        Box(modifier = Modifier.fillMaxWidth()
+                                            .wenkuReveal(index)
+                                            .animateItem(
+                                                fadeInSpec = if (reduceMotion || selectedCategoryLocked) null else tween(220, easing = AppMotion.easeOutCubic),
+                                                placementSpec = if (reduceMotion || shelfSelection.phase == com.example.ui.shelf.ShelfPhase.DRAGGING) null else AppMotion.reorder(),
+                                                fadeOutSpec = if (reduceMotion || selectedCategoryLocked) null else tween(150),
+                                            )
+                                            .shelfCapture(shelfMotion, book.id.toString())) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .graphicsLayer {
+                                                        translationY = 0f
+                                                        scaleX = scaleAnim * selectedScale * pressScale
+                                                        scaleY = scaleAnim * selectedScale * pressScale
+                                                        alpha = dimAlpha
+                                                    }
+                                                    .then(itemBounds(book.id.toString())),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                            val isThemeDark = com.example.ui.theme.LocalAppDarkTheme.current
+                                            // 设置 →「自定义卡片参数」实时生效：圆角/不透明度/主题色叠加/压力形变。
+                                            val cardTweaks = com.example.ui.components.LocalCardTweaks.current
+                                            val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                                            val coverGradColors = if (isThemeDark) {
+                                                listOf(
+                                                    com.example.ui.wenku.WenkuTokens.RaisedDark.copy(alpha = cardTweaks.cardAlpha),
+                                                    com.example.ui.wenku.WenkuTokens.PanelDark.copy(alpha = cardTweaks.cardAlpha),
+                                                    MintSecondary.copy(alpha = (cardTweaks.tintMix * 1.9f).coerceIn(0f, 1f))
+                                                )
+                                            } else {
+                                                listOf(
+                                                    com.example.ui.wenku.WenkuTokens.PaperLight.copy(alpha = cardTweaks.cardAlpha),
+                                                    com.example.ui.wenku.wenkuColors().raisedHigh.copy(alpha = cardTweaks.cardAlpha),
+                                                    MintSecondary.copy(alpha = (cardTweaks.tintMix * 3.6f).coerceIn(0f, 1f))
+                                                )
+                                            }
+                                
+                                            var boxModifier = Modifier
+                                                .aspectRatio(0.72f)
+                                                .fillMaxWidth()
+                                            // R14：这张封面的「起飞」不再交给 sharedElement —— Compose 的共享元素只能插值矩形，
+                                            // 做不出纸张网格的弯曲/抬升，而且会和覆盖层叠成两张封面。现在由 WenkuFlightBridge.begin
+                                            // + 根部的 WenkuFlightOverlay 整块接管；该 key 的 sharedElement 在两端都已移除。
+                                            boxModifier = boxModifier
+                                                // 第七轮第 5.4 条：封面卡片质感——更大圆角 + 更柔和的
+                                                // 双层阴影（环境 + 投射），"书架上的书"更立体安静
+                                                .consistentShadow(
+                                                    elevation = 8.dp,
+                                                    shape = cardShape,
+                                                    ambientColor = Color.Black.copy(alpha = 0.10f),
+                                                    spotColor = Color.Black.copy(alpha = 0.16f)
+                                                )
+                                                .clip(cardShape)
+                                                .background(androidx.compose.ui.graphics.Brush.verticalGradient(colors = coverGradColors))
+                                                .border(1.dp, Color.Black.copy(alpha = 0.07f), cardShape)
+                                                // 单独登记**封面**几何（不是整张卡）。
+                                                // 归位动画的落点必须是封面中心：整卡含书名那一行，
+                                                // 中心比封面低，用它当落点会让书飞到比原位低半张封面的地方，
+                                                // 动画一结束就"从下面瞬移到上面"。
+                                                .then(shelfSelection.coverBoundsModifier(book.id.toString()))
+
+                                            Box(
+                                                modifier = boxModifier,
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (hasValidCover && imageRequest != null) {
+                                                    // cover_arrival.dart: one 420ms plane reveal for the decoded frame.
+                                                    // The wrapper now draws content untouched until `ready`, so a missing
+                                                    // state signal costs the animation, never the cover itself.
+                                                    val coverPainter = coil.compose.rememberAsyncImagePainter(model = imageRequest)
+                                                    // R14：把这张已解码的封面登记成飞行贴图（一次光栅化），
+                                                    // 点击时 WenkuFlightBridge.begin 直接取用，不在点击路径上解码。
+                                                    com.example.ui.wenku.WenkuCoverSnapshot(
+                                                        key = book.id.toString(),
+                                                        painter = coverPainter
+                                                    )
+                                                    com.example.ui.wenku.WenkuCoverArrivalFrame(
+                                                        frameKey = book.coverUri,
+                                                        ready = coverPainter.state is coil.compose.AsyncImagePainter.State.Success,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    ) {
+                                                        Image(
+                                                            painter = coverPainter,
+                                                            contentDescription = book.title,
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            contentScale = ContentScale.Crop
+                                                        )
+                                                    }
+                                                    // Subtle vertical shadow for paper depth
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(
+                                                                Brush.horizontalGradient(
+                                                                    colors = listOf(
+                                                                        Color.Black.copy(alpha = 0.15f),
+                                                                        Color.Transparent,
+                                                                        Color.Black.copy(alpha = 0.05f)
+                                                                    ),
+                                                                    startX = 0f,
+                                                                    endX = 40f
+                                                                )
+                                                            )
+                                                    )
+                                                } else {
+                                                    Column(
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier.fillMaxHeight().padding(8.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Filled.MenuBook,
+                                                            contentDescription = null,
+                                                            tint = MintPrimary.copy(alpha = 0.6f),
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                            
+                                                        Text(
+                                                            text = book.title,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onSurface,
+                                                            maxLines = 3,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            textAlign = TextAlign.Center,
+                                                            lineHeight = 14.sp,
+                                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                                        )
+
+                                                        Text(
+                                                            text = if (book.isComic) tr("漫画") else "TXT",
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (book.isComic) Color(0xFFFF6B6B) else MintGold.copy(alpha = 0.8f)
+                                                        )
+                                                    }
+                                                }
+
+                                                // Cover Spine shadow overlay on top of everything
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxHeight()
+                                                        .width(4.dp)
+                                                        .background(Color.Black.copy(alpha = 0.2f))
+                                                        .align(Alignment.CenterStart)
+                                                )
+
+                                                // 已喜欢 → 右下角小心形（有来源的书才可能已喜欢）
+                                                val favKey = remember(book.sourceId, book.comicId) {
+                                                    if (!book.sourceId.isNullOrBlank() && !book.comicId.isNullOrBlank()) {
+                                                        "${book.sourceId}::${book.comicId}"
+                                                    } else null
+                                                }
+                                                if (favKey != null && favKey in favoriteKeys) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .align(Alignment.BottomEnd)
+                                                            .padding(6.dp)
+                                                            .size(18.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Color.White.copy(alpha = 0.82f)),
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        // 与飞行体、「喜欢」按钮共用同一颗渐变心
+                                                        com.example.ui.favorite.HeartArt(
+                                                            modifier = Modifier
+                                                                .size(12.dp)
+                                                                .semantics {
+                                                                    contentDescription = str.t("已加入我喜欢的")
+                                                                },
+                                                            glow = 0f,
+                                                        )
+                                                    }
+                                                }
+
+                                                // 「书被拿走了」的原位处理：**整张卡淡到全透明**。
+                                                // 之前是在原位盖一块 surface@0.94 的浅色圆角块 + 虚线，
+                                                // 在浅色主题下就是一块刺眼的纯白区域（用户明确反馈不好），
+                                                // 而且那块白底会盖住页面背景，看起来像"破了个洞"。
+                                                // 现在卡片彻底隐去（alpha 见上方 dimAlpha），原位只剩
+                                                // 宿主层画的一个极淡虚线轮廓 —— 视觉上就是页面背景本身。
+                                                // 注意：虚线必须在宿主层画，因为卡片的 graphicsLayer alpha
+                                                // 会把画在它内部的任何东西一起淡掉。
+
+                                                // 多选态：左上角圆形勾选框（弹簧弹出）
+                                                // ⚠️ 只看 phase 是错的：在「我喜欢的」里多选时，
+                                                // 书架卡片也会跟着冒出未选中的白圆圈（用户反馈）。
+                                                // 必须按**板块**判定 —— 只有 scope == BOOK 时才画。
+                                                if (shelfSelection.scope ==
+                                                    com.example.ui.shelf.ShelfSelectionScope.BOOK
+                                                ) {
+                                                    Box(modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) {
+                                                        com.example.ui.shelf.ShelfSelectBadge(
+                                                            selected = book.id.toString() in shelfSelection.selected,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                
+                                            Text(
+                                                text = book.title,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            // 读完标记：金色 ✓ + str.t("已读完")
+                                            if (book.isFinished) {
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.Center,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        Icons.Filled.CheckCircle,
+                                                        contentDescription = null,
+                                                        tint = MintGold,
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        str.t("已读完"),
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MintGold
+                                                    )
+                                                }
+                                            }
+
+                                            // 阅读进度条（已开始阅读且未完成时显示）
+                                            if (book.totalChapters > 0 && book.currentChapterIndex > 0 && !book.isFinished) {
+                                                val progress = book.currentChapterIndex.toFloat() / book.totalChapters
+                                                LinearProgressIndicator(
+                                                    progress = { progress.coerceIn(0f, 1f) },
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 4.dp)
+                                                        .height(3.dp)
+                                                        .clip(RoundedCornerShape(2.dp)),
+                                                    color = MintPrimary.copy(alpha = 0.85f),
+                                                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                                                )
+                                                Text(
+                                                    text = "${book.currentChapterIndex}/${book.totalChapters} 章",
+                                                    fontSize = 9.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                                                    textAlign = TextAlign.Center,
+                                                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        } // Close Box
+                                        }   // end WenkuReflowItem
+                                    }
+                                    }
+                                }
+
+                            /* ══════════════════════════════════════════════════════════════════
+                               「我喜欢的」板块：紧贴「我的书架」的书网格，排在阅读统计之前。
+                               与书架板块完全同构：标题 + 操作胶囊 + 分类栏 + 卡片网格，
+                               只是数据是收藏自己的（分类也与书架分类互不干涉）。
+                               ══════════════════════════════════════════════════════════════════ */
+                            item(span = { GridItemSpan(maxLineSpan) }, key = "fav_section_header") {
+                                Column(
+                                    modifier = Modifier.padding(top = 16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    ShelfRegionHeading(
+                                        "02", "FAVOURITE COLLECTION", str.t("我喜欢的"),
+                                        if (favoritesLocked) str.t("已锁定") else str.books(favSorted.size),
+                                    ) {
+                                        if (!favoritesLocked && favoriteItems.isNotEmpty()) {
+                                            ShelfViewControl(use3dFavorites) {
+                                                use3dFavorites = !use3dFavorites
+                                                shelfPrefs.favoritesUse3dView = use3dFavorites
+                                            }
+                                        }
+                                    }
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth().wenkuPagePart(2),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        if (favoritesLocked) {
+                                            // 锁定态：整个板块只有一把锁，点它验证密码
+                                            HomeActionChip(
+                                                icon = Icons.Filled.Lock,
+                                                label = str.t("已锁定"),
+                                                emphasized = true,
+                                            ) { favoritesPinFor = true }
+                                        } else {
+                                            HomeActionChip(
+                                                icon = Icons.Filled.Refresh,
+                                                label = if (favoriteRefreshing) str.t("检查中…") else str.t("检查更新"),
+                                                emphasized = favoriteRefreshing,
+                                            ) {
+                                                if (favoriteRefreshing) return@HomeActionChip
+                                                favoriteRefreshing = true
+                                                onCheckFavoriteUpdates()
+                                                refreshScope.launch {
+                                                    delay(1500)
+                                                    favoriteRefreshing = false
+                                                }
+                                            }
+                                            HomeActionChip(
+                                                icon = Icons.Filled.Category,
+                                                label = str.t("新建分类"),
+                                                emphasized = false,
+                                                wenkuSymbol = WenkuSymbol.FolderAdd,
+                                            ) { showAddFavoriteCategoryDialog = true }
+                                        }
+                                    }
+
+                                    // 分类栏：只在真的有自建分类时才出现 —— 只有"默认"一个
+                                    // 分类时，"全部 / 默认"两个胶囊是同一批东西，纯属噪音。
+                                    // 「默认」不单独列出：未分类的收藏在「全部」里就能看到。
+                                    if (!favoritesLocked && favCustomCategories.isNotEmpty()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(
+                                                    rememberScrollState(),
+                                                    enabled = shelfSelection.phase !=
+                                                        com.example.ui.shelf.ShelfPhase.DRAGGING,
+                                                )
+                                                .padding(vertical = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            com.example.ui.shelf.CategoryPill(
+                                                name = com.example.ui.favorite.ALL_FAV_CATEGORY,
+                                                selected = favoriteCategory == com.example.ui.favorite.ALL_FAV_CATEGORY,
+                                                count = favoriteItems.size,
+                                                onClick = { favoriteCategory = com.example.ui.favorite.ALL_FAV_CATEGORY },
+                                            )
+                                            favCustomCategories.forEach { name ->
+                                                // 「我喜欢的」同理：拖到这一排收藏分类胶囊上就放进去。
+                                                // 注意「全部」不是真分类，不能当落点，所以只给自建分类注册。
+                                                val favDropId = com.example.ui.shelf.dropTargetOfFavoriteCategory(name)
+                                                com.example.ui.shelf.CategoryPill(
+                                                    name = name,
+                                                    selected = favoriteCategory == name,
+                                                    count = favoriteItems.count { it.favorite.categoryName == name },
+                                                    onClick = { favoriteCategory = name },
+                                                    onLongClick = { favCategorySheetFor = name },
+                                                    modifier = shelfSelection.dropTargetModifier(favDropId),
+                                                    dropHighlight = shelfSelection.hoverTarget == favDropId,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (favoritesLocked) {
+                                // 锁定：只留一句引导，不泄露任何收藏标题/封面
+                                item(span = { GridItemSpan(maxLineSpan) }, key = "fav_locked", contentType = "fullspan") {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 4.dp, vertical = 8.dp)
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.42f))
+                                            .border(
+                                                0.5.dp,
+                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                                                RoundedCornerShape(18.dp),
+                                            )
+                                            .clickableWithFeedback { favoritesPinFor = true }
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Filled.Lock,
+                                                contentDescription = null,
+                                                tint = MintPrimary,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = str.t("「我喜欢的」已锁定"),
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                )
+                                                Text(
+                                                    text = str.t("点击验证密码后查看"),
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (favSorted.isEmpty()) {
+                                item(span = { GridItemSpan(maxLineSpan) }, key = "fav_empty_state", contentType = "fullspan") {
+                                    com.example.ui.components.MascotEmptyState(
+                                        mascotResId = com.example.ui.mascot.MascotSpriteSheet.idleDrawable,
+                                        title = str.t("「还没有喜欢的漫画」"),
+                                        description = tr("在漫画页点一下 ♡，喜欢的漫画都在这里 —— 不下载、不占空间，随时在线接着看。"),
+                                        actionLabel = str.t("去书库逛逛"),
+                                        onActionClick = onNavigateToShelf,
+                                        testTagPrefix = "favorites_empty_state",
+                                    )
+                                }
+                            } else if (use3dFavorites && shelfSelection.phase == com.example.ui.shelf.ShelfPhase.BROWSE && favShelfBooks.isNotEmpty()) {
+                                item(span = { GridItemSpan(maxLineSpan) }, key = "favorites_3d") {
+                                    ArchiveShelf(
+                                        books = favShelfBooks,
+                                        onBookClick = { picked -> favById[picked.id]?.let(onOpenFavorite) },
+                                        modifier = Modifier.fillMaxWidth().wenkuReveal(0),
+                                        scopeKey = "favorites"
+                                    )
+                                }
+                            } else {
+                                items(items = favSorted, key = { com.example.ui.shelf.favShelfKey(it.key) }, contentType = { "favcard" }) { item ->
+                                    // ⚠️ 收藏卡片也要登记几何，否则宿主的手势命中测试找不到它 ——
+                                    // 「我喜欢的」长按完全没反应，就是差这一步。
+                                    val favKey = com.example.ui.shelf.favShelfKey(item.key)
+                                    val favSelected = favKey in shelfSelection.selected
+                                    com.example.ui.favorite.FavoriteCard(
+                                        item = item,
+                                        source = favoriteShareSource(item.favorite.sourceId),
+                                        onClick = { onOpenFavorite(item) },
+                                        modifier = Modifier
+                                            .animateItem(
+                                                fadeInSpec = if (reduceMotion || favoritesLocked) null else tween(220, easing = AppMotion.easeOutCubic),
+                                                placementSpec = if (reduceMotion || shelfSelection.phase == com.example.ui.shelf.ShelfPhase.DRAGGING) null else AppMotion.reorder(),
+                                                fadeOutSpec = if (reduceMotion || favoritesLocked) null else tween(150),
+                                            )
+                                            .shelfCapture(shelfMotion, favKey).then(itemBounds(favKey)),
+                                        coverModifier = shelfSelection.coverBoundsModifier(favKey),
+                                        selected = favSelected,
+                                        // 勾选框按**板块**判定（与书架卡片同一套规则）：
+                                        // 收藏板块多选时，未选中的条目也要有白圆圈；
+                                        // 书架板块多选时，收藏卡片**完全不参与**（不画圈、不压暗）。
+                                        multiSelecting = shelfSelection.scope ==
+                                            com.example.ui.shelf.ShelfSelectionScope.FAV,
+                                        dimmed = shelfSelection.scope ==
+                                            com.example.ui.shelf.ShelfSelectionScope.FAV && !favSelected,
+                                        // 与书架书卡同一套规则：被拿起来 / 正在飞回原位时
+                                        // 原位必须干净地空出来（只留宿主的虚线占位框），
+                                        // 否则屏幕上同时有"原处的卡"和"手上的幽灵卡"。
+                                        hidden = favKey in shelfSelection.dragging ||
+                                            favKey in shelfSelection.flyingHome,
+                                        hostOwnsGesture = true,
+                                        pressed = shelfSelection.pressedKey == favKey,
+                                    )
+                                }
+                            }
+
+                                item(span = { GridItemSpan(maxLineSpan) }, key = "bottom_stats", contentType = "fullspan") {
+                                    // 4. BOTTOM INFO CARD: READING STATISTICS PREVIEW
+                                    // A2：原 24.dp 完全不足以躲开悬浮 Tab 栏 + 系统导航栏，
+                                    // 改用全 App 统一的下发值
+                                    Column(modifier = Modifier.padding(bottom = LocalAppBottomInset.current)) {
+                                        Text(
+                                            text = str.t("阅读统计"),
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = adaptiveTitleColor(),
+                                            fontFamily = AppFonts.Serif,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+
+                                        GlassCard(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickableWithFeedback { onNavigateToStats() },
+                                            shape = RoundedCornerShape(16.dp),
+                                            contentPadding = PaddingValues(16.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column {
+                                                    TodayReadTimeText(todayReadSecondsFlow)
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = str.t("保持阅读，遇见更好的自己。"),
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                    )
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(MintGold.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                                        .border(1.dp, MintGold.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            Icons.Filled.Star,
+                                                            contentDescription = null,
+                                                            tint = MintGold,
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = str.streak(streakDays),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MintGold
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                            }
+                            }
+
+                            // 多选态底部悬浮操作栏（我的书架：移动 / 喜欢 / 分享 / 删除下载 / 更多）
+                            run {
+                                // 名单现在只可能属于一个板块（ShelfSelectionScope 在进入多选时定死），
+                                // 所以这两个列表必然一个为空、一个可能非空 —— 不再有"混选"。
+                                val selectedBooks = if (selectionVisible && !favScope) {
+                                    sortedBooks.filter { it.id.toString() in shelfSelection.selected }
+                                } else emptyList()
+                                // 选中的「我喜欢的」条目（key 带 fav:: 前缀）——
+                                // 它们不是本地书籍，"移动/删除下载"这些操作对它们没有意义。
+                                val selectedFavs = if (selectionVisible && favScope) favSorted.filter {
+                                    com.example.ui.shelf.favShelfKey(it.key) in shelfSelection.selected
+                                } else emptyList()
+                                // 收藏板块的 4 项**恒定存在**，不再用「selectedFavs 是否为空」决定整条栏。
+                                // 原写法 `if (selectedFavs.isEmpty()) null else listOf(...)` + 后面的 `?:`
+                                // 会在匹配为空时**静默回退成书架动作** ⇒ 用户看到「我喜欢的」里冒出
+                                // 「删除下载」，且选项数 5↔4 跳变导致整条栏位置大变样。
+                                val favActions = listOf(
+                                    com.example.ui.shelf.ShelfAction(
+                                        label = str.t("打开"),
+                                        icon = androidx.compose.material.icons.Icons.Filled.MenuBook,
+                                        enabled = selectedFavs.size == 1,
+                                        onClick = {
+                                            selectedFavs.firstOrNull()?.let { onOpenFavorite(it) }
+                                            shelfSelection.exitSelection()
+                                        },
+                                    ),
+                                    // 「我喜欢的」以前只有 打开/取消喜欢 两个，比书架少一大截
+                                    // （用户：没有分享移动等等）。移动 = 归到收藏分类，
+                                    // 分享收藏的作品详情链接，与书架的文件分享独立。
+                                    com.example.ui.shelf.ShelfAction(
+                                        label = str.t("移动"),
+                                        icon = androidx.compose.material.icons.Icons.Filled.Folder,
+                                        enabled = true,
+                                        onClick = { bulkCategoryTarget = 1 },
+                                    ),
+                                    com.example.ui.shelf.ShelfAction(
+                                        label = if (preparingShare) str.t("准备中…") else str.t("分享"),
+                                        icon = androidx.compose.material.icons.Icons.Filled.Share,
+                                        enabled = selectedFavs.isNotEmpty() && !preparingShare,
+                                        onClick = {
+                                            val favorites = selectedFavs.map { it.favorite }
+                                            prepareShare { com.example.library.FavoriteShareHelper.shareFavorites(context, favorites, favoriteShareSource) }
+                                        },
+                                    ),
+                                    com.example.ui.shelf.ShelfAction(
+                                        label = str.t("取消喜欢"),
+                                        icon = androidx.compose.material.icons.Icons.Filled.Favorite,
+                                        enabled = true,
+                                        destructive = true,
+                                        onClick = {
+                                            val keys = selectedFavs.map { it.key }
+                                            shelfMotion.remove(keys.map { com.example.ui.shelf.favShelfKey(it) }, refreshScope, reduceMotion) { onRemoveFavorites(keys) }
+                                            onShowUndo?.invoke("已取消喜欢 ${keys.size} 部") { }
+                                            shelfSelection.exitSelection()
+                                        },
+                                    ),
+                                )
+                                com.example.ui.shelf.MultiSelectActionBar(
+                                    visible = shelfSelection.phase == com.example.ui.shelf.ShelfPhase.SELECTING,
+                                    // 操作栏上方那行提示小字已按用户要求整段删除（不传 hint）。
+                                    // 严格按板块给动作，**不允许跨板块回退**：
+                                    //   收藏 → 打开 / 移动 / 分享 / 取消喜欢（永远没有「删除下载」）
+                                    //   书架 → 移动 / 分享 / 删除下载 / 更多（永远没有「喜欢 / 取消喜欢」）
+                                    // 两边都是 4 项 ⇒ 数量恒定，切换时不会因数量变化而整体偏移。
+                                    actions = if (favScope) favActions else listOf(
+                                        com.example.ui.shelf.ShelfAction(
+                                            label = str.t("移动"),
+                                            icon = androidx.compose.material.icons.Icons.Filled.Folder,
+                                            enabled = selectedBooks.isNotEmpty(),
+                                            onClick = { bulkCategoryTarget = 0 },
+                                        ),
+                                        // 「喜欢」项已按用户要求移除：
+                                        // 书架多选栏不再提供加入/取消「我喜欢的」（用户判定为无用）。
+                                        // 需要收藏请走单本书内的 ♡。
+                                        com.example.ui.shelf.ShelfAction(
+                                            label = if (preparingShare) str.t("准备中…") else str.t("分享"),
+                                            icon = androidx.compose.material.icons.Icons.Filled.Share,
+                                            enabled = selectedBooks.isNotEmpty() && !preparingShare,
+                                            onClick = { prepareShare { com.example.library.BookShareHelper.shareBooks(context, selectedBooks) } },
+                                        ),
+                                        com.example.ui.shelf.ShelfAction(
+                                            label = str.t("删除下载"),
+                                            icon = androidx.compose.material.icons.Icons.Filled.Delete,
+                                            enabled = selectedBooks.isNotEmpty(),
+                                            destructive = true,
+                                            onClick = {
+                                                onDeleteDownloads?.let { remove ->
+                                                    shelfMotion.remove(selectedBooks.map { it.id.toString() }, refreshScope, reduceMotion) { remove(selectedBooks) }
+                                                }
+                                                shelfSelection.exitSelection()
+                                            },
+                                        ),
+                                        com.example.ui.shelf.ShelfAction(
+                                            label = str.t("更多"),
+                                            icon = androidx.compose.material.icons.Icons.Filled.MoreVert,
+                                            enabled = selectedBooks.isNotEmpty(),
+                                            onClick = { showMoreSheet = true },
+                                        ),
+                                    ),
+                                )
+                            }
+
+                                // 这个 24dp 是浏览态下给内容留的收尾呼吸位。
+                                // 多选态必须去掉：它排在悬浮操作栏**之后**，会把操作栏整体顶高
+                                // 24dp（实测栏底离导航栏 40dp，像悬在半空）。
+                                if (shelfSelection.phase == com.example.ui.shelf.ShelfPhase.BROWSE) {
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                }
+                            }
+                            }
+                            }
+                        }
+                        }
+                        }
+
+                        /* ── 多选态顶部栏（浮层，不占布局高度） ──
+                           盖在页头上方从顶部滑入/淡出。因为它只是 Box 的 overlay，
+                           下方网格一像素都不会动 —— 长按进入多选时不会再"跳一下"，
+                           书卡的 itemRect 也不会瞬间失效导致误命中。 */
+                        /* 长按选中书籍只切换「选中态」，不打开任何内容，所以这一层
+                           不参与抽纸：顶部栏自己用弹簧滑入 / 淡出即可，避免每次
+                           长按都凭空拉起一张纸面。 */
+                        AnimatedVisibility(
+                            visible = selectionVisible,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                            enter = if (reduceMotion) androidx.compose.animation.EnterTransition.None else slideInVertically(
+                                animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+                                initialOffsetY = { -it },
+                            ) + fadeIn(animationSpec = tween(140)),
+                            exit = if (reduceMotion) androidx.compose.animation.ExitTransition.None else
+                                slideOutVertically(animationSpec = tween(180), targetOffsetY = { -it }) + fadeOut(animationSpec = tween(120)),
+                        ) {
+                            com.example.ui.shelf.MultiSelectTopBar(
+                                // 计数 = 名单大小。名单已按板块锁死，所以它天然就是
+                                // "单一板块的数量"，不需要（也不允许）把两边相加。
+                                count = if (selectionVisible) shelfSelection.selected.size else outgoingCount,
+                                // 「全选/取消全选」按 scope 分流：在「我喜欢的」里多选时，
+                                // 全选选的是收藏条目，不会把书架的书都选上。
+                                allSelected = if (selectionVisible) allSelected else outgoingAllSelected,
+                                enabled = selectionVisible,
+                                onClose = { shelfSelection.exitSelection() },
+                                onToggleAll = {
+                                    if (allSelected) {
+                                        shelfSelection.exitSelection()
+                                    } else {
+                                        shelfSelection.selectAll(selectableKeys)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    // 已移除原 `.background(colorScheme.background)` 实底矩形：
+                                    // 顶栏现在是悬浮玻璃胶囊，那层满宽实底会在胶囊外围形成
+                                    // 一个"长方形纯色矩形"，读起来像"矩形里套一块毛玻璃"（用户点名不要）。
+                                    .statusBarsPadding(),
+                            )
+                        }
+                    }
+        }
+        }
+
+        com.example.ui.shelf.ShelfShatterOverlay(shelfMotion, Modifier.zIndex(5f))
+
+        /* ── 分类操作面板（长按分类；第七轮第 6.3 条） ── */
+        categorySheetFor?.let { sheetCat ->
+            // 第九轮修复②：面板展示/开关初值必须取实时分类（categories 由 Room Flow
+            // 驱动）——此前直接用长按瞬间的 cat 快照，开关拨动后 DB 已更新而面板仍
+            // 显示旧值（"开关不动、书架却已锁"的根因）。
+            val latestSheetCat = categories.find { it.id == sheetCat.id } ?: sheetCat
+            CategoryActionSheet(
+                category = latestSheetCat,
+                privacyModeEnabled = privacyModeEnabled,
+                onToggleProtected = { protected ->
+                    onToggleCategoryProtected?.invoke(latestSheetCat, protected)
+                },
+                onDeleteRequest = {
+                    categorySheetFor = null
+                    categoryToDelete = latestSheetCat
+                },
+                onGoToSettings = onSettingsClick,
+                onDismiss = { categorySheetFor = null },
+            )
+        }
+
+        /* ── 受保护分类的 PIN 验证（进入前；第七轮第 6.3/6.4 条） ── */
+        pinVerifyFor?.let { cat ->
+            com.example.ui.privacy.PrivacyPinOverlay(
+                mode = com.example.ui.privacy.PinEntryMode.VERIFY,
+                onPinVerified = { pin -> onUnlockCategory?.invoke(cat, pin) ?: false },
+                onAccepted = { onShelfCategoryChange(cat.name) },
+                onDismiss = { pinVerifyFor = null },
+            )
+        }
+    }
+
+/**
+ * 拖拽时跟随手指的封面缩略图：宿主按条目 key（书籍 id 字符串）索取。
+ *
+ * 只画一张封面，不做任何状态订阅——拖拽期间每帧都要重组，越轻越好。
+ */
+@Composable
+private fun ShelfDragCover(
+    books: List<Book>,
+    key: String,
+    modifier: Modifier = Modifier,
+    favorites: List<com.example.data.favorite.FavoriteItem> = emptyList(),
+) {
+    // 「我喜欢的」条目：key 带 fav:: 前缀，封面是网络图 / 本地缩略图
+    if (key.startsWith(com.example.ui.shelf.SHELF_KEY_FAV_PREFIX)) {
+        val fav = favorites.find { com.example.ui.shelf.favShelfKey(it.key) == key }
+            ?.favorite
+        val cover = fav?.localThumbPath ?: fav?.coverUrl
+        if (fav != null && !cover.isNullOrBlank()) {
+            AsyncImage(
+                model = cover,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = modifier.fillMaxSize(),
+            )
+        } else {
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(MintPrimary.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Favorite,
+                    contentDescription = null,
+                    tint = MintPrimary,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
+        return
+    }
+    val book = books.find { it.id.toString() == key }
+    val cover = book?.coverUri
+    if (book != null && !cover.isNullOrBlank()) {
+        val data: Any = when {
+            cover.startsWith("content://") -> android.net.Uri.parse(cover)
+            cover.startsWith("file://") -> java.io.File(cover.substring(7))
+            else -> java.io.File(cover)
+        }
+        AsyncImage(
+            model = data,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier.fillMaxSize(),
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MintPrimary.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.MenuBook,
+                contentDescription = null,
+                tint = MintPrimary,
+                modifier = Modifier.size(28.dp),
+            )
+        }
+    }
+}
+
+/** 书架里的书 → 「我喜欢的」关联键；无来源（手动导入）的书返回 null。 */
+private fun favKeyOf(book: Book): String? =
+    if (!book.sourceId.isNullOrBlank() && !book.comicId.isNullOrBlank()) {
+        "${book.sourceId}::${book.comicId}"
+    } else null
+
+@Composable
+private fun TodayReadTimeText(todaySecondsFlow: kotlinx.coroutines.flow.StateFlow<Long>) {
+    // 第七轮第 4 条修复：数据源改为"今日"阅读秒数（daily_read_time_<今天>），
+    // 旧版误用全生命周期累计值标"今日"；0 分钟如实显示（不再 coerceAtLeast(1)）
+    val todaySeconds by todaySecondsFlow.collectAsStateWithLifecycle()
+    val minutes = todayReadMinutes(todaySeconds)
+
+    Text(
+        // reading_statistics_shared_charts.dart:299-315 counts the number up over 340ms (settle).
+        text = tr("今日已阅读 ") + com.example.ui.wenku.WenkuCountUp(
+            value = minutes.toFloat(),
+            format = { v -> v.toInt().toString() }
+        ) + " 分钟",
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface
+    )
+}
+
+private data class PendingCategoryMove(val name: String, val keys: List<String>, val forFavorites: Boolean)
+
+@Composable
+private fun CategoryNameSheet(
+    title: String,
+    description: String,
+    name: String,
+    onNameChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    confirmLabel: String? = null,
+    onConfirm: (String) -> Unit,
+) {
+    val str = com.example.i18n.LocalStrings.current
+    WenkuActionSheet(title, onDismiss, fitKeyboard = true) {
+        val keyboard = LocalSoftwareKeyboardController.current
+        val close = paperDismiss { onConfirm(name.trim()) }
+        val submit = {
+            if (name.isNotBlank()) {
+                keyboard?.hide()
+                close()
+            }
+        }
+        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = name, onValueChange = onNameChange, modifier = Modifier.fillMaxWidth(),
+            label = { Text(str.t("名称")) }, singleLine = true, shape = RoundedCornerShape(16.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+        )
+        WenkuTextButton(confirmLabel ?: com.example.i18n.AppLocale.t("新建"), onClick = submit,
+            modifier = Modifier.fillMaxWidth(), enabled = name.isNotBlank(),
+            selected = true, wenkuSymbol = WenkuSymbol.Check)
+        WenkuTextButton(str.t("取消"), paperDismiss {}, Modifier.fillMaxWidth(), wenkuSymbol = WenkuSymbol.Close)
+    }
+}
+
+/** 今日阅读秒数 → 显示分钟（四舍五入到最近分钟；纯函数可单测）。
+ *  验收口径：精确阅读 5 分钟（≈300s±2s）→ 显示 5，误差远小于 ±10 秒容差。 */
+internal fun todayReadMinutes(todaySeconds: Long): Int =
+    kotlin.math.round(todaySeconds / 60.0).toInt()
+
+/* ══════════════ 第七轮第 5 条：书架操作胶囊 / 分类 Chip ══════════════ */
+
+@Composable
+private fun ShelfRegionHeading(
+    index: String,
+    code: String,
+    title: String,
+    count: String,
+    actions: @Composable () -> Unit,
+) {
+    GlassCard(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        tint = MaterialTheme.colorScheme.surface.copy(alpha = .88f),
+        contentPadding = PaddingValues(start = 12.dp, top = 4.dp, end = 8.dp, bottom = 4.dp),
+    ) {
+        WenkuSectionHeader(index, code, title, trailing = {
+            Text(
+                count,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            actions()
+        })
+    }
+}
+
+@Composable
+private fun ShelfViewControl(use3d: Boolean, onClick: () -> Unit) {
+    val str = com.example.i18n.LocalStrings.current
+    WenkuTextButton(
+        if (use3d) str.t("切换列表") else str.t("切换 3D"),
+        onClick = onClick,
+        compact = true,
+        wenkuSymbol = if (use3d) WenkuSymbol.Grid else WenkuSymbol.Shelf,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun HomeActionChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    emphasized: Boolean,
+    wenkuSymbol: com.example.ui.wenku.WenkuSymbol? = null,
+    onClick: () -> Unit
+) {
+    com.example.ui.wenku.WenkuTextButton(
+        text = label,
+        icon = icon,
+        onClick = onClick,
+        selected = emphasized,
+        compact = true,
+        wenkuSymbol = wenkuSymbol
+    )
+}
+
+/**
+ * 分类 Chip（第七轮第 5.2/6.3 条）：可横向滚动的书架导航。
+ * 选中 = 品牌薄荷半透明填充 + 细边框 + 加粗；未选中弱化。
+ * 受保护且未解锁的分类带锁图标；长按弹出分类操作面板（设密码 / 删除）。
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HomeCategoryChip(
+    name: String,
+    selected: Boolean,
+    locked: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val str = com.example.i18n.LocalStrings.current
+    val baseColor = if (selected) MintPrimary else MaterialTheme.colorScheme.onSurface
+    val bgAlpha by animateFloatAsState(
+        targetValue = if (selected) 0.16f else 0.06f,
+        animationSpec = tween(160), label = "catChipBg"
+    )
+    val borderAlpha by animateFloatAsState(
+        targetValue = if (selected) 0.50f else 0.13f,
+        animationSpec = tween(160), label = "catChipBorder"
+    )
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(17.dp))
+            .background(baseColor.copy(alpha = bgAlpha))
+            .border(0.5.dp, baseColor.copy(alpha = borderAlpha), RoundedCornerShape(17.dp))
+            .pullOutCombinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            name,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) MintPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+        )
+        if (locked) {
+            Spacer(modifier = Modifier.width(5.dp))
+            Icon(
+                Icons.Filled.Lock,
+                contentDescription = str.t("已加密"),
+                tint = if (selected) MintPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                modifier = Modifier.size(12.dp)
+            )
+        }
+    }
+}
+
+/**
+ * 分类操作面板（长按分类；第七轮第 6.3 条）：
+ * - 密码保护开关（受 6.4 隐私模式总开关约束——未开启时引导去设置开启）；
+ * - 删除分类（"默认"分类给出"不可删除"提示）。
+ */
+@Composable
+private fun CategoryActionSheet(
+    category: com.example.data.CategoryEntity,
+    privacyModeEnabled: Boolean,
+    onToggleProtected: (Boolean) -> Unit,
+    onDeleteRequest: () -> Unit,
+    onGoToSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val str = com.example.i18n.LocalStrings.current
+    val isDefault = category.name == com.example.data.DEFAULT_CATEGORY
+    val colors = MaterialTheme.colorScheme
+    WenkuActionSheet(category.name, onDismiss) {
+        if (privacyModeEnabled) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(str.t("密码保护"), style = MaterialTheme.typography.titleSmall)
+                    Text(str.t("验证密码后显示书籍 · 无痕阅读"), style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant)
+                }
+                com.example.ui.components.AppSwitch(checked = category.isProtected, onCheckedChange = onToggleProtected)
+            }
+        } else {
+            Text(str.t("开启隐私模式后可为分类设置密码。"), style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant)
+            WenkuTextButton(str.t("设置密码保护"), onClick = paperDismiss(onGoToSettings),
+                modifier = Modifier.fillMaxWidth(), wenkuSymbol = WenkuSymbol.Shield)
+        }
+        WenkuTextButton(
+            if (isDefault) str.t("默认分类不可删除") else str.t("删除分类"),
+            onClick = paperDismiss(onDeleteRequest),
+            modifier = Modifier.fillMaxWidth(), enabled = !isDefault,
+            color = colors.error, wenkuSymbol = WenkuSymbol.Delete,
+        )
+    }
+}

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      App 本体是纯 Compose（Material3）绘制，这里这份 theme 只作用于**原生窗口层**：
+      启动窗口背景、Toast、文本选择手柄/菜单、输入法上方高亮、分享面板，
+      以及任何仍然是 View 的东西。
+
+      跨机型要点：
+      1) 父主题保持 Light.NoActionBar，并显式 android:forceDarkAllowed=false。
+         Android 10+ 的「强制深色」会把**没有显式 opt-out 的浅色 App**整体反色
+         重绘（MIUI / HyperOS 尤其激进）。本 App 自己就有 autoNightMode 开关，
+         被系统再反一次色 = 两套深色叠加，原生 Toast / 文本选择菜单会糊成鬼画符。
+         显式关闭后系统不再插手，明暗完全由 App 自己决定。
+         forceDarkAllowed 仅在 values-v29 中设置；旧系统保留公共基础主题。
+      2) 状态栏 / 导航栏图标颜色**不**在这里写 windowLightStatusBar ——
+         由 MainActivity 依据 App 自己的 autoNightMode 用
+         WindowInsetsControllerCompat.isAppearanceLightStatusBars 动态设置。
+         写死会导致「用户在 App 里开夜间、系统仍是白天」时出现深色图标压深色背景。
+      3) statusBarColor / navigationBarColor 保持透明，配合 Activity 的
+         enableEdgeToEdge()，由 Compose 侧自己绘制背景。
+    -->
+    <style name="Theme.MyApplication.Base" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!--
+      P2-1：系统级冷启动闪屏（androidx.core:core-splashscreen）。
+      此前冷启动这段时间里窗口是裸主题背景：进程起来 → Application/DB/引擎初始化 →
+      Compose 首帧，中间那一两百毫秒到几百毫秒用户看到的是「白屏/黑屏一下」，
+      在低端机上就是「点了图标没反应」的观感。系统启动窗口由 SurfaceFlinger 直接绘制，
+      不依赖进程，点图标的第一帧就有内容。
+      背景色取 Compose 侧开屏页的同一支底色（0xFF0F141C），交接处不会出现色差闪烁。
+      Android 12+ 由系统自己的 SplashScreen 实现接管，12 以下由该库回填，行为一致。
+    -->
+    <color name="splash_background">#FF0F141C</color>
+
+    <style name="Theme.MyApplication.SplashBase" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <!-- 用户反馈：开屏壁纸前的吉祥物图标卡片不好看，改为透明占位（不可省略，省略会回退启动图标） -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_background</item>
+        <!-- 交还给正常主题：Activity 的 setContent 在其之上运行 -->
+        <item name="postSplashScreenTheme">@style/Theme.MyApplication</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    <style name="Theme.MyApplication" parent="Theme.MyApplication.Base" />
+    <style name="Theme.MyApplication.Splash" parent="Theme.MyApplication.SplashBase" />
+</resources>

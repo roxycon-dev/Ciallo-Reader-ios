@@ -1,0 +1,2128 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
+package com.example.ui.comic
+
+import com.example.i18n.tr
+
+import androidx.compose.material3.MaterialTheme
+
+import com.example.ui.components.paperSurface
+import com.example.ui.components.PullOutTextButton
+import com.example.ui.components.PullOutFilledTonalButton
+import com.example.ui.components.PullOutIconButton
+import com.example.ui.components.PullOutAlertDialog
+import com.example.ui.reader.TouchZone
+import com.example.ui.reader.TouchAction
+import com.example.ui.reader.SwipeAction
+import com.example.ui.reader.ReaderTouchBinding
+import com.example.ui.reader.touchZoneGestures
+import com.example.ui.reader.readingGlass
+import com.example.ui.feedback.LocalReduceMotion
+import com.example.ui.design.DesignTokens
+import com.example.ui.design.ReadingPalette
+import com.example.ui.wenku.WenkuSymbol
+
+import com.example.ui.components.overlayTouchShield
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.paneTitle
+import android.graphics.Bitmap
+import com.example.mangatranslate.LlmBubbleTranslator
+import com.example.mangatranslate.TranslationCache
+import com.example.mangatranslate.TranslateModelManager
+import com.example.mangatranslate.OnlineFallbackTranslator
+import kotlinx.coroutines.ensureActive
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FormatSize
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.LocalFlorist
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PanTool
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.SwipeVertical
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.RotateRight
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.VerticalSplit
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.ui.theme.MintPrimary
+import com.kashif_e.backdrop.Backdrop
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.shape.CircleShape
+import kotlinx.coroutines.launch
+
+/* ══════════════ 设置面板（第二层：分组展示） ══════════════ */
+
+private val AccentColor = ReadingPalette.WarmAccent
+
+// Tab 命名对齐规范第 1 节词汇：翻页（模式/方向/动画）、显示（缩放/间距）、
+// 主题（背景/场景/沉浸式）；图像 Tab 内含"画质增强"与"滤镜"两个规范名段落，
+// 自动/手势为 28 条修复演进出的超集能力（规范未设同名 Tab）。
+// 第七轮第 3 条：Tab 增加简洁线性图标（书页/眼睛/图片/调色板/时钟/手掌），
+// 作为完整导航区域设计——图标+文字+统一高度+明确但克制的选中反馈。
+private val SettingsTabs = listOf(
+    PanelTabData(tr("翻页"), WenkuSymbol.Book),
+    PanelTabData(tr("显示"), WenkuSymbol.Eye),
+    PanelTabData(tr("图像"), WenkuSymbol.Image),
+    PanelTabData(tr("翻译"), WenkuSymbol.Language),
+    PanelTabData(tr("主题"), WenkuSymbol.Sliders),
+    PanelTabData(tr("自动"), WenkuSymbol.Timer),
+    PanelTabData(tr("手势"), WenkuSymbol.Touch),
+)
+
+@Composable
+internal fun ComicSettingsSheet(
+    config: ComicReaderConfig,
+    store: ComicSettingsStore,
+    perBookConfig: Boolean,
+    onPerBookConfigChange: (Boolean) -> Unit,
+    onConfigChange: (ComicReaderConfig) -> Unit,
+    onOpenPreset: () -> Unit,
+    onOpenCrop: () -> Unit,
+    pages: List<ComicPageRef>,
+    loader: ComicPageLoader,
+    currentRawPage: Int,
+    bookState: ComicBookState,
+    onBookStateChange: (ComicBookState) -> Unit,
+    onDismiss: () -> Unit,
+    glassBackdrop: Backdrop? = null,
+    onDownloadTranslationModels: () -> Unit = {},
+    onTranslationRefresh: (Boolean) -> Unit = {},
+    initialTab: Int = 0,
+    onEditTouchZones: () -> Unit = {},
+) {
+    var tab by remember { mutableIntStateOf(initialTab.coerceIn(SettingsTabs.indices)) }
+    val update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit = { onConfigChange(it(config)) }
+
+    val scrollStates = SettingsTabs.map { rememberScrollState() }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+        val wide = maxWidth >= 600.dp || maxWidth > maxHeight
+        val rail = wide
+        val compact = maxHeight < 480.dp
+        val reduceMotion = LocalReduceMotion.current
+        val sheetShape = RoundedCornerShape(DesignTokens.RadiusOverlay)
+        Column(
+            Modifier
+                .align(if (wide) Alignment.CenterEnd else Alignment.BottomCenter)
+                .padding(horizontal = if (wide) DesignTokens.SpaceLg else DesignTokens.SpaceSm, vertical = DesignTokens.SpaceSm)
+                .widthIn(max = if (rail) 620.dp else 560.dp)
+                .fillMaxWidth()
+                .fillMaxHeight(if (wide) 0.96f else 0.82f)
+                .paperSurface()
+                .clip(sheetShape)
+                .comicPanelGlass(glassBackdrop, sheetShape)
+                .border(1.dp, StrokeColor, sheetShape)
+                .overlayTouchShield()
+                .semantics { paneTitle = tr("漫画阅读设置") }
+        ) {
+            Row(Modifier.fillMaxWidth().padding(start = DesignTokens.SpaceXl, end = DesignTokens.SpaceSm, top = DesignTokens.SpaceTight, bottom = DesignTokens.SpaceCompact),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Tune, null, tint = MintPrimary,
+                    modifier = Modifier.readingGlass(CircleShape).padding(DesignTokens.SpaceTight).size(DesignTokens.SpaceXl))
+                Spacer(Modifier.width(DesignTokens.SpaceMd))
+                Column(Modifier.weight(1f)) {
+                    Text(tr("阅读设置"), color = TextPrimary, fontSize = DesignTokens.TypeTitle, fontWeight = FontWeight.SemiBold)
+                    Text("${config.mode.label} · ${config.direction.label}", color = TextSecondary, fontSize = DesignTokens.TypeCaption)
+                }
+                PullOutIconButton(
+                    icon = Icons.Filled.Close,
+                    contentDescription = tr("关闭阅读设置"),
+                    tint = TextSecondary,
+                    onClick = com.example.ui.components.paperDismiss(onDismiss)
+                )
+            }
+            Row(Modifier.fillMaxWidth().weight(1f)) {
+                if (rail) PanelTabRail(SettingsTabs, tab, { tab = it }, Modifier.padding(start = DesignTokens.SpaceMd, top = DesignTokens.SpaceSm))
+                Column(Modifier.weight(1f)) {
+                    if (!rail) PanelTabRow(SettingsTabs, tab, { tab = it }, Modifier.padding(horizontal = DesignTokens.SpaceMd))
+                    AnimatedContent(
+                        targetState = tab,
+                        transitionSpec = {
+                            if (reduceMotion) EnterTransition.None togetherWith ExitTransition.None
+                            else {
+                                val direction = if (targetState > initialState) 1 else -1
+                                val easing = com.example.ui.wenku.WenkuMotion.plane
+                                slideInHorizontally(tween(280, easing = easing)) { it * direction } togetherWith
+                                    slideOutHorizontally(tween(280, easing = easing)) { -it * direction }
+                            }
+                        },
+                        label = "comicSettingsTab",
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    ) { selectedTab ->
+                        Column(Modifier.fillMaxSize().verticalScroll(scrollStates[selectedTab])
+                            .padding(horizontal = DesignTokens.SpaceComfortable, vertical = DesignTokens.SpaceSm)) {
+                            when (selectedTab) {
+                                0 -> ModeTab(config, update)
+                                1 -> PageTab(config, update, store)
+                                2 -> ImageTab(config, update, onOpenCrop, pages, loader, currentRawPage, bookState, onBookStateChange)
+                            3 -> TranslationTab(config, update, onDownloadTranslationModels, onTranslationRefresh)
+                                4 -> EffectTab(config, update)
+                                5 -> AutoTab(config, update)
+                                6 -> GestureTab(config, update, onEditTouchZones)
+                            }
+                            Spacer(Modifier.height(DesignTokens.SpaceMd))
+                        }
+                    }
+                }
+            }
+        if (compact) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = DesignTokens.SpaceLg, vertical = DesignTokens.SpaceCompact),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceMd)) {
+                Row(Modifier.weight(0.8f).readingGlass(RoundedCornerShape(DesignTokens.RadiusControl))
+                    .clickableNoRipple(onOpenPreset).padding(horizontal = DesignTokens.SpaceMd, vertical = DesignTokens.SpaceComfortable),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Tune, null, tint = MintPrimary, modifier = Modifier.size(DesignTokens.SpaceLoose))
+                    Spacer(Modifier.width(DesignTokens.SpaceSm))
+                    Text(tr("预设管理"), color = TextPrimary, fontSize = DesignTokens.TypeLabel)
+                }
+                Box(Modifier.weight(1f)) {
+                    SwitchRow(tr("独立设置"), if (perBookConfig) tr("仅当前漫画生效") else tr("跟随全局设置"),
+                        perBookConfig, onPerBookConfigChange)
+                }
+            }
+        } else {
+        // 配置区（固定在底部；与滚动区分隔的细线增强层级）
+        Column(Modifier.fillMaxWidth().padding(horizontal = DesignTokens.SpaceLg)) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = DesignTokens.SpaceSm)
+                    .height(0.5.dp)
+                    .background(StrokeColor)
+            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .readingGlass(RoundedCornerShape(DesignTokens.RadiusControl))
+                    .clickableNoRipple(onOpenPreset)
+                    .padding(horizontal = DesignTokens.SpaceComfortable, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PanelDecorativeIcon(
+                    Icons.Filled.Tune,
+                    tint = MintPrimary.copy(alpha = 0.9f),
+                    modifier = Modifier.size(DesignTokens.SpaceLg)
+                )
+                Spacer(Modifier.width(DesignTokens.SpaceSm))
+                Text(tr("预设管理"), color = TextPrimary, fontSize = DesignTokens.TypeLabel, modifier = Modifier.weight(1f))
+                PanelDecorativeIcon(
+                    Icons.Filled.ChevronRight,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(DesignTokens.SpaceLg)
+                )
+            }
+            Spacer(Modifier.height(DesignTokens.SpaceXs))
+            SwitchRow(
+                title = tr("本漫画独立设置"),
+                subtitle = if (perBookConfig) tr("仅当前漫画生效") else tr("跟随全局设置"),
+                checked = perBookConfig,
+                onChange = onPerBookConfigChange
+            )
+            Spacer(Modifier.height(DesignTokens.SpaceCompact))
+        }
+        }
+        }
+    }
+}
+
+/* ── Tab 3：翻译（第十五轮：离线 OCR + 离线/兜底机翻 + 逐页缓存） ── */
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun TranslationTab(
+    config: ComicReaderConfig,
+    update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit,
+    onDownloadModels: () -> Unit,
+    onRefresh: (Boolean) -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val modelState by TranslateModelManager.state.collectAsStateWithLifecycle()
+    var modelsReady by remember { mutableStateOf(TranslateModelManager.isReady(context)) }
+    var downloading by remember { mutableFloatStateOf(-1f) }   // -1=空闲，0..1=进度
+    var downloadError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(modelState) {
+        when (val state = modelState) {
+            TranslateModelManager.DownloadState.Ready -> { modelsReady = true; downloading = -1f; downloadError = null }
+            is TranslateModelManager.DownloadState.Downloading -> { downloading = state.progress; downloadError = null }
+            is TranslateModelManager.DownloadState.Failed -> { downloading = -1f; downloadError = state.reason }
+            TranslateModelManager.DownloadState.NotDownloaded -> { downloading = -1f; modelsReady = TranslateModelManager.isReady(context) }
+        }
+    }
+    var cacheBytes by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) { cacheBytes = withContext(Dispatchers.IO) { TranslationCache.totalBytes(context) } }
+    val onlineFallback = remember { OnlineFallbackTranslator(context.applicationContext) }
+    DisposableEffect(onlineFallback) { onDispose { onlineFallback.close() } }
+    var onlineTesting by remember { mutableStateOf(false) }
+    var onlineTestResult by remember { mutableStateOf<String?>(null) }
+
+    fun startDownload() {
+        if (downloading >= 0f) return
+        downloading = 0f
+        downloadError = null
+        onDownloadModels()
+    }
+
+    // Automatic downloads belong to the reader, so changing categories never cancels OCR setup.
+
+    val llmTranslator = remember { LlmBubbleTranslator(context) }
+    var llmUrl by remember { mutableStateOf(llmTranslator.loadConfig().apiUrl) }
+    var llmKey by remember { mutableStateOf(llmTranslator.loadConfig().apiKey) }
+    var llmModel by remember { mutableStateOf(llmTranslator.loadConfig().modelName) }
+    var llmGemini by remember { mutableStateOf(llmTranslator.loadConfig().geminiFormat) }
+    var showKey by remember { mutableStateOf(false) }
+    var aiTesting by remember { mutableStateOf(false) }
+    var aiTestResult by remember { mutableStateOf<String?>(null) }
+
+    // 第十八轮：引擎二级导航（null=引擎列表页；非 null=进入对应配置页）
+    var engineSubPage by remember { mutableStateOf<String?>(null) }
+    // 二级页时系统返回=回引擎列表（不关面板；后组合的 BackHandler 优先于 Chrome 关面板）
+    androidx.activity.compose.BackHandler(enabled = engineSubPage != null) { engineSubPage = null }
+
+    fun saveLlm(url: String, key: String, model: String, gemini: Boolean) {
+        llmUrl = url; llmKey = key; llmModel = model; llmGemini = gemini
+        aiTestResult = null
+    }
+    fun useProvider(url: String, model: String) {
+        val sameHost = llmUrl.toHttpUrlOrNull()?.host == url.toHttpUrlOrNull()?.host
+        saveLlm(url, if (sameHost) llmKey else "", model, false)
+    }
+    // Keep keystore writes and page invalidation out of the per-keystroke path.
+    LaunchedEffect(llmUrl, llmKey, llmModel, llmGemini) {
+        kotlinx.coroutines.delay(500)
+        val next = LlmBubbleTranslator.LlmConfig(llmUrl, llmKey, llmModel, llmGemini)
+        if (next != llmTranslator.loadConfig()) {
+            try {
+                withContext(Dispatchers.IO) { llmTranslator.saveConfig(next) }
+                onRefresh(false)
+            } catch (e: Exception) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                aiTestResult = tr("配置未保存：系统安全存储不可用，请重新打开应用后再试")
+            }
+        }
+    }
+    DisposableEffect(Unit) { onDispose {
+        val next = LlmBubbleTranslator.LlmConfig(llmUrl, llmKey, llmModel, llmGemini)
+        runCatching {
+            if (next != llmTranslator.loadConfig()) {
+                llmTranslator.saveConfig(next)
+                onRefresh(false)
+            }
+        }
+    } }
+
+    if (engineSubPage == "ai") {
+        /* ── 二级页：自定义 AI 配置 ── */
+        PanelSectionCard(tr("自定义 AI 接口"), Icons.Filled.Cloud) {
+            PanelRow(tr("返回引擎列表"), Icons.AutoMirrored.Filled.ArrowBack) { engineSubPage = null }
+            Spacer(Modifier.height(DesignTokens.SpaceCompact))
+            PanelHint(tr("仅发送识别文字；额度由服务商决定"))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceCompact)) {
+                PullOutTextButton(onClick = { useProvider("https://api.siliconflow.cn/v1", "Qwen/Qwen2.5-7B-Instruct") }) { Text(tr("硅基流动"), color = MintPrimary) }
+                PullOutTextButton(onClick = { useProvider("https://api.deepseek.com/v1", "deepseek-chat") }) { Text("DeepSeek", color = MintPrimary) }
+                PullOutTextButton(onClick = { useProvider("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus") }) { Text(tr("阿里百炼"), color = MintPrimary) }
+            }
+            PanelTextField(tr("API 地址（支持完整 chat/completions 地址）"), llmUrl) {
+                saveLlm(it, llmKey, llmModel, llmGemini)
+            }
+            PanelTextField("API Key", llmKey, obscured = !showKey) {
+                saveLlm(llmUrl, it, llmModel, llmGemini)
+            }
+            PullOutTextButton(onClick = { showKey = !showKey }) { Text(if (showKey) tr("隐藏密钥") else tr("显示密钥"), color = TextSecondary) }
+            PanelTextField(tr("模型名（如 deepseek-chat）"), llmModel) {
+                saveLlm(llmUrl, llmKey, it, llmGemini)
+            }
+            SwitchRow(
+                title = tr("Gemini 接口格式"),
+                subtitle = if (llmGemini) tr("Gemini 接口") else tr("OpenAI 兼容接口"),
+                checked = llmGemini,
+            ) { v -> saveLlm(llmUrl, llmKey, llmModel, v) }
+            PullOutTextButton(enabled = !aiTesting && LlmBubbleTranslator.LlmConfig(llmUrl, llmKey, llmModel, llmGemini).isValid(), onClick = {
+                aiTesting = true
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) { llmTranslator.saveConfig(LlmBubbleTranslator.LlmConfig(llmUrl, llmKey, llmModel, llmGemini)) }
+                        val result = llmTranslator.testConnection()
+                        aiTestResult = result ?: llmTranslator.lastFailure?.description ?: "请求超时，请检查网络和接口设置"
+                        onRefresh(false)
+                    } catch (e: Exception) {
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        aiTestResult = tr("配置未保存：系统安全存储不可用，请重新打开应用后再试")
+                    } finally { aiTesting = false }
+                }
+            }) { Text(if (aiTesting) tr("正在检查…") else tr("测试 AI 翻译"), color = MintPrimary) }
+            aiTestResult?.let { PanelHint(it) }
+        }
+    } else if (engineSubPage == "online") {
+        /* ── 二级页：在线翻译设置 ── */
+        PanelSectionCard(tr("免费免 Key 在线机翻"), Icons.Filled.Public) {
+            PanelRow(tr("返回引擎列表"), Icons.AutoMirrored.Filled.ArrowBack) { engineSubPage = null }
+            Spacer(Modifier.height(DesignTokens.SpaceCompact))
+            val langIdx = when (config.translationLang) { "ja" -> 1; "en" -> 2; "ko" -> 3; else -> 0 }
+            SegmentRow(
+                "页面文字",
+                listOf(0 to tr("自动识别"), 1 to tr("日文"), 2 to tr("英文"), 3 to tr("韩文")),
+                langIdx,
+            ) { i ->
+                val lang = when (i) { 1 -> "ja"; 2 -> "en"; 3 -> "ko"; else -> "auto" }
+                update { it.copy(translationLang = lang) }
+            }
+            Spacer(Modifier.height(DesignTokens.SpaceSm))
+            Text(tr("手机 OCR · 腾讯机翻 · 免 Key"), color = TextSecondary, fontSize = DesignTokens.TypeCaption, lineHeight = DesignTokens.TypeCaptionLineHeight)
+            PullOutTextButton(enabled = !onlineTesting, onClick = {
+                onlineTesting = true
+                onlineTestResult = null
+                scope.launch {
+                    try {
+                        val start = android.os.SystemClock.elapsedRealtime()
+                        onlineFallback.close() // Connectivity tests must reach the service, not the sentence cache.
+                        val result = onlineFallback.translate("Hello, how are you?", "en")
+                        onlineTestResult = if (result.isNullOrBlank()) onlineFallback.lastFailure?.description ?: "未获得有效译文，请检查网络"
+                            else "连接成功 · ${android.os.SystemClock.elapsedRealtime() - start} ms · $result"
+                    } finally { onlineTesting = false }
+                }
+            }) { Text(if (onlineTesting) tr("正在检查…") else tr("测试在线翻译"), color = MintPrimary) }
+            onlineTestResult?.let { Text(it, color = TextSecondary, fontSize = DesignTokens.TypeCaption, lineHeight = DesignTokens.TypeCaptionLineHeight) }
+        }
+    } else {
+        /* ── 一级页：引擎选择卡片 ── */
+        PanelSectionCard(tr("翻译引擎（点击选择）"), Icons.Filled.Bolt) {
+            val aiConfigured = llmUrl.isNotBlank() && llmModel.isNotBlank()
+            EngineCard(
+                title = tr("自定义 AI 接口"),
+                desc = tr("上下文翻译"),
+                state = when {
+                    config.translationEngine == "ai" && aiConfigured -> tr("当前使用 · 已配置")
+                    aiConfigured -> tr("已配置 · 点击选用并配置")
+                    else -> tr("未配置 · 点击选用并配置")
+                },
+                selected = config.translationEngine == "ai",
+            ) {
+                update { it.copy(translationEngine = "ai") }
+                engineSubPage = "ai"
+            }
+            Spacer(Modifier.height(DesignTokens.SpaceSm))
+            EngineCard(
+                title = tr("免费免 Key 在线机翻"),
+                desc = tr("免费免配置"),
+                state = if (config.translationEngine == "online") tr("当前使用") else tr("点击选用"),
+                selected = config.translationEngine == "online",
+            ) {
+                update { it.copy(translationEngine = "online") }
+                engineSubPage = "online"
+            }
+        }
+
+        PanelSectionCard(tr("功能"), Icons.Filled.Translate) {
+            SwitchRow(
+                title = tr("整页自动翻译"),
+                checked = config.translationEnabled,
+            ) { v -> update { it.copy(translationEnabled = v) } }
+            val langIdx = when (config.translationLang) { "ja" -> 1; "en" -> 2; "ko" -> 3; else -> 0 }
+            SegmentRow(
+                "页面文字",
+                listOf(0 to tr("自动识别"), 1 to tr("日文"), 2 to tr("英文"), 3 to tr("韩文")),
+                langIdx,
+            ) { i ->
+                val lang = when (i) { 1 -> "ja"; 2 -> "en"; 3 -> "ko"; else -> "auto" }
+                update { it.copy(translationLang = lang) }
+            }
+        }
+    }
+
+    PanelSectionCard(tr("离线模型"), Icons.Filled.CloudDownload) {
+        if (modelsReady) {
+            PanelHint(tr("OCR 与气泡识别模型已就绪 · 约 34 MB"))
+        } else if (downloading >= 0f) {
+            Column(Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceSm)) {
+                Text("正在下载模型 ${(downloading * 100).toInt()}%", color = TextPrimary, fontSize = DesignTokens.TypeLabel)
+                Spacer(Modifier.height(DesignTokens.SpaceCompact))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(CircleShape)
+                        .background(ReadingPalette.GlassStroke)
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(downloading.coerceIn(0.01f, 1f))
+                            .fillMaxHeight()
+                            .clip(CircleShape)
+                            .background(MintPrimary)
+                    )
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceXs)) {
+                Text(
+                    "需要下载 OCR 与气泡识别模型（约 34 MB，仅一次）",
+                    color = TextSecondary, fontSize = DesignTokens.TypeCaption
+                )
+                Spacer(Modifier.height(DesignTokens.SpaceSm))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .readingGlass(RoundedCornerShape(DesignTokens.RadiusControl))
+                        .clickableNoRipple { startDownload() }
+                        .padding(horizontal = DesignTokens.SpaceComfortable, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PanelDecorativeIcon(Icons.Filled.Download, tint = MintPrimary, modifier = Modifier.size(DesignTokens.SpaceLg))
+                    Spacer(Modifier.width(DesignTokens.SpaceSm))
+                    Text(
+                        if (downloadError == null) tr("下载模型") else tr("重试下载"),
+                        color = TextPrimary, fontSize = DesignTokens.TypeLabel, modifier = Modifier.weight(1f)
+                    )
+                }
+                downloadError?.let {
+                    Spacer(Modifier.height(DesignTokens.SpaceCompact))
+                    Text("下载失败：$it（可切换网络后重试）", color = ReadingPalette.ErrorMuted, fontSize = DesignTokens.TypeCaptionSmall)
+                }
+            }
+        }
+    }
+
+    PanelSectionCard(tr("译文显示"), Icons.Filled.FormatSize) {
+        SliderRow(
+            title = tr("译文字号"),
+            value = config.translationTextScale * 100f,
+            range = 80f..140f,
+            format = { "${it.toInt()}%" },
+            onChange = { v -> update { it.copy(translationTextScale = (v / 100f).coerceIn(0.8f, 1.4f)) } },
+        )
+    }
+
+    PanelSectionCard(tr("译文缓存"), Icons.Filled.CleaningServices) {
+        PanelHint(tr("已缓存译文 %.1f MB / 64 MB").format(cacheBytes / (1024f * 1024f)))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .readingGlass(RoundedCornerShape(DesignTokens.RadiusControl))
+                .clickableNoRipple {
+                    scope.launch {
+                        onRefresh(true)
+                        cacheBytes = 0
+                    }
+                }
+                .padding(horizontal = DesignTokens.SpaceComfortable, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PanelDecorativeIcon(Icons.Filled.Delete, tint = ReadingPalette.ErrorMuted, modifier = Modifier.size(DesignTokens.SpaceLg))
+            Spacer(Modifier.width(DesignTokens.SpaceSm))
+            Text(tr("清空全部已翻译页面"), color = TextPrimary, fontSize = DesignTokens.TypeLabel)
+        }
+    }
+}
+
+/* ── Tab 0：翻页（模式/方向/动画） ── */
+
+@Composable
+private fun ModeTab(config: ComicReaderConfig, update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit) {
+    PanelSectionCard(tr("阅读模式"), Icons.Filled.AutoStories) {
+        ModeGrid(config.mode) { m -> update { c -> c.copy(mode = m) } }
+        PanelHint(when (config.mode) {
+            ComicMode.SINGLE -> tr("每次显示一页；宽度适配可平移查看长页。")
+            ComicMode.DOUBLE -> tr("横向配对显示；跨页扫描图保持独占，封面可单独显示。")
+            ComicMode.WEBTOON -> tr("纵向阅读长图，可保留页间距并选择磁吸。")
+            ComicMode.CONTINUOUS -> tr("纵向无缝拼接，保持自由滚动。")
+            ComicMode.MAGNETIC -> tr("拖动跟手，松手按距离与速度吸附到相邻页。")
+        })
+    }
+    PanelSectionCard(tr("阅读方向"), Icons.Filled.SwapHoriz) {
+        DirectionGrid(config.direction) { d -> update { c -> c.copy(direction = d) } }
+    }
+    PanelSectionCard(tr("翻页动画"), Icons.Filled.Animation) {
+        SegmentRow(
+            "动画",
+            listOf(
+                ComicPageAnim.NONE.ordinal to "无",
+                ComicPageAnim.SLIDE.ordinal to "平移",
+                ComicPageAnim.FADE.ordinal to "渐变",
+                ComicPageAnim.CURL.ordinal to "仿真",
+            ),
+            config.pageAnim.ordinal
+        ) { i -> update { it.copy(pageAnim = ComicPageAnim.entries[i]) } }
+        if (!curlEngineActive(config.pageAnim, config.direction, config.mode) && config.pageAnim == ComicPageAnim.CURL)
+            PanelHint(tr("仿真翻页需横向分页"))
+        if (config.mode == ComicMode.WEBTOON || config.mode == ComicMode.CONTINUOUS)
+            PanelHint(tr("翻页动画仅用于分页"))
+    }
+    // 第 6/7 条：条漫模式磁吸到页边界（可关闭）；无缝滚动恒无磁吸且强制 0 间距
+    if (config.mode == ComicMode.WEBTOON || config.mode == ComicMode.CONTINUOUS) {
+        PanelSectionCard(tr("垂直滚动"), Icons.Filled.SwipeVertical) {
+            if (config.mode == ComicMode.WEBTOON) {
+                SwitchRow(tr("磁吸到页边界"), null, config.webtoonSnap) { v ->
+                    update { it.copy(webtoonSnap = v) }
+                }
+            } else {
+                PanelHint(tr("无缝滚动 · 零间距"))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ModeGrid(selected: ComicMode, onSelect: (ComicMode) -> Unit) {
+    // FlowRow：3 个一行网格；大字体下放不下的项自动换行，文字永不被压缩截断
+    FlowRow(
+        Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceXs).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceCompact),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.SpaceCompact),
+        maxItemsInEachRow = 3
+    ) {
+        ComicMode.entries.forEach { m ->
+            val active = m == selected
+            val tint by animateColorAsState(if (active) panelSelectedBg() else Color.Transparent, label = "modeTint")
+            Box(
+                Modifier
+                    .weight(1f)
+                    .readingGlass(RoundedCornerShape(DesignTokens.RadiusSm))
+                    .background(tint)
+                    .border(
+                        0.5.dp,
+                        if (active) MintPrimary.copy(alpha = 0.6f) else Color.Transparent,
+                        RoundedCornerShape(DesignTokens.RadiusSm)
+                    )
+                    .selectable(active, role = Role.RadioButton) { onSelect(m) }
+                    .heightIn(min = 48.dp).padding(vertical = DesignTokens.SpaceTight, horizontal = DesignTokens.SpaceXs),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    m.label,
+                    color = if (active) MintPrimary else ReadingPalette.OnGlassMuted,
+                    fontSize = DesignTokens.TypeCaption, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    // 极端 fontScale 下放不下时换行而非截断（weight 定宽 + 换行 = 任何缩放零截断）
+                    maxLines = 2, softWrap = true,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DirectionGrid(selected: ComicDirection, onSelect: (ComicDirection) -> Unit) {
+    FlowRow(
+        Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceXs).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceCompact),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.SpaceCompact),
+        maxItemsInEachRow = 3
+    ) {
+        ComicDirection.entries.forEach { d ->
+            val active = d == selected
+            val tint by animateColorAsState(if (active) panelSelectedBg() else Color.Transparent, label = "directionTint")
+            Box(
+                Modifier
+                    .weight(1f)
+                    .readingGlass(RoundedCornerShape(DesignTokens.RadiusSm))
+                    .background(tint)
+                    .selectable(active, role = Role.RadioButton) { onSelect(d) }
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = DesignTokens.SpaceTight, horizontal = DesignTokens.SpaceXs),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    d.label,
+                    color = if (active) MintPrimary else ReadingPalette.OnGlassMuted,
+                    fontSize = DesignTokens.TypeCaption, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 2, softWrap = true,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+/* ── Tab 1：显示（缩放/间距） ── */
+
+/** 缩放档位展示序列（第 10 条五种数学定义 + 第 26 条自定义档） */
+private val FitOptions = listOf(
+    ComicFit.FIT_PAGE to "整页",
+    ComicFit.FIT_WIDTH to "适应宽度",
+    ComicFit.FIT_HEIGHT to "高度",
+    ComicFit.ORIGINAL to "原始",
+    ComicFit.FILL to "铺满",
+    ComicFit.STRETCH to "拉伸",
+    ComicFit.CUSTOM to "自定义",
+)
+
+private fun fitLabel(fit: ComicFit): String = FitOptions.firstOrNull { it.first == fit }?.second
+    ?: if (fit == ComicFit.FIT_WIDTH) tr("适应宽度") else fit.label
+
+@Composable
+private fun PageTab(
+    config: ComicReaderConfig,
+    update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit,
+    store: ComicSettingsStore? = null,
+) {
+    PanelSectionCard(tr("缩放方式"), Icons.Filled.AspectRatio) {
+        SegmentRow(
+            "适配",
+            FitOptions.mapIndexed { i, (_, label) -> i to label },
+            FitOptions.indexOfFirst { it.first == config.fit }.coerceAtLeast(0),
+        ) { i -> update { it.copy(fit = FitOptions[i].first) } }
+        PanelHint(when (config.fit) {
+            ComicFit.FIT_PAGE -> tr("完整显示页面，保留比例与留白。")
+            ComicFit.FIT_WIDTH -> tr("填满宽度，超出高度的内容可拖动查看。")
+            ComicFit.FIT_HEIGHT -> tr("填满高度，超出宽度的内容可左右拖动查看。")
+            ComicFit.ORIGINAL -> tr("按图像像素显示，大图可平移查看。")
+            ComicFit.FILL -> tr("保持比例铺满，多余部分居中裁切。")
+            ComicFit.STRETCH -> tr("铺满显示区域，图像比例会改变。")
+            ComicFit.CUSTOM -> tr("在基础适配上叠加缩放系数，可保存常用档位。")
+        })
+        if (config.mode == ComicMode.WEBTOON || config.mode == ComicMode.CONTINUOUS)
+            PanelHint(tr("滚动模式固定适应宽度"))
+    }
+
+    if (config.fit == ComicFit.CUSTOM) {
+        PanelSectionCard(tr("自定义缩放"), Icons.Filled.Tune) {
+            SegmentRow(
+                "基础适配",
+                FitOptions.filter { it.first != ComicFit.CUSTOM }.mapIndexed { i, (_, label) -> i to label },
+                FitOptions.filter { it.first != ComicFit.CUSTOM }.indexOfFirst { it.first == config.customFitBase }.coerceAtLeast(0),
+            ) { i ->
+                update { it.copy(customFitBase = FitOptions.filter { option -> option.first != ComicFit.CUSTOM }[i].first) }
+            }
+            SliderRow(
+                "缩放系数", config.customFitScale, 0.5f..2.5f,
+                format = { "${(it * 100).toInt()}%" },
+                onChange = { v -> update { it.copy(customFitScale = v) } }
+            )
+            if (store != null) {
+                var presets by remember { mutableStateOf(store.loadCustomFitPresets()) }
+                var nameDialog by remember { mutableStateOf(false) }
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceXs),
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceSm),
+                ) {
+                    ActionChip(tr("保存当前组合"), Modifier.weight(1f)) { nameDialog = true }
+                }
+                presets.forEach { p ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "${p.name}（${fitLabel(p.base)} × ${p.scalePct}%）",
+                            color = TextPrimary, fontSize = DesignTokens.TypeCaption,
+                            modifier = Modifier
+                                .weight(1f)
+                                .readingGlass(RoundedCornerShape(DesignTokens.RadiusXs))
+                                .clickableNoRipple {
+                                    update {
+                                        it.copy(
+                                            fit = ComicFit.CUSTOM,
+                                            customFitBase = p.base,
+                                            customFitScale = p.scalePct / 100f,
+                                        )
+                                    }
+                                }
+                                .heightIn(min = 48.dp).padding(horizontal = DesignTokens.SpaceTight, vertical = DesignTokens.SpaceMd),
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
+                        PullOutTextButton(onClick = {
+                            store.deleteCustomFitPreset(p.id)
+                            presets = store.loadCustomFitPresets()
+                        }) { Text(tr("删除"), color = TextSecondary, fontSize = DesignTokens.TypeCaptionSmall) }
+                    }
+                }
+                if (nameDialog) {
+                    PresetNameDialog(
+                        title = tr("保存自定义缩放"),
+                        initial = "",
+                        onConfirm = { name ->
+                            store.saveCustomFitPreset(name, config.customFitBase, (config.customFitScale * 100).toInt())
+                            presets = store.loadCustomFitPresets()
+                            nameDialog = false
+                        },
+                        onDismiss = { nameDialog = false },
+                    )
+                }
+            }
+        }
+    }
+
+    PanelSectionCard(tr("间距"), Icons.Filled.Height) {
+        if (config.mode == ComicMode.CONTINUOUS) PanelHint(tr("无缝模式无间距"))
+        SliderRow(
+            "页面间距", config.pageSpacingDp, 0f..40f,
+            format = { "${it.toInt()} dp" },
+            onChange = { v -> update { it.copy(pageSpacingDp = v) } }
+        )
+        SliderRow(
+            "双页间距", config.doubleGapDp, 0f..40f,
+            format = { "${it.toInt()} dp" },
+            onChange = { v -> update { it.copy(doubleGapDp = v) } }
+        )
+    }
+
+    PanelSectionCard(tr("双页排列"), Icons.Filled.Bookmark) {
+        if (config.mode != ComicMode.DOUBLE) PanelHint(tr("双页模式生效"))
+        SwitchRow(tr("首页单独显示"), null, config.doubleFirstAlone) { v ->
+            update { it.copy(doubleFirstAlone = v) }
+        }
+        SegmentRow(
+            "对齐",
+            listOf(
+                ComicDoubleAlign.TOP.ordinal to "顶部",
+                ComicDoubleAlign.CENTER.ordinal to "居中",
+                ComicDoubleAlign.BOTTOM.ordinal to "底部",
+            ),
+            config.doubleAlign.ordinal
+        ) { i -> update { it.copy(doubleAlign = ComicDoubleAlign.entries[i]) } }
+        SliderRow(
+            "位置修正 X", config.doubleShiftXDp, -40f..40f,
+            format = { "${it.toInt()} dp" },
+            onChange = { v -> update { it.copy(doubleShiftXDp = v) } }
+        )
+        SliderRow(
+            "位置修正 Y", config.doubleShiftYDp, -40f..40f,
+            format = { "${it.toInt()} dp" },
+            onChange = { v -> update { it.copy(doubleShiftYDp = v) } }
+        )
+        PullOutTextButton(onClick = { update { it.copy(doubleGapDp = 8f, doubleAlign = ComicDoubleAlign.CENTER,
+            doubleShiftXDp = 0f, doubleShiftYDp = 0f, doubleFirstAlone = false) } }) {
+            Text(tr("恢复双页排版默认值"), color = TextSecondary)
+        }
+    }
+
+    PanelSectionCard(tr("缩放"), Icons.Filled.ZoomIn) {
+        SwitchRow(tr("双击放大"), null, config.doubleTapZoom) { v ->
+            update { it.copy(doubleTapZoom = v) }
+        }
+        SwitchRow(tr("长按放大"), null, config.longPressZoom) { v ->
+            update { it.copy(longPressZoom = v) }
+        }
+        SwitchRow(tr("放大状态翻页"), null, config.zoomWhileTurn) { v ->
+            update { it.copy(zoomWhileTurn = v) }
+        }
+    }
+}
+
+/* ── Tab 2：图像（裁边/拆分/旋转/增强/滤镜） ── */
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ImageTab(
+    config: ComicReaderConfig,
+    update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit,
+    onOpenCrop: () -> Unit,
+    pages: List<ComicPageRef>,
+    loader: ComicPageLoader,
+    currentRawPage: Int,
+    bookState: ComicBookState,
+    onBookStateChange: (ComicBookState) -> Unit,
+) {
+    PanelSectionCard(tr("图片预加载"), Icons.Filled.Image) {
+        SegmentRow(
+            tr("预加载模式"),
+            listOf(0 to tr("自动"), 1 to tr("自定义")),
+            if (config.imagePreloadCount < 0) 0 else 1,
+        ) { mode -> update { it.copy(imagePreloadCount = if (mode == 0) -1 else 4) } }
+        if (config.imagePreloadCount >= 0) {
+            SliderRow(
+                tr("提前加载图片数"),
+                config.imagePreloadCount.toFloat(),
+                0f..12f,
+                steps = 11,
+                format = { if (it < .5f) tr("关闭") else "${kotlin.math.round(it).toInt()} ${tr("张")}" },
+            ) { count -> update { it.copy(imagePreloadCount = kotlin.math.round(count).toInt()) } }
+        }
+        Text(
+            "翻页和滚动共用。关闭后只加载当前图片，预加载仍受设备内存限制。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    PanelSectionCard(tr("裁边"), Icons.Filled.Crop) {
+        SegmentRow(
+            "自动裁边",
+            listOf(
+                ComicCropMode.OFF.ordinal to "关闭",
+                ComicCropMode.WHITE.ordinal to "白边",
+                ComicCropMode.BLACK.ordinal to "黑边",
+                ComicCropMode.AUTO.ordinal to "自动",
+            ),
+            config.cropMode.ordinal
+        ) { i -> update { it.copy(cropMode = ComicCropMode.entries[i]) } }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = DesignTokens.SpaceCompact)
+                .readingGlass(RoundedCornerShape(DesignTokens.RadiusSm))
+                .clickableNoRipple(onOpenCrop)
+                .padding(horizontal = DesignTokens.SpaceComfortable, vertical = DesignTokens.SpaceTight),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (config.manualCrop != null) tr("手动裁边 · 已设置") else tr("手动裁边"),
+                color = TextPrimary, fontSize = DesignTokens.TypeLabel,
+                modifier = Modifier.weight(1f)
+            )
+            PanelDecorativeIcon(
+                Icons.Filled.ChevronRight,
+                tint = TextSecondary,
+                modifier = Modifier.size(DesignTokens.SpaceLg)
+            )
+        }
+        if (config.manualCrop != null) {
+            PullOutTextButton(onClick = { update { it.copy(manualCrop = null) } }) {
+                Text(tr("清除手动裁边"), color = TextSecondary)
+            }
+        }
+    }
+
+    PanelSectionCard(tr("大图拆分"), Icons.Filled.VerticalSplit) {
+        PanelHint(if (config.splitWide) tr("自动识别跨页")
+            else tr("拆分后生效"))
+        SwitchRow(tr("宽页自动拆分"), null, config.splitWide) { v ->
+            update { it.copy(splitWide = v) }
+        }
+        SwitchRow(tr("拆分左右反转"), null, config.splitReverse) { v ->
+            update { it.copy(splitReverse = v) }
+        }
+        SliderRow(
+            "拆分位置", config.splitPosition, 0.3f..0.7f,
+            format = { "%.0f%%".format(it * 100) },
+            onChange = { v -> update { it.copy(splitPosition = v) } }
+        )
+        PullOutTextButton(onClick = { update { it.copy(splitPosition = 0.5f, splitReverse = false) } }) {
+            Text(tr("重置"), color = TextSecondary)
+        }
+    }
+
+    PanelSectionCard(tr("旋转"), Icons.Filled.RotateRight) {
+        SegmentRow(
+            "整本旋转",
+            listOf(0 to "0°", 90 to "90°", 180 to "180°", 270 to "270°"),
+            ((config.bookRotation % 360) + 360) % 360
+        ) { deg -> update { it.copy(bookRotation = deg) } }
+        val pageRef = pages.getOrNull(currentRawPage)
+        pageRef?.let { ref ->
+            if ((bookState.pageRotations[ref.id] ?: 0) != 0) {
+                PullOutTextButton(onClick = { onBookStateChange(bookState.copy(pageRotations = bookState.pageRotations - ref.id)) }) {
+                    Text(tr("还原本页旋转"), color = TextSecondary)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceXs), horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceSm)) {
+            ActionChip(tr("旋转本页 +90°"), Modifier.weight(1f)) {
+                if (pageRef != null) {
+                    val cur = bookState.pageRotations[pageRef.id] ?: 0
+                    onBookStateChange(
+                        bookState.copy(pageRotations = bookState.pageRotations + (pageRef.id to (cur + 90) % 360))
+                    )
+                }
+            }
+            ActionChip(
+                if (currentRawPage in bookState.mergeAnchors) tr("取消临时合页") else tr("与下一页临时合页"),
+                Modifier.weight(1f), enabled = currentRawPage in bookState.mergeAnchors || currentRawPage < pages.lastIndex
+            ) {
+                onBookStateChange(bookState.toggleMerge(currentRawPage, pages.size))
+            }
+        }
+    }
+
+    PanelSectionCard(tr("画质增强"), Icons.Filled.AutoAwesome) {
+        SegmentRow(
+            "增强引擎",
+            ComicEnhanceMode.visibleModes.map { it.ordinal to it.label },
+            config.enhanceMode.ordinal
+        ) { i -> update { it.copy(enhanceMode = ComicEnhanceMode.entries[i]) } }
+        val enh = ComicEnhanceMode.entries[config.enhanceMode.ordinal]
+        if (enh != ComicEnhanceMode.OFF) {
+            if (enh.isJaNai) {
+                val state by (if (enh == ComicEnhanceMode.MANGAJANAI_FULL) MangaJaNaiFull.status else MangaJaNai.status).collectAsState()
+                Text(state.ifBlank { enh.desc }, color = TextSecondary, fontSize = DesignTokens.TypeCaptionSmall)
+            }
+            SliderRow(
+                "增强强度", config.enhanceStrength.toFloat(), 0f..100f, steps = 99,
+                format = { "${it.toInt()}" },
+                onChange = { v -> update { it.copy(enhanceStrength = v.toInt()) } }
+            )
+        }
+    }
+
+    PanelSectionCard(tr("滤镜"), Icons.Filled.Tune) {
+        FilterPreview(pages.getOrNull(currentRawPage), loader, config, bookState.pageRotations[pages.getOrNull(currentRawPage)?.id] ?: 0)
+        SliderRow(tr("亮度"), config.filterBrightness.toFloat(), -100f..100f, format = { "${it.toInt()}" }) { v ->
+            update { it.copy(filterBrightness = v.toInt()) }
+        }
+        SliderRow(tr("对比度"), config.filterContrast.toFloat(), -100f..100f, format = { "${it.toInt()}" }) { v ->
+            update { it.copy(filterContrast = v.toInt()) }
+        }
+        SliderRow(tr("饱和度"), config.filterSaturation.toFloat(), -100f..100f, format = { "${it.toInt()}" }) { v ->
+            update { it.copy(filterSaturation = v.toInt()) }
+        }
+        SliderRow(tr("色调"), config.filterHue.toFloat(), -180f..180f, format = { "${it.toInt()}°" }) { v ->
+            update { it.copy(filterHue = v.toInt()) }
+        }
+        SliderRow("Gamma", config.filterGamma, 0.5f..2.2f, format = { "%.2f".format(it) }) { v ->
+            update { it.copy(filterGamma = v) }
+        }
+        SliderRow(tr("锐化"), config.filterSharpen.toFloat(), 0f..100f, format = { "${it.toInt()}" }) { v ->
+            update { it.copy(filterSharpen = v.toInt()) }
+        }
+        SliderRow(tr("阴影"), config.filterShadow.toFloat(), -100f..100f, format = { "${it.toInt()}" }) { v ->
+            update { it.copy(filterShadow = v.toInt()) }
+        }
+        SwitchRow(tr("黑白模式"), null, config.filterBW) { v -> update { it.copy(filterBW = v) } }
+        PullOutTextButton(onClick = {
+            update {
+                it.copy(
+                    filterBrightness = 0, filterContrast = 0, filterSaturation = 0,
+                    filterHue = 0, filterGamma = 1.0f, filterSharpen = 0, filterShadow = 0, filterBW = false
+                )
+            }
+        }) { Text(tr("重置全部滤镜"), color = TextSecondary) }
+    }
+}
+
+@Composable
+private fun ActionChip(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    Box(
+        modifier
+            .readingGlass(RoundedCornerShape(DesignTokens.RadiusSm))
+            .then(if (enabled) Modifier.clickableNoRipple(onClick) else Modifier.semantics { disabled() })
+            .heightIn(min = 48.dp).padding(vertical = DesignTokens.SpaceTight, horizontal = DesignTokens.SpaceMd),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = if (enabled) TextPrimary else TextSecondary, fontSize = DesignTokens.TypeCaption, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+/** Compare a shared native detail crop or the whole page; changing modes clears stale previews. */
+@Composable
+internal fun FilterPreview(page: ComicPageRef?, loader: ComicPageLoader, config: ComicReaderConfig, pageRotation: Int) {
+    if (com.example.ui.components.LocalRenderQuality.current.minimal) return
+    if (page == null) return
+    var detail by remember(page.id) { mutableStateOf(true) }
+    var retry by remember(page.id) { mutableIntStateOf(0) }
+    val geometry = ComicImagePipeline.Geometry(cropMode = config.cropMode, manualCrop = config.manualCrop,
+        rotationDeg = config.bookRotation + pageRotation)
+    val previewKey = "${page.id}|${config.imagePipelineFingerprint()}|$pageRotation|$detail|$retry"
+    SegmentRow(tr("对比范围"), listOf(0 to tr("整页"), 1 to tr("原始细节")), if (detail) 1 else 0) { detail = it == 1 }
+    val original by key(page.id, geometry, detail, retry) {
+        com.example.ui.components.rememberAsyncState<PageBitmapState>(PageBitmapState.Loading) {
+            try {
+                val bitmap = loader.loadPreview(page, geometry, ComicImagePipeline.Toning(), detail)
+                    ?: throw java.io.IOException(tr("预览解码失败"))
+                value = PageBitmapState.Ready(bitmap)
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                value = PageBitmapState.Failed(error)
+            }
+        }
+    }
+    val bitmap by key(previewKey) { com.example.ui.components.rememberAsyncState<PageBitmapState>(PageBitmapState.Loading) {
+        kotlinx.coroutines.delay(80)
+        try {
+                val result = loader.loadPreview(
+                    page,
+                    geometry,
+                    ComicImagePipeline.Toning(
+                        brightness = config.filterBrightness, contrast = config.filterContrast,
+                        saturation = config.filterSaturation, hue = config.filterHue,
+                        gamma = config.filterGamma, sharpen = config.filterSharpen,
+                        shadow = config.filterShadow, bw = config.filterBW,
+                        enhanceMode = config.enhanceMode, enhanceStrength = config.enhanceStrength,
+                    ), detail,
+                ) ?: throw java.io.IOException(tr("预览解码失败"))
+                value = PageBitmapState.Ready(result)
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            value = PageBitmapState.Failed(error)
+        }
+    } }
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = DesignTokens.SpaceCompact),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceTight)
+    ) {
+        listOf("原图" to original, "当前效果" to bitmap).forEach { (label, preview) ->
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .fillMaxWidth().height(144.dp)
+                .clip(RoundedCornerShape(DesignTokens.RadiusXs))
+                .background(ReadingPalette.InputStroke),
+            contentAlignment = Alignment.Center
+        ) {
+            when (preview) {
+                is PageBitmapState.Ready -> Image(preview.bitmap.asImageBitmap(), label,
+                    Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                is PageBitmapState.Failed -> PullOutTextButton(onClick = { retry++ }) {
+                    Text(tr("预览失败 · 重试"), color = TextSecondary)
+                }
+                PageBitmapState.Loading -> com.example.ui.components.ChasingDots(size = DesignTokens.SpaceLoose, color = MintPrimary)
+            }
+        }
+        Text(label, color = TextSecondary, fontSize = DesignTokens.TypeCaptionSmall, modifier = Modifier.padding(top = DesignTokens.SpaceXs))
+        }
+        }
+    }
+}
+
+/* ── Tab 3：主题（背景/场景/沉浸式） ── */
+
+/** 背景类型的可视化色卡（选中 = 品牌描边环；内容直观看，无需解释文字） */
+@Composable
+private fun BgSwatchRow(selected: ComicBgType, onSelect: (ComicBgType) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp).selectableGroup(),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        val swatches = listOf(
+            Triple(ComicBgType.BLACK, "纯黑", Color(0xFF0A0A0C)),
+            Triple(ComicBgType.WHITE, "纯白", Color(0xFFFAFAF7)),
+            Triple(ComicBgType.GRAY, "深灰", Color(0xFF2A2A2E)),
+            Triple(ComicBgType.PAPER, "纸张", Color(0xFFE9E2D0)),
+            Triple(ComicBgType.DYNAMIC, "沉浸", Color(0xFF35323A)),
+        )
+        swatches.forEach { (type, label, fill) ->
+            val active = type == selected
+            val ring by animateColorAsState(if (active) MintPrimary else Color(0x40FFFFFF), label = "backgroundRing")
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(DesignTokens.RadiusSm))
+                    .selectable(active, role = Role.RadioButton) { onSelect(type) }
+                    .heightIn(min = 64.dp).padding(vertical = DesignTokens.SpaceCompact),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(fill)
+                        .border(
+                            width = if (active) 2.dp else 0.5.dp,
+                            color = ring,
+                            shape = CircleShape
+                        )
+                        ,
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (active) {
+                        PanelDecorativeIcon(
+                            Icons.Filled.Check,
+                            tint = if (type == ComicBgType.BLACK || type == ComicBgType.GRAY || type == ComicBgType.DYNAMIC) {
+                                MintPrimary
+                            } else Color(0xFF44403A),
+                            modifier = Modifier.size(DesignTokens.SpaceLg)
+                        )
+                    } else if (type == ComicBgType.DYNAMIC) {
+                        // 沉浸式：小渐变示意（背景取自当前页主色调）
+                        PanelDecorativeIcon(
+                            Icons.Filled.AutoAwesome,
+                            tint = ReadingPalette.OnGlassStrong,
+                            modifier = Modifier.size(DesignTokens.SpaceComfortable)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(DesignTokens.SpaceXs))
+                Text(
+                    label,
+                    color = if (active) MintPrimary else TextSecondary,
+                    fontSize = DesignTokens.TypeCaptionSmall,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+        }
+    }
+}
+
+/** 场景图标卡（4 列 FlowRow；选中 = 品牌半透明填充 + 细边框） */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SceneOptionFlow(selected: ComicScene, onSelect: (ComicScene) -> Unit) {
+    val scenes = listOf(
+        Triple(ComicScene.NONE, "关闭", Icons.Filled.Block),
+        Triple(ComicScene.RAIN, "雨夜", Icons.Filled.WaterDrop),
+        Triple(ComicScene.SNOW, "落雪", Icons.Filled.AcUnit),
+        Triple(ComicScene.SAKURA, "樱花", Icons.Filled.LocalFlorist),
+        Triple(ComicScene.FIREFLY, "萤火", Icons.Filled.AutoAwesome),
+        Triple(ComicScene.OCEAN, "海边", Icons.Filled.Waves),
+        Triple(ComicScene.CAMPFIRE, "篝火", Icons.Filled.LocalFireDepartment),
+        Triple(ComicScene.NIGHT, "夏夜", Icons.Filled.NightsStay),
+    )
+    FlowRow(
+        Modifier.fillMaxWidth().selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceCompact),
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.SpaceCompact),
+        maxItemsInEachRow = 4
+    ) {
+        scenes.forEach { (s, label, icon) ->
+            val active = s == selected
+            val tint by animateColorAsState(if (active) panelSelectedBg() else Color.Transparent, label = "sceneTint")
+            Column(
+                Modifier
+                    .weight(1f)
+                    .readingGlass(RoundedCornerShape(DesignTokens.RadiusSm))
+                    .background(tint)
+                    .border(
+                        0.5.dp,
+                        if (active) panelSelectedStroke() else Color.Transparent,
+                        RoundedCornerShape(DesignTokens.RadiusSm)
+                    )
+                    .selectable(active, role = Role.RadioButton) { onSelect(s) }
+                    .heightIn(min = 64.dp)
+                    .padding(vertical = 9.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                PanelDecorativeIcon(
+                    icon,
+                    tint = if (active) MintPrimary else Color(0x99FFFFFF),
+                    modifier = Modifier.size(17.dp)
+                )
+                Spacer(Modifier.height(DesignTokens.SpaceXs))
+                Text(
+                    label,
+                    color = if (active) MintPrimary else ReadingPalette.OnGlassMuted,
+                    fontSize = DesignTokens.TypeCaptionSmall,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 2,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+/** 引擎选择卡片（第十八轮二级导航一级列表）。 */
+@Composable
+internal fun EngineCard(
+    title: String,
+    desc: String,
+    state: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val tint by animateColorAsState(if (selected) MintPrimary.copy(alpha = 0.14f) else Color.Transparent, label = "engineTint")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .readingGlass(RoundedCornerShape(DesignTokens.RadiusControl))
+            .background(tint)
+            .border(
+                1.dp,
+                if (selected) MintPrimary.copy(alpha = 0.6f) else Color.Transparent,
+                RoundedCornerShape(DesignTokens.RadiusControl)
+            )
+            .selectable(selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = DesignTokens.SpaceComfortable, vertical = DesignTokens.SpaceMd),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = TextPrimary, fontSize = DesignTokens.TypeBodySmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(2.dp))
+            Text(desc, color = TextSecondary, fontSize = DesignTokens.TypeCaptionSmall)
+            Spacer(Modifier.height(DesignTokens.SpaceXs))
+            Text(
+                state,
+                color = if (selected) MintPrimary else TextSecondary,
+                fontSize = DesignTokens.TypeCaptionSmall,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            )
+        }
+        if (selected) {
+            PanelDecorativeIcon(
+                Icons.Filled.Check, tint = MintPrimary, modifier = Modifier.size(DesignTokens.SpaceXl)
+            )
+        }
+    }
+}
+
+/** 面板行返回按钮（二级页顶部）。 */
+@Composable
+internal fun PanelRow(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .readingGlass(RoundedCornerShape(DesignTokens.RadiusSm))
+            .clickableNoRipple(onClick)
+            .padding(horizontal = DesignTokens.SpaceMd, vertical = DesignTokens.SpaceTight),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PanelDecorativeIcon(icon, tint = MintPrimary, modifier = Modifier.size(DesignTokens.SpaceLg))
+        Spacer(Modifier.width(DesignTokens.SpaceSm))
+        Text(label, color = TextPrimary, fontSize = DesignTokens.TypeLabel)
+    }
+}
+
+/** 面板内轻量输入框（翻译 Tab AI 接口配置用）。 */
+@Composable
+internal fun PanelTextField(
+    label: String,
+    value: String,
+    obscured: Boolean = false,
+    onValueChange: (String) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = DesignTokens.SpaceXs)
+    ) {
+        Text(label, color = TextSecondary, fontSize = DesignTokens.TypeMicro)
+        Spacer(Modifier.height(2.dp))
+        androidx.compose.material3.OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            visualTransformation = if (obscured) PasswordVisualTransformation() else VisualTransformation.None,
+            textStyle = androidx.compose.ui.text.TextStyle(color = TextPrimary, fontSize = DesignTokens.TypeLabel),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MintPrimary.copy(alpha = 0.6f),
+                unfocusedBorderColor = ReadingPalette.InputStroke,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun EffectTab(config: ComicReaderConfig, update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit) {
+    PanelSectionCard(tr("阅读背景"), Icons.Filled.Palette) {
+        BgSwatchRow(config.bgType) { t -> update { it.copy(bgType = t) } }
+        if (config.bgType == ComicBgType.PAPER) {
+            Spacer(Modifier.height(DesignTokens.SpaceSm))
+            SliderRow(
+                "纸纹强度", config.paperIntensity.toFloat(), 0f..100f,
+                format = { "${it.toInt()}" }
+            ) { v -> update { it.copy(paperIntensity = v.toInt()) } }
+        }
+    }
+
+    PanelSectionCard(tr("场景"), Icons.Filled.MusicNote) {
+        SceneOptionFlow(config.scene) { s -> update { it.copy(scene = s) } }
+        if (config.scene != ComicScene.NONE) {
+            Spacer(Modifier.height(DesignTokens.SpaceCompact))
+            SwitchRow(tr("环境声音"), null, config.sceneSound) { v -> update { it.copy(sceneSound = v) } }
+            if (config.sceneSound) {
+                SliderRow(
+                    "音量", config.sceneVolume.toFloat(), 0f..100f,
+                    format = { "${it.toInt()}" }
+                ) { v -> update { it.copy(sceneVolume = v.toInt()) } }
+            }
+            SwitchRow(tr("阅读特效"), null, config.sceneEffect) { v -> update { it.copy(sceneEffect = v) } }
+        }
+    }
+
+    PanelSectionCard(tr("显示"), Icons.Filled.Visibility) {
+        SwitchRow(tr("进度缩略图"), null, config.showThumbPreview) { v ->
+            update { it.copy(showThumbPreview = v) }
+        }
+        SwitchRow(tr("沉浸式"), null, config.hideSystemBars) { v ->
+            update { it.copy(hideSystemBars = v) }
+        }
+    }
+}
+
+/* ── Tab 4：自动阅读 ── */
+
+@Composable
+private fun AutoTab(config: ComicReaderConfig, update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit) {
+    PanelHint(tr("底栏启停；后台自动暂停"))
+    PanelSectionCard(tr("自动翻页"), Icons.Filled.Schedule) {
+        SliderRow(
+            "翻页间隔", config.autoPageIntervalSec, 1f..120f, steps = 118,
+            format = { "${it.toInt()} 秒" }
+        ) { v -> update { it.copy(autoPageIntervalSec = v) } }
+    }
+
+    PanelSectionCard(tr("自动滚动"), Icons.Filled.SwipeVertical) {
+        SliderRow(
+            "滚动速度", config.autoScrollSpeedDp, 5f..400f, steps = 394,
+            format = { "${it.toInt()} / 秒" }
+        ) { v -> update { it.copy(autoScrollSpeedDp = v) } }
+    }
+}
+
+/* ── Tab 5：手势 ── */
+
+@Composable
+private fun GestureTab(config: ComicReaderConfig, update: ((ComicReaderConfig) -> ComicReaderConfig) -> Unit, onEditTouchZones: () -> Unit) {
+    PanelSectionCard(tr("触控功能分区"), Icons.Filled.PanTool) {
+        PanelHint(tr("在当前漫画上直接调整分区，画面保持原尺寸。点击与滑动独立配置，双指缩放与放大后拖图优先。"))
+        PullOutFilledTonalButton(onClick = com.example.ui.components.paperDismiss(onEditTouchZones), modifier = Modifier.fillMaxWidth()) { Text(tr("可视化编辑功能分区")) }
+    }
+    PanelSectionCard(tr("手势开关"), Icons.Filled.TouchApp) {
+        SwitchRow(tr("单指滑动翻页"), null, config.gestureSwipe) { v -> update { it.copy(gestureSwipe = v) } }
+        SwitchRow(tr("双指合拢退出"), null, config.gesturePinchClose) { v ->
+            update { it.copy(gesturePinchClose = v) }
+        }
+        SwitchRow(tr("侧边滑动关闭"), null, config.gestureEdgeSwipe) { v ->
+            update { it.copy(gestureEdgeSwipe = v) }
+        }
+        SwitchRow(tr("长按呼出控制层"), null, config.gestureLongPressPanel) { v ->
+            update { it.copy(gestureLongPressPanel = v) }
+        }
+        // 第 28 条：音量键翻页（方向感知：RTL 下音量上=下一页），仅阅读页拦截
+        SwitchRow(tr("音量键翻页"), null, config.volumeKeyTurn) { v ->
+            update { it.copy(volumeKeyTurn = v) }
+        }
+    }
+}
+
+/* ══════════════ 目录面板 ══════════════ */
+
+@Composable
+internal fun ComicTocSheet(
+    toc: List<ComicTocEntry>,
+    currentChapterIndex: Int,
+    onJumpToChapter: ((Int) -> Unit)?,
+    pages: List<ComicPageRef>,
+    loader: ComicPageLoader,
+    currentPage: Int,
+    onJumpToRawPage: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    glassBackdrop: Backdrop? = null,
+) {
+    ComicSheetContainer(
+        title = tr("目录"), onDismiss = onDismiss, heightFraction = 0.7f, scrollable = false,
+        glassBackdrop = glassBackdrop,
+    ) {
+        if (toc.isNotEmpty()) {
+            val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentChapterIndex.coerceAtLeast(0))
+            LaunchedEffect(Unit) {
+                runCatching { listState.scrollToItem(currentChapterIndex.coerceAtLeast(0)) }
+            }
+            LazyColumn(state = listState) {
+                // 2026-09-21：补 key（章节 id 稳定唯一），并挂重排动画。
+                itemsIndexed(toc, key = { _, entry -> entry.id }) { i, entry ->
+                    val active = i == currentChapterIndex
+                    Row(
+                        Modifier
+                            .animateItemPlacement()
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(DesignTokens.RadiusInner))
+                            .background(if (active) PanelChipActiveBg else Color.Transparent)
+                            .clickableNoRipple { onJumpToChapter?.invoke(i) }
+                            .padding(horizontal = DesignTokens.SpaceMd, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .size(width = 3.dp, height = DesignTokens.SpaceLoose)
+                                .clip(CircleShape)
+                                .background(if (active) MintPrimary else Color.Transparent)
+                        )
+                        Spacer(Modifier.width(DesignTokens.SpaceTight))
+                        Text(
+                            entry.title,
+                            color = if (active) MintPrimary else ReadingPalette.OnGlassStrong,
+                            fontSize = DesignTokens.TypeLabel,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (active) {
+                            Icon(Icons.Filled.Check, null, tint = MintPrimary, modifier = Modifier.size(15.dp))
+                        }
+                    }
+                }
+            }
+        } else {
+            // 本地漫画：页缩略图网格
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(72.dp),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.SpaceSm),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.SpaceSm),
+            ) {
+                gridItemsIndexed(pages) { i, page ->
+                    PageThumbCell(page, i, loader, i == currentPage - 1) { onJumpToRawPage(i) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageThumbCell(
+    page: ComicPageRef,
+    index: Int,
+    loader: ComicPageLoader,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    val bitmap by com.example.ui.components.rememberAsyncState<Bitmap?>(null, page.id) {
+        value = runCatching { loader.loadThumb(page) }.getOrNull()
+    }
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(DesignTokens.RadiusInner))
+            .background(if (active) PanelChipActiveBg else ReadingPalette.SubtleFill)
+            .border(
+                0.5.dp,
+                if (active) MintPrimary.copy(alpha = 0.7f) else Color.Transparent,
+                RoundedCornerShape(DesignTokens.RadiusInner)
+            )
+            .clickableNoRipple(onClick)
+            .padding(DesignTokens.SpaceXs),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.72f)
+                .clip(RoundedCornerShape(7.dp))
+                .background(ReadingPalette.GlassStroke),
+            contentAlignment = Alignment.Center
+        ) {
+            bitmap?.let {
+                Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } ?: com.example.ui.components.ChasingDots(size = DesignTokens.SpaceComfortable, color = MintPrimary, circleRatio = 0.3f)
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            "${index + 1}", color = if (active) MintPrimary else TextSecondary, fontSize = DesignTokens.TypeCaptionSmall
+        )
+    }
+}
+
+/* ══════════════ 预设面板 ══════════════ */
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ComicPresetSheet(
+    store: ComicSettingsStore,
+    currentConfig: ComicReaderConfig,
+    onApply: (ComicReaderConfig) -> Unit,
+    onDismiss: () -> Unit,
+    glassBackdrop: Backdrop? = null,
+) {
+    var presets by remember { mutableStateOf(store.loadPresets()) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var defaultId by remember { mutableStateOf(store.defaultPresetId()) }
+    var renameTarget by remember { mutableStateOf<ComicPreset?>(null) }
+    var createDialog by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<ComicPreset?>(null) }
+
+    fun refresh() {
+        presets = store.loadPresets()
+        defaultId = store.defaultPresetId()
+    }
+
+    ComicSheetContainer(
+        title = tr("阅读预设"), onDismiss = onDismiss, heightFraction = 0.62f, scrollable = false,
+        glassBackdrop = glassBackdrop,
+    ) {
+        LazyColumn {
+            // 收藏置顶（第 27 条）：列表按 favorite 降序稳定排序，收藏组永远在最前
+            items(presets.sortedByDescending { it.favorite }, key = { it.id }) { preset ->
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(DesignTokens.RadiusSm))
+                        .background(if (preset.favorite) PanelChipActiveBg else PanelChipBg)
+                        .padding(horizontal = DesignTokens.SpaceMd, vertical = DesignTokens.SpaceSm)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 图标
+                        Box(
+                            Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(DesignTokens.RadiusInner))
+                                .background(Color(0x2AF0D9C0)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(preset.emoji, color = MintPrimary, fontSize = DesignTokens.TypeLabel, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(DesignTokens.SpaceTight))
+                        Column(Modifier.weight(1f)) {
+                            FlowRow(verticalArrangement = Arrangement.Center) {
+                                Text(
+                                    preset.name, color = TextPrimary, fontSize = DesignTokens.TypeBodySmall, fontWeight = FontWeight.Medium,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (preset.favorite) {
+                                    Spacer(Modifier.width(DesignTokens.SpaceCompact))
+                                    // 收藏标记（区别于"默认预设"）：实心星 + 强调色
+                                    Icon(Icons.Filled.Star, tr("已收藏"), tint = ReadingPalette.Favorite, modifier = Modifier.size(13.dp))
+                                }
+                                if (preset.id == defaultId) {
+                                    Spacer(Modifier.width(DesignTokens.SpaceCompact))
+                                    Text(
+                                        "默认", color = MintPrimary, fontSize = DesignTokens.TypeMicro,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(DesignTokens.SpaceXs))
+                                            .background(ReadingPalette.GlassStroke)
+                                            .padding(horizontal = DesignTokens.SpaceXs, vertical = 1.dp)
+                                    )
+                                }
+                                if (preset.builtIn) {
+                                    Spacer(Modifier.width(DesignTokens.SpaceCompact))
+                                    Text(
+                                        "内置", color = TextSecondary, fontSize = DesignTokens.TypeMicro,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(DesignTokens.SpaceXs))
+                                            .background(ReadingPalette.GlassStroke)
+                                            .padding(horizontal = DesignTokens.SpaceXs, vertical = 1.dp))
+                                }
+                            }
+                            Text(
+                                "${preset.config.mode.label} · ${preset.config.direction.label} · ${preset.config.pageAnim.label}",
+                                color = TextSecondary, fontSize = DesignTokens.TypeCaptionSmall
+                            )
+                        }
+                        // 应用
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(ReadingPalette.WarmAccent)
+                                .clickableNoRipple { onApply(preset.config) }
+                                .heightIn(min = 48.dp)
+                                .padding(horizontal = DesignTokens.SpaceComfortable, vertical = DesignTokens.SpaceSm),
+                            contentAlignment = Alignment.Center
+                        ) { Text(tr("应用"), color = Color(0xFF0E1512), fontSize = DesignTokens.TypeCaption, fontWeight = FontWeight.SemiBold) }
+                    }
+                    // Keep actions on their own wrapping row so names retain their width
+                    // on small screens and when the system font size is increased.
+                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        // 收藏开关（第 27 条：收藏后置顶 + 长按设置入口快捷应用）
+                        Box(
+                            Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .clickableNoRipple {
+                                    store.togglePresetFavorite(preset.id)
+                                    refresh()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (preset.favorite) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                if (preset.favorite) tr("取消收藏") else tr("收藏"),
+                                tint = if (preset.favorite) ReadingPalette.Favorite else TextSecondary,
+                                modifier = Modifier.size(DesignTokens.SpaceLg)
+                            )
+                        }
+                        // 设为默认
+                        Box(
+                            Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .clickableNoRipple {
+                                    store.setDefaultPreset(preset.id)
+                                    refresh()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.PushPin,
+                                "设为默认",
+                                tint = if (preset.id == defaultId) MintPrimary else TextSecondary,
+                                modifier = Modifier.size(DesignTokens.SpaceLg)
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .clickableNoRipple {
+                                    store.duplicatePreset(preset.id)
+                                    refresh()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.ContentCopy, tr("复制"), tint = TextSecondary, modifier = Modifier.size(15.dp))
+                        }
+                        if (!preset.builtIn) {
+                            PullOutIconButton(
+                                    icon = Icons.Filled.Save,
+                                    contentDescription = tr("用当前设置更新预设"),
+                                    onClick = {
+                                store.updatePreset(preset.id, config = currentConfig)
+                                refresh()
+                                android.widget.Toast.makeText(context,
+                                    "已更新预设", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                                    tint = TextSecondary,
+                                    glyphSize = DesignTokens.SpaceLg
+                                )
+                            Box(
+                                Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickableNoRipple { renameTarget = preset },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.DriveFileRenameOutline, tr("重命名"), tint = TextSecondary, modifier = Modifier.size(15.dp))
+                            }
+                            Box(
+                                Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickableNoRipple {
+                                        deleteTarget = preset
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.Delete, tr("删除"), tint = ReadingPalette.Error, modifier = Modifier.size(15.dp))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(DesignTokens.SpaceCompact))
+            }
+            item {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(DesignTokens.RadiusSm))
+                        .background(PanelChipActiveBg)
+                        .clickableNoRipple { createDialog = true }
+                        .heightIn(min = 48.dp)
+                        .padding(vertical = DesignTokens.SpaceMd),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Add, null, tint = MintPrimary, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(DesignTokens.SpaceCompact))
+                    Text(tr("从当前设置新建预设"), color = MintPrimary, fontSize = DesignTokens.TypeLabel)
+                }
+                Spacer(Modifier.height(DesignTokens.SpaceMd))
+            }
+        }
+    }
+
+    if (createDialog) {
+        PresetNameDialog(
+            title = tr("新建预设"),
+            initial = "",
+            onConfirm = { name ->
+                store.createPreset(name.ifBlank { "我的预设" }, name.take(2).ifBlank { "SC" }, currentConfig)
+                refresh()
+                createDialog = false
+            },
+            onDismiss = { createDialog = false }
+        )
+    }
+    renameTarget?.let { target ->
+        PresetNameDialog(
+            title = tr("重命名预设"),
+            initial = target.name,
+            onConfirm = { name ->
+                store.updatePreset(target.id, name = name.ifBlank { target.name })
+                refresh()
+                renameTarget = null
+            },
+            onDismiss = { renameTarget = null }
+        )
+    }
+    deleteTarget?.let { target ->
+        PullOutAlertDialog(onDismissRequest = { deleteTarget = null },
+            title = { Text(tr("删除预设"), color = TextPrimary) },
+            text = { Text("删除「${target.name}」？当前阅读配置仍会保留。", color = TextSecondary) },
+            confirmButton = { PullOutTextButton(onClick = { store.deletePreset(target.id); refresh(); deleteTarget = null }) {
+                Text(tr("删除"), color = TextPrimary)
+            } },
+            dismissButton = { PullOutTextButton(onClick = { deleteTarget = null }) { Text(tr("取消"), color = TextSecondary) } },
+            containerColor = PanelBg)
+    }
+}
+
+
+@Composable
+private fun PresetNameDialog(
+    title: String,
+    initial: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initial) }
+    PullOutAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, color = TextPrimary) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(12) },
+                singleLine = true,
+                placeholder = { Text(tr("预设名称"), color = TextSecondary) },
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = MintPrimary,
+                    unfocusedBorderColor = ReadingPalette.SwitchTrack,
+                    cursorColor = MintPrimary
+                )
+            )
+        },
+        confirmButton = { PullOutTextButton(onClick = { onConfirm(name) }) { Text(tr("确定"), color = MintPrimary) } },
+        dismissButton = { PullOutTextButton(onClick = com.example.ui.components.paperDismiss(onDismiss)) { Text(tr("取消"), color = TextSecondary) } },
+        containerColor = ReadingPalette.DialogSurface
+    )
+}
+
+/* ══════════════ 手动裁边编辑器 ══════════════ */
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ComicCropSheet(
+    page: ComicPageRef?,
+    loader: ComicPageLoader,
+    config: ComicReaderConfig,
+    onDismiss: () -> Unit,
+    onApply: (Float, Float, Float, Float) -> Unit,
+) {
+    if (page == null) return
+    val bitmap by com.example.ui.components.rememberAsyncState<Bitmap?>(null, page.id) {
+        value = withContext(Dispatchers.Default) {
+            // 预览管线加载小图（不把全尺寸原图塞进主缓存）
+            runCatching { loader.loadPreview(page, ComicImagePipeline.Geometry(), ComicImagePipeline.Toning()) }
+                .getOrNull()
+        }
+    }
+    var crop by remember(config.manualCrop) {
+        mutableStateOf(
+            config.manualCrop?.let { floatArrayOf(it[0], it[1], it[2], it[3]) }
+                ?: floatArrayOf(0f, 0f, 1f, 1f)
+        )
+    }
+    // 第 6 节：裁边框贴边轻触觉（组合期取 view，lambda 内使用）
+    val cropHapticView = androidx.compose.ui.platform.LocalView.current
+    var lastEdgeHaptic by remember { mutableStateOf(0L) }
+
+    fun onCropChangeWithHaptic(view: android.view.View): (FloatArray) -> Unit = { raw ->
+        // 限制最小裁剪区 5%；贴边（0/1 边界被钳制）轻触觉反馈
+        raw[0] = raw[0].coerceIn(0f, (raw[2] - 0.05f).coerceAtLeast(0f))
+        raw[1] = raw[1].coerceIn(0f, (raw[3] - 0.05f).coerceAtLeast(0f))
+        raw[2] = raw[2].coerceIn(raw[0] + 0.05f, 1f)
+        raw[3] = raw[3].coerceIn(raw[1] + 0.05f, 1f)
+        val newlyAtEdge = (raw[0] == 0f && crop[0] != 0f) || (raw[1] == 0f && crop[1] != 0f) ||
+            (raw[2] == 1f && crop[2] != 1f) || (raw[3] == 1f && crop[3] != 1f)
+        val now = android.os.SystemClock.uptimeMillis()
+        if (newlyAtEdge && now - lastEdgeHaptic > 150L) {
+            lastEdgeHaptic = now
+            if (com.example.ui.feedback.HapticsGate.enabled) {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            }
+        }
+        crop = raw.copyOf()
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .paperSurface()
+            .background(Color(0xEE000000))
+            .statusBarsPadding()
+            .navigationBarsPadding()
+    ) {
+        Column(Modifier.fillMaxSize().padding(DesignTokens.SpaceLg)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(tr("手动裁边"), color = TextPrimary, fontSize = DesignTokens.TypeBody, fontWeight = FontWeight.SemiBold)
+            }
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                PullOutTextButton(onClick = {
+                    crop = floatArrayOf(0f, 0f, 1f, 1f)
+                }) { Text(tr("重置"), color = TextSecondary) }
+                PullOutTextButton(onClick = com.example.ui.components.paperDismiss(onDismiss)) { Text(tr("取消"), color = TextSecondary) }
+                PullOutTextButton(onClick = { onApply(crop[0], crop[1], crop[2], crop[3]) }) {
+                    Text(tr("保存"), color = MintPrimary, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Text(tr("拖动角与边调整范围，拖动框内移动选区。"), color = TextSecondary, fontSize = DesignTokens.TypeCaptionSmall)
+
+            Spacer(Modifier.height(DesignTokens.SpaceMd))
+            BoxWithImageLayout(
+                bitmap = bitmap,
+                modifier = Modifier.weight(1f),
+            ) { canvasModifier ->
+                CropCanvas(
+                    canvasModifier = canvasModifier,
+                    crop = crop,
+                    onCropChange = onCropChangeWithHaptic(cropHapticView),
+                )
+            }
+            Spacer(Modifier.height(DesignTokens.SpaceSm))
+            Text(
+                "L %.0f%% · T %.0f%% · R %.0f%% · B %.0f%%".format(
+                    crop[0] * 100, crop[1] * 100, (1 - crop[2]) * 100, (1 - crop[3]) * 100
+                ),
+                color = TextSecondary, fontSize = DesignTokens.TypeCaptionSmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun BoxWithImageLayout(
+    bitmap: Bitmap?,
+    modifier: Modifier = Modifier,
+    content: @Composable (Modifier) -> Unit,
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        val bmp = bitmap
+        if (bmp != null) {
+            val image = bmp.asImageBitmap()
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                Modifier.fillMaxSize(), contentAlignment = Alignment.Center
+            ) {
+                val boxW = maxWidth.value * density.density
+                val boxH = maxHeight.value * density.density
+                val ratio = image.width.toFloat() / image.height.toFloat()
+                val drawW: Float
+                val drawH: Float
+                if (boxW / boxH > ratio) { drawH = boxH; drawW = boxH * ratio }
+                else { drawW = boxW; drawH = boxW / ratio }
+                // 图片 + 裁剪层叠加
+                Box(
+                    Modifier.size(
+                        with(density) { drawW.toDp() },
+                        with(density) { drawH.toDp() }
+                    )
+                ) {
+                    Image(image, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    content(Modifier.fillMaxSize())
+                }
+            }
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                com.example.ui.components.ChasingDots(size = 36.dp, color = MintPrimary)
+            }
+        }
+    }
+}
+
+/** 裁剪框画布：四角拖动 + 边缘拖动 */
+@Composable
+private fun CropCanvas(
+    canvasModifier: Modifier,
+    crop: FloatArray,
+    onCropChange: (FloatArray) -> Unit,
+) {
+    val handleR = DesignTokens.SpaceComfortable
+    var active by remember { mutableStateOf(-1) } // 0..3 角 4..7 边
+    // 手势协程以 Unit 为 key 只启动一次——闭包内必须读最新 crop：
+    // 直接捕获参数会把初始矩形固化进手势（第 18 条"移动左框再移右框，
+    // 左框跳回原位"的根因：每次拖动都从初始矩形重新派生）
+    val currentCrop by rememberUpdatedState(crop)
+    val currentOnChange by rememberUpdatedState(onCropChange)
+    Box(
+        canvasModifier
+            .semantics { contentDescription = tr("裁剪选区") }
+            .pointerInput(Unit) {
+                val hr = handleR.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val w = size.width.toFloat()
+                    val h = size.height.toFloat()
+                    // 命中判定基于「上一次调整后」的最新框位置
+                    val x0 = currentCrop[0] * w; val y0 = currentCrop[1] * h
+                    val x1 = currentCrop[2] * w; val y1 = currentCrop[3] * h
+                    val corners = listOf(
+                        Offset(x0, y0), Offset(x1, y0), Offset(x0, y1), Offset(x1, y1)
+                    )
+                    val edges = listOf(
+                        Offset((x0 + x1) / 2, y0), Offset((x0 + x1) / 2, y1),
+                        Offset(x0, (y0 + y1) / 2), Offset(x1, (y0 + y1) / 2)
+                    )
+                    active = -1
+                    corners.forEachIndexed { i, c -> if ((down.position - c).getDistance() < hr * 1.6f) active = i }
+                    if (active == -1) edges.forEachIndexed { i, c ->
+                        if ((down.position - c).getDistance() < hr * 1.6f) active = i + 4
+                    }
+                    if (active == -1 && down.position.x in x0..x1 && down.position.y in y0..y1) active = 8
+                    if (active >= 0) {
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!ch.pressed) break
+                            val px = (ch.position.x / w).coerceIn(0f, 1f)
+                            val py = (ch.position.y / h).coerceIn(0f, 1f)
+                            val left = px.coerceAtMost(currentCrop[2] - .05f)
+                            val right = px.coerceAtLeast(currentCrop[0] + .05f)
+                            val top = py.coerceAtMost(currentCrop[3] - .05f)
+                            val bottom = py.coerceAtLeast(currentCrop[1] + .05f)
+                            // 派生基准 = 最新 crop（连续交替拖动四边互不回退）
+                            val n = currentCrop.copyOf()
+                            when (active) {
+                                0 -> { n[0] = left; n[1] = top }
+                                1 -> { n[2] = right; n[1] = top }
+                                2 -> { n[0] = left; n[3] = bottom }
+                                3 -> { n[2] = right; n[3] = bottom }
+                                4 -> n[1] = top
+                                5 -> n[3] = bottom
+                                6 -> n[0] = left
+                                7 -> n[2] = right
+                                8 -> {
+                                    val delta = ch.position - ch.previousPosition
+                                    val dx = (delta.x / w).coerceIn(-n[0], 1f - n[2])
+                                    val dy = (delta.y / h).coerceIn(-n[1], 1f - n[3])
+                                    n[0] += dx; n[2] += dx; n[1] += dy; n[3] += dy
+                                }
+                            }
+                            currentOnChange(n)
+                            ch.consume()
+                        }
+                    }
+                }
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val x0 = crop[0] * w; val y0 = crop[1] * h
+            val x1 = crop[2] * w; val y1 = crop[3] * h
+            // 外部半透明遮罩
+            val dim = ReadingPalette.ScrimStrong
+            drawRect(dim, topLeft = Offset(0f, 0f), size = androidx.compose.ui.geometry.Size(w, y0))
+            drawRect(dim, topLeft = Offset(0f, y1), size = androidx.compose.ui.geometry.Size(w, h - y1))
+            drawRect(dim, topLeft = Offset(0f, y0), size = androidx.compose.ui.geometry.Size(x0, y1 - y0))
+            drawRect(dim, topLeft = Offset(x1, y0), size = androidx.compose.ui.geometry.Size(w - x1, y1 - y0))
+            // 裁剪框
+            drawRect(
+                ReadingPalette.WarmAccent, topLeft = Offset(x0, y0),
+                size = androidx.compose.ui.geometry.Size(x1 - x0, y1 - y0),
+                style = Stroke(width = 2.dp.toPx())
+            )
+            // 三分线
+            for (i in 1..2) {
+                val gx = x0 + (x1 - x0) * i / 3
+                val gy = y0 + (y1 - y0) * i / 3
+                drawLine(ReadingPalette.CropGuide, Offset(gx, y0), Offset(gx, y1), strokeWidth = 1f)
+                drawLine(ReadingPalette.CropGuide, Offset(x0, gy), Offset(x1, gy), strokeWidth = 1f)
+            }
+            // 手柄
+            listOf(
+                Offset(x0, y0), Offset(x1, y0), Offset(x0, y1), Offset(x1, y1),
+                Offset((x0 + x1) / 2, y0), Offset((x0 + x1) / 2, y1),
+                Offset(x0, (y0 + y1) / 2), Offset(x1, (y0 + y1) / 2)
+            ).forEach { c ->
+                drawCircle(Color.White, radius = 5.dp.toPx(), center = c)
+                drawCircle(AccentColor, radius = 3.dp.toPx(), center = c)
+            }
+        }
+    }
+}
