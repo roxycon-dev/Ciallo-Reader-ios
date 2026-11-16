@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "pin": "123456",
+      "saltHex": "11111111111111111111111111111111",
+      "legacySha256": "3a401c20e2886ce2b5a9e7470399f40f9adade32acd73d9140ac1715ac6870b4",
+      "pbkdf2": "cac60624451e385472509488feefff6ca0a3dde9e81fc1b5a84ea4399e4d6377"
+    },
+    {
+      "pin": "000000",
+      "saltHex": "22222222222222222222222222222222",
+      "legacySha256": "03769dc3c82f7e4532ffb4540d45d735cfc0ac253450404b0f94c6d0429415e3",
+      "pbkdf2": "8e9a6a612d3d6061104fa6b0d0b479096bf7ad912196bed34f294352de94a06d"
+    },
+    {
+      "pin": "999999",
+      "saltHex": "00112233445566778899aabbccddeeff",
+      "legacySha256": "4b4c1325a989a3d24a3d891036514a2c4eac17dae3df80dead4a21e3dcc3c9ac",
+      "pbkdf2": "e759589313ff2de1fe321dc1811b6c77eb919ede2f9f77757852f2fc2ad5d292"
+    },
+    {
+      "pin": "654321",
+      "saltHex": "abababababababababababababababab",
+      "legacySha256": "a36f4b8fbd79ca25bd5c1dd5bfd503aecadea15c5552bf860bb57f4482f5414d",
+      "pbkdf2": "f45980ebc6a94a9ea51dfccde94d7733061f5deea917e215f3ed0d6a1d32b87a"
+    }
+  ]
+}

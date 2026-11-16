@@ -1,0 +1,284 @@
+/* cardAppearance.css — CardAppearanceScreen.kt 的视觉移植
+   Kotlin 源：novel-reader/app/src/main/java/com/example/ui/CardAppearanceScreen.kt
+   token 全部取 styles/theme.css（DesignTokens.kt 移植）。Kotlin 侧独有数值：
+   滑杆轨道 44dp 触控高度、位置域 0…1、气泡与端点文案。 */
+
+.card-appearance-page {
+  background: var(--color-light-bg, #ffffff);
+  color: var(--color-on-light, #18191c);
+  max-width: 1040px; /* Kotlin L44 `widthIn(max = 1040.dp)` */
+}
+
+/* ── L43-75 AdaptiveWorkspace ───────────────────────────────────────────── */
+.card-appearance__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px; /* Kotlin L79 `spacedBy(14.dp)` */
+  margin-top: 8px; /* Kotlin L80 `top = 8.dp` */
+}
+
+@media (min-width: 1040px) {
+  .card-appearance__layout {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    align-items: start;
+  }
+
+  .card-appearance__preview-part {
+    order: 2;
+    position: sticky;
+    top: 12px;
+    padding: 10px 24px 0; /* Kotlin L53 `padding(horizontal = 24.dp, vertical = 10.dp)` */
+  }
+
+  .card-appearance__list {
+    order: 1;
+  }
+}
+
+.card-appearance__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* `Modifier.wenkuPagePart(2/3/4)` 错峰入场（WenkuMotion.listDelayStep = 0.055s）。 */
+.card-appearance__part {
+  animation: ca-rise 420ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1)) both;
+  animation-delay: calc(var(--ca-part, 2) * 55ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-appearance__part {
+    animation: none;
+  }
+}
+
+@keyframes ca-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── L52-72 预览卡 ─────────────────────────────────────────────────────── */
+.card-appearance__preview {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Kotlin L60 `spacedBy(12.dp)` */
+  min-height: 72px; /* Kotlin L58 `heightIn(min = 72.dp)` */
+  padding: 12px 16px; /* Kotlin L55 `contentPadding = PaddingValues(16.dp, 12.dp)` */
+}
+
+.card-appearance__preview-icon {
+  display: inline-flex;
+  color: var(--color-primary, #059669);
+}
+
+.card-appearance__preview-icon svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.card-appearance__preview-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.card-appearance__preview-title {
+  margin: 0;
+  font-size: 14px; /* titleSmall */
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.card-appearance__preview-desc {
+  margin: 0;
+  font-size: 12px; /* bodySmall */
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── 面板 ──────────────────────────────────────────────────────────────── */
+.card-appearance__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-appearance__card-title {
+  margin: 0;
+  font-size: 16px; /* titleMedium */
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+/* Kotlin 的 `Column` 没有 verticalArrangement；间距来自 FluidSlider 预留的
+   气泡 / 形变区（8dp 量级），这里用同值 gap 表达。 */
+.card-appearance__sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px; /* Kotlin L85 `Spacer(Modifier.height(12.dp))` 扣掉标题行距 */
+}
+
+/* ── L162-187 CardTweakSlider ──────────────────────────────────────────── */
+.card-appearance__slider {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.card-appearance__slider-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px; /* Kotlin L175 `spacedBy(12.dp)` */
+  padding: 0 4px; /* Kotlin L174 `padding(horizontal = 4.dp)` */
+}
+
+.card-appearance__slider-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px; /* Kotlin L178 `fontSize = 12.sp` */
+  line-height: 18px; /* Kotlin L179 `lineHeight = 18.sp` */
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.card-appearance__slider-value {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-appearance__slider-track {
+  position: relative;
+  height: 44px; /* 触控目标（FluidSlider 的拇指 + 气泡区） */
+  margin-top: 6px;
+}
+
+.card-appearance__slider-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(24, 25, 28, 0.12);
+}
+
+.card-appearance__slider-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background-image: linear-gradient(90deg, var(--color-primary-start, #2563eb), var(--color-secondary, #10b981));
+  pointer-events: none;
+}
+
+.card-appearance__slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(24, 25, 28, 0.24);
+  transition: transform 150ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+  pointer-events: none;
+}
+
+.card-appearance__slider:has(.card-appearance__range:active) .card-appearance__slider-thumb,
+.card-appearance__slider:has(.card-appearance__range:focus-visible) .card-appearance__slider-thumb {
+  transform: translateY(-50%) scale(1.15);
+}
+
+.card-appearance__slider:has(.card-appearance__range:focus-visible) .card-appearance__slider-thumb {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+}
+
+.card-appearance__slider-bubble {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -140%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background-image: linear-gradient(90deg, var(--color-primary-start, #2563eb), var(--color-secondary, #10b981));
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.card-appearance__slider:hover .card-appearance__slider-bubble,
+.card-appearance__slider:has(.card-appearance__range:active) .card-appearance__slider-bubble,
+.card-appearance__slider:has(.card-appearance__range:focus-visible) .card-appearance__slider-bubble {
+  opacity: 1;
+}
+
+/* 真正的输入：铺满轨道但完全透明，键盘与指针事件都由它承担。 */
+.card-appearance__range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.card-appearance__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+}
+
+.card-appearance__range::-moz-range-thumb {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+}
+
+.card-appearance__slider-ends {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+  font-size: 11px; /* FluidSlider `startText` / `endText` 的 11sp */
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* AppButton 的图标尺寸（Kotlin `WenkuSymbol.Refresh` 18dp）。 */
+.card-appearance-page .app-button__icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}

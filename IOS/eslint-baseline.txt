@@ -1,0 +1,28 @@
+﻿
+C:\Users\GuanXingRen\Downloads\novel-reader (1)\IOS\src\ui\components\AppUpdateDialog.tsx
+  215:6  warning  React Hook useEffect has a missing dependency: 'install'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\GuanXingRen\Downloads\novel-reader (1)\IOS\src\ui\pages\HomePage.tsx
+   148:3  error    'beginDrag' is defined but never used. Allowed unused vars must match /^_/u                                                 @typescript-eslint/no-unused-vars
+   166:3  error    'enterSelection' is defined but never used. Allowed unused vars must match /^_/u                                            @typescript-eslint/no-unused-vars
+  2299:6  warning  React Hook useCallback has an unnecessary dependency: 'selectedCategory'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\GuanXingRen\Downloads\novel-reader (1)\IOS\src\ui\pages\ReaderPage.tsx
+  144:3  error  'MONOSPACE' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+  147:3  error  'PAGE_TURN_ANIM_TWEEN_MS' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  148:3  error  'PAGE_TURN_COVER' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  149:3  error  'PAGE_TURN_DRAG_THRESHOLD_RATIO' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  150:3  error  'PAGE_TURN_FADE' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+  151:3  error  'PAGE_TURN_LEFT_ZONE_RATIO' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  152:3  error  'PAGE_TURN_NUDGE_RATIO' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  153:3  error  'PAGE_TURN_SCROLL' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+  155:3  error  'PAGE_TURN_SLIDE' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  159:3  error  'PULL_DOWN_DAMPING' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+  160:3  error  'PULL_DOWN_MAX_PX' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+  161:3  error  'PULL_DOWN_TRIGGER_PX' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  179:3  error  'displaySize' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+  196:3  error  'pullDownHintText' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+  260:7  error  'LONG_PRESS_MS' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+
+鉁?19 problems (17 errors, 2 warnings)
+

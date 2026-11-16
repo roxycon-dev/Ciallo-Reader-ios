@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  工程内 workspace。Capacitor 模板里本来就有这个文件，本仓库此前缺了它：
+  `xcodebuild -project` 仍能编译（不读它），但 SPM 的 workspace state
+  （`xcshareddata/swiftpm/Package.resolved` 的落点）与 Xcode GUI 打开工程时的
+  行为都依赖它。缺文件时 Xcode 会静默重建，CI 上则表现为每次都要重新解析
+  onnxruntime 这类几十 MB 的二进制包。
+-->
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "self:">
+   </FileRef>
+</Workspace>

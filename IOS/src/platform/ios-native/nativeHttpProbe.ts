@@ -1,0 +1,79 @@
+import { registerPlugin } from '@capacitor/core';
+import type { PlatformBundle } from '@platform/index';
+
+interface FixtureStatus { slowStarted: number; cancelledSlowConnections: number; activeRequests: number; }
+interface FixtureNative { fixture(value: { action: 'start' }): Promise<{ url: string }>; fixture(value: { action: 'status' }): Promise<FixtureStatus>; fixture(value: { action: 'stop' }): Promise<void>; fixture(value: { action: 'policy' }): Promise<{ detail: string }>; }
+const assert = (value: unknown, message: string): void => { if (!value) throw new Error(message); };
+/** Actual HTTP/1.1 over loopback, through the app's production HttpClient. */
+export async function probeNativeHttp(platform: PlatformBundle): Promise<void> {
+  const fixture = registerPlugin<FixtureNative>('ReaderHttp'), { url } = await fixture.fixture({ action: 'start' });
+  const bytes = new Uint8Array([0, 255, 128, 0xd6, 0xd0, 0xce, 0xc4]);
+  const equal = (actual: Uint8Array, expected: Uint8Array) => actual.length === expected.length && actual.every((byte, index) => byte === expected[index]);
+  const wait = async (predicate: (status: FixtureStatus) => boolean) => {
+    const end = Date.now() + 5000;
+    do { if (predicate(await fixture.fixture({ action: 'status' }))) return; await new Promise((resolve) => setTimeout(resolve, 25)); } while (Date.now() < end);
+    throw new Error('HTTP loopback socket state timed out');
+  };
+  try {
+    assert((await fixture.fixture({ action: 'policy' })).detail.includes('credential removal verified'), 'Native redirect credentials policy differs');
+    const json = await platform.http.request({ url: `${url}/json`, timeoutMs: 5000 });
+    assert(json.status === 200 && equal(json.body, new TextEncoder().encode(' { "z":1, "a":2, "a":3 }\r\n')), 'Native JSON bytes were reserialized');
+    assert(equal((await platform.http.request({ url: `${url}/binary`, timeoutMs: 5000 })).body, bytes), 'Native binary or GBK bytes changed');
+    const echo = Uint8Array.from({ length: 1024 * 1024 - 1 }, (_, index) => index % 251);
+    assert(equal((await platform.http.request({ url: `${url}/echo`, method: 'POST', body: echo, timeoutMs: 10000 })).body, echo), 'Native binary upload or chunked bridge read differs');
+    const manual = await platform.http.request({ url: `${url}/redirect`, redirect: 'manual', timeoutMs: 5000 }); assert(manual.status === 302 && new TextDecoder().decode(manual.body) === 'redirect', 'Manual redirect was followed');
+    const followed = await platform.http.request({ url: `${url}/redirect`, redirect: 'follow', timeoutMs: 5000 }); assert(followed.url.endsWith('/binary') && equal(followed.body, bytes), 'Redirect response bytes or final URL differ');
+    let rejected = false; try { await platform.http.request({ url: `${url}/redirect`, redirect: 'error', timeoutMs: 5000 }); } catch { rejected = true; } assert(rejected, 'Error redirect policy accepted a redirect');
+    rejected = false; try { await platform.http.request({ url: `${url}/large`, timeoutMs: 5000 }); } catch { rejected = true; } assert(rejected, 'Oversized declared response accepted');
+    let budgetError = ''; try { await platform.http.request({ url: `${url}/binary`, timeoutMs: 5000, maxResponseBytes: 4 }); } catch (error) { budgetError = error instanceof Error ? error.message : String(error); }
+    assert(budgetError.includes('HTTP 响应超过大小限制'), `Native response budget was not enforced before bridge allocation: ${budgetError}`);
+    const controller = new AbortController();
+    const cancelled = platform.http.request({ url: `${url}/slow`, timeoutMs: 10000, signal: controller.signal }).then(() => false, () => true);
+    await wait((status) => status.slowStarted >= 1); controller.abort(); assert(await cancelled, 'Caller cancellation did not reject'); await wait((status) => status.cancelledSlowConnections >= 1);
+    const timed = platform.http.request({ url: `${url}/slow`, timeoutMs: 1000 }).then(() => false, () => true);
+    assert(await timed, 'Native call timeout did not reject'); await wait((status) => status.cancelledSlowConnections >= 2);
+    const progressive = new AbortController(), consume = platform.http.consume;
+    assert(consume, 'Native streaming HTTP consumer unavailable');
+    let received = 0;
+    const interrupted = await consume!.call(platform.http, { url: `${url}/progressive`, timeoutMs: 8000, signal: progressive.signal }, async (response) => {
+      assert(response.size === 128 * 1024, 'Missing streamed Content-Length');
+      for await (const chunk of response.chunks) {
+        received += chunk.length;
+        assert(received === 64 * 1024 && chunk.every((byte) => byte === 0xa5), 'Wrong prefix from an in-progress response');
+        progressive.abort();
+      }
+    }).then(() => false, () => true);
+    assert(interrupted && received === 64 * 1024, 'HTTP consumer waited for the entire response before reading bytes');
+    await wait((status) => status.cancelledSlowConnections >= 3);
+    await wait((status) => status.activeRequests === 0);
+    const { resolveZLibraryDownloadWithWebView } = await import('./zLibraryDownloadWebView');
+    const handoff = await resolveZLibraryDownloadWithWebView(url + '/zlib-fixture-entry', url + '/zlib-fixture-download');
+    assert(handoff?.url === url + '/zlib-fixture-file' && handoff.cookies.includes('ciallo_native_book=ready'),
+      'Hidden WKWebView did not return the redirected download and the entry cookie');
+    const stopped = new AbortController();
+    const waitForHandoff = resolveZLibraryDownloadWithWebView(url + '/slow', url + '/zlib-fixture-download', null, stopped.signal);
+    stopped.abort();
+    assert(await waitForHandoff === null, 'Cancelled hidden WKWebView still returned a download');
+    const website = registerPlugin<{
+      verify(options: { requestId: string; url: string }): Promise<{ verified: boolean; cookies: unknown[] }>;
+      cancelVerify(options: { requestId: string }): Promise<void>;
+    }>('ReaderWebsite');
+    const requestId = crypto.randomUUID(), laterId = crypto.randomUUID();
+    const beforeVerification = await fixture.fixture({ action: 'status' });
+    let settled = false;
+    const oldVerification = website.verify({ requestId, url: url + '/slow' }).finally(() => { settled = true; });
+    void oldVerification.catch(() => {});
+    try {
+      await wait((status) => status.slowStarted > beforeVerification.slowStarted);
+      await website.cancelVerify({ requestId: laterId });
+      assert(!settled, 'Unrelated cancellation stopped active verification');
+      await website.cancelVerify({ requestId });
+      const result = await oldVerification;
+      assert(!result.verified && result.cookies.length === 0, 'Cancelled verification imported cookies or reported success');
+      await wait((status) => status.cancelledSlowConnections > beforeVerification.cancelledSlowConnections);
+      const skipped = await website.verify({ requestId: laterId, url: url + '/binary' });
+      assert(!skipped.verified && skipped.cookies.length === 0, 'A cancellation that reached the bridge early still opened verification');
+    } finally { if (!settled) await website.cancelVerify({ requestId }); }
+
+  } finally { await fixture.fixture({ action: 'stop' }); }
+}

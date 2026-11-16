@@ -1,0 +1,6 @@
+epub full={"valid":true,"actualFormat":"epub","isHtmlErrorPage":false,"htmlErrorHint":null}
+truncated epub full={"valid":false,"actualFormat":null,"isHtmlErrorPage":false,"htmlErrorHint":null}
+big headOnly=null
+big withFull=epub
+big full={"valid":true,"actualFormat":"epub","isHtmlErrorPage":false,"htmlErrorHint":null}
+big declared epub -> actual {"valid":true,"actualFormat":"epub","isHtmlErrorPage":false,"htmlErrorHint":null}

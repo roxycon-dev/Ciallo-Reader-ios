@@ -1,0 +1,410 @@
+/* touchZoneEditor.css — TouchZoneEditor.kt 的视觉移植
+   Kotlin 源：novel-reader/app/src/main/java/com/example/ui/reader/TouchZoneEditor.kt
+             + ui/reader/TouchZones.kt（模型文案）
+   数值全部来自 ui/design/DesignTokens.kt（Hairline 1 / StrokeStrong 3 / SpaceXs 4 /
+   SpaceCompact 6 / SpaceSm 8 / SpaceXxl 24 / CardElevation 2 / TypeCaption 12 / RadiusXs 8 /
+   RadiusLg 20）。 acrylicPanel 的 surfaceAlpha .92 / .94 照抄。 */
+
+.tze {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* Kotlin L92 — `Color.Black.copy(alpha = dim)`，dim 在试读时动画到 0。 */
+.tze__dim {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  transition: opacity 500ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+  pointer-events: none;
+}
+
+/* Kotlin L95-99 — 同级遮挡层：吞掉底层阅读器的手势，但绝不作为祖先拦截。 */
+.tze__shield {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  background: transparent;
+}
+
+/* Kotlin L100-101 — 真实视口矩形（`viewport` prop 覆盖 inset）。 */
+.tze__layer {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Kotlin L111-121 — 区域框：primary 填充 + 3dp 白描边 + 1dp primary 细线。 */
+.tze__zone {
+  position: absolute;
+  border-style: solid;
+  border-radius: 10px; /* Kotlin L114 `CornerRadius(10f)` */
+  transition: background-color 220ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+  pointer-events: none;
+}
+
+/* Kotlin L117-120 — 四角控制点：surface 底 + primary 3dp 环。 */
+.tze__knob {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-style: solid;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: tze-knob-in 430ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+@keyframes tze-knob-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Kotlin L125-130 — 标签覆盖层，永远保持真实物理尺寸。 */
+.tze__zone-label {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: var(--radius-xs, 8px); /* Kotlin L129 `clip(RoundedCornerShape(RadiusXs))` */
+  line-height: 16px;
+  text-align: center;
+  white-space: pre-line;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Kotlin L327 — 校准示意：仅装饰，不接管指针。 */
+.tze__art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Kotlin L363-385 — 演示滑动循环：tween(2200, LinearEasing) + delay(450)。 */
+.tze__demo {
+  stroke-dashoffset: 0;
+  animation: tze-demo 2650ms linear infinite;
+}
+
+.tze__demo--b {
+  animation-delay: 1325ms;
+}
+
+@keyframes tze-demo {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.25;
+  }
+  4.53% {
+    opacity: 1;
+  }
+  83.02% {
+    stroke-dashoffset: -60;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -60;
+    opacity: 0;
+  }
+}
+
+.tze__art--still .tze__demo {
+  animation: none;
+  opacity: 0.5;
+}
+
+/* Kotlin L338-341 — 完成闪光（tap 成功时的 6 点光芒用同一组关键帧近似）。 */
+.tze__flash {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tze-flash 180ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes tze-flash {
+  from {
+    opacity: 1;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+/* Kotlin L343 — 成功环。 */
+.tze__success {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tze-success 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes tze-success {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Kotlin L222-226 / L244-247 — 两块 acrylicPanel(surfaceAlpha .92 / .94, RadiusLg)。 */
+.tze__bar {
+  position: absolute;
+  left: var(--space-2, 8px);
+  right: var(--space-2, 8px);
+  max-width: 560px; /* Kotlin `widthIn(max = AdaptiveSpec.sheetMaxWidth)` (560.dp) */
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding: 0 var(--space-3, 12px);
+  border-radius: var(--radius-lg, 20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(18px) saturate(1.15);
+  color: var(--color-on-light, #18191c);
+}
+
+.tze__bar--primary {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.tze__bar--tools {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.tze__bar--top {
+  top: calc(env(safe-area-inset-top, 0px) + var(--space-2, 8px));
+}
+
+.tze__bar--bottom {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-2, 8px));
+}
+
+.tze__bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) 0;
+}
+
+.tze__bar-row--actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.tze__bar-titles {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2, 8px) 0;
+}
+
+.tze__bar-title {
+  margin: 0;
+  font-size: 14px; /* titleSmall */
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.tze__bar-subtitle {
+  margin: 0;
+  font-size: 12px; /* DesignTokens.TypeCaption */
+  line-height: 16px;
+  color: var(--tze-primary, #059669);
+}
+
+.tze__close,
+.tze__swap,
+.tze__delete {
+  color: var(--color-on-light, #18191c);
+}
+
+.tze__close svg,
+.tze__swap svg,
+.tze__delete svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.tze__delete {
+  color: var(--color-danger, #dc2626);
+}
+
+/* Kotlin L258 `PullOutVisibility` — 展开/收起的高度动画。 */
+.tze__controls {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.tze__controls--open {
+  grid-template-rows: 1fr;
+}
+
+.tze__controls-inner {
+  min-height: 0;
+  overflow-y: auto;
+  max-height: 52vh; /* Kotlin L259 `heightIn(max = maxHeight * .52f)` */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-compact, 6px);
+  padding-bottom: var(--space-2, 8px);
+}
+
+.tze__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  min-height: 40px;
+}
+
+.tze__section-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px; /* titleMedium */
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.tze__label {
+  margin: 0;
+  font-size: 14px; /* labelLarge */
+  font-weight: 500;
+  color: var(--color-on-light, #18191c);
+}
+
+.tze__choices {
+  display: flex;
+  flex-wrap: wrap; /* Kotlin L300 `FlowRow` */
+  gap: var(--space-compact, 6px);
+}
+
+.tze__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.tze__range-caption {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--tze-primary, #059669);
+}
+
+.tze__range-caption--row {
+  flex: 1;
+  min-width: 0;
+}
+
+.tze__range-row {
+  padding-top: 2px;
+}
+
+/* Kotlin L279 `LiquidSlider(12f..360f)` — 原生 range，透明输入叠在自绘轨道上。 */
+.tze__range-track {
+  position: relative;
+  height: 40px;
+  margin: 2px 0 4px;
+}
+
+.tze__range-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(24, 25, 28, 0.12);
+}
+
+.tze__range-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background-image: linear-gradient(
+    90deg,
+    var(--tze-primary, #059669),
+    var(--tze-secondary, #10b981)
+  );
+  pointer-events: none;
+}
+
+.tze__range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  opacity: 0;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.tze__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+}
+
+.tze__range::-moz-range-thumb {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+}
+
+/* 读屏专用文案（Kotlin `contentDescription`）。 */
+.tze__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tze__demo,
+  .tze__flash,
+  .tze__success,
+  .tze__knob {
+    animation: none;
+  }
+
+  .tze__dim,
+  .tze__controls {
+    transition: none;
+  }
+}

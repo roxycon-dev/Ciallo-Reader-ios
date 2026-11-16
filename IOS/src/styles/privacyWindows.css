@@ -1,0 +1,527 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * privacyWindows.css — UI of Android `ui/privacy/PrivacyWindows.kt`
+ * Kotlin source: novel-reader/app/src/main/java/com/example/ui/privacy/PrivacyWindows.kt
+ *                (633 lines / 618 non-blank)
+ * TS owners:     IOS/src/ui/components/privacy/PrivacyWindows.tsx
+ *               IOS/src/core/privacy/privacyWindows.ts  (numbers / state machine)
+ *
+ * Naming: every class here is prefixed `privacy-windows__` so it cannot collide
+ * with the pre-existing `.privacy-manage-*` rules in `styles/settings.css`
+ * (that block belongs to `SettingsPage.tsx`'s local stand-in, which this file
+ * must not modify). The duplicate `PrivacySetupOverlay.tsx` used unprefixed
+ * `privacy-pin-*` / `privacy-manage-overlay*` names that existed in no
+ * stylesheet at all; it has been deleted and this file is the only CSS for the
+ * overlay.
+ *
+ * dp → px: this project maps 1.dp → 1 px 1:1 (see `ComicReaderPage.tsx`
+ * "L1313 LocalDensity / dp→px → dp 与 px 按 1:1").  All Kotlin `dp`/`sp` literals
+ * therefore appear verbatim below as px values.
+ *
+ * Kotlin → CSS 映射（行号 = PrivacyWindows.kt）
+ * ---------------------------------------------
+ *  L90-91  `Row(Arrangement.spacedBy(14.dp))` + `graphicsLayer{translationX}`
+ *          → .privacy-windows-pin-dots  (gap 14px; transform written inline)
+ *  L96     `.size(12.dp)`                → .privacy-windows-pin-dots__dot
+ *  L98     `alpha = 1f / 0.45f`         → opacity written inline from core consts
+ *  L102    `error` → `.privacy-windows-pin-dots--error` (not used; inline)
+ *  L104    `error` → `.privacy-windows-pin-dots--error` (not used; inline)
+ *  L130-132 `.size(keySize).graphicsLayer{scale}.clip(RoundedCornerShape(20.dp))`
+ *          → .privacy-windows-pin-key (20px radius, width/height inline)
+ *  L123-127 `animateFloatAsState(0.94f, spring(0.6f, 900f))` on press
+ *          → :active { transform: scale(0.94) } + cubic-bezier(0.25,1,0.5,1)
+ *            130.9ms = π/ω_d for ζ=0.6 k=900 (ω_d = √k·√(1−ζ²) = 24 rad/s).
+ *            NB: the press-scale spring and the PinDots shake are two separate
+ *            animations. The shake segments below use the 1.5-half-period
+ *            convention of `core.springHalfSwingMs()` (127.36 / 196.35 ms);
+ *            this press transition keeps one half-period.
+ *  L133/167 `surface.copy(alpha = 0.55f)`      → rgba(255,255,255,0.55)
+ *  L133     disabled variant `0.25f`           → .privacy-windows-pin-key--muted
+ *  L141     `onSurface.copy(alpha = 0.9f/0.35f)`→ color / --muted color
+ *  L145     RoundedCornerShape(20.dp)          → border-radius 20px
+ *  L171     icon tint `onSurface 0.8f`         → rgba(24,25,28,0.8)
+ *  L260-264 `Box(fillMaxSize, Center)`         → .privacy-windows-overlay
+ *  L269     `Color(0x59000000)`                → rgba(0, 0, 0, 0.35)
+ *  L284-295 `GlassCard(radius 28dp, padding 24/14-24dp, horizontal 36dp)`
+ *          → .privacy-windows-card (+ inline padding from core.pinOverlayMetrics)
+ *  L291/431 `clickable { 拦截穿透点击 }`   → .privacy-windows-card blocks pointer
+ *          events to the scrim by sitting above it in the same stacking context;
+ *          `pointer-events` is left enabled so inner controls stay interactive.
+ *  L315-317 `fontSize = 16.sp, SemiBold`       → .privacy-windows-pin-title
+ *  L321-327 `fontSize = 11.sp, onSurface 0.55f`→ .privacy-windows-pin-subtitle
+ *  L333/337 `Box(height 16dp)` + error color    → .privacy-windows-pin-error-slot
+ *  L348     `spacedBy(16/22.dp)`                → gap inline from core metrics
+ *  L405-411 `Box(fillMaxSize, Center)`          → .privacy-windows-overlay
+ *  L424-434 `GlassCard(radius 28dp, contentPadding 20dp, maxHeight 0.72f,
+ *            horizontal padding 28dp)`
+ *          → .privacy-windows-manage-card (max-height 72%)
+ *  L437-460 header Row / Shield 20dp / 8dp gap / 17sp SemiBold
+ *          → .privacy-windows-manage-head / __title
+ *  L451-459 「完成」14sp Medium, RoundedCornerShape(14.dp), padding 12/6dp
+ *          → .privacy-windows-manage-done
+ *  L463-466 `fontSize = 11.sp, onSurface 0.55f`→ .privacy-windows-manage-lead
+ *  L472-479 / L511-518 `clip(RoundedCornerShape(14.dp))` +
+ *          `surface 0.35f` + `padding(h 12dp, v 8dp)`
+ *          → .privacy-windows-manage-toggle
+ *  L481-486 VisibilityOff 17dp, tint mint / onSurface 0.4f
+ *          → .privacy-windows-manage-toggle__icon
+ *  L490-494 `fontSize = 14.sp`                 → .privacy-windows-manage-row__label
+ *  L495-499 `fontSize = 10.sp, onSurface 0.45f`→ .privacy-windows-manage-row__hint
+ *  L547-551 `LazyColumn(weight(1f))`           → .privacy-windows-manage-list
+ *  L555-560 `Row(fillMaxWidth, padding v 7dp)` → .privacy-windows-manage-row
+ *  L562-568 Lock / LockOpen 17dp               → .privacy-windows-manage-row__icon
+ *  L575-581 `if (cat.isProtected)` hint 10sp   → .privacy-windows-manage-row__hint
+ *  L592-595 `Row(spacedBy(10.dp))`             → .privacy-windows-manage-actions
+ *  L596-611 `clip(RoundedCornerShape(14.dp))` + `surface 0.55f` + `padding v 12dp`
+ *          + `clickableWithFeedback`           → .privacy-windows-manage-action
+ *  L612-627 `error.copy(alpha = 0.10f)` + error text
+ *          → .privacy-windows-manage-action--danger
+ *  L258/405 `BackHandler(onBack = onDismiss)`  → NO CSS (Web has no system back
+ *          button; the .tsx binds the `Escape` key instead)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 遮罩 + 居中外壳（Kotlin L260-264 / L405-411） ── */
+.privacy-windows-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+
+.privacy-windows-overlay__scrim {
+  position: absolute;
+  inset: 0;
+  /* Kotlin L269 `Color(0x59000000)` — 0x59 / 255 ≈ 35% */
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.privacy-windows-overlay__center {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  /* Kotlin L286-287: fillMaxWidth + padding(horizontal = 36.dp) */
+  padding: 0 36px;
+  box-sizing: border-box;
+}
+
+/* ── PIN 输入卡片（Kotlin L284-295） ── */
+.privacy-windows-pin-card {
+  width: 100%;
+  /* Kotlin L284 shape = RoundedCornerShape(28.dp) */
+  border-radius: 28px;
+}
+
+.privacy-windows-pin-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Kotlin L299-304: Icon(Shield, 28.dp) + Spacer(10.dp) */
+.privacy-windows-pin-shield {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Kotlin L307-317 */
+.privacy-windows-pin-title {
+  margin: 0;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L315 fontSize = 16.sp */
+  font-size: 16px;
+  /* Kotlin L315 fontWeight = FontWeight.SemiBold */
+  font-weight: 600;
+  color: #18191c;
+  text-align: center;
+}
+
+/* Kotlin L319-328 */
+.privacy-windows-pin-subtitle {
+  margin: 0;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L326 fontSize = 11.sp */
+  font-size: 11px;
+  color: rgba(24, 25, 28, 0.55);
+  /* Kotlin L327 textAlign = TextAlign.Center */
+  text-align: center;
+}
+
+/* ── 圆点指示（Kotlin L89-108） ── */
+.privacy-windows-pin-dots {
+  display: flex;
+  align-items: center;
+  /* Kotlin L91 horizontalArrangement = Arrangement.spacedBy(14.dp) */
+  gap: 14px;
+  /* Kotlin L90 graphicsLayer { translationX = offsetX.value } —— transform inline */
+  will-change: transform;
+}
+
+.privacy-windows-pin-dots__dot {
+  /* Kotlin L96-97 .size(12.dp) */
+  width: 12px;
+  height: 12px;
+  /* Kotlin L97 .clip(CircleShape) */
+  border-radius: 50%;
+  /* Kotlin L98 graphicsLayer { alpha = 1f / 0.45f } —— opacity inline */
+}
+
+/* ── 玻璃数字键盘按键（Kotlin L128-143） ── */
+.privacy-windows-pin-key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Kotlin L132 .clip(RoundedCornerShape(20.dp)) */
+  border-radius: 20px;
+  border: 0;
+  cursor: pointer;
+  user-select: none;
+  /* Kotlin L122-127 animateFloatAsState(0.94f, spring(0.6f, 900f)) */
+  transform: scale(1);
+  transition: transform 130.9ms cubic-bezier(0.25, 1, 0.5, 1);
+  padding: 0;
+}
+
+.privacy-windows-pin-key:active:not(:disabled) {
+  /* Kotlin L124 targetValue = if (pressed) 0.94f else 1f */
+  transform: scale(0.94);
+}
+
+/* Kotlin L133 `surface.copy(alpha = if (enabled) 0.55f else 0.25f)` */
+.privacy-windows-pin-key--muted {
+  cursor: default;
+}
+
+.privacy-windows-pin-key-label {
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L138 fontWeight = FontWeight.Medium */
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* Kotlin L171-176: Icon tint onSurface 0.8f, size 19/22.dp */
+.privacy-windows-pin-key--icon {
+  color: rgba(24, 25, 28, 0.8);
+}
+
+/* ── 错误提示占位（Kotlin L331-339） ── */
+.privacy-windows-pin-error-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L336 fontSize = 11.sp */
+  font-size: 11px;
+  color: #dc2626;
+}
+
+/* ── 隐私管理卡片（Kotlin L424-434） ── */
+.privacy-windows-manage-card {
+  width: 100%;
+  /* Kotlin L427 .fillMaxHeight(0.72f) */
+  max-height: 72%;
+  display: flex;
+  flex-direction: column;
+  /* Kotlin L424-425 */
+  overflow: hidden;
+}
+
+.privacy-windows-manage-body {
+  display: flex;
+  flex-direction: column;
+  /* 让 LazyColumn(weight(1f)) 在 flex 容器里可压缩 */
+  min-height: 0;
+}
+
+/* Kotlin L437-460: header Row */
+.privacy-windows-manage-head {
+  display: flex;
+  align-items: center;
+  /* Kotlin L441-443 Shield 20.dp */
+  gap: 0;
+}
+
+.privacy-windows-manage-title {
+  margin: 0;
+  flex: 1 1 auto;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L447 fontSize = 17.sp, SemiBold */
+  font-size: 17px;
+  font-weight: 600;
+  color: #18191c;
+}
+
+/* Kotlin L451-459: Text("完成") 14sp Medium, clip 14dp, padding h12/v6 */
+.privacy-windows-manage-done {
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+  border-radius: 14px;
+  padding: 6px 12px;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L453 fontSize = 14.sp */
+  font-size: 14px;
+  /* Kotlin L453 fontWeight = FontWeight.Medium */
+  font-weight: 500;
+  color: #059669;
+}
+
+/* Kotlin L462-466 */
+.privacy-windows-manage-lead {
+  margin: 0;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L464 fontSize = 11.sp */
+  font-size: 11px;
+  color: rgba(24, 25, 28, 0.55);
+}
+
+/* Kotlin L472-479 / L511-518: 无痕浏览 与「我喜欢的」两行 */
+.privacy-windows-manage-toggle {
+  display: flex;
+  align-items: center;
+  /* Kotlin L476 .clip(RoundedCornerShape(14.dp)) */
+  border-radius: 14px;
+  /* Kotlin L476 background(surface.copy(alpha = 0.35f)) */
+  background: rgba(255, 255, 255, 0.35);
+  /* Kotlin L477 .padding(horizontal = 12.dp, vertical = 8.dp) */
+  padding: 8px 12px;
+}
+
+.privacy-windows-manage-toggle__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Kotlin L485 .size(17.dp) */
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  /* Kotlin L484 onSurface.copy(alpha = 0.4f) */
+  color: rgba(24, 25, 28, 0.4);
+}
+
+.privacy-windows-manage-toggle__icon--on {
+  /* Kotlin L483 tint = if (incognitoBrowsingEnabled) MintPrimary */
+  color: #059669;
+}
+
+/* ── 分类列表（Kotlin L547-589） ── */
+.privacy-windows-manage-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* Kotlin L549-550 LazyColumn(weight(1f)) + fillMaxWidth */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Kotlin L555-560 Row(fillMaxWidth, padding(vertical = 7.dp)) */
+.privacy-windows-manage-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 0;
+}
+
+.privacy-windows-manage-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Kotlin L567 .size(17.dp) */
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  /* Kotlin L565 onSurface.copy(alpha = 0.4f) */
+  color: rgba(24, 25, 28, 0.4);
+}
+
+.privacy-windows-manage-row__icon--on {
+  /* Kotlin L564 tint = MintPrimary */
+  color: #059669;
+}
+
+/* Kotlin L569 Column(Modifier.weight(1f)) */
+.privacy-windows-manage-row__texts {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Kotlin L570-574 cat.name, fontSize = 14.sp */
+.privacy-windows-manage-row__label {
+  margin: 0;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  font-size: 14px;
+  font-weight: 400;
+  color: #18191c;
+}
+
+/* Kotlin L495-499 / L534-538 / L575-581: fontSize = 10.sp, onSurface 0.45f */
+.privacy-windows-manage-row__hint {
+  margin: 0;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(24, 25, 28, 0.45);
+}
+
+/* ── 底部动作（Kotlin L592-627） ── */
+.privacy-windows-manage-actions {
+  display: flex;
+  width: 100%;
+  /* Kotlin L594 Arrangement.spacedBy(10.dp) */
+  gap: 10px;
+}
+
+/* Kotlin L596-611 */
+.privacy-windows-manage-action {
+  flex: 1 1 0;
+  border: 0;
+  cursor: pointer;
+  /* Kotlin L599 .clip(RoundedCornerShape(14.dp)) */
+  border-radius: 14px;
+  /* Kotlin L600 background(surface.copy(alpha = 0.55f)) */
+  background: rgba(255, 255, 255, 0.55);
+  /* Kotlin L602 .padding(vertical = 12.dp) */
+  padding: 12px 0;
+  font-family: var(--font-sans, 'Noto Sans SC', sans-serif);
+  /* Kotlin L607-608 fontSize = 13.sp, Medium */
+  font-size: 13px;
+  font-weight: 500;
+  color: #18191c;
+  /* Kotlin L601 `clickableWithFeedback` —— Modifier 扩展（tap 缩放 + 触感），
+     Web 侧用 :active 缩放近似；触感由 AppSwitch/宿主层统一处理。 */
+  transform: scale(1);
+  transition: transform 130.9ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.privacy-windows-manage-action:active {
+  transform: scale(0.94);
+}
+
+/* Kotlin L612-627: error.copy(alpha = 0.10f) + MaterialTheme error 文本色 */
+.privacy-windows-manage-action--danger {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+/* ── 窄屏（横屏矮屏）微调 ──
+ * Kotlin 的紧凑模式是按容器高度（BoxWithConstraints maxHeight）切到
+ * 52.dp 键 / 7.dp 行距 / 无盾牌；本 CSS 只兜住容器高度未知时的极端情况，
+ * 真正的紧凑判定在 `core.pinOverlayMetrics()`（逐行移植自 L280-348）。 */
+@media (max-height: 559px) {
+  .privacy-windows-overlay__center {
+    padding: 0 16px;
+  }
+
+  .privacy-windows-manage-card {
+    max-height: 88%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .privacy-windows-pin-key,
+  .privacy-windows-manage-action {
+    transition: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * 夜间模式 — Android Theme.kt L68-76 darkColorScheme
+ * 触发：设置 → 护眼与提醒 → 夜间模式（`auto_night_mode`）
+ *      → MainActivity.kt L213 `MyApplicationTheme(darkTheme = autoNightMode)`
+ *
+ * PrivacyWindows.kt 里的颜色几乎全是 `MaterialTheme.colorScheme` 派生色
+ * （onSurface / onSurface α / surface α / outline），Android 上跟着 autoNightMode 走；
+ * 本文件把它们的浅色字面量换成同一 alpha 的深色档。
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 卡片本体（`.privacy-windows-pin-card` / `.privacy-windows-manage-card`）走
+ * `GlassCard` → `.glass-card`，底色是 `--glass-card-bg`，theme.css 已翻好，这里不动。
+ * ⚠️ 数字键的底色/数字色是 `PrivacyWindows.tsx` L250 / L261 的**内联** style，
+ *     属于 TSX 只读文件，本块（CSS-only）不覆盖。
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── PIN 覆盖层（Kotlin L299-339） ── */
+[data-theme='dark'] .privacy-windows-pin-title {
+  /* Kotlin L315-317 未指定 color → 取 GlassCard 的 contentColor（onSurface） */
+  color: var(--color-on-light, #d4d4d4);
+}
+
+[data-theme='dark'] .privacy-windows-pin-subtitle {
+  /* Kotlin L326 `onSurface.copy(alpha = 0.55f)` */
+  color: rgba(212, 212, 212, 0.55);
+}
+
+[data-theme='dark'] .privacy-windows-pin-key--icon {
+  /* Kotlin L171 `Icon tint = onSurface.copy(alpha = 0.8f)` */
+  color: rgba(212, 212, 212, 0.8);
+}
+
+/* ── 隐私管理覆盖层（Kotlin L424-627） ── */
+[data-theme='dark'] .privacy-windows-manage-title {
+  /* Kotlin L447 未指定 color → onSurface */
+  color: var(--color-on-light, #d4d4d4);
+}
+
+[data-theme='dark'] .privacy-windows-manage-lead {
+  /* Kotlin L464 `onSurface.copy(alpha = 0.55f)` */
+  color: rgba(212, 212, 212, 0.55);
+}
+
+[data-theme='dark'] .privacy-windows-manage-toggle {
+  /* Kotlin L476 `background(surface.copy(alpha = 0.35f))`
+     深色底上「加白」才抬得起来，白底 alpha 保持 0.35。 */
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .privacy-windows-manage-toggle__icon {
+  /* Kotlin L484 `onSurface.copy(alpha = 0.4f)` */
+  color: rgba(212, 212, 212, 0.4);
+}
+
+[data-theme='dark'] .privacy-windows-manage-row__icon {
+  /* Kotlin L565 `onSurface.copy(alpha = 0.4f)` */
+  color: rgba(212, 212, 212, 0.4);
+}
+
+[data-theme='dark'] .privacy-windows-manage-row__label {
+  /* Kotlin L570-574 未指定 color → onSurface */
+  color: var(--color-on-light, #d4d4d4);
+}
+
+[data-theme='dark'] .privacy-windows-manage-row__hint {
+  /* Kotlin L495-499 / L534-538 / L575-581 `onSurface.copy(alpha = 0.45f)` */
+  color: rgba(212, 212, 212, 0.45);
+}
+
+[data-theme='dark'] .privacy-windows-manage-action {
+  /* Kotlin L600 `background(surface.copy(alpha = 0.55f))` + L607 onSurface。
+     深色下白面 0.55 几乎不可见，降到 0.08 白叠加当作「抬起的一层」。 */
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-on-light, #d4d4d4);
+}
+
+/* ── 权重兜底 ──
+ * 上面的 `[data-theme='dark'] .x` 都是 0-2-0，压过同名的 `--on` / `--danger`
+ * 修饰类（0-1-0）。这些修饰类才是 Kotlin 里「命中态 = MintPrimary」
+ * （L483 / L522 / L564）和「危险态 = error.copy(0.10f)」（L612-627）的落点，
+ * 必须逐条补回，否则夜间模式下开关打开/危险按钮的强调色会消失。 */
+[data-theme='dark'] .privacy-windows-manage-toggle__icon--on {
+  /* Kotlin L483 `tint = if (incognitoBrowsingEnabled) MintPrimary` */
+  color: #059669;
+}
+
+[data-theme='dark'] .privacy-windows-manage-row__icon--on {
+  /* Kotlin L522 / L564 `tint = if (...) MintPrimary` */
+  color: #059669;
+}
+
+[data-theme='dark'] .privacy-windows-manage-action--danger {
+  /* Kotlin L612 `background(error.copy(alpha = 0.10f))` + MaterialTheme error 文本 */
+  background: rgba(220, 38, 38, 0.16);
+  color: var(--color-danger, #dc2626);
+}

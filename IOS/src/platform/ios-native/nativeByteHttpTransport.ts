@@ -1,0 +1,85 @@
+import { registerPlugin } from '@capacitor/core';
+import { nonThenablePlugin } from './pluginProxy';
+import { base64ToBytes, bytesToBase64, type NativeHttpRequestOptions, type NativeHttpResponse, type NativeHttpTransport } from './capacitorHttpClient';
+import { nativeHttpScheduler } from './httpRequestScheduler';
+import type { HttpStreamResponse } from '@platform/interfaces';
+import { checkInsecureTlsRequest } from '@core/source/networkCalls';
+
+const MAX_BYTES = 512 * 1024 * 1024, CHUNK_BYTES = 512 * 1024;
+export interface ByteHttpNative {
+  begin(options: { id: string; url: string; method: string; headers: Record<string, string>; body?: string; timeoutMs: number; maxBytes: number; progressive?: boolean; insecureTls?: boolean; redirect: 'follow' | 'manual' | 'error' }): Promise<{ status: number; headers: Record<string, string>; url: string; size: number }>;
+  read(options: { id: string; offset: number; length: number }): Promise<{ data: string }>;
+  cancel(options: { id: string }): Promise<void>;
+  release(options: { id: string }): Promise<void>;
+}
+function requestId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16)); bytes[6] = (bytes[6]! & 15) | 64; bytes[8] = (bytes[8]! & 63) | 128;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(''); return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+/** Owns the whole deadline, including bridge reads. Cancellation rejects the
+ * caller and cancels the native socket; cleanup always releases its spool. */
+export class NativeByteHttpTransport implements NativeHttpTransport {
+  readonly managesTimeouts = true;
+  constructor(private readonly native: ByteHttpNative = nonThenablePlugin(registerPlugin<ByteHttpNative>('ReaderHttp'))) {}
+  async request(options: NativeHttpRequestOptions): Promise<NativeHttpResponse> {
+    return this.consume(options, async (response) => {
+      const body = new Uint8Array(response.size); let offset = 0;
+      for await (const chunk of response.chunks) { body.set(chunk, offset); offset += chunk.length; }
+      return { data: null, body, status: response.status, headers: response.headers, url: response.url };
+    });
+  }
+  async consume<T>(options: NativeHttpRequestOptions, consumer: (response: HttpStreamResponse) => Promise<T>): Promise<T> {
+    const timeoutMs = options.readTimeout ?? options.connectTimeout ?? 30_000;
+    const maxBytes = options.maxResponseBytes ?? MAX_BYTES;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BYTES) throw new Error('HTTP 响应大小限制无效');
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 3_600_000) throw new Error('HTTP 超时设置无效');
+    if (options.signal?.aborted) throw new DOMException('HTTP 请求已取消', 'AbortError');
+    const insecureTls = options.insecureTls === true;
+    if (insecureTls) checkInsecureTlsRequest(options.url, options.headers ?? {});
+    const id = requestId(), native = this.native, waiting = new AbortController(), host = new URL(options.url).hostname.toLowerCase();
+    let stopReason: Error | undefined, abort!: (error: Error) => void;
+    const cancelled = new Promise<never>((_resolve, reject) => { abort = reject; });
+    void cancelled.catch(() => {});
+    const stop = (error: Error) => {
+      if (stopReason) return;
+      stopReason = error; waiting.abort(); abort(error); void native.cancel({ id }).catch(() => {});
+    };
+    const onAbort = () => stop(new DOMException('HTTP 请求已取消', 'AbortError'));
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(() => stop(new Error(`HTTP 请求超时（${timeoutMs}ms）`)), timeoutMs);
+    let permit: (() => void) | undefined;
+    const work = async (): Promise<T> => {
+      permit = await nativeHttpScheduler.acquire(host, waiting.signal);
+      if (stopReason) throw stopReason;
+      let body: string | undefined;
+      if (options.data !== undefined) {
+        if (typeof options.data !== 'string') throw new Error('HTTP 请求体必须为文本或原始字节');
+        if (options.dataType === 'file') { if (options.data.length > 44739244) throw new Error('HTTP 请求体超过 32MiB'); body = options.data; }
+        else { const bytes = new TextEncoder().encode(options.data); if (bytes.length > 32 * 1024 * 1024) throw new Error('HTTP 请求体超过 32MiB'); body = bytesToBase64(bytes); }
+      }
+      const response = await Promise.race([native.begin({ id, url: options.url, method: options.method, headers: options.headers ?? {}, timeoutMs, maxBytes,
+        ...(options.progressive ? { progressive: true } : {}), ...(insecureTls ? { insecureTls: true } : {}),
+        redirect: insecureTls ? 'error' : options.redirect ?? (options.disableRedirects ? 'manual' : 'follow'), ...(body === undefined ? {} : { body }) }), cancelled]);
+      if (stopReason) throw stopReason;
+      if (!Number.isSafeInteger(response.size) || response.size < 0 || response.size > maxBytes || !Number.isInteger(response.status) || response.status < 100 || response.status > 599 || typeof response.url !== 'string' || !response.headers || typeof response.headers !== 'object' || Array.isArray(response.headers) || Object.values(response.headers).some((value) => typeof value !== 'string')) throw new Error('原生 HTTP 响应信息无效');
+      async function* chunks(): AsyncGenerator<Uint8Array> {
+        const chunkSize = options.progressive ? 64 * 1024 : CHUNK_BYTES;
+        for (let offset = 0; offset < response.size; offset += chunkSize) {
+          if (stopReason) throw stopReason;
+          const length = Math.min(chunkSize, response.size - offset), part = await Promise.race([native.read({ id, offset, length }), cancelled]);
+          if (typeof part.data !== 'string' || part.data.length > Math.ceil(CHUNK_BYTES / 3) * 4) throw new Error('原生 HTTP 响应分块无效');
+          const chunk = base64ToBytes(part.data); if (chunk.length !== length) throw new Error('原生 HTTP 响应分块不完整'); yield chunk;
+        }
+      }
+      return consumer({ ...response, chunks: chunks() });
+    };
+    try {
+      // Do not release the caller's task lock while its consumer is still
+      // committing a chunk to disk. Only the native operations are raced.
+      const result = await work();
+      if (stopReason) throw stopReason;
+      return result;
+    } catch (error) { throw stopReason ?? error; }
+    finally { clearTimeout(timer); options.signal?.removeEventListener('abort', onAbort); void native.release({ id }).catch(() => {}); permit?.(); }
+  }
+}

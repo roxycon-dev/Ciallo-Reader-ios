@@ -1,0 +1,2204 @@
+/* ══════════════════════════════════════════════════════════════
+   神回（GodMoment）排行榜样式 — 逐行对照 Android:
+     god/GodRankingShared.kt · GodRankingStyles.kt · GodRankingExhibits.kt
+     god/GodRankingCard.kt   · GodMotion.kt · GodStarRating.kt
+   颜色来自 GodGold（GodMotion.kt L88-132）与 Theme.kt 浅色配色。
+   dp ≈ CSS px，sp ≈ px（与本项目其它页面同一换算）。
+   ══════════════════════════════════════════════════════════════ */
+
+.god-body {
+  position: relative;
+}
+
+/* ── 风格切换 AnimatedContent：fadeIn 280 + scaleIn 0.97 ── */
+.god-anim {
+  animation: god-style-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.god-anim--quick {
+  animation-duration: 140ms;
+}
+@keyframes god-style-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── 条目卡片手势层（GodItemCard: rotationX/Y + cameraDistance 1600 + press） ── */
+.god-item {
+  position: relative;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+}
+.god-item--settle {
+  /* springMain: damping 0.72 / stiffness 380 → 轻微回弹 */
+  transition: transform 380ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.god-item--dragging {
+  /* 跟手：snapTo 等效（无过渡） */
+  transition: transform 60ms linear;
+}
+.god-item:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+}
+
+/* ── 封面（GodCoverImage / GodCoverPlaceholder） ── */
+.god-cover {
+  position: relative;
+  width: 100%;
+  /* 视差：translationX = tilt.x * factor（factor 由 --god-tilt-factor 内联注入） */
+  transform: translateX(calc(var(--god-tilt-x, 0px) * var(--god-tilt-factor, 0)));
+}
+.god-cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: rgba(217, 142, 31, 0.65); /* GodGold.LightEnd 0.65 */
+  border: 1px solid rgba(245, 185, 66, 0.28); /* LightMid 0.28, r12 */
+  border-radius: 12px;
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      rgba(245, 185, 66, 0.2) 0%,
+      rgba(245, 185, 66, 0) 60%
+    ),
+    linear-gradient(180deg, rgba(227, 229, 231, 0.85) 0%, #e3e5e7 100%);
+}
+.god-cover__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: god-cover-in 220ms ease-out; /* crossfade(220) */
+}
+@keyframes god-cover-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── 只读星级（GodStarsReadonly: starSize 14 / gap 2） ── */
+.god-stars {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+.god-star {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ── 名次圆章（GodRankStamp: 22dp 圆） ── */
+.god-rank-stamp {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(245, 185, 66, 0.6);
+  color: #d98e1f;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── 空状态（GodEmptyState: 108×84 手绘 + 浮动 ±9px / 2600ms） ── */
+.god-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 0;
+}
+.god-empty--float svg {
+  animation: god-empty-float 2600ms linear infinite alternate;
+}
+@keyframes god-empty-float {
+  from {
+    transform: translateY(-9px);
+  }
+  to {
+    transform: translateY(9px);
+  }
+}
+.god-empty__text {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── 长按浮层菜单（GodItemMenu: r14 / surface 0.96 / item 132×42） ── */
+.god-menu-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  background: transparent;
+}
+.god-menu {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 14px;
+  box-shadow:
+    0 12px 28px rgba(24, 25, 28, 0.18),
+    0 2px 8px rgba(24, 25, 28, 0.1);
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.god-menu__item {
+  width: 132px;
+  height: 42px;
+  padding: 0 0 0 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-on-light, #18191c);
+  cursor: pointer;
+}
+.god-menu__item--danger {
+  color: var(--color-danger, #dc2626);
+}
+.god-menu__item:active {
+  background: rgba(227, 229, 231, 0.5);
+}
+
+/* ── 对话框（Material3 AlertDialog: r24 / scrim 0.32 / TextButton） ── */
+.god-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+.god-dialog {
+  width: 100%;
+  max-width: 312px;
+  background: var(--color-surface, #ffffff);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 12px 40px rgba(24, 25, 28, 0.24);
+}
+.god-dialog__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.15px;
+  color: var(--color-on-light, #18191c);
+}
+.god-dialog__text {
+  margin-top: 16px;
+}
+.god-dialog__hint {
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--color-medium-gray, #61666d);
+}
+.god-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.god-dialog__btn {
+  border: 0;
+  background: none;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -0.1px;
+  color: var(--color-primary, #059669);
+  cursor: pointer;
+  border-radius: 8px;
+}
+.god-dialog__btn--danger {
+  color: var(--color-danger, #dc2626);
+}
+.god-note-scroll {
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--color-on-light, #18191c);
+}
+
+/* ── 神回总数小徽章（GodCountPill: 金渐变 + 顶部受光带 + 白描边） ── */
+.god-count-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: #3b2a08;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.god-count-pill::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 55%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+/* ── 卷首展签（GodRankingHero: r28 / min-height 192 / padding 22） ── */
+.god-hero {
+  position: relative;
+  min-height: 192px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 226, 154, 0.38);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.god-hero__rings {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.god-hero__ring {
+  position: absolute;
+  left: 90%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  border: 1px solid;
+  border-radius: 50%;
+}
+.god-hero__ring-fill {
+  position: absolute;
+  left: 90%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  width: 164px; /* 82dp 半径 */
+  height: 164px;
+  border-radius: 50%;
+}
+.god-hero__content {
+  position: relative;
+  padding: 22px;
+}
+.god-hero__eyebrow {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #ffe29a; /* gold[0] */
+}
+.god-hero__title {
+  margin: 11px 0 0;
+  font-size: 27px;
+  line-height: 34px;
+  font-weight: 700;
+  color: #f9f2e2;
+}
+.god-hero__meta {
+  margin: 18px 0 0;
+  font-size: 12px;
+  color: #e6d5b0;
+}
+.god-hero__leader {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ════════ PODIUM 领奖台 ════════ */
+.god-pod-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.god-pod {
+  display: flex;
+  flex-direction: column;
+}
+.god-pod__row {
+  display: flex;
+  gap: 7px;
+  align-items: flex-end;
+  width: 100%;
+}
+.god-pod__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.god-pod__card {
+  width: 100%;
+}
+.god-pod__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.god-pod__cover-wrap {
+  border-radius: 9px;
+  overflow: hidden;
+  box-shadow:
+    0 4px 10px rgba(24, 25, 28, 0.16),
+    0 1px 4px rgba(24, 25, 28, 0.1);
+  flex-shrink: 0;
+}
+.god-pod__spacer7 {
+  height: 7px;
+}
+.god-pod__spacer8 {
+  height: 8px;
+}
+.god-pod__name {
+  margin: 0;
+  width: 100%;
+  height: 30px;
+  text-align: center;
+  line-height: 14px;
+  color: var(--color-on-light, #18191c);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.god-pod__rating {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+.god-pod__stone {
+  width: 100%;
+  border-radius: 9px 9px 0 0;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.god-pod__stone-rank {
+  font-weight: 300;
+  line-height: 1;
+}
+.god-leader-note {
+  margin: 0;
+  width: 100%;
+  background: rgba(227, 229, 231, 0.24);
+  padding: 7px 10px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+/* 第 4 名及以后的卡牌流（GodPodiumStyle L72-107） */
+.god-pod-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: rgba(227, 229, 231, 0.28);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+.god-pod-row__rank {
+  flex-shrink: 0;
+  color: #d98e1f; /* GodGold.LightEnd */
+  font-size: 15px;
+  font-weight: 700;
+}
+.god-pod-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.god-pod-row__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 23px;
+  letter-spacing: -0.1px;
+  color: var(--color-on-light, #18191c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-pod-row__book {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-pod-row__note {
+  margin: 0;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--color-medium-gray, #61666d);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.god-pod-row__rating {
+  flex-shrink: 0;
+  color: #d98e1f;
+  font-size: 12px;
+}
+
+/* ════════ VINYL 唱片架 ════════ */
+.god-vinyl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.god-vinyl__pager {
+  display: flex;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* contentPadding side = (maxWidth - pageWidth)/2，clamp ≥ 0 */
+  padding-left: max(0px, calc((100% - var(--god-vinyl-page, 260px)) / 2));
+  padding-right: max(0px, calc((100% - var(--god-vinyl-page, 260px)) / 2));
+  box-sizing: border-box;
+}
+.god-vinyl__pager::-webkit-scrollbar {
+  display: none;
+}
+.god-vinyl__page {
+  position: relative;
+  flex: 0 0 auto;
+  height: 100%;
+  scroll-snap-align: center;
+}
+.god-vinyl__disc-wrap {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translate(calc(var(--god-tilt-x, 0px) * var(--god-tilt-factor, 0)), -50%);
+  pointer-events: none;
+}
+.god-vinyl__disc {
+  display: block;
+}
+.god-vinyl__sleeve-pos {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.god-vinyl__sleeve {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  box-shadow:
+    0 10px 22px rgba(24, 25, 28, 0.2),
+    0 2px 8px rgba(24, 25, 28, 0.12);
+}
+.god-vinyl__sleeve-inner {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  overflow: hidden;
+  background: #e3e5e7; /* surfaceVariant */
+}
+.god-vinyl__sleeve-inner .god-cover {
+  height: 100%;
+}
+.god-vinyl__rank {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  background: rgba(28, 27, 26, 0.757); /* Color(0xC11C1B1A) */
+  border-radius: 5px;
+  padding: 3px 7px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.god-vinyl__shelf {
+  width: calc(100% - 40px);
+  height: 2px;
+  background: rgba(245, 185, 66, 0.32);
+  flex-shrink: 0;
+}
+.god-vinyl__gap14 {
+  height: 14px;
+}
+.god-vinyl__gap5 {
+  height: 5px;
+}
+.god-vinyl__gap4 {
+  height: 4px;
+}
+.god-vinyl__title {
+  margin: 0;
+  max-width: 100%;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.15px;
+  color: var(--color-on-light, #18191c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+.god-vinyl__meta {
+  margin: 0;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-vinyl__note {
+  margin: 0;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+/* ════════ POLAROID 照片墙 ════════ */
+.god-wall {
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.god-wall__head {
+  display: flex;
+  align-items: center;
+}
+.god-wall__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.7px;
+}
+.god-wall__count {
+  margin-left: auto;
+  font-size: 10px;
+}
+.god-wall__row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.god-wall__filler {
+  flex: 1;
+}
+.god-pola {
+  flex: 1;
+  min-width: 0;
+  transform: translateX(calc(var(--god-tilt-x, 0px) * var(--god-tilt-factor, 0)));
+}
+.god-pola__card {
+  width: 100%;
+  box-shadow:
+    0 5px 12px rgba(24, 25, 28, 0.14),
+    0 1px 4px rgba(24, 25, 28, 0.08);
+  border-radius: 4px;
+}
+.god-pola__paper {
+  border-radius: 4px;
+  padding: 7px;
+  box-sizing: border-box;
+}
+.god-pola__photo {
+  position: relative;
+  width: 100%;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.god-pola__photo .god-cover {
+  height: 100%;
+}
+.god-pola__rank {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(34, 32, 30, 0.725); /* Color(0xB922201E) */
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.god-pola__gap9 {
+  height: 9px;
+}
+.god-pola__gap5 {
+  height: 5px;
+}
+.god-pola__gap4 {
+  height: 4px;
+}
+.god-pola__gap3 {
+  height: 3px;
+}
+.god-pola__name {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 15px;
+  color: #302c27;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-pola__meta {
+  margin: 0;
+  font-size: 9px;
+  line-height: 13px;
+  color: #8c7250;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-pola__note {
+  margin: 0;
+  font-size: 9px;
+  line-height: 13px;
+  color: #786e62;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+/* ════════ 统计页卡片（GodRankingCard: GlassCard r20 / padding 16） ════════ */
+.god-rank-card__pad {
+  padding: 16px;
+}
+.god-rank-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.god-rank-card__title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.2px;
+  color: var(--color-on-light, #18191c);
+}
+.god-rank-card__spacer {
+  flex: 1;
+}
+.god-rank-card__more {
+  border: 0;
+  background: none;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--color-primary, #059669);
+  cursor: pointer;
+}
+.god-rank-card__gap14 {
+  height: 14px;
+}
+
+/* ════════ 全屏排行榜页（GodRankingScreen: TopAppBar + LazyColumn） ════════ */
+.god-screen {
+  display: flex;
+  flex-direction: column;
+}
+
+/* TopAppBar：containerColor = surface，高 64dp */
+.god-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 8px 0 4px;
+  background: var(--color-surface, #ffffff);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.god-topbar__back {
+  width: 48px;
+  height: 48px;
+  border: 0;
+  background: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--color-on-light, #18191c);
+  cursor: pointer;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.god-topbar__back:active {
+  background: rgba(227, 229, 231, 0.6);
+}
+.god-topbar__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+  white-space: nowrap;
+}
+
+/* 空状态：fillMaxSize 居中 */
+.god-screen__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+
+/* LazyColumn：contentPadding h16 v12，spacedBy 12 */
+.god-screen__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 24px;
+}
+
+/* 陈列方式行：GlassCard r18 / tint surface 0.68 / padding h16 v12 */
+.god-style-row {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  width: 100%;
+}
+.god-style-row__label {
+  font-size: 12px;
+  color: var(--color-medium-gray, #61666d);
+}
+.god-style-row__spacer {
+  flex: 1;
+}
+.god-style-row__value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #d98e1f; /* GodGold.LightEnd */
+}
+.god-style-row__arrow {
+  margin-left: 5px;
+  font-size: 13px;
+  color: #d98e1f;
+}
+
+/* ════════ 设置页「神回」分组（GodSettingsSection） ════════ */
+.god-settings {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  scroll-margin-top: 80px;
+}
+.god-settings__title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  color: rgba(24, 25, 28, 0.62);
+}
+.god-settings__gap8 {
+  height: 8px;
+}
+.god-settings__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.god-settings__card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-on-light, #18191c);
+}
+.god-settings__styles {
+  display: flex;
+  gap: 10px;
+}
+
+/* 风格单选卡片：r14 / padding 8 / 选中弹簧缩放 1.04 + 金渐变描边 1.6dp */
+.god-style-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 14px;
+  border: 1px solid rgba(24, 25, 28, 0.12);
+  background: rgba(227, 229, 231, 0.32);
+  padding: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  /* springMain 等效：damping 0.72 / stiffness 380 */
+  transition:
+    transform 380ms cubic-bezier(0.34, 1.3, 0.64, 1),
+    border-color 380ms cubic-bezier(0.34, 1.3, 0.64, 1),
+    background 380ms cubic-bezier(0.34, 1.3, 0.64, 1),
+    box-shadow 380ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.god-style-card--selected {
+  border: 1.6px solid transparent;
+  background:
+    linear-gradient(rgba(227, 229, 231, 0.55), rgba(227, 229, 231, 0.55)) padding-box,
+    var(--god-gold-gradient, linear-gradient(90deg, #ffe29a, #f5b942, #d98e1f)) border-box;
+}
+.god-style-card__art {
+  display: block;
+}
+.god-style-card__gap6 {
+  height: 6px;
+}
+.god-style-card__label {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* 开关行（GodSettingSwitchRow） */
+.god-switch-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.god-switch-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.god-switch-row__title {
+  font-size: 14px;
+  color: var(--color-on-light, #18191c);
+}
+.god-switch-row__gap2 {
+  height: 2px;
+}
+.god-switch-row__desc {
+  font-size: 11.5px;
+  line-height: 15px;
+  color: var(--color-medium-gray, #61666d);
+}
+.god-switch-row__gap10 {
+  width: 10px;
+  flex-shrink: 0;
+}
+
+/* 「查看神回排行榜 ✦」入口：r12 / secondary 0.10 / padding v11 */
+.god-settings__open-ranking {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 11px 0;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ▼▼▼ 神回「阅读器内」新增段 —— GodMomentSheet / GodPull / GodStarRatingEditable
+       / GodChapterCard（append-only；以上既有规则未做任何改动）
+   Kotlin 来源：
+     - god/GodMomentSheet.kt  152-217 godAcrylicPanel / 386-402 radialGlassScrim
+                              405-431 面板 + 下拉把手 / 433-459 底部渐隐带
+                              603-697 标题流光 / 686-1036 分区 / 1038-1125 输入
+                              1129-1261 吸底栏 + 金色主按钮 / 1269-1311 胶囊按钮
+                              1315-1362 保存礼花 / 895-982 页面缩略图
+     - god/GodPull.kt        190-289 光晕 / 刻度 / 圆环 / 文案 / 293-320 提示胶囊
+     - god/GodStarRating.kt 175-240 单颗星 / 244-268 金屑
+     - god/GodChapterCard.kt 105-241 章节卡（流光描边 157-188 / 脉冲 148-154）
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── 神回窗口：遮罩（GodMomentSheet.kt L386-402 radialGlassScrim + click） ── */
+.god-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+}
+/* 径向聚光遮罩：中心亮、四周暗（Kotlin L392 `.radialGlassScrim()`） */
+.god-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgba(20, 20, 26, 0.55) 0%,
+    rgba(8, 9, 12, 0.82) 55%,
+    rgba(0, 0, 0, 0.92) 100%
+  );
+  animation: god-sheet-scrim-in 220ms ease-out both;
+}
+
+/* ── 神回窗口：亚克力面板（Kotlin L152-217 godAcrylicPanel） ──
+   逐层复刻 acrylicPanel：半透明基底 → 顶棱抛光带 → 125° 对角光束 → 噪点
+   → 虹彩描边 → 水晶倒角。Kotlin 用 consistentShadow 打两层阴影，DOM 用
+   box-shadow（环境光金调 + 黑色接触影）。 */
+.god-sheet__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(30, 31, 36, 0.84) 0%,
+      rgba(30, 31, 36, 0.74) 45%,
+      rgba(26, 27, 32, 0.68) 100%
+    );
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.34),
+    0 0 34px rgba(201, 154, 62, 0.16),
+    0 2px 10px rgba(0, 0, 0, 0.22);
+  animation: god-sheet-up 420ms cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+.god-sheet__panel::before {
+  /* 顶棱抛光聚光带（Kotlin L186-198，压到 2.5dp 的发丝亮边） */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.42) 25%,
+    rgba(255, 255, 255, 0.66) 50%,
+    rgba(255, 255, 255, 0.42) 75%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  pointer-events: none;
+}
+.god-sheet__panel::after {
+  /* 125° 对角镜面光束 + 底部金调微晕染（Kotlin L200-212）+ 虹彩描边 */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      125deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0.04) 28%,
+      rgba(255, 255, 255, 0) 52%,
+      rgba(255, 226, 154, 0.05) 74%,
+      rgba(245, 185, 66, 0.07) 100%
+    );
+  border: 1.5px solid transparent;
+  border-image-source: linear-gradient(
+    90deg,
+    var(--god-prism, #ffe29a),
+    #eaf5f8,
+    #d98e1f
+  );
+  border-image-slice: 1;
+  opacity: 0.34;
+}
+
+@keyframes god-sheet-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* BottomSheetEntrance：淡入 + iOS 弹簧上推（Kotlin L409） */
+@keyframes god-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(6%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 下拉把手（Kotlin L419-431：44×5 胶囊，onSurface@0.24） */
+.god-sheet__grip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0;
+}
+.god-sheet__grip::before {
+  content: '';
+  width: 44px;
+  height: 5px;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* 可滚动内容（Kotlin L433-459 + 底部 44dp 渐隐 DstIn） */
+.god-sheet__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 20px;
+  /* 「内容层自身淡出」：露出的就是面板本色（Kotlin L444-458 的 Offscreen + DstIn） */
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 44px), transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(100% - 44px),
+    transparent 100%
+  );
+}
+.god-sheet__block {
+  will-change: opacity, transform;
+}
+.god-sheet__gap14 {
+  height: 14px;
+}
+.god-sheet__gap18 {
+  height: 18px;
+}
+.god-sheet__gap34 {
+  height: 34px;
+}
+
+/* ── ① 标题区（Kotlin L603-697） ── */
+.god-sheet__title {
+  position: relative;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 0 10px;
+  overflow: hidden;
+}
+.god-sheet__eyebrow {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.god-sheet__headline {
+  margin: 7px 0 4px;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+  background: linear-gradient(90deg, #ffe29a, #f5b942, #d98e1f, #f5b942, #ffe29a);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.god-sheet__title--shine .god-sheet__headline {
+  /* Kotlin L614-622：金色渐变沿水平方向缓慢平移（SHINE_MS = 2600） */
+  animation: god-sheet-shine 2600ms linear infinite;
+}
+@keyframes god-sheet-shine {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+/* ── 标题区背景：漂移光斑 + 4 颗闪烁星点（Kotlin L634-656 `drawBehind`）──
+   Kotlin 侧：`drift` 是 0→1 的 9000ms 线性循环（L623-628），
+   ① 光斑圆心 cx = w*(0.25 + 0.5·drift)、cy = h*(0.3 + 0.4·(1-drift))，
+     半径 w*0.55，色为 `gold.first()` alpha 0.13（L639-647）。
+   ② 4 颗星点：`a = drift·2π + i·1.7`，`alpha = (0.22 + 0.22·sin a)` 夹在
+     0.04~0.44，半径 2.2dp，x = w*(0.62 + i·0.11)，y = h*(0.22 + 0.5·|cos a|)（L649-655）。
+   `if (reduce) return@drawBehind` —— 组件在 reduce 时不渲染这一层（E73）。
+   纯装饰，不接受点击。 */
+
+.god-sheet__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.god-sheet__glow::before {
+  content: '';
+  position: absolute;
+  /* w·0.55 半径换算成百分比：相对宽度是 55%，相对高度按 16:10 的标题比例 ≈ 88%。
+     中心用 drift 的两个线性插值，与 Kotlin 的 cx/cy 公式一致。 */
+  width: 110%;
+  aspect-ratio: 1 / 1;
+  left: -5%;
+  top: 0;
+  background: radial-gradient(
+    circle closest-side,
+    color-mix(in srgb, var(--god-sheet-glow, #e8c97a) 13%, transparent),
+    transparent 100%
+  );
+  animation: god-sheet-glow-drift 9000ms linear infinite;
+}
+
+/* drift: 0→1；cx 从 25% → 75%，cy 从 70% → 30%（Kotlin cy = h·(0.3 + 0.4·(1-drift))），
+   半径恒为 min(w, h)/2 ≈ w·0.55 ⇒ 用固定百分比 + scale 表达。 */
+@keyframes god-sheet-glow-drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(50%, -40%);
+  }
+}
+
+.god-sheet__star {
+  position: absolute;
+  /* Kotlin 半径 2.2dp */
+  width: 4.4px;
+  height: 4.4px;
+  border-radius: 50%;
+  background: var(--god-sheet-glow, #e8c97a);
+  /* alpha 由 keyframes 逐帧给出，见下 */
+  opacity: 0.22;
+}
+
+/* x = w·(0.62 + i·0.11)（Kotlin L652）；top 与 animation-delay 见下。 */
+.god-sheet__star--0 {
+  left: 62%;
+}
+.god-sheet__star--1 {
+  left: 73%;
+}
+.god-sheet__star--2 {
+  left: 84%;
+}
+.god-sheet__star--3 {
+  left: 95%;
+}
+
+/* y = h·(0.22 + 0.5·|cos a|)，a = drift·2π + i·1.7 ⇒ 每颗星相位差 1.7 rad。
+   alpha 走 (0.22 + 0.22·sin a)，夹在 0.04~0.44（Kotlin L651 的 coerceIn）。
+   9000ms 与 drift 同周期（Kotlin L626），保证 4 颗星与光斑同步。
+   相位差用 negative `animation-delay` 表达：1.7 rad / 2π 圈 × 9000ms ≈ 2436ms，
+   逐颗再加 1.7 rad ⇒ 2436 / 4872 / 7308 ms。 */
+@keyframes god-sheet-star-blink {
+  0% {
+    transform: translateY(0%);
+    opacity: 0.22;
+  }
+  25% {
+    transform: translateY(50%);
+    opacity: 0.44;
+  }
+  50% {
+    transform: translateY(0%);
+    opacity: 0.22;
+  }
+  75% {
+    transform: translateY(-32%);
+    opacity: 0.04;
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 0.22;
+  }
+}
+.god-sheet__star--0 {
+  top: 22%;
+  animation: god-sheet-star-blink 9000ms linear infinite;
+}
+.god-sheet__star--1 {
+  top: 34%;
+  animation: god-sheet-star-blink 9000ms linear infinite -2436ms;
+}
+.god-sheet__star--2 {
+  top: 30%;
+  animation: god-sheet-star-blink 9000ms linear infinite -4872ms;
+}
+.god-sheet__star--3 {
+  top: 40%;
+  animation: god-sheet-star-blink 9000ms linear infinite -7308ms;
+}
+
+.god-sheet__book {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 15px;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 100%;
+}
+
+/* ── ② 封面区（Kotlin L734-884） ── */
+.god-sheet__coversec {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.god-sheet__cover {
+  position: relative;
+  width: 158px;
+  aspect-ratio: 3 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 14px rgba(0, 0, 0, 0.24);
+  /* 金调细描边（Kotlin L851-855） */
+  border: 1.2px solid;
+  border-image-source: inherit;
+  border-image-slice: 1;
+  touch-action: none;
+}
+.god-sheet__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.god-sheet__cover-empty {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 8px;
+  text-align: center;
+}
+.god-sheet__chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* 胶囊按钮（Kotlin L1269-1311 GodChipButton） */
+.god-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-family: inherit;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 260ms cubic-bezier(0.3, 1.05, 0.5, 1);
+}
+.god-chip::before {
+  /* 内侧顶部高光（Kotlin L1291-1299，与 acrylicPanel 顶棱同源） */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 45%);
+}
+/* GodMotion.kt:171-188 `Modifier.godPress`：scale → PRESS_SCALE(0.96)
+   **且** alpha → PRESS_ALPHA(0.92)。Kotlin 只在 GodShineButton（GodMomentSheet.kt:1200）
+   与 GodChipButton（L1286）上使用 —— 即下面的 `.god-shine` 与 `.god-chip`，
+   别处不要加这条 alpha。 */
+.god-chip:active {
+  transform: scale(0.96);
+  opacity: 0.92;
+}
+.god-chip__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+.god-chip__text {
+  position: relative;
+}
+
+/* 页缩略图行（Kotlin L774-789 LazyRow + L895-982 GodPageThumb） */
+.god-sheet__thumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.god-sheet__thumbs::-webkit-scrollbar {
+  display: none;
+}
+.god-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 70px;
+  padding: 0;
+  border-radius: 8px;
+  border-style: solid;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 260ms cubic-bezier(0.3, 1.05, 0.5, 1);
+}
+.god-thumb:active {
+  transform: scale(0.96);
+}
+.god-thumb--sel {
+  box-shadow: 0 0 0 2px rgba(245, 185, 66, 0.35);
+}
+.god-thumb__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.god-thumb__label {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+}
+.god-thumb__badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  font-size: 9px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* ── ③④⑤ 分区（Kotlin L986-1036 / 1038-1125） ── */
+.god-sheet__section {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 20px;
+  border: 1px solid;
+  padding: 16px;
+}
+.god-sheet__section-head {
+  display: flex;
+  align-items: center;
+}
+.god-sheet__section-number {
+  margin-right: 9px;
+  color: #f5b942;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.god-sheet__label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+.god-sheet__section-caption {
+  margin: 2px 0 0 30px;
+  font-size: 11px;
+  line-height: 15px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.god-sheet__section-body {
+  margin-top: 12px;
+}
+
+/* 名称输入（Kotlin L1038-1077） */
+.god-sheet__titlefield {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.god-sheet__input-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.god-sheet__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #f9f2e2;
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+}
+.god-sheet__input:focus {
+  border-color: #f5b942;
+}
+.god-sheet__reset {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #f5b942;
+  font-size: 15px;
+  cursor: pointer;
+}
+.god-sheet__counter {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* 随笔便签（Kotlin L1079-1125：纸色 + 26dp 横线） */
+.god-sheet__note {
+  position: relative;
+  width: 100%;
+  border-radius: 16px;
+  padding: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.god-sheet__note-lines {
+  position: absolute;
+  inset: 0;
+  padding: 0 12px;
+  pointer-events: none;
+}
+.god-sheet__textarea {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #f9f2e2;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  padding: 6px 8px 22px;
+  resize: vertical;
+  outline: none;
+}
+.god-sheet__note-count {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── 可编辑星级（GodStarRating.kt L69-268） ── */
+.god-rate {
+  display: flex;
+  align-items: center;
+}
+.god-rate__row {
+  display: inline-flex;
+  align-items: center;
+  touch-action: none;
+  cursor: pointer;
+}
+.god-rate__row--disabled {
+  cursor: default;
+  pointer-events: none;
+}
+.god-rate-star {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Kotlin L185-190：target = if (filled > 0f) 1f else 0.82f，
+     springBouncy（GodMotion.kt L43：damping 0.55 / stiffness 260）。
+     scale 值由组件内联，这里负责过渡。 */
+  transform: scale(1);
+}
+.god-rate-star--bouncy {
+  /* starScale：springBouncy（GodMotion.kt L43，damping 0.55 / stiffness 260） */
+  transition: transform 420ms cubic-bezier(0.28, 1.45, 0.5, 1);
+}
+.god-rate-star__svg {
+  display: block;
+}
+.god-rate-sparks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.god-rate-spark {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.god-rate__score {
+  margin-left: 10px;
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  animation: god-rate-score-in 260ms cubic-bezier(0.3, 1.05, 0.5, 1) both;
+}
+.god-rate__score--quick {
+  animation: god-rate-score-fade 120ms ease-out both;
+}
+@keyframes god-rate-score-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes god-rate-score-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── ⑥ 吸底操作栏（Kotlin L1129-1261） ── */
+.god-sheet__actions {
+  flex: 0 0 auto;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+}
+.god-sheet__actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.god-sheet__actions-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-sheet__actions-rating {
+  flex: 0 0 auto;
+  color: #f5b942;
+  font-size: 13px;
+  font-weight: 700;
+}
+.god-sheet__actions-row--btns {
+  margin-top: 9px;
+}
+.god-sheet__cancel {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  padding: 8px 4px;
+  font-family: inherit;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+.god-sheet__cancel:disabled {
+  opacity: 0.4;
+}
+
+/* 金色主按钮（Kotlin L1175-1261 GodShineButton） */
+.god-shine {
+  position: relative;
+  flex: 1 1 auto;
+  height: 52px;
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 260ms cubic-bezier(0.3, 1.05, 0.5, 1);
+}
+.god-shine:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.god-shine:not(:disabled):active {
+  transform: scale(0.96);
+  /* GodMotion.kt:186 `alpha = PRESS_ALPHA (0.92f)` —— E74 */
+  opacity: 0.92;
+}
+.god-shine::before {
+  /* 定时扫过的光泽（Kotlin L1211-1226，SHINE_MS = 2600） */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.38) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: god-shine-sweep 2600ms linear infinite;
+}
+.god-shine::after {
+  /* 顶部受光带（Kotlin L1231-1243） */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0) 100%);
+}
+.god-shine--loading::before {
+  animation: none;
+}
+.god-shine__label {
+  position: relative;
+  z-index: 1;
+  color: #3b2a08;
+  font-size: 14px;
+  font-weight: 700;
+}
+@keyframes god-shine-sweep {
+  from {
+    transform: translateX(-140%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+
+/* 载入指示（Kotlin CircularProgressIndicator） */
+.god-spinner {
+  position: relative;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(245, 185, 66, 0.28);
+  border-top-color: #f5b942;
+  box-sizing: border-box;
+  animation: god-spin 700ms linear infinite;
+}
+.god-spinner--ink {
+  border-color: rgba(59, 42, 8, 0.28);
+  border-top-color: #3b2a08;
+}
+@keyframes god-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── 保存成功礼花（Kotlin L1315-1362 GodBurstOverlay） ── */
+.god-burst {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 42%, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0) 60%);
+  animation: god-burst-fade 700ms linear both;
+}
+.god-burst__rays {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(255, 226, 154, 0.9) 0 6%,
+      rgba(245, 185, 66, 0.55) 6% 30%,
+      rgba(255, 226, 154, 0) 31%
+    );
+  animation: god-burst-rays 700ms linear both;
+}
+.god-burst__ring {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  width: 18%;
+  padding-top: 18%;
+  margin: -9% 0 0 -9%;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 226, 154, 0.7);
+  animation: god-burst-ring 700ms linear both;
+}
+.god-burst__cover {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  width: 150px;
+  aspect-ratio: 3 / 4;
+  margin-left: -75px;
+  border-radius: 16px;
+  object-fit: cover;
+  animation: god-burst-cover 700ms linear both;
+}
+@keyframes god-burst-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes god-burst-rays {
+  from {
+    transform: scale(0.2);
+    opacity: 1;
+  }
+  to {
+    transform: scale(9);
+    opacity: 0;
+  }
+}
+@keyframes god-burst-ring {
+  from {
+    transform: scale(0.3);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes god-burst-cover {
+  from {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-220px) scale(0.45);
+    opacity: 0;
+  }
+}
+
+/* ── 拉拽浮层（GodPull.kt L165-320） ── */
+.god-pull {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.god-pull__glow {
+  position: absolute;
+  inset: 0;
+}
+.god-pull__spine {
+  position: absolute;
+  width: 3px;
+  border-radius: 2px;
+}
+.god-pull__tick {
+  position: absolute;
+  height: 1px;
+  transform-origin: left center;
+}
+.god-pull__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: transform 380ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.god-pull__text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: transform 380ms cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.god-pull__glyph {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+.god-pull__primary {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+.god-pull__secondary {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* 末页提示胶囊（Kotlin L293-320：pill 50 / #CC111318 / shadow 6dp） */
+.god-hint {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: 50px;
+  background: rgba(17, 19, 24, 0.8);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+  animation: god-hint-in 260ms cubic-bezier(0.3, 1.05, 0.5, 1) both;
+}
+@keyframes god-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── 神回态章节卡片（GodChapterCard.kt L105-241） ── */
+.god-chapter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  cursor: pointer;
+  color: #ffffff;
+  /* 高亮脉冲（Kotlin L80-90，900ms 一轮：入 240ms / 出 520ms，峰值 0.42） */
+  background: rgba(255, 255, 255, 0.05);
+}
+.god-chapter__cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.god-chapter__scrim {
+  position: absolute;
+  inset: 0;
+}
+.god-chapter__pulse {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation-name: god-chapter-pulse;
+  animation-iteration-count: 1;
+  animation-fill-mode: both;
+}
+/*
+ * Kotlin GodChapterCard.kt L79-90：
+ *   pulse = true  → animateFloatAsState(0 → 0.42, tween(240))，入 240ms
+ *   delay(900) 后 pulse = false → animateFloatAsState(0.42 → 0, tween(520))，出 520ms
+ * 整轮 900 + 520 = 1420ms（--god-chapter-pulse-total 由组件内联）。
+ * 百分比 = 240/1420、900/1420。
+ */
+@keyframes god-chapter-pulse {
+  0% {
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.3, 1.05, 0.5, 1);
+  }
+  16.9% {
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  63.38% {
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.3, 1.05, 0.5, 1);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/*
+ * E77 — 金色流光描边（GodChapterCard.kt L157-188）的**真旋转**。
+ *
+ * Kotlin 是 `drawRoundRect(brush = Brush.linearGradient(5 停靠点, start, end))`，
+ * start/end = (cx ± cos(a)·r, cy ± sin(a)·r)，`r = maxOf(w, h)`，角度随
+ * `rememberInfiniteTransition`（4200ms，Linear，Restart）转一整圈 —— 旋转的是
+ * **渐变矢量**。CSS `linear-gradient` 无法旋转渐变矢量（此前用
+ * background-position 平移近似，方位不对、宽卡片渐变条被拉伸），所以描边
+ * 换成 SVG：`<rect rx=18 stroke=url(#gradient)>`，`linearGradient` 用
+ * `gradientUnits="userSpaceOnUse"` + 基准轴向 (cx+r,cy)→(cx−r,cy)，再由
+ * `<animateTransform type="rotate">` 绕 (cx,cy) 转 0→360 —— 与 Kotlin 逐参数
+ * 等价（周期/时长/线宽/停靠点/半径公式全部对齐，见 GodChapterCard.tsx）。
+ * reduceMotion 时 Kotlin L103 钉死 angle=0 → 不渲染 animateTransform（静态）。
+ */
+.god-chapter__border-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.god-chapter__text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.god-chapter__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-chapter__subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.god-chapter__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.god-chapter__rating {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffe29a;
+}
+.god-chapter__note {
+  margin-left: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 「神回 ✦」徽章（Kotlin L246-264 + L236-240 的 TopEnd / padding 10） */
+.god-chapter__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 9px;
+  border-radius: 50px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.god-chapter__badge-slot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   夜间模式 — 组件级深色变体（E55：god.css 这批）
+   ──────────────────────────────────────────────────────────────────────────
+   god 模块在 Android 上**自带**明暗判定：GodMotion.kt L143
+   `godIsDark() = colorScheme.background.luminance() < 0.4f`（不能用
+   isSystemInDarkTheme，GodMotion.kt L134-141 留档了原因），各组件按
+   `if (dark)` 翻自己的颜色。Web 侧 TSX（godGoldGradient/godIsDark，
+   GodRankingShared.tsx）已经翻掉了**内联**的那批；这里只补 CSS 层写死
+   浅色档的槽位。
+
+   深色取值约定（与 comicChapters.css 一致）：
+     surface        #222428（Theme.kt L73）
+     onSurface      #D4D4D4（Theme.kt L74-75 NightText）
+     surfaceVariant #49454F、error #FFB4AB —— Theme.kt L87-95 未覆写这两个
+     M3 角色，随方案取 **Material3 基线**值（浅 #E7E0EC / #B3261E）。
+   本块只追加，既有规则一行未改、未删（浅色态零回归）。
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 名次圆章（GodRankingShared.kt L311-324 GodRankStamp）──
+   `background(colorScheme.surface.copy(alpha = 0.92f))` → #222428@0.92。
+   金边 LightMid@0.6 与数字 LightEnd 是 GodGold 编译期常量，不翻。 */
+[data-theme='dark'] .god-rank-stamp {
+  background: rgba(34, 36, 40, 0.92);
+}
+
+/* ── 长按浮层菜单（GodRankingShared.kt L226 GodItemMenu）──
+   `Surface(color = colorScheme.surface.copy(alpha = 0.96f))` → #222428@0.96。
+   菜单项文字走 --color-on-light / --color-danger token。 */
+[data-theme='dark'] .god-menu {
+  background: rgba(34, 36, 40, 0.96);
+}
+
+/* GodMenuItem（Kotlin L243-255）是裸 clickable、**没有**按压底色 —— 本文件
+   L187 的 rgba(227,229,231,0.5) 是端口自加的触觉反馈，深色下会闪成一块亮灰，
+   换成白色蒙版低档（components.css 涟漪同族）。 */
+[data-theme='dark'] .god-menu__item:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 「删除」项 / 对话框危险按钮：--color-danger 不随主题翻转，但 Android 的
+   MaterialTheme error 角色翻（Theme.kt 未覆写 → M3 基线 #B3261E → #FFB4AB），
+   深色档给 M3 基线值（comicChapters.css「M3 基线」约定同款）。 */
+[data-theme='dark'] .god-menu__item--danger,
+[data-theme='dark'] .god-dialog__btn--danger {
+  color: #ffb4ab;
+}
+
+/* ── 领奖台第 4 名以后条目（GodRankingExhibits.kt L76）──
+   `background(colorScheme.surfaceVariant.copy(alpha = 0.28f))`。
+   名次数字 GodGold.LightEnd（L83）、行内文字 token —— 均不翻。 */
+[data-theme='dark'] .god-pod-row {
+  background: rgba(73, 69, 79, 0.28);
+}
+
+/* ── 榜首随笔条（GodRankingExhibits.kt L226）──
+   `background(colorScheme.surfaceVariant.copy(alpha = 0.24f))`；文字
+   onSurfaceVariant 由 --color-medium-gray token 翻。 */
+[data-theme='dark'] .god-leader-note {
+  background: rgba(73, 69, 79, 0.24);
+}
+
+/* ── 黑胶唱片套内衬（GodRankingExhibits.kt L294）──
+   `background(colorScheme.surfaceVariant)` 实底 → M3 深色基线 #49454F。 */
+[data-theme='dark'] .god-vinyl__sleeve-inner {
+  background: #49454f;
+}
+
+/* ── 设置页「神回」分组标题（GodSettingsSection.kt L73）──
+   `onSurface.copy(alpha = 0.62f)` → NightText#D4D4D4@0.62。 */
+[data-theme='dark'] .god-settings__title {
+  color: rgba(212, 212, 212, 0.62);
+}
+
+/* ── 风格单选卡（GodSettingsSection.kt L185 / L196-204）──
+   底：`surfaceVariant.copy(alpha = if (selected) 0.55f else 0.32f)` →
+   #49454F 同 α；未选中描边：`onSurface.copy(alpha = 0.12f)` → 深色
+   onSurface #D4D4D4@0.12 ≈ 白发丝。选中描边是 gold 渐变 border-box，
+   由 TSX 内联的 --god-gold-gradient 随主题翻，不动。 */
+[data-theme='dark'] .god-style-card {
+  background: rgba(73, 69, 79, 0.32);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme='dark'] .god-style-card--selected {
+  /* border-color 必须回到 transparent：同特异度（0,2,0）下本规则排在
+     上面那条 `[data-theme='dark'] .god-style-card` 之后才生效，而
+     border-box 金渐变描边依赖透明 border-color 才能透出来。 */
+  border-color: transparent;
+  background: linear-gradient(rgba(73, 69, 79, 0.55), rgba(73, 69, 79, 0.55))
+      padding-box,
+    var(--god-gold-gradient, linear-gradient(90deg, #ffe29a, #f5b942, #d98e1f))
+      border-box;
+}
+
+/* 排行榜顶栏返回钮 :active（本文件 L792）—— Kotlin 的 IconButton 无按压底，
+   这是端口自加的触觉反馈，深色换白蒙版低档（理由同 .god-menu__item:active）。 */
+[data-theme='dark'] .god-topbar__back:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── 刻意不覆盖（两套主题取值相同，或已由 TSX 内联随 godIsDark() 翻转，
+      逐条留档）──────────────────────────────────────────────────────────
+   · `.god-hero`（卷首展签）：底渐变 ink=#171712/#292315、描边 gold[0]@0.38、
+     光环、eyebrow gold[0] 全部由 GodRankingShared.tsx L684-729 内联按主题取
+     （Kotlin GodRankingCard.kt L302-304 的 dark 分支）；标题 #F9F2E2 /
+     meta #E6D5B0 / 榜首行 White@0.72 是编译期常量（L331/L339/L346）。
+   · `.god-count-pill`：金渐变底 + 白描边 α（0.18/0.32）由
+     GodRankingShared.tsx L659-673 内联按主题取（GodRankingCard.kt L140-173，
+     L160 的 dark 分支）；描边白字 #3B2A08 是常量（L167）。
+   · `.god-pod__stone` 石阶底/描边/数字：GodRankingBody.tsx L86-96 / L158
+     内联按主题取（GodRankingExhibits.kt L140-142 / L201 / L208 的 dark 分支）。
+   · `.god-wall` / `.god-pola__paper` 相纸与墙色：GodRankingBody.tsx L446 /
+     L496-510 内联按主题取（GodRankingExhibits.kt L377-379 / L391 / L399）；
+     `.god-pola__name/#302c27`、`__meta/#8c7250`、`__note/#786e62` 是
+     Kotlin L434/L441/L449 的编译期常量，压在深色下仍接近白的相纸
+     （#F2EFEA）上，不翻。
+   · `.god-style-row__value/__arrow` 的 #d98e1f：GodRankingCard.kt L261/L264
+     用 `GodGold.LightEnd` —— **没有** dark 分支，两套主题同值。
+   · `.god-settings__open-ranking`：底 secondary@0.10（两套同值）内联在
+     GodSettingsSection.tsx L224；文字 `if (dark) DarkMid else LightEnd`
+     （GodSettingsSection.kt L127）内联在同文件 L227。
+   · `.god-sheet__*` 神回窗口全家：面板底 `godAcrylicPanel` 的 bodyGradient
+     在 Kotlin 里是 `colorScheme.surface` 系（GodMomentSheet.kt L168-173，
+     浅色下应是白面板）—— Web 端口把**深色档**亚克力（rgba(30,31,36,…)）
+     写死成了两套主题共用的面板，白字/白蒙版/金描边都按深色面板配。
+     深色模式下这批硬编码恰是 Android 深色档的正确值（surface #222428
+     与 #1E1F24 的偏差是端口既定的亚克力色调），不需要也不应该再叠一层
+     深色覆盖；浅色模式下面板偏深是**既有的浅色态偏差**，E55 约定
+     「浅色态一行不动」，不在本块处理。TSX 侧（GodMomentSheet.tsx L280 /
+     L299-302 / L364-365 / L487）随 props.dark 分歧的部分已各自翻好。
+   · `.god-chapter__*` 章节卡：文字全压在封面图 / #0B0C0E 可读性渐变上
+     （GodChapterCard.kt L139-143 常量），评分 #ffe29a = GodGold.LightStart
+     是常量（L218 没有 dark 分支）。
+   · `.god-cover-placeholder`：Kotlin（GodRankingShared.kt L146-181）的底是
+     `colorScheme.surfaceVariant` 竖渐变（深色 #49454F），浅色档被
+     GodRankingShared.tsx L187-197 以**内联 style** 写死（含 α 的 dark 分支、
+     无色的 dark 分支）—— CSS 够不着内联，已在 TSX 侧做一行级补丁
+     （base 色随 godIsDark() 取 #E7E0EC 系 / #49454F 系），见该文件。
+   · `.god-empty__text` / `.god-menu__item` / `.god-dialog__*` /
+     `.god-topbar*` / `.god-rank-card__*` / `.god-pod__name` 等文字槽：
+     全部走 --color-* token，随 theme.css 基座翻转。
+   · `.god-pull__*` / `.god-hint` / `.god-thumb` / `.god-chip` /
+     `.god-sheet__cover` 等压在封面或深色面板上的白蒙版：Kotlin 常量。
+   ═══════════════════════════════════════════════════════════════════════════ */

@@ -1,0 +1,641 @@
+/*
+ * shelf.css — created by the Android→TS port.
+ *
+ * Kotlin → TS map (non-blank / code lines):
+ *   ui/shelf/ShelfChips.kt            284 / 275 → components/shelf/CategoryPill.tsx
+ *   ui/shelf/ShelfMultiSelect.kt      604 / 353 → components/shelf/ShelfSelectionState.ts
+ *   ui/shelf/ShelfSelectionHost.kt   1400 / 1150 → components/shelf/ShelfSelectionHost.tsx
+ *   ui/pages/BookshelfPage.tsx                → pages/BookshelfPage.tsx (rewrite)
+ *
+ * Compose → CSS adaptation notes:
+ *   - RoundedCornerShape(n.dp)  → border-radius: npx
+ *   - graphicsLayer{alpha, scaleX/Y, rotationZ, translationX/Y} → opacity / transform
+ *   - Brush.verticalGradient / radialGradient → linear-gradient / radial-gradient
+ *   - Modifier.drawBehind { drawRoundRect + dashPathEffect } → border-style: dashed
+ *   - detectTapGestures(onPress/onTap/onLongPress) → pointerdown/up + onContextMenu
+ *   - LazyVerticalGrid / FlowRow → CSS grid / flex-wrap
+ *   - AnimatedVisibility / animateFloatAsState → CSS transitions
+ *   - consistentShadow / liquidGlass / iridescentBorder → box-shadow + gradient border
+ */
+
+/* ── CategoryPill (ShelfChips.kt L61–184) ───────────────────────────── */
+.shelf-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  height: 32px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  padding: 0 13px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(24, 25, 28, 0.72);
+  background: rgba(24, 25, 28, 0.06);
+  border: 0.5px solid rgba(24, 25, 28, 0.1);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition:
+    transform 200ms cubic-bezier(0.3, 1.4, 0.6, 1),
+    background-color 170ms ease-out,
+    border-color 170ms ease-out,
+    color 170ms ease-out;
+}
+
+.shelf-pill--on {
+  color: #ffffff;
+  background: #059669;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.shelf-pill--drop {
+  color: #ffffff;
+  background: #059669;
+  border-color: #059669;
+  border-width: 1.5px;
+  font-weight: 600;
+  transform: scale(1.08);
+}
+
+.shelf-pill--accent {
+  background: var(--pill-accent, #059669);
+}
+
+.shelf-pill--accent.shelf-pill--on {
+  background: var(--pill-accent, #059669);
+  border-color: transparent;
+}
+
+.shelf-pill--accent.shelf-pill--drop {
+  background: var(--pill-accent, #059669);
+  border-color: var(--pill-accent, #059669);
+}
+
+.shelf-pill__lock {
+  display: inline-flex;
+  margin-left: 5px;
+  color: inherit;
+  opacity: 1;
+}
+
+.shelf-pill:not(.shelf-pill--on):not(.shelf-pill--drop) .shelf-pill__lock {
+  opacity: 0.45;
+}
+
+.shelf-pill__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  border-radius: 7px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(24, 25, 28, 0.08);
+  color: rgba(24, 25, 28, 0.62);
+}
+
+.shelf-pill--on .shelf-pill__count,
+.shelf-pill--drop .shelf-pill__count {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+/* ── AddCategoryPill (ShelfChips.kt L230–305) ───────────────────────── */
+.shelf-add-pill {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: 32px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #059669;
+  background: transparent;
+  border: 1.2px dashed rgba(5, 150, 105, 0.55);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  gap: 3px;
+  transition: transform 200ms cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+
+.shelf-add-pill svg {
+  width: 13px;
+  height: 13px;
+}
+
+.shelf-add-pill:active {
+  transform: scale(0.94);
+}
+
+/* ── ShelfSelectBadge (ShelfSelectionHost.kt L183–223) ──────────────── */
+.shelf-select-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-sizing: border-box;
+  /* 选中态用**白色**描边：书封多是深色（MURAKAMI、Neuromancer…），
+     绿色填充 + 绿色边框会在深色封面上糊成一团；白边在任何封面上都能把
+     徽章从背景里分离出来（iOS 多选标记的做法）。 */
+  border: 1.5px solid rgba(24, 25, 28, 0.35);
+  transform: scale(0.7);
+  transition: transform 260ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.shelf-select-badge--on {
+  background: #059669;
+  border-color: rgba(255, 255, 255, 0.95);
+  transform: scale(1);
+}
+
+.shelf-select-badge svg {
+  width: 14px;
+  height: 14px;
+  color: #ffffff;
+}
+
+/* ── MultiSelectTopBar (ShelfSelectionHost.kt L350–454) ────────────── */
+.shelf-multiselect-topbar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+}
+
+.shelf-multiselect-topbar__inner {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 56px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: 50px;
+  /* ① 投影 → ② 玻璃底 → ③ 竖向渐变 → ④ 顶部镜面高光 → ⑤ 外圈描边
+     与主 Tab 栏（AppBottomTabBar）同一套语言。 */
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(5, 150, 105, 0.16) 38%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  box-shadow:
+    0 8px 22px rgba(5, 150, 105, 0.18),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.shelf-multiselect-topbar__inner::before {
+  /* ④ 顶部镜面高光（specular hairline），内缩 2px 以免被 ⑤ 外圈描边吃掉 */
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.14) 40%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+
+.shelf-multiselect-close {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(24, 25, 28, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #18191c;
+}
+
+.shelf-multiselect-close svg {
+  width: 20px;
+  height: 20px;
+}
+
+.shelf-multiselect-label {
+  margin-left: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(24, 25, 28, 0.62);
+}
+
+.shelf-multiselect-count {
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 20px;
+  border-radius: 50px;
+  background: #059669;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.shelf-multiselect-unit {
+  margin-left: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(24, 25, 28, 0.62);
+}
+
+.shelf-multiselect-spacer {
+  flex: 1 1 auto;
+}
+
+.shelf-multiselect-toggleall {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(5, 150, 105, 0.38);
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #059669;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shelf-multiselect-toggleall--on {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.shelf-multiselect-toggleall svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── MultiSelectActionBar (ShelfSelectionHost.kt L467–538) ─────────── */
+.shelf-multiselect-actionbar {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 12px;
+  /* 多选态下悬浮 Tab 栏已被藏起来，这里只能让开系统导航栏。 */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform 260ms cubic-bezier(0.2, 1.2, 0.4, 1),
+    opacity 200ms ease-out;
+}
+
+.shelf-multiselect-actionbar--hidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shelf-multiselect-actionbar__hint {
+  margin: 0 0 6px 8px;
+  font-size: 11px;
+  color: rgba(24, 25, 28, 0.6);
+}
+
+.shelf-multiselect-actionbar__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 6px;
+  border-radius: 26px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(5, 150, 105, 0.16) 38%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  box-shadow:
+    0 8px 22px rgba(5, 150, 105, 0.18),
+    0 4px 8px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.shelf-multiselect-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+  color: #18191c;
+}
+
+.shelf-multiselect-action:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.shelf-multiselect-action svg {
+  width: 20px;
+  height: 20px;
+  color: #059669;
+}
+
+.shelf-multiselect-action--destructive svg,
+.shelf-multiselect-action--destructive span {
+  color: #dc2626;
+}
+
+.shelf-multiselect-action span {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* ── Sheets (MoreActionSheet / CategoryPickerSheet) ────────────────── */
+.shelf-sheet-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.shelf-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  padding: 13px 0;
+  cursor: pointer;
+  color: #18191c;
+}
+
+.shelf-sheet-row svg {
+  width: 18px;
+  height: 18px;
+  color: #059669;
+  flex: 0 0 18px;
+}
+
+.shelf-sheet-row__check {
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  flex: 0 0 16px;
+  color: #059669;
+}
+
+/* ── ShelfSelectionHost (L647–990) ─────────────────────────────────── */
+.shelf-host {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+}
+
+.shelf-host__scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shelf-host__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+
+/* PlaceholderBox (L1001–1038) — ⚠️ 只有虚线、**没有任何填充色**。 */
+.shelf-placeholder {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px dashed rgba(5, 150, 105, 0.38);
+  border-radius: 14px;
+  background: transparent;
+}
+
+/* DragStack (L1041–1153) */
+.shelf-drag-ghost {
+  position: absolute;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.shelf-drag-count {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  will-change: transform;
+}
+
+/* HeartBurst (L1309–1464) */
+.shelf-heart-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.shelf-heart-burst__halo {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 77, 109, 0.5) 0%, rgba(255, 77, 109, 0) 70%);
+  will-change: transform, opacity;
+}
+
+.shelf-heart-burst__heart {
+  position: absolute;
+  will-change: transform, opacity;
+}
+
+/* DragFlightLayer (L1209–1288) — the per-item flight keyframes.
+   ⚠️ 归位结束前 alpha 一直保持 1：幽灵卡必须完整飞到落点再消失。
+   之前在最后阶段淡出，而真实卡片又已经提前显形，
+   于是落位前有一小段「两个半透明的书叠在一起」，非常脏。 */
+@keyframes shelf-flight {
+  0% {
+    transform: translate(0, 0) scale(var(--shelf-flight-scale-from))
+      rotate(var(--shelf-flight-rot-from));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--shelf-flight-x), calc(var(--shelf-flight-y) + var(--shelf-flight-arc)))
+      scale(var(--shelf-flight-scale-to)) rotate(var(--shelf-flight-rot-to));
+    opacity: 1;
+  }
+}
+
+/* HeartBurst (L1347–1357) — `tween(HEART_BURST_MS, easeOutCubic)` + `springJelly` pop. */
+@keyframes shelf-heart-fly {
+  0% {
+    transform: translate(0, 0) scale(0.1) rotate(0deg);
+    opacity: 0;
+  }
+  22% {
+    transform: translate(28%, -58%) scale(1.25) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--shelf-heart-dx, 30px), -172px) scale(1) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shelf-multiselect-actionbar {
+    transition: none;
+  }
+  .shelf-drag-ghost {
+    animation: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   ══════════════════════════════════════════════════════════════
+   浅色下这套组件的可见性全部来自「一层浅到深的墨」（rgba(24,25,28,α)）。
+   到了 #18191c 的底上，深墨等于没有墨 —— 整层反过来用 `onLight`(#d4d4d4)
+   的白做「压深的墨」。绿色 #059669 作为强调色在两种底上都过对比，不动。 */
+
+/* ── 分类 chips（ShelfChips.kt CategoryPill / AddCategoryPill）─────────
+   ⚠️ 0.5px 描边在深色底上会被抗锯齿吃掉一格，整体提到 1px，
+   否则未选中的分类 chip 会退化成「只有文字、没有壳」的裸标签。 */
+[data-theme='dark'] .shelf-pill {
+  color: rgba(212, 212, 212, 0.72);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+[data-theme='dark'] .shelf-pill__count {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(212, 212, 212, 0.62);
+}
+
+/* 「＋新建分类」是纯文字 + 虚线壳，虚线要更亮才看得出是虚线。 */
+[data-theme='dark'] .shelf-add-pill {
+  border-color: rgba(5, 150, 105, 0.7);
+}
+
+/* ── 多选徽章（ShelfSelectionHost.kt ShelfSelectBadge）─────────────────
+   `.shelf-select-badge` 的白底 + 深墨环是**故意**保留的（书封可能是
+   MURAKAMI 黑、也可能是白色书封，两种底都要能分离），
+   但描边在深色封面上会糊掉，补一点亮度。 */
+[data-theme='dark'] .shelf-select-badge {
+  border-color: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+/* ── 多选顶栏（ShelfSelectionHost.kt L350–454）──────────────────────────
+   浅色版的玻璃是「白 → 薄荷绿 → 黑」三段渐变叠在白底上；
+   深色版把镜面高光收掉、把落影换成纯黑，否则玻璃顶栏会整块糊进
+   #18191c 的页面底色里（黑色 box-shadow 在深色底上本来就不可见）。 */
+[data-theme='dark'] .shelf-multiselect-topbar__inner,
+[data-theme='dark'] .shelf-multiselect-actionbar__row {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(5, 150, 105, 0.18) 38%,
+    rgba(0, 0, 0, 0.34) 100%
+  );
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    0 4px 8px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .shelf-multiselect-close {
+  color: var(--color-on-light);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .shelf-multiselect-label,
+[data-theme='dark'] .shelf-multiselect-unit {
+  color: rgba(212, 212, 212, 0.62);
+}
+
+[data-theme='dark'] .shelf-multiselect-actionbar__hint {
+  color: rgba(212, 212, 212, 0.6);
+}
+
+/* 「全选」是描边按钮：绿色 38% 打在 #18191c 上只剩 rgb(26,68,58)，几乎看不见。 */
+[data-theme='dark'] .shelf-multiselect-toggleall {
+  border-color: rgba(5, 150, 105, 0.62);
+  background: rgba(5, 150, 105, 0.14);
+}
+
+[data-theme='dark'] .shelf-multiselect-action {
+  color: var(--color-on-light);
+}
+
+/* ── 弹层行（MoreActionSheet / CategoryPickerSheet）───────────────────── */
+[data-theme='dark'] .shelf-sheet-row {
+  color: var(--color-on-light);
+}
+
+/* ── 放置坞虚线框（ShelfSelectionHost.kt PlaceholderBox）──────────────
+   PlaceholderBox 只有虚线、没有任何填充，深色下这条 0.38 的绿虚线
+   会随背景一起沉下去，必须提亮。 */
+[data-theme='dark'] .shelf-placeholder {
+  border-color: rgba(5, 150, 105, 0.6);
+}
+
+/* ── 拖拽幽灵卡（ShelfSelectionHost.kt DragStack）──────────────────────
+   白卡在深色网格上会「凭空亮一块」，换成 surface；反过来纯黑投影在
+   深色底上又完全看不见，所以补一圈发丝描边来负责分离。 */
+[data-theme='dark'] .shelf-drag-ghost {
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+}
+
+/* ── 心形爆开（HeartBurst L1309–1464）─────────────────────────────────
+   粉雾 0.5 在深色底上够亮，不动；飞行中的心本体是 SVG 内联渐变
+   （HeartArt.tsx 的 stop 是 TS 常量，CSS 改不了），
+   提亮放在 favorite.css 的 `.fav-heart__body` 上，两处共用同一颗心。 */

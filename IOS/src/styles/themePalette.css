@@ -1,0 +1,286 @@
+/* themePalette.css — ThemePaletteScreen.kt 的视觉移植
+   Kotlin 源：novel-reader/app/src/main/java/com/example/ui/ThemePaletteScreen.kt
+   设计 token 一律取 styles/theme.css 的变量（DesignTokens.kt / Theme.kt 的移植），
+   这里只补 Kotlin 侧独有的数值（色块尺寸、勾选徽标、错峰入场）。 */
+
+.theme-palette-page {
+  background: var(--color-light-bg, #ffffff);
+  color: var(--color-on-light, #18191c);
+  max-width: 1060px; /* Kotlin L65 `widthIn(max = 1060.dp)` */
+}
+
+/* ── L64-89 AdaptiveWorkspace ──────────────────────────────────────────────
+   Kotlin：窗口够宽时 `controls`（预览）进右/左控制栏，窄屏时预览作为列表首项。
+   同一个 1060.dp 断点在 CSS 里用容器查询表达。 */
+.theme-palette__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px; /* Kotlin L73 `spacedBy(16.dp)` */
+  margin-top: 12px; /* Kotlin L72 `top = 12.dp` */
+}
+
+@media (min-width: 1060px) {
+  .theme-palette__layout {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    align-items: start;
+  }
+
+  /* `AdaptiveWorkspace(controls = …)` renders the preview column after the list. */
+  .theme-palette__preview-part {
+    order: 2;
+    position: sticky;
+    top: 12px;
+    padding-top: 8px;
+  }
+
+  .theme-palette__list {
+    order: 1;
+  }
+}
+
+.theme-palette__list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ── `Modifier.wenkuPagePart(n)` 错峰入场 ────────────────────────────────
+   WenkuMotion.listDelayStep = 0.055s/part（core/wenku/tokens.ts 的同一个常量）。 */
+.theme-palette__part,
+.theme-palette__preview-part {
+  animation: tp-rise 420ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1)) both;
+  animation-delay: calc(var(--tp-part, 1) * 55ms);
+}
+
+.theme-palette-page--no-motion .theme-palette__part,
+.theme-palette-page--no-motion .theme-palette__preview-part,
+.theme-palette-page--no-motion .theme-palette__check {
+  animation: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-palette__part,
+  .theme-palette__preview-part,
+  .theme-palette__check {
+    animation: none;
+    transition: none;
+  }
+}
+
+@keyframes tp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── WenkuSectionHeader(number, code, title) ────────────────────────────── */
+.theme-palette__section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 2px;
+  margin-bottom: 8px; /* Kotlin `spacedBy(8.dp)` between header and body */
+}
+
+.theme-palette__section-number {
+  font-family: var(--font-serif);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--color-primary, #059669);
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-palette__section-code {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.theme-palette__section-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.theme-palette__part-body {
+  min-width: 0;
+}
+
+/* ── L94-125 ThemePalettePreview ────────────────────────────────────────── */
+.theme-palette__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* Kotlin L97 `spacedBy(12.dp)` */
+  width: 100%;
+  min-width: 0;
+}
+
+.theme-palette__preview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Kotlin L98 `spacedBy(10.dp)` */
+}
+
+.theme-palette__preview-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+}
+
+.theme-palette__preview-icon svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.theme-palette__preview-title {
+  font-size: 16px; /* titleMedium */
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.theme-palette__preview-desc {
+  margin: 0;
+  font-size: 12px; /* bodySmall */
+  line-height: 16px;
+}
+
+.theme-palette__tones {
+  display: flex;
+  gap: 5px; /* Kotlin L107 `spacedBy(5.dp)` */
+  width: 100%;
+}
+
+.theme-palette__tone {
+  flex: 1 1 0;
+  height: 25px; /* Kotlin L116 `height(25.dp)` */
+  border-radius: 3px; /* Kotlin `RoundedCornerShape(3.dp)` */
+}
+
+/* ── L127-172 PaletteOptions ────────────────────────────────────────────── */
+.theme-palette__options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Kotlin L138 `spacedBy(8.dp)` */
+  min-width: 0;
+}
+
+/* Kotlin L140 `BoxWithConstraints` + L155 分支：
+   `maxWidth >= 48.dp * 5 + 7.dp * 4 (= 268.dp)` → 单行、weight(1f)、上限 82.dp；
+   否则 FlowRow，每块固定 56.dp。容器查询复刻同一判断。 */
+.theme-palette__swatch-area {
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px; /* Kotlin L141 `spacing = 7.dp` */
+  width: 100%;
+}
+
+.theme-palette__swatch {
+  flex: 0 0 56px; /* Kotlin L167 `Modifier.width(56.dp)` (FlowRow branch) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 4px; /* Kotlin L195 `contentPadding = PaddingValues(4.dp)` */
+  border: 0;
+  border-radius: var(--radius-sm, 12px); /* Kotlin L192 `RoundedCornerShape(12.dp)` */
+  background: var(--glass-card-bg, rgba(255, 255, 255, 0.82));
+  box-shadow: 0 1px 3px rgba(24, 25, 28, 0.08);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+
+.theme-palette__swatch:active {
+  transform: scale(0.96);
+  box-shadow: 0 1px 2px rgba(24, 25, 28, 0.12);
+}
+
+.theme-palette__swatch:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+}
+
+@container (min-width: 268px) {
+  .theme-palette__swatch {
+    flex: 1 1 0;
+    max-width: 82px; /* Kotlin L157 `widthIn(max = 82.dp * size)` */
+  }
+}
+
+.theme-palette__tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 42px; /* Kotlin L199 `height(42.dp)` */
+  border-style: solid;
+  border-radius: var(--radius-xs, 8px); /* Kotlin L185 `RoundedCornerShape(8.dp)` */
+  overflow: hidden;
+  padding: 4px; /* Kotlin L201 `.padding(4.dp)` */
+}
+
+.theme-palette__tile-tones {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px; /* Kotlin L201 `clip(RoundedCornerShape(4.dp))` */
+  overflow: hidden;
+}
+
+.theme-palette__tile-tone {
+  flex: 1 1 0;
+  height: 100%;
+}
+
+.theme-palette__check {
+  position: absolute;
+  top: 2px; /* Kotlin L215 `.padding(2.dp)` in the TopEnd slot */
+  right: 2px;
+  width: 18px; /* Kotlin L215 `size(18.dp)` */
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px; /* Kotlin L215 `RoundedCornerShape(5.dp)` */
+  color: var(--color-on-light, #18191c);
+  animation: tp-check-pop 180ms var(--ease-out) both;
+}
+
+.theme-palette__check--instant {
+  animation: none;
+}
+
+/* Kotlin L211-212 `fadeIn() + scaleIn(initialScale = .72f)` */
+@keyframes tp-check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.theme-palette__label {
+  padding-top: 3px; /* Kotlin L224 `padding(top = 3.dp, bottom = 2.dp)` */
+  padding-bottom: 2px;
+  font-size: 11px; /* labelSmall */
+  line-height: 16px;
+  color: var(--color-on-light, #18191c);
+  text-align: center;
+}

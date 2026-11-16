@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    // ⚠️ 显式钉死，别让打包器去推断：esbuild / oxc 读到 `target: ES2022` 时会
+    // 推断 `useDefineForClassFields: true`（ES2022+ 的默认），也就是 class 字段
+    // 用 `[[Define]]` 语义而不是 `[[Set]]`。一旦有人把 `target` 改成 ES2019/ES2020
+    // 去迁就别的浏览器，这里会静默翻成 `false`，class 字段的赋值语义随之改变
+    // （继承链上的 setter / accessor 不再被调用）。`docs/SAFARI16_COMPAT.md` 有说明。
+    // Safari 16.0 两者都支持，这里锁 true = 与当前实际产出完全一致，零行为变化。
+    "useDefineForClassFields": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@platform/*": ["./src/platform/*"],
+      "@ui/*": ["./src/ui/*"]
+    }
+  },
+  "include": ["src", "tests", "scripts"],
+  "exclude": ["node_modules", "dist", "ios", "parity/android-export"]
+}

@@ -1,0 +1,187 @@
+/*
+ * pageturn.css — styles for the ports of `ui/pageturn/*.kt`
+ *
+ * Kotlin → TS map
+ * ──────────────
+ * Sources: `novel-reader/app/src/main/java/com/example/ui/pageturn/`
+ * (PageTurnContainer, PageCurlReaderContainer, PageScrubber, PaperPalette).
+ *
+ * Theme tokens consumed: --color-* / --radius-* / --space-* / --color-mint-gold.
+ * NO custom properties are added here — only consumed.
+ *
+ * ADAPTATION note: the geometry of the curl / cover / slide / fade layouts is
+ * computed in `src/core/pageturn/pageTurn.ts` and applied as inline `transform`
+ * styles (matching the Kotlin `graphicsLayer` numbers exactly); this file only
+ * provides the container geometry and the SVG painting defaults.
+ */
+
+.page-turn-container,
+.page-curl-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* The reader owns scrolling in PageTurnType.SCROLL. */
+  touch-action: pan-y;
+}
+
+.page-turn-container[data-page-turn-mode='SIMULATE'],
+.page-curl-container {
+  touch-action: none;
+}
+
+.page-turn-container__content {
+  will-change: transform;
+}
+
+.page-turn-curl__clip,
+.page-turn-flap__fx,
+.page-turn-curl__flat {
+  pointer-events: none;
+}
+
+.page-turn-curl__flat {
+  overflow: hidden;
+}
+
+.page-turn-flap {
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.page-turn-flap__mirror {
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.page-turn-flap__paper,
+.page-turn-flap__fx {
+  pointer-events: none;
+}
+
+/* ── Pull-down bookmark charge bar (PageTurnContainer.kt lines 346-417) ────── */
+
+.page-turn-charge-bar {
+  z-index: 2;
+}
+
+.page-turn-charge-bar__card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.page-turn-charge-bar__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-turn-charge-bar__ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-turn-charge-bar__icon {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 260ms cubic-bezier(0.25, 1.35, 0.5, 1);
+}
+
+/* ── PageCurlReaderContainer charge card (lines 330-380) ─────────────────── */
+
+.page-curl-charge {
+  z-index: 3;
+}
+
+.page-curl-charge__ring {
+  display: inline-block;
+}
+
+/* ── PageScrubberOverlay.kt ──────────────────────────────────────────────── */
+
+.page-scrubber {
+  z-index: 900;
+}
+
+.page-scrubber__backdrop,
+.page-scrubber__glow,
+.page-scrubber__vignette,
+.page-scrubber__bead-line {
+  pointer-events: none;
+}
+
+.page-scrubber__page {
+  /* Each page is a complete rigid body: one rotateY + one arc-projection
+     translation, never a scale-based distance fake (PageScrubber.kt lines
+     391-398). */
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+  pointer-events: auto;
+}
+
+.page-scrubber__page-content {
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.page-scrubber__pill {
+  pointer-events: none;
+  z-index: 2;
+}
+
+.page-scrubber__page-num {
+  margin: 0;
+  font-weight: 600;
+}
+
+.page-scrubber__hint {
+  margin: 2px 0 0;
+}
+
+.page-scrubber__progress {
+  pointer-events: none;
+}
+
+.page-scrubber__cancel {
+  pointer-events: auto;
+  z-index: 2;
+  cursor: pointer;
+  transition: transform 150ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.page-scrubber__cancel:active {
+  transform: translateX(-50%) scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-scrubber__backdrop,
+  .page-scrubber__glow,
+  .page-scrubber__vignette {
+    transition: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   触发：设置 → 护眼与提醒 → 夜间模式（auto_night_mode）
+        → MainActivity.kt L213 MyApplicationTheme(darkTheme = autoNightMode)
+
+   本文件其余规则都是几何 / pointer-events，没有颜色。
+   `PageScrubber` 遮罩本身已是深色（PageScrubber.kt L306 `Color.Black.copy(0.55f)`），
+   `PaperPalette` / curl 阴影都用 Color.Black —— 两套主题一致，不动。
+   ══════════════════════════════════════════════════════════════ */
+
+/* 下拉书签蓄力条卡片：`PageTurnContainer.kt` L364
+   `color = surfaceContainerHigh.copy(alpha = 0.92f)` —— MaterialTheme 派生色，
+   Android 上跟 autoNightMode 走，所以浮在纯白阅读页上时也要整体转深。
+   （该卡的 border / boxShadow / 圆角是 `PageTurnContainer.tsx` L299-303 的内联
+     style，属 TSX 只读文件，本块不覆盖。） */
+[data-theme='dark'] .page-turn-charge-bar__card {
+  background: rgba(34, 36, 40, 0.92);
+}

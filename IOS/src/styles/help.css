@@ -1,0 +1,457 @@
+/*
+ * help.css — styles for the ports of `ui/help/*.kt`
+ *
+ * Kotlin → TS map
+ * ──────────────
+ * Sources: `novel-reader/app/src/main/java/com/example/ui/help/`
+ * (FaqExpandableItem, HelpSection, JsonSourceGuideCard, LibraryHelpBottomSheet).
+ *
+ * Theme tokens consumed: --color-* / --radius-* / --space-* / --font-*.
+ * NO custom properties are added here — only consumed.
+ */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── HelpSection.kt ──────────────────────────────────────────────────────── */
+
+.help-section-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.help-section-header__bar {
+  width: 4px;
+  height: 16px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.help-section-header__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.help-step-card {
+  width: 100%;
+  border-radius: 12px;
+  background: rgba(241, 243, 244, 0.25);
+  padding: 16px;
+}
+
+.help-step-card__row {
+  display: flex;
+  align-items: center;
+}
+
+.help-step-card__badge {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.help-step-card__texts {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.help-step-card__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.help-step-card__desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.help-detail-card {
+  width: 100%;
+  border-radius: 12px;
+  background: rgba(241, 243, 244, 0.2);
+  padding: 16px;
+}
+
+.help-detail-card__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── FaqExpandableItem.kt ────────────────────────────────────────────────── */
+
+.faq-item {
+  width: 100%;
+  border-radius: 12px;
+  background: rgba(241, 243, 244, 0.4);
+  border: 1px solid rgba(97, 102, 109, 0.5);
+  overflow: hidden;
+}
+
+.faq-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 16px;
+  text-align: left;
+}
+
+.faq-item__question {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.faq-item__arrow {
+  flex: none;
+  margin-left: 8px;
+  color: var(--color-primary, #059669);
+  display: inline-flex;
+  transition: transform 250ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+/* AnimatedVisibility(expandVertically) → 0fr → 1fr with a real content height. */
+.faq-item__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.faq-item__body[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+
+.faq-item__body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.faq-item__answer {
+  margin: 0;
+  padding: 0 16px 12px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── JsonSourceGuideCard.kt ──────────────────────────────────────────────── */
+
+.json-source-guide {
+  width: 100%;
+  border-radius: 16px;
+  background: rgba(241, 243, 244, 0.3);
+  padding: 16px;
+}
+
+.json-source-guide__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.json-source-guide__lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+.json-source-guide__subtitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-light, #18191c);
+}
+
+.json-source-guide__code {
+  margin: 0;
+  border-radius: 8px;
+  background: #1e1e1e;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  color: #d4d4d4;
+  overflow-x: auto;
+}
+
+.json-source-guide__thead,
+.json-source-guide__row {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.json-source-guide__thead {
+  background: rgba(5, 150, 105, 0.1);
+  padding: 8px;
+}
+
+.json-source-guide__th {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary, #059669);
+}
+
+.json-source-guide__th--field,
+.json-source-guide__td--field {
+  flex: 1.2 1 0;
+}
+
+.json-source-guide__th--desc,
+.json-source-guide__td--desc {
+  flex: 2.8 1 0;
+}
+
+.json-source-guide__row {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(97, 102, 109, 0.3);
+}
+
+.json-source-guide__td--field {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.json-source-guide__td--desc {
+  font-size: 11px;
+  color: var(--color-medium-gray, #61666d);
+}
+
+/* ── LibraryHelpBottomSheet.kt ──────────────────────────────────────────── */
+
+.library-help-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.library-help-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.library-help-sheet__panel {
+  position: relative;
+  height: 90%;
+  margin: 8px 12px;
+  border-radius: 24px;
+  background: var(--color-surface, #ffffff);
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+
+.library-help-sheet__inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.library-help-sheet__titlebar {
+  flex: none;
+  height: 64px;
+  border-radius: 24px 24px 0 0;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.library-help-sheet__titlebar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 16px;
+}
+
+.library-help-sheet__titlebar-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.library-help-sheet__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.library-help-sheet__divider {
+  flex: none;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid rgba(97, 102, 109, 0.5);
+}
+
+.library-help-sheet__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.library-help-welcome {
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.library-help-sheet__quick-title {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-on-light, #18191c);
+}
+
+.library-help-sheet__quick-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.library-help-shortcut {
+  flex: 1 1 0;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  transition: transform 150ms var(--ease-out, cubic-bezier(0, 0, 0.58, 1));
+}
+
+.library-help-shortcut:active {
+  transform: scale(0.96);
+}
+
+.library-help-shortcut--full {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.library-help-sheet__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding-top: 8px;
+}
+
+.library-help-sheet__footer-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(97, 102, 109, 0.6);
+}
+
+.library-help-sheet__footer-sub {
+  margin: 0;
+  font-size: 10px;
+  color: rgba(97, 102, 109, 0.4);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   夜间模式 — Android Theme.kt L68-76 darkColorScheme
+   触发：设置 → 护眼与提醒 → 夜间模式（auto_night_mode）
+        → MainActivity.kt L213 MyApplicationTheme(darkTheme = autoNightMode)
+
+   `ui/help/*.kt` 的底色全部是 `MaterialTheme.colorScheme.surfaceVariant.copy(alpha = …)`
+   / `surface.copy(alpha = …)` / `outlineVariant.copy(alpha = …)` —— Android 上跟
+   autoNightMode 走，本文件把它们浅色档的字面量换成深色档。
+   ─────────────────────────────────────────────────────────────────────────────
+   `.json-source-guide__code` 保持不变：JsonSourceGuideCard.kt L56 / L85 是硬编码
+   `Color(0xFF1E1E1E)` + `Color(0xFFD4D4D4)`，本来就是深色代码块。
+   `.library-help-sheet__panel` 底色用 `var(--color-surface)`，theme.css 已翻好。
+   ══════════════════════════════════════════════════════════════ */
+
+/* HelpSection.kt L53 `surfaceVariant.copy(alpha = 0.25f)` */
+[data-theme='dark'] .help-step-card {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* HelpSection.kt L103 `surfaceVariant.copy(alpha = 0.2f)` */
+[data-theme='dark'] .help-detail-card {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+/* FaqExpandableItem.kt L42 `surfaceVariant.copy(alpha = 0.4f)`
+   + L46 `outlineVariant.copy(alpha = 0.5f)` */
+[data-theme='dark'] .faq-item {
+  background: rgba(255, 255, 255, 0.07);
+  /* 深色面若仍用浅色发丝线会糊成一片，改用同族的 outlineVariant 深色档 */
+  border-color: var(--color-divider-gray, #2f3238);
+}
+
+/* JsonSourceGuideCard.kt L24 `surfaceVariant.copy(alpha = 0.3f)` */
+[data-theme='dark'] .json-source-guide {
+  background: rgba(255, 255, 255, 0.065);
+}
+
+/* JsonSourceGuideCard.kt L102 `HorizontalDivider(MintPrimary.copy(alpha = 0.3f))`
+   —— 文件里写的是 rgba(97,102,109,0.3)，即 onSurfaceVariant 30%，深色档同 alpha。 */
+[data-theme='dark'] .json-source-guide__row {
+  border-bottom-color: rgba(154, 160, 166, 0.3);
+}
+
+/* LibraryHelpBottomSheet.kt L66 `background(surface.copy(alpha = 0.8f))` */
+[data-theme='dark'] .library-help-sheet__titlebar {
+  background: rgba(34, 36, 40, 0.8);
+}
+
+/* LibraryHelpBottomSheet.kt L103 `HorizontalDivider(outlineVariant.copy(alpha = 0.5f))` */
+[data-theme='dark'] .library-help-sheet__divider {
+  border-top-color: var(--color-divider-gray, #2f3238);
+}
+
+/* LibraryHelpBottomSheet.kt L340 `onSurfaceVariant.copy(alpha = 0.6f)` */
+[data-theme='dark'] .library-help-sheet__footer-title {
+  color: rgba(154, 160, 166, 0.6);
+}
+
+/* LibraryHelpBottomSheet.kt L346 `onSurfaceVariant.copy(alpha = 0.4f)` */
+[data-theme='dark'] .library-help-sheet__footer-sub {
+  color: rgba(154, 160, 166, 0.4);
+}

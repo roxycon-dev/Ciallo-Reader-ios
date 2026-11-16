@@ -5,6 +5,10 @@
 
 /*
 !/ios/
+# 实际目录名是大写 `IOS/`。上面的 `!/ios/` 只在 `core.ignorecase=true` 的 Windows
+# 工作区里等价；换成 Linux/macOS 工作区（大小写敏感）时 `IOS/` 会重新落回 `/*`
+# 的忽略范围，表现为「推上去一个文件都没有」的静默失败。两条都写。
+!/IOS/
 !/.github/
 !/PROJECT_GUIDE.md
 !/.gitignore

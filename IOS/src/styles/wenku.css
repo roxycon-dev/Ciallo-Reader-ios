@@ -1,0 +1,1281 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   Wenku 3D 书架 / 玻璃菜单 / 玻璃面板 —— `ui/wenku/**` 的 CSS 层
+   ══════════════════════════════════════════════════════════════════════════════
+   数值来源（全部照抄 Kotlin，不新增）：
+     WenkuTokens.kt L32-45    PaperLight/PanelLight/MilkLight/InkLight/InkSecondaryLight
+                              + PaperDark/PanelDark/MilkDark/RaisedDark/RaisedHighDark/
+                                OutlineDark/InkDark/InkSecondaryDark
+     WenkuTokens.kt L49-56    PanelRadius 4 / GlassRadius 28 / SheetRadius 28
+     WenkuTokens.kt L79-86    SheetHandle 32×3、SheetDismissVelocity 550、fraction .24
+     WenkuTokens.kt L121-156  ENTER 420 / EXIT 320 / CONTACT 120
+     WenkuGlass.kt    L154-159 surfaceTint = panel@(dark .86 / light .72)，无模糊回退 .95
+     WenkuGlass.kt    L195     描边 0.7dp，alpha dark .55 / light .42
+     WenkuGlass.kt    L201-206 无实时模糊回退：elevation 4dp、ambient .05、spot .10
+     WenkuGlass.kt    L203     `blur = 16.dp`
+     WenkuMenuHost.kt L981-1025 玻璃面板：28dp 圆角 + 顶部 32×3 抓取条 @ ink .18
+     WenkuMenuHost.kt L913-973  拖拽关闭阈值（velocity 550 / fraction .24）
+     ArchiveShelf.kt  L246-257  viewport 上限 520dp；绘制盒 = baseY + body + 12dp
+     ArchiveShelf.kt  L751-756  depthX .66 / depthY -.16 / rowStep 2.5 / radius 1.48
+     ShelfVolumeRender.kt L313-317 / L544-549 材质（cloth/matte/gloss）与 sheen .55
+   颜色 token 一律走 `var(--color-*)` / `var(--radius-*)` / `var(--space-*)` /
+   `var(--motion-*)`（theme.css L21-95），Wenku 自己的纸面系另开 `--wenku-*`。
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-root {
+  /* ── WenkuTokens.kt L32-45（亮色） ── */
+  --wenku-paper: #f4f3ef;
+  --wenku-panel: #fdfcfa;
+  --wenku-milk: #fefdf8;
+  --wenku-ink: #161613;
+  --wenku-ink-2: #646b62;
+  --wenku-raised: #f7f5ef;
+  --wenku-outline: #d9d5ca;
+  --wenku-scrim: rgba(0, 0, 0, 0.16);
+  --wenku-danger: var(--color-danger);
+
+  /* 玻璃面：WenkuGlass.kt L154-159 */
+  --wenku-glass-surface: rgba(255, 255, 255, 0.72);
+  --wenku-glass-border: rgba(217, 213, 202, 0.42);
+  --wenku-glass-blur: 16px;
+  --wenku-menu-width: 248px; /* WenkuTokens.MenuWidth */
+  --wenku-sheet-radius: 28px; /* WenkuTokens.SheetRadius */
+  --wenku-glass-radius: 28px; /* WenkuTokens.GlassRadius */
+  isolation: isolate;
+}
+
+[data-theme='dark'] .wenku-root {
+  --wenku-paper: #191919;
+  --wenku-panel: #242424;
+  --wenku-milk: #f6f6f6;
+  --wenku-ink: #f2f2f2;
+  --wenku-ink-2: #b7b7b7;
+  --wenku-raised: #2d2d2d;
+  --wenku-outline: #3c3c3c;
+  --wenku-glass-surface: rgba(36, 36, 36, 0.86);
+  --wenku-glass-border: rgba(60, 60, 60, 0.55);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   3D 书架容器（ArchiveShelf.kt L245-597 → .wenku-shelf）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-shelf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  color: var(--wenku-ink);
+  font-family: var(--font-sans);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.wenku-shelf:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* 绘制盒：`Modifier.fillMaxWidth().height(rowHeight).clipToBounds()`（L414-419）。
+   Kotlin 是正交投影（Canvas 里只有 translate / skew / scale）；Web 端额外给
+   `perspective` + 封面面 -2.4° 的 `rotateY`，让"书脊是圆柱、封面在后"的深度
+   读得出来，几何坐标仍然全部来自 core。 */
+.wenku-shelf__stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  perspective: 1200px;
+  perspective-origin: 50% 120%;
+  transform-style: preserve-3d;
+}
+
+.wenku-shelf__empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--wenku-ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wenku-shelf__empty-glyph {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+  color: var(--wenku-ink-2);
+  opacity: 0.7;
+}
+
+/* ── 一个槽位（ArchiveShelf.kt L1317-1335 → .wenku-slot） ──
+   x/y 来自 `VisibleSlot`；`translate3d` 让每个槽位自己成为一个合成层，
+   拖动时不重排、只改 transform。 */
+.wenku-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--wenku-book-w);
+  height: var(--wenku-book-h);
+  transform: translate3d(var(--wenku-slot-x), var(--wenku-slot-y), 0);
+  transform-origin: 0 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* 无限轮播的"同一本"副本：只有最靠近焦点的那个挂 aria-selected 与可点击语义。 */
+.wenku-slot[data-wenku-hidden='true'] {
+  visibility: hidden;
+}
+
+/* ── 单本书（ShelfVolumeRender.kt L313-495 的四个面） ── */
+.wenku-book {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.wenku-book:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+/* 地面墨影（ArchiveShelf.kt L1297-1300）：落点 = `restX, restY + baseY + body`。
+   在 slot 内换算成 `restX - x` 与 `floorY - y`，只做平移与模糊，每帧不变形。 */
+.wenku-book__shadow {
+  position: absolute;
+  left: calc(var(--wenku-slot-floor-x) - var(--wenku-slot-x));
+  top: calc(var(--wenku-slot-floor-y) - var(--wenku-slot-y));
+  width: calc(var(--wenku-book-w) * 0.92);
+  height: 18px;
+  margin-left: calc(var(--wenku-book-w) * -0.30);
+  border-radius: 50%;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    color-mix(in srgb, var(--wenku-ink) 12%, transparent) 0%,
+    color-mix(in srgb, var(--wenku-ink) 4%, transparent) 62%,
+    transparent 100%
+  );
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+/* 书脊（L459-470 spine.rect = 0..t × 0..body，L521-523 skewY）。
+   `.10x` 的斜量由 `skewY(--wenku-book-skew)` 给出，与 Kotlin `skew = .10f` 同义。 */
+.wenku-book__spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--wenku-book-thickness);
+  height: var(--wenku-book-h);
+  transform: skewY(var(--wenku-book-skew));
+  transform-origin: 0 0;
+  border-radius: 1px 0 0 1px;
+  overflow: hidden;
+  box-shadow: inset -0.5px 0 0 color-mix(in srgb, var(--wenku-ink) 26%, transparent);
+}
+
+/* 书脊圆柱高光/压影（L382-396 spineShade）。渐变由 core 的
+   `volumePaintPlan().spineShade` 逐 stop 给到行内样式，这里只留叠层与不透明度。 */
+.wenku-book__spine-shade {
+  position: absolute;
+  inset: 0;
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+/* 堵头布 + 分隔线（L498-533 headBands / separators）。 */
+.wenku-book__band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--wenku-band-color);
+}
+
+.wenku-book__band--head {
+  top: calc(var(--wenku-book-unit) * 1.2);
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.3);
+}
+
+.wenku-book__band--tail {
+  bottom: calc(var(--wenku-book-unit) * 1.4);
+  border-top: 0.5px solid rgba(0, 0, 0, 0.3);
+}
+
+/* 书脊编号：`'01'` 竖排（L574-593 numberText，`numberWidth < t*.92` 才画）。 */
+.wenku-book__number {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--wenku-book-unit) * 6.2);
+  transform: translateX(-50%);
+  writing-mode: vertical-rl;
+  font-family: var(--font-sans);
+  font-size: 7.6px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  color: var(--wenku-number-ink);
+  opacity: 0.9;
+}
+
+/* 顶面（L458-463 topFace）：`t × cover*depthX` 的一条极薄的斜带，落在书脊顶边
+   （`t*skew ≈ 1.8px`）与封面后缘（`-cover*|depthY| ≈ -20px`）之间。视觉上只露出
+   1~2px，所以不做独立节点：由 `.wenku-book__face` 的 `box-shadow` 向上渗出一层
+   顶面墨色 + `.wenku-book__spine` 的 0.5px 高光合成，避免多一层逐帧变换的图层。 */
+
+/* 页块（L464-511 pageFace + pageLines + pageShades）：封面面左侧的纸口。 */
+.wenku-book__pages {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--wenku-book-page-w, calc(var(--wenku-book-w) * 0.16));
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--wenku-page-color, var(--wenku-paper)) 70%, black) 0%,
+    color-mix(in srgb, var(--wenku-paper) 92%, transparent) 22%,
+    color-mix(in srgb, var(--wenku-paper) 96%, transparent) 82%,
+    color-mix(in srgb, var(--wenku-cover-highlight) 30%, transparent) 100%
+  );
+  border-right: 0.5px solid color-mix(in srgb, var(--wenku-cover-highlight) 55%, transparent);
+}
+
+/* 纸页线：`pageLines` 6 条，间隔 1/6（L471-487）。 */
+.wenku-book__page-lines {
+  position: absolute;
+  inset: 0;
+  opacity: 0.34;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(100% / 6 - 1px),
+    var(--wenku-page-line) calc(100% / 6 - 1px),
+    var(--wenku-page-line) calc(100% / 6)
+  );
+}
+
+/* 封面面（L595-754 cover）：`skewY` 是 Kotlin 的 `.10x` 斜量（正交），
+   `rotateY` 是 Web 端额外给的一点点透视，让封面明确"贴在手脊之后"。 */
+.wenku-book__face {
+  position: absolute;
+  left: var(--wenku-book-thickness);
+  top: 0;
+  width: var(--wenku-book-w);
+  height: 100%;
+  transform: skewY(var(--wenku-book-skew)) rotateY(var(--wenku-book-face-rotate, -2.4deg));
+  transform-origin: 0 0;
+  transform-style: preserve-3d;
+  overflow: hidden;
+  border-radius: 1px 2px 2px 1px;
+  background: var(--wenku-cover-base, var(--wenku-paper));
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--wenku-ink) 18%, transparent),
+    inset 2.4px 0 3px -1.5px rgba(0, 0, 0, 0.26),
+    inset -0.7px 0 0 rgba(255, 255, 255, 0.1),
+    0 -1px 0 color-mix(in srgb, var(--wenku-ink) 14%, transparent);
+}
+
+.wenku-book__face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+/* 封面上下压影（L599-610 shades，`.045 / .035`）。 */
+.wenku-book__face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.045) 0%, transparent 18%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0%, transparent 8%);
+  pointer-events: none;
+}
+
+/* 覆膜材质（L656-678）：gloss = -14° 斜向高光 .55，cloth = 平纹。 */
+.wenku-book__face[data-wenku-material='2']::after {
+  content: '';
+  position: absolute;
+  inset: -20% -20% -20% -20%;
+  transform: rotate(-14deg);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.173) 26%,
+    rgba(255, 255, 255, 0.251) 38%,
+    rgba(255, 255, 255, 0.078) 46%,
+    transparent 70%
+  );
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.wenku-book__face[data-wenku-material='0']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.09) 0 1px, transparent 1px 2px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 2px);
+  background-size: 2px 2px;
+  opacity: 0.23;
+  pointer-events: none;
+}
+
+/* 装订槽（L611-627 hingeRects）：封面左缘的深色竖带 + 白线。 */
+.wenku-book__hinge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2.4px;
+  background: rgba(0, 0, 0, 0.26);
+  border-right: 0.7px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+/* 封面角标（L744-755 codeText）：`WK-00007` / `FAV-00003`。 */
+.wenku-book__code {
+  position: absolute;
+  left: 4.2px;
+  bottom: 4.6px;
+  font-family: var(--font-sans);
+  font-size: 7.6px;
+  letter-spacing: 0.12em;
+  color: var(--wenku-cover-highlight);
+  opacity: 0.62;
+  pointer-events: none;
+}
+
+/* 没有 coverUrl 时由 `generatedCoverPlan` 生成的印刷封面（ShelfCoverArt.kt L101-224）。 */
+.wenku-cover-art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.wenku-cover-art__border {
+  position: absolute;
+  inset: 0;
+  border: var(--wenku-art-border-w) solid var(--wenku-art-border);
+  pointer-events: none;
+}
+
+.wenku-cover-art__icon {
+  position: absolute;
+  border: var(--wenku-art-icon-stroke) solid var(--wenku-art-icon);
+  border-radius: var(--wenku-art-icon-radius);
+}
+
+.wenku-cover-art__icon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 16%;
+  bottom: 16%;
+  width: var(--wenku-art-icon-stroke);
+  margin-left: calc(var(--wenku-art-icon-stroke) / -2);
+  background: var(--wenku-art-icon);
+}
+
+.wenku-cover-art__title {
+  position: absolute;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.12;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.wenku-cover-art__rule {
+  position: absolute;
+  height: 0;
+  border-top: var(--wenku-art-rule-w) solid var(--wenku-art-rule);
+}
+
+.wenku-cover-art__author {
+  position: absolute;
+  font-family: var(--font-sans);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wenku-cover-art__tag {
+  position: absolute;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.16em;
+}
+
+/* ── 底部书讯（ArchiveShelf.kt L603-691 ArchiveShelfCaption → .wenku-caption） ── */
+.wenku-caption {
+  width: 100%;
+  padding: 2px 0 4px;
+}
+
+.wenku-caption__open {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  padding: 8px 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.wenku-caption__open:active {
+  opacity: 0.72;
+}
+
+.wenku-caption__grow {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wenku-caption__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 700;
+  color: var(--wenku-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.wenku-caption__meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--wenku-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wenku-caption__out {
+  color: var(--wenku-ink);
+  opacity: 0.82;
+}
+
+.wenku-caption__steps {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.wenku-caption__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wenku-ink) 6%, transparent);
+  color: var(--wenku-ink);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out);
+}
+
+.wenku-caption__step:active:not(:disabled) {
+  transform: scale(0.9);
+  background: color-mix(in srgb, var(--wenku-ink) 12%, transparent);
+}
+
+.wenku-caption__step:disabled {
+  background: color-mix(in srgb, var(--wenku-ink) 2.5%, transparent);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wenku-caption__counter {
+  padding: 0 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--wenku-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   玻璃面（WenkuGlass.kt L88-232 → .wenku-glass）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-glass {
+  position: relative;
+  background: var(--wenku-glass-surface);
+  border: 0.7px solid var(--wenku-glass-border);
+  border-radius: var(--wenku-glass-radius);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 4px 14px rgba(0, 0, 0, 0.1);
+  -webkit-backdrop-filter: blur(var(--wenku-glass-blur)) saturate(1.14);
+  backdrop-filter: blur(var(--wenku-glass-blur)) saturate(1.14);
+}
+
+.wenku-glass--flat {
+  box-shadow: none;
+}
+
+.wenku-glass--interactive {
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.wenku-glass--interactive:active {
+  transform: scale(0.97);
+}
+
+/* 高对比 / 关掉模糊：WenkuGlass.kt L154-159 的 `a11y.blurEnabled == false` 分支。 */
+.wenku-glass--solid {
+  background: color-mix(in srgb, var(--wenku-panel) 95%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   长按菜单（ShelfSelectionHost.kt L442-560 → .wenku-menu）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wenku-menu__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: var(--wenku-scrim);
+  opacity: 0;
+  transition: opacity var(--motion-normal) var(--ease-out);
+}
+
+.wenku-menu-layer[data-wenku-open='true'] .wenku-menu__scrim {
+  opacity: 1;
+}
+
+/* 菜单：从锚点长成（WenkuMenuHost.kt L196-214 → 这里用 scale + 位移近似）。 */
+.wenku-menu__card {
+  position: relative;
+  width: min(calc(var(--wenku-menu-width) + 16px), calc(100vw - 48px));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  border-radius: var(--radius-xl);
+  transform: scale(0.86);
+  opacity: 0;
+  transition:
+    transform var(--motion-transition) cubic-bezier(0.18, 1.1, 0.3, 1),
+    opacity var(--motion-normal) var(--ease-out);
+}
+
+.wenku-menu-layer[data-wenku-open='true'] .wenku-menu__card {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.wenku-menu__title {
+  margin: 4px 12px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--wenku-ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 菜单项（WenkuTextButton 等价的整行按钮）。 */
+.wenku-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--wenku-ink);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.wenku-menu__item:hover {
+  background: color-mix(in srgb, var(--wenku-ink) 5%, transparent);
+}
+
+.wenku-menu__item:active:not(:disabled) {
+  transform: scale(0.98);
+  background: color-mix(in srgb, var(--wenku-ink) 9%, transparent);
+}
+
+.wenku-menu__item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.wenku-menu__item--destructive {
+  color: var(--wenku-danger);
+}
+
+.wenku-menu__item--separated {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 0.7px solid color-mix(in srgb, var(--wenku-outline) 60%, transparent);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.wenku-menu__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wenku-menu__check {
+  color: var(--color-primary);
+}
+
+/* 底部多选操作栏（ShelfSelectionHost.kt L455-545 MultiSelectActionBar）。
+   布局 = 底部悬浮玻璃胶囊；进入 = 弹簧上滑（这里用 cubic-bezier 近似
+   `spring(0.86, StiffnessMediumLow)`），退出 = EXIT_MS 下滑。 */
+.wenku-actionbar-layer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 58;
+  padding: 0 12px calc(var(--safe-bottom) + var(--app-bottom-inset-no-tab-bar));
+  pointer-events: none;
+}
+
+.wenku-actionbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-evenly;
+  padding: 8px 6px;
+  border-radius: 26px;
+  transform: translateY(120%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--motion-transition) cubic-bezier(0.34, 1.4, 0.64, 1),
+    opacity var(--motion-fast) var(--ease-out);
+}
+
+.wenku-actionbar-layer[data-wenku-open='true'] .wenku-actionbar {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wenku-actionbar__item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--wenku-ink);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    opacity var(--motion-fast) var(--ease-out);
+}
+
+.wenku-actionbar__item:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.wenku-actionbar__item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.wenku-actionbar__label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.wenku-actionbar__item--destructive .wenku-icon,
+.wenku-actionbar__item--destructive .wenku-actionbar__label {
+  color: var(--wenku-danger);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   玻璃面板 / 底部 sheet（WenkuMenuHost.kt L379-1080 + WenkuActionSheet.kt）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.wenku-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: var(--wenku-scrim);
+  opacity: 0;
+  transition: opacity var(--motion-normal) var(--ease-out);
+}
+
+.wenku-sheet-layer[data-wenku-open='true'] .wenku-sheet__scrim {
+  opacity: 1;
+}
+
+/* 面板：28dp 圆角 + 顶部 32×3 抓取条（L981-1031）。 */
+.wenku-sheet {
+  position: relative;
+  width: min(var(--adaptive-sheet-max-width), 100%);
+  max-height: min(86vh, 720px);
+  padding-bottom: calc(var(--space-2) + var(--safe-bottom));
+  border-radius: var(--wenku-sheet-radius) var(--wenku-sheet-radius) 0 0;
+  background: var(--wenku-panel);
+  border: 0.7px solid var(--wenku-glass-border);
+  border-bottom: 0;
+  box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.18);
+  transform: translateY(100%);
+  transition: transform var(--motion-transition) var(--ease-out-quart);
+}
+
+.wenku-sheet-layer[data-wenku-open='true'] .wenku-sheet {
+  transform: translateY(var(--wenku-sheet-drag, 0px));
+}
+
+@media (min-width: 840px) {
+  .wenku-sheet {
+    width: min(var(--adaptive-sheet-max-width-landscape), 100%);
+    margin-bottom: var(--space-6);
+    border-radius: var(--wenku-sheet-radius);
+    border-bottom: 0.7px solid var(--wenku-glass-border);
+  }
+}
+
+.wenku-sheet__grabber {
+  display: flex;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+.wenku-sheet__grabber::after {
+  content: '';
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--wenku-ink) 18%, transparent);
+}
+
+.wenku-sheet__body {
+  padding: 14px 22px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wenku-sheet__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wenku-sheet__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--wenku-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wenku-sheet__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--wenku-ink);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out);
+}
+
+.wenku-sheet__close:active:not(:disabled) {
+  transform: scale(0.9);
+  background: color-mix(in srgb, var(--wenku-ink) 8%, transparent);
+}
+
+.wenku-sheet__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+/* 面板内容的错峰浮现（WenkuMotion.kt L89-114 + listStart/listEnd L133-146）。 */
+.wenku-sheet__part {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: wenku-part-in var(--motion-transition) var(--ease-out) forwards;
+}
+
+.wenku-sheet__part:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.wenku-sheet__part:nth-child(2) {
+  animation-delay: 55ms;
+}
+
+.wenku-sheet__part:nth-child(3) {
+  animation-delay: 110ms;
+}
+
+.wenku-sheet__part:nth-child(4) {
+  animation-delay: 165ms;
+}
+
+.wenku-sheet__part:nth-child(n + 5) {
+  animation-delay: 220ms;
+}
+
+@keyframes wenku-part-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 面板内的整行按钮（WenkuTextButton，WenkuGlass.kt L318-416）。 */
+.wenku-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--wenku-ink) 4%, transparent);
+  color: var(--wenku-ink);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out);
+}
+
+.wenku-sheet__row:active:not(:disabled) {
+  transform: scale(0.98);
+  background: color-mix(in srgb, var(--wenku-ink) 9%, transparent);
+}
+
+.wenku-sheet__row--destructive {
+  color: var(--wenku-danger);
+}
+
+.wenku-sheet__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wenku-ink-2);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   减少动效（Kotlin: `a11y.reduceMotion` 分支——保留布局，去掉位移与时钟）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .wenku-slot,
+  .wenku-book {
+    will-change: auto;
+  }
+
+  .wenku-menu__card,
+  .wenku-actionbar,
+  .wenku-sheet,
+  .wenku-menu__scrim,
+  .wenku-sheet__scrim {
+    transition-duration: 1ms;
+  }
+
+  .wenku-sheet__part {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .wenku-glass--interactive:active,
+  .wenku-menu__item:active:not(:disabled),
+  .wenku-sheet__row:active:not(:disabled),
+  .wenku-actionbar__item:active:not(:disabled),
+  .wenku-caption__step:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   WenkuSectionHeader / WenkuHairline（WenkuGlass.kt L733-794）
+   ══════════════════════════════════════════════════════════════════════════════
+   数值来源（照抄 Kotlin，不新增设计值）：
+     L743-746  Column(fillMaxWidth, padding top 8.dp / bottom 5.dp, spacedBy 6.dp)
+     L747      Row(CenterVertically, spacedBy 8.dp)
+     L752-755  meta 10.sp / letterSpacing 1.1.sp / FontWeight.Medium / AppFonts.Default
+     L759      rule  weight(1f) + height 0.5.dp（WenkuSpacing.Hairline）
+     L763      dot   size(3.dp)
+     L774-776  title 17.sp / SemiBold / AppFonts.Serif
+     L781-782  trailing Row(CenterVertically, spacedBy 8.dp)
+     L793      WenkuHairline fillMaxWidth + height 0.5.dp
+   颜色不在这里写死：`wenkuColors(isDark)` 的 ink / inkSecondary / hairline 由组件以
+   inline style 注入（`hairline = ink.copy(alpha = dark .14 / light .10)`，
+   `WenkuTokens.kt` L235），所以同一套 CSS 在亮/暗两套 token 下都成立。
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px; /* L745 `spacedBy(6.dp)` */
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 0 5px; /* L744 `padding(top = 8.dp, bottom = 5.dp)` */
+  text-align: left;
+}
+
+.wenku-section-header__row {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* L747 / L768 `spacedBy(8.dp)` */
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.wenku-section-header__meta {
+  flex: 0 0 auto;
+  min-width: 0;
+  font-size: 10px; /* 10.sp */
+  font-weight: 500; /* FontWeight.Medium */
+  letter-spacing: 1.1px; /* 1.1.sp */
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* L756 `maxLines = 1` */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wenku-section-header__rule {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 0.5px; /* WenkuSpacing.Hairline */
+}
+
+.wenku-section-header__dot {
+  flex: 0 0 3px;
+  width: 3px; /* L763 `size(3.dp)` */
+  height: 3px;
+}
+
+.wenku-section-header__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px; /* 17.sp */
+  font-weight: 600; /* FontWeight.SemiBold */
+  line-height: 1.3;
+}
+
+.wenku-section-header__trailing {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px; /* L782 `spacedBy(8.dp)` */
+}
+
+.wenku-hairline {
+  box-sizing: border-box;
+  width: 100%;
+  height: 0.5px;
+}
+
+/* ── 滚动揭示：`wenkuArchivePart` / `wenkuTabTitle`（WenkuMotion.kt L135-191）──
+   `WenkuSequence` 的时钟是 ENTER_MS = 420ms 线性 0→1（WenkuTokens.kt L123），
+   窗口 `[start, end]` 换成 `delay = start·420ms` / `duration = (end-start)·420ms`，
+   曲线用 `WenkuMotion.ease`。数值由组件从 `WENKU_MOTION.enterMs` 算出后以 CSS
+   变量注入；这里的默认值只是同一算式的静态快照，供无 JS 注入时兜底：
+     meta  [.08, .68]  → 34ms  / 252ms
+     rule  [0,   .46]  → 0ms   / 193ms
+     dot   [.05, .5]   → 21ms  / 189ms
+     title [.16, .89]  → 67ms  / 307ms   （wenkuTabTitle(1, strength = .6f)）
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * 只做透明度：Kotlin 的 `travel = 4f` / `translateY(7f)` 位移在 WebKit 上会给元素建合成层，
+ * 而这些区块头会随页面重渲染重播（`DiscoverPage` 解除屏蔽、`ComicChaptersPage` 刷新目录），
+ * 层反复创建/销毁到一定程度就让 renderer `Target crashed`（e2e 稳定复现）。
+ * 位移量本身只有 4–7px，去掉后观感几乎一致，节拍（delay/duration）保持 Kotlin 的值。
+ */
+@keyframes wenku-section-archive-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wenku-section-rule-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wenku-section-tab-title-in {
+  0% {
+    opacity: 0;
+  }
+
+  55% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.wenku-section-header--reveal .wenku-section-header__meta {
+  transform-origin: left center;
+  animation: wenku-section-archive-in var(--wenku-sh-meta-duration, 252ms)
+    var(--ease-out, cubic-bezier(0, 0, 0.58, 1)) var(--wenku-sh-meta-delay, 34ms) backwards;
+}
+
+.wenku-section-header--reveal .wenku-section-header__rule {
+  transform-origin: left center;
+  animation: wenku-section-rule-in var(--wenku-sh-rule-duration, 193ms)
+    var(--ease-out, cubic-bezier(0, 0, 0.58, 1)) var(--wenku-sh-rule-delay, 0ms) backwards;
+}
+
+.wenku-section-header--reveal .wenku-section-header__dot {
+  animation: wenku-section-archive-in var(--wenku-sh-dot-duration, 189ms)
+    var(--ease-out, cubic-bezier(0, 0, 0.58, 1)) var(--wenku-sh-dot-delay, 21ms) backwards;
+}
+
+.wenku-section-header--reveal .wenku-section-header__title,
+.wenku-section-header--reveal .wenku-section-header__trailing {
+  animation: wenku-section-tab-title-in var(--wenku-sh-title-duration, 307ms)
+    var(--ease-out, cubic-bezier(0, 0, 0.58, 1)) var(--wenku-sh-title-delay, 67ms) backwards;
+}
+
+/* `prefers-reduced-motion`：Kotlin `a11y.reduceMotion` 下 `wenkuArchivePart` /
+   `wenkuTabTitle` 直接透传 Modifier —— 布局与终态不变，只去掉时钟。 */
+@media (prefers-reduced-motion: reduce) {
+  .wenku-section-header--reveal .wenku-section-header__meta,
+  .wenku-section-header--reveal .wenku-section-header__rule,
+  .wenku-section-header--reveal .wenku-section-header__dot,
+  .wenku-section-header--reveal .wenku-section-header__title,
+  .wenku-section-header--reveal .wenku-section-header__trailing {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* `RenderQuality.MINIMAL`：与 `AppProgressIndicator` 同一口径 —— 极简档不跑时钟。 */
+[data-render-quality='MINIMAL'] .wenku-section-header--reveal .wenku-section-header__meta,
+[data-render-quality='MINIMAL'] .wenku-section-header--reveal .wenku-section-header__rule,
+[data-render-quality='MINIMAL'] .wenku-section-header--reveal .wenku-section-header__dot,
+[data-render-quality='MINIMAL'] .wenku-section-header--reveal .wenku-section-header__title,
+[data-render-quality='MINIMAL'] .wenku-section-header--reveal .wenku-section-header__trailing {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   骨架 → 内容交接（本轮追加；既有规则一行未改）
+   ══════════════════════════════════════════════════════════════════════════════
+
+   ① 擦除交接 — `ui/wenku/WenkuLoadingHandoff.kt` L28-77
+      L54 内容层 `clipRect(left = 0, top = 0, right = w, bottom = h·p)` → `.wenku-handoff__content`
+      L68 骨架层 `clipRect(top = h·p, bottom = h)`                      → `.wenku-handoff__skeleton`
+      两段**上下互补**：内容画 `[0, p]`、骨架画 `[p, 1]`，任何 p 下和都是整高，不露白。
+      `p` 是**已过 `WenkuMotion.ease`** 的揭示量，由 rAF 逐帧写在容器上的 `--handoff-p`，
+      靠自定义属性继承到两层 —— 两层的 `clip-path` 因此逐帧不变，只有变量在动。
+
+   ② alpha 交接 — `ui/wenku/WenkuMotion.kt` L581-601
+      L597 `Box(Modifier.fillMaxSize().graphicsLayer { alpha = … })` → `.wenku-handoff-fade__skeleton`
+      （透明度走内联 `opacity`；120ms / `WenkuMotion.ease` 由组件算）
+      L599 内容宿主 `WenkuLoadedContentSequence`                    → `.wenku-seq`
+
+   ③ 骨架基础块 — `WenkuMotion.kt` L567-577
+      **纯静态**（Kotlin L567-568 原注释：无 shimmer / 无重复 ticker / 无滤镜）。
+      底色（`ink @ .0625/.0825`）与 4px 圆角由组件内联注入，这里只兜一层 `display: block`。
+      —— 本段与两份骨架屏的 CSS 均**不含任何 `@keyframes` / animation / 扫光**。
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-handoff {
+  position: relative;
+  width: 100%;
+  /* 兜底 = Kotlin 初始 `progress = 0f`（骨架占满）；运行时由内联 `--handoff-p` 覆盖。 */
+  --handoff-p: 0;
+}
+
+.wenku-handoff__content {
+  clip-path: inset(0 0 calc(100% - var(--handoff-p, 0) * 100%) 0);
+}
+
+.wenku-handoff__skeleton {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(calc(var(--handoff-p, 0) * 100%) 0 0 0);
+  pointer-events: none;
+}
+
+.wenku-handoff-fade {
+  position: relative;
+}
+
+.wenku-handoff-fade__skeleton {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wenku-handoff-fade__content {
+  position: relative;
+}
+
+.wenku-seq {
+  display: block;
+  /* 兜底；`WenkuLoadedContentSequence` 每帧以内联样式覆盖。 */
+  --wenku-seq: 1;
+}
+
+.wenku-skeleton-block {
+  display: block;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   纸面内容面板 — `ui/wenku/WenkuGlass.kt` L679-712（`WenkuContentPanel`）
+     L699  `.clip(WenkuTokens.shapes.Panel)`     → border-radius 4px
+     L700  `panel` / `panel.copy(alpha = .82f)`  → 内联 background（组件注入）
+     L701  `border(0.7.dp, outline@.42)`         → 内联 border（组件注入）
+     L709  `.padding(contentPadding)`            → 内联 padding（默认 16px）
+     L691-695 按下 `contactSpec()`(120ms, ease) / 松开 `settleSpec()`(420ms, settle)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-content-panel {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border-radius: 4px; /* WenkuTokens.PanelRadius */
+  transform-origin: center;
+  transition: transform var(--wenku-panel-settle-ms, 420ms)
+    var(--wenku-panel-settle-ease, cubic-bezier(0.2, 1.08, 0.34, 1));
+}
+
+.wenku-content-panel--interactive {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 按下：contact 120ms / `WenkuMotion.ease` */
+.wenku-content-panel--interactive:active {
+  transform: scale(var(--wenku-panel-press, 0.975));
+  transition-duration: var(--wenku-panel-press-ms, 120ms);
+  transition-timing-function: var(--wenku-panel-press-ease, cubic-bezier(0.215, 0.61, 0.355, 1));
+}
+
+.wenku-content-panel--interactive:focus-visible {
+  outline: 2px solid var(--wenku-ink, #161613);
+  outline-offset: 2px;
+}
+
+/* `a11y.reduceMotion`：布局与终态不变，只去掉缩放。 */
+@media (prefers-reduced-motion: reduce) {
+  .wenku-content-panel {
+    transition: none;
+  }
+
+  .wenku-content-panel--interactive:active {
+    transform: none;
+  }
+}
+
+/* `RenderQuality.MINIMAL`：与 `.wenku-section-header` 同一口径，压掉绘制时钟。 */
+[data-render-quality='MINIMAL'] .wenku-content-panel {
+  transition: none;
+}
+
+[data-render-quality='MINIMAL'] .wenku-content-panel--interactive:active {
+  transform: none;
+}
+
