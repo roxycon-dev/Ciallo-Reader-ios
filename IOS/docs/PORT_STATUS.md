@@ -5718,3 +5718,64 @@ L203 的集合先于 L205 的 `when` 命中同一个码。端口保持同一顺�
 2. `kotlinLiterals` 需要为「明确不移植」的文件加一条显式豁免通道（从 E219 读文件清单，且限制条数），否则 `EdgeVoiceProof` 永远红；
 3. `JsSourceRepo` 的补丁基线（49 对上游 51）仍未同步：`patchJm` 的 `jm_api_routes` 恢复段与新增的 `patchWnacgInit` 的 `originReady` 守卫要一起改，`sync-js-source-patches.py` 的护栏目前只接受 49。
 
+---
+
+## 2026-11-20 · 第 76 轮：CI 出 IPA（onnxruntime 上游下架 → vendor 修复）
+
+### 一、用户口径（本轮唯一目标）
+「新版本先不用做，先编译出一个可用的版本」「用 GitHub 产出 ipa 文件就行」——
+9 个新功能文件的移植继续推迟，本轮只解决 **GitHub Actions 出可用 IPA**。
+
+### 二、根因
+CI run #39（44733570114，sha f603470）：`ios-build` 挂在 Resolve Swift packages、
+`ios-device` 挂在 Release 构建，日志一致报
+`Fetching from https://github.com/microsoft/onnxruntime-swift-package-manager`
+→ `fatal: could not read Username for 'https://github.com'`。
+查证：微软在 2026-11-17/18 把 `microsoft/onnxruntime` 与
+`onnxruntime-swift-package-manager` 从 GitHub 下架（匿名 API + 网页均 404，
+对照 `torvalds/linux` 200 排除网络问题）。同批 capacitor-swift-pm 等依赖均正常，
+判定为该仓库消失而非 runner 故障。
+
+### 三、修复（commit f208185，已推 origin/main）
+- 把 1.24.2（commit `b7fb7f7dea8a2469e6335d95a61b8f36d0dc83b2`，
+  tree `59178ced…`）的 75 文件源码树 vendor 进 `ios/App/onnxruntime-swift-package-manager/`。
+  完整性：两个独立镜像（selim6167-lab / GuLP-AAC）tarball 逐字节一致，
+  每个文件重算 git blob SHA1 与原始 tree 75/75 吻合。
+- pbxproj 由 `XCRemoteSwiftPackageReference` 改 `XCLocalSwiftPackageReference`
+  （`relativePath = onnxruntime-swift-package-manager`）。
+- 二进制**不 vendor**：Package.swift 保持官方 CDN
+  `download.onnxruntime.ai/pod-archive-onnxruntime-c-1.24.2.zip`，
+  SHA256 `f7100a99…` 用微软公布值，构建链无任何第三方镜像 URL。
+- 新增 `tests/unit/onnxruntimeVendor.test.ts`（10 条）+ fixture + `ONNXRUNTIME_VENDOR.md`
+  四方互锁；同步更新 BUILD_IPA / BUILD_AND_RUN / build-ipa.sh 过时描述。
+
+### 四、门禁（本地实测 + CI 实测）
+| 项 | 本地 | CI run #40 |
+|---|---|---|
+| tsc | 0 error | — |
+| eslint | 0 problem | — |
+| vite build | 成功 | — |
+| vendor 完整性测试 | 10/10 | — |
+| vitest 全量 | 红（本地 Node 22.22.2 下 19 套件因 `node:sqlite` 无法 bundle + 已知 7 条 kotlinLiterals）| gates 红（仅 7 条 kotlinLiterals 老 offender）|
+| web-build | — | ✅ success |
+| cap-sync | — | ✅ success |
+| ios-build（模拟器） | — | ✅ success |
+| ios-device（出包） | — | ✅ success |
+
+本地 vitest 的 19 个 `node:sqlite` 失败纯属 Node 版本差异：本机 22.22.2
+（`node:sqlite` 未稳定），CI 用 `.nvmrc` 钉死的 24.16.0（原生稳定）。
+证据：run #38（vendor 前，Node 24）gates 全绿。
+
+### 五、交付
+未签名 IPA：`build/ci-ipa/CialloReader-1.6.4-264-unsigned.ipa`
+（29,128,534 bytes，SHA256 `5809280dc25f82588c966ad2478be08b9b35fc8b526f280da08b8305d64a7885`）。
+已复制到 `outputs/` 供下载。校验：331 条目、含 `Payload/App.app/App`
+（Mach-O magic `cffaedfe` = arm64）、Info.plist 版本字段齐全。
+artifact `ciallo-ios-ipa-unsigned` 来自 run #40（44770428423），与 commit f208185 对应。
+
+### 六、复盘
+- 派生活没踩新坑；延续的坑：`core.autocrlf=true` 下 vendor 文件 add 时 LF 规范化入
+  index（blob SHA 与 fixture 一致，CI checkout 不受影响），`LF→CRLF` 警告可忽略。
+- 本机无法复现 CI 的 Node 24 vitest 行为，判断依赖历史 run 的门禁结论，属有据推断而非实测。
+- 下一轮仍是从 9 个新功能文件开工（见上一轮第三节），并把 gates 的 7 条 kotlinLiterals 收口。
+
