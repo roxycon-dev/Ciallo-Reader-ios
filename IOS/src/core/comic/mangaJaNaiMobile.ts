@@ -55,8 +55,8 @@ const TILE = 128;
  *
  * Two caps composed: an absolute pixel cap (`minOf(1.0, 1400/max(w,h))`) and an
  * area cap (`sqrt(900_000 / (w*h))`), then a shrink loop until the tile count fits
- * the budget. `0.93` per iteration is applied to **both** axes, and each step
- * truncates toward zero (`toInt()`), which `Math.trunc` matches exactly.
+ * the budget. 初始尺寸是 `roundToInt()`（四舍五入），循环里每步的 `0.93` 才是
+ * `toInt()`（截断）—— 两者不能混用：1400×1400/预算 512 时四舍五入得 949，截断得 948。
  */
 export function mangaMobileInputSize(
   width: number,
@@ -68,8 +68,8 @@ export function mangaMobileInputSize(
     1400.0 / Math.max(width, height),
     Math.sqrt(900_000.0 / (width * height)),
   );
-  let w = Math.max(1, Math.trunc(width * scale));
-  let h = Math.max(1, Math.trunc(height * scale));
+  let w = Math.max(1, roundToInt(width * scale));
+  let h = Math.max(1, roundToInt(height * scale));
   const tiles = Math.max(1, tileBudget);
   // Kotlin uses `Long` arithmetic for the tile product — a 64-bit multiply. JS
   // numbers are exact up to 2^53, and `w`/`h` are bounded by 1400, so the product

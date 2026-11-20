@@ -184,11 +184,14 @@ describe('parseScrapedNodes', () => {
     expect(parseScrapedNodes('z-lib.is\nz-library.se')).toEqual([...INITIAL_SCRAPED_NODES]);
   });
 
-  it('keeps the built-in list verbatim even where it overlaps the migration table', () => {
-    // `INITIAL_SCRAPED_NODES` legitimately contains `z-library.co`, which is also a
-    // `MIGRATED_NODES` key — the migration only fires for the *stored selection*.
+it('keeps the built-in list verbatim: it never contains a migrated-only domain', () => {
+    // Kotlin `ZLibraryNodeManager.kt:26-30` 的 12 项里**没有** `z-library.co`
+    // （那是 iOS 旧列表的项）。迁移表仍以它为键 —— 因为 `MIGRATED_NODES` 只对
+    // 「用户已存的选择」生效，与内置候选表是两回事。
     expect(MIGRATED_NODES.has('z-library.co')).toBe(true);
-    expect([...INITIAL_SCRAPED_NODES]).toContain('z-library.co');
+    expect([...INITIAL_SCRAPED_NODES]).not.toContain('z-library.co');
+    // 内置列表里每一项都不该是「已退役」
+    for (const node of INITIAL_SCRAPED_NODES) expect(RETIRED_NODES.has(node)).toBe(false);
   });
 });
 
@@ -258,28 +261,28 @@ describe('retired node filtering', () => {
 });
 
 describe('node ranking / labels', () => {
-  it('verified-live table matches the Kotlin literal', () => {
-    expect([...VERIFIED_LIVE_NODES]).toEqual([
-      '1lib.sk',
-      'z-lib.by',
-      'z-library.sk',
-      'zh.z-lib.by',
-      'zh.z-library.sk',
-      'en.z-lib.by',
-    ]);
+it('verified-live table matches the Kotlin literal (emptySet)', () => {
+    // Kotlin `L24`：`val VERIFIED_LIVE_NODES = emptySet<String>()`，
+    // 注释原文「Historical checks are not a live availability guarantee.」
+    expect([...VERIFIED_LIVE_NODES]).toEqual([]);
   });
 
-  it('ranks the four label buckets in the Kotlin order', () => {
+it('ranks the label buckets in the Kotlin order (verified bucket is always empty)', () => {
+    // 顺序：默认节点 → 已验证可用 → z-lib.sk 硬挑战 → 导航站节点
     expect(nodeLabelFor(DEFAULT_NODE)).toBe('默认节点');
-    expect(nodeLabelFor('zh.z-lib.by')).toBe('已验证可用');
-    expect(nodeLabelFor('z-lib.sk')).toBe('硬挑战·留池');
-    expect(nodeLabelFor('z-library.co')).toBe('导航站节点');
+    // verified 集为空，所以曾经的「已验证」节点现在落回导航站
+    expect(nodeLabelFor('zh.z-lib.by')).toBe('导航站节点');
+    expect(nodeLabelFor('z-lib.fm')).toBe('导航站节点');
+    // 只有「非默认」的 z-lib.sk 才走到硬挑战分支
+    expect(nodeLabelFor('z-lib.sk', 'other.example')).toBe('硬挑战·留池');
   });
 
-  it('a custom default node wins over the verified-live label', () => {
+it('a custom default node wins, and no node is ever "verified live"', () => {
     expect(nodeLabelFor('z-lib.by', 'z-lib.by')).toBe('默认节点');
-    expect(isVerifiedLiveNode('z-lib.by')).toBe(true);
+    // Kotlin 的 verified 集为空 → 任何节点都不带「已验证可用」标签
+    expect(isVerifiedLiveNode('z-lib.by')).toBe(false);
     expect(isVerifiedLiveNode('z-library.co')).toBe(false);
+    expect(nodeLabelFor('z-lib.by')).toBe('导航站节点');
   });
 });
 
@@ -546,7 +549,8 @@ describe('ZLibraryNodeManager persistence', () => {
     const store: ZLibraryNodeStore = createNodeStore(manager, createThrowingTransport());
     // the same object must also satisfy the screen's own declaration
     const asScreenStore: ZLibraryNodeStoreShape = store;
-    expect(store.DEFAULT_NODE).toBe('1lib.sk');
+    // 与模块常量一致（Kotlin `L15` `"z-lib.sk"`），不再写死旧值
+    expect(store.DEFAULT_NODE).toBe(DEFAULT_NODE);
     expect([...store.VERIFIED_LIVE_NODES]).toEqual([...VERIFIED_LIVE_NODES]);
     expect(await store.scrapeNodes()).toEqual([]);
     expect(await store.getCustomNodes()).toEqual([]);

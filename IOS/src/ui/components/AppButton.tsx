@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import { APP_BUTTON_DISABLED_ALPHA } from '@core/components/appButtonStyle';
 
 export type AppButtonVariant =
   | 'primary'
@@ -85,6 +86,8 @@ export function AppButton(props: {
         borderRadius: HEIGHTS[size] / 2,
         ...VARIANTS[variant],
         ...props.style,
+        // AppButton.kt L208：禁用 / 加载中一律 0.4，而不是交给浏览器的 disabled 默认样式
+        opacity: interactive ? 1 : APP_BUTTON_DISABLED_ALPHA,
       }}
       disabled={!interactive}
       onClick={interactive ? props.onClick : undefined}

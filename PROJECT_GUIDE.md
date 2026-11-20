@@ -1,12 +1,12 @@
-# Ciallo阅读（EASYREADER）项目完全解析
+# Ciallo Reader 项目完全解析
 
 > 本文档的目标：让一个**对项目一无所知的 AI / 开发者**，不联网、不翻源码，只读本文档即可快速掌握整个项目的结构、每个文件的作用、以及每个模块用到的核心算法，从而能快速上手改代码、修 bug、加功能。
 >
-> **校准基准**：2026-10-03 · 当前 `HEAD 322657b`；工作区未提交，共 391 条状态项（132 个已跟踪文件修改、259 个未跟踪文件；记录时快照）。
-> `app` 模块：**317 个生产 Kotlin 源文件**（另有 4 个 vendored Java 文件）；JVM/Robolectric 测试：**97 个文件 / 509 个 `@Test`**；另有 27 个 androidTest 文件 / 95 个 `@Test`。
+> **校准基准**：2026-11-06 · 1.5.14 / 256；发布代码 bf678f5a，验证及发布回执见第 91 章。
+> `app` 模块：**443 个生产 Kotlin 文件**（另有 4 个 Java 文件）；JVM 测试 **212 文件 / 1257 项定义**；设备测试 **74 文件 / 249 项定义**。定义数不等于执行数；本轮性能专项见第 90 章；1.4.14 的快速输入回归见第 81 章；历史指定小说下载、图片解码及阅读器验收见第 75 章。
 >
 > **覆盖度声明**：第 4 章逐包逐文件覆盖了 `app`、`backdrop`、`liquidglass-core`、`liquidglass-compose`
-> 四个模块全部 **508 个 Kotlin / Java 源码文件**（含 4 个 vendored `.java`），无遗漏；完整清单见 4.8–4.13。
+> 四个模块源码目录共 **800 个 Kotlin / Java 文件**（含测试与 4 个 vendored `.java`）；现有文件名已全部补录，完整清单与新增记录见 4.8–4.35。反向检查保留六条明确标注已删除的历史文件；覆盖统计为 2026-11-05 工作区快照。
 
 ***
 
@@ -53,18 +53,18 @@ python novel-reader/.workbuddy/stale_check.py
 
 ## 0. 一句话定位
 
-**Ciallo阅读** 是一个基于 **Kotlin + Jetpack Compose（Material 3）** 的现代 Android **小说 / 漫画阅读器 + 在线书库聚合下载器**，单 Activity + MVVM 架构，支持本地 TXT/EPUB/MOBI/AZW3/DOCX/FB2/CBZ/PDF 导入，内置 Z-Library / MangaDex / Venera JS 漫画源 / Legado JSON 书源等多源聚合搜索，可把在线资源断点续传下载到本地书架离线阅读，UI 采用自研的两套"液态玻璃"设计语言（GlassCard 与 GlassKit）。
+**Ciallo Reader** 是一个基于 **Kotlin + Jetpack Compose（Material 3）** 的现代 Android **小说 / 漫画阅读器 + 在线书库聚合下载器**，单 Activity + MVVM 架构，支持本地 TXT/EPUB/MOBI/AZW3/DOCX/FB2/CBZ/PDF 导入，内置 Z-Library / MangaDex / Venera JS 漫画源 / Legado JSON 书源等多源聚合搜索，可把在线资源断点续传下载到本地书架离线阅读，UI 采用自研的两套"液态玻璃"设计语言（GlassCard 与 GlassKit）。
 
 | 项目 | 内容 |
 | --- | --- |
-| 当前版本 | **1.2.0**（versionCode 201） |
+| 当前版本 | **1.5.14 / 256**；本轮验证及发布见第 91 章 |
 | applicationId | `com.aistudio.novelreader.kxmpzq` |
 | 最低系统 | Android 7.0（API 24）；compileSdk / targetSdk = 35 |
-| 技术栈 | Kotlin + Compose M3 + Room + WorkManager + OkHttp + Jsoup + Coil + QuickJS（quickjs-kt）+ **ONNX Runtime**（漫画 OCR）+ **Cronet**（JS 源网络）+ Brotli + core-splashscreen |
+| 技术栈 | Kotlin + Compose M3 + Room + WorkManager + OkHttp + Jsoup + Coil + QuickJS（quickjs-kt）+ **ONNX Runtime**（漫画 OCR / 画质增强 CPU 推理）+ **Cronet**（JS 源网络）+ Brotli + core-splashscreen |
 | 架构 | MVVM + StateFlow + Repository；单 Activity + Navigation Compose |
 | 构建 | Gradle Kotlin DSL，4 模块工程 |
-| APK | 1.2.0 Release：构建及 APK 校验结果记录在本指南第 38 章，正式产物位于 `releases/` |
-| 测试 | 97 个 JVM 文件 / 509 项定义；另有 27 个设备测试文件 / 95 项定义。1.2.0 打包按要求只运行 Release 构建与产物核验，不重复运行测试 |
+| APK | 当前 1.5.14 / 256；签名、升级与发布回执见第 91 章 |
+| 测试 | 212 个 JVM 文件 / 1257 项定义；74 个设备文件 / 249 项定义；本轮 46 项 JVM、18 项设备定点回归通过，见第 91 章 |
 
 **已移除的依赖**（历史文档里还写着，注意别再用）：`moshi-kotlin`（连 `kotlin-reflect`，序列化点改 `org.json` 手写）、`flexible-bottomsheet-material3`（从未使用）、ML Kit（国内设备无 GMS，在线兜底改自定义 AI 接口 / 在线翻译）。
 
@@ -81,7 +81,7 @@ python novel-reader/.workbuddy/stale_check.py
 | `PROJECT_GUIDE.md` | 本文档 | 给 AI 用的项目全解析 |
 | `源清单对比.md` | 调研记录 | 内置书源与目标源的清单对比 |
 | `EASYREADER-v1.1.0-release.apk` | v1.1.0 发布产物 | 22,491,067 B（= 21.45MB） |
-| `novel-reader/app/build/outputs/apk/release/app-release.apk` | **最新构建产物**（1.1.5 / 200，含漫画翻页、登录与统一加载修复） | 23,302,655 B（22.22MiB）；交付副本 `EASYREADER-v1.1.5-漫画翻页与登录修复.apk`，SHA-256 `1e8f7adc06eff4db6c4fc597b1b608cfc3007ddf7826e4182c2360da5c388a13` |
+| `novel-reader/releases/Ciallo-Reader-v1.3.0.apk` | 已归档正式产物，1.3.0 / 211，增强期间卷页空白修复 | 回执 `artifacts/release-1.3.0/`，见第 54 章；不包含 2026-10-11 未提交修复。`app/build/outputs/` 可能被其他任务更新，不能直接视为已验收包 |
 | `生成"ciallo阅读"手绘风格透明LOGO.png` | 素材 | 手绘风 LOGO |
 | `.mimosa/` | AI 开发代理工作态 | `hook-state` / `hook-status`，Mimosa 框架留下的状态文件，**非运行必需** |
 | `.workbuddy/` | AI 工作记忆 | 逐日 memory 与校验脚本 |
@@ -97,7 +97,7 @@ python novel-reader/.workbuddy/stale_check.py
 | `models/` | **不打进 APK** 的模型：`manga-bubble-seg-yolo26n.onnx`（4.0MB）。历史上放在 `app/src/main/assets/mt/` 会随包，现移到仓库根，运行时按需下载 |
 | `tools/` | `ui-gate.ps1` + `ui-gate-baseline.json`（前端防劣化 ratchet，见 6.4） |
 | `promo/` | 宣传视频工程（Remotion `production/remotion`）、分镜 `storyboard.md`、风格帧 `styleframes/`、用户实拍 `user-footage/` |
-| `CHANGELOG.md` | 逐版本变更（446 行） |
+| `CHANGELOG.md` | 逐版本变更（586 行）；当前已记录 1.3.0，未提交工作区修复见本文第 55 / 56 章 |
 | `HANDOFF_PERF.md` | **性能优化接手说明**：低端机卡顿实测数据、玻璃卡优化方向、四档渲染画质、MAX 档崩溃修复。**动玻璃 / 画质相关改动前必读** |
 | `README.md` | 面向用户的说明（功能 / 安装 / FAQ / Roadmap） |
 | `verify_perf.ps1` | 性能验证脚本（`install` / `gfxreset` / `gfx` / `shot` / `diff`） |
@@ -109,7 +109,7 @@ python novel-reader/.workbuddy/stale_check.py
 
 ## 2. 主工程模块划分（Gradle）
 
-`novel-reader/settings.gradle.kts`（`rootProject.name = "Ciallo阅读"`）声明 4 个模块：
+`novel-reader/settings.gradle.kts`（`rootProject.name = "Ciallo Reader"`）声明 4 个模块：
 
 | 模块 | 类型 | 职责 |
 | --- | --- | --- |
@@ -123,7 +123,7 @@ python novel-reader/.workbuddy/stale_check.py
 - **ABI**：默认 `abiFilters = ["arm64-v8a"]`。历史上 debug 会额外打 x86_64 → 62MB vs release 23MB 的全部落差（onnxruntime 的 x86_64 so 约 38MB）。要在 x86_64 **模拟器**上跑 ONNX 翻译必须显式 `-PincludeX86`（走 ARM 翻译层执行 onnxruntime 会 SIGSEGV）。
 - **`jniLibs.useLegacyPackaging = true`（必须为 true）**：true = so 压缩存储，APK 最小（实测 21.9MB）；false = 要求未压缩 + 页对齐 → `libonnxruntime.so` 28.6MB 全计入，release 直接涨到 42.2MB。
 - **`isCrunchPngs / isMinifyEnabled / isShrinkResources`** release 全开；debug 默认不开（可 `-PminifyDebug`）。
-- **签名**：无 `KEYSTORE_PATH`/`STORE_PASSWORD` 环境变量时自动回落 `debug.keystore`（首次构建自动生成，clone 即可编译）。
+- **签名**：正式版只使用固定证书 `signing/release-cert.sha256` 对应的私有密钥，缺失或不匹配时停止，不回退调试证书；配置来自私有 `release-signing.properties` 或签名环境变量。调试版独立 `.debug` 包名，可直接编译。
 - **`resConfigs("zh-rCN", "en")`** 只保留中英文资源。
 - **`-PcomposeMetrics=true`** 时才输出 `build/compose-metrics|reports`（Compose 跳过率/可重启性指标）。
 - **`org.gradle.jvmargs=-Xmx4096m`、`parallel=true`、`caching=true`、`android.enableJetifier=false`**（2026-09-27 提速；若将来引入旧 support 库依赖需回开 Jetifier）。
@@ -135,7 +135,7 @@ python novel-reader/.workbuddy/stale_check.py
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ UI 层 (Compose, 单 Activity)                                  │
-│  MainActivity ── Nav ── 书库(0)/书架(1)/统计(2)/设置(3)        │
+│  MainActivity ── Nav ── 书库(0)/发现(1)/书架(2)/统计(3)/设置(4) │
 │   ├─ LibraryScreen   HomeScreen   StatisticsScreen            │
 │   ├─ SettingsTabScreen  ReaderScreen  ComicReaderScreen       │
 │   └─ 组件库 components/ glasskit/ comic/ pageturn/ shelf/      │
@@ -170,34 +170,41 @@ python novel-reader/.workbuddy/stale_check.py
 2. 下载由 `DownloadManager` 入队 → `WorkManager` 唯一工作 `DownloadWorker` 执行 → 状态持久化在 Room `download_tasks` → 进度经 `DownloadProgressBroadcaster`（StateFlow）推给 UI。
 3. 解析器入库到 Room；阅读进度按 `Book.currentChapterIndex + scrollOffset` 实时保存。
 4. **三套独立数据不要混**（见 6.4 工程约定）：`books`（本地下载制）= 我的书架；`favorites`（在线收藏制）= 我喜欢的；`comic_progress` / `comic_chapter_read`（阅读进度）两边共用。
+5. **标签搜索按导航记录保存状态**：主页复用应用级 `LibraryViewModel`；每次 `library_search/{librarySession}` 由对应 `NavBackStackEntry` 持有独立 ViewModel。作品详情和在线漫画 / 小说阅读路由携带可选 `librarySession`，使用所属搜索层的作品状态。书源注册、下载、关键词服务与全局偏好共享，搜索结果、类别、选源和详情独立；不通过回退到主页来执行标签搜索。
 
 ***
 
 ## 4. 逐包逐文件详解（核心正文）
 
 > 每个文件给出「作用」+「关键算法/实现细节」。纯数据类（几十行 model）合并说明。
-> **主代码文件表行数以 2026-09-30 工作区为准**（磁盘实测，非历史值）。
+> **本章生产文件行数与包汇总校准到 2026-10-11 工作区扫描快照**；新增文件见 4.19–4.20。历史执行章节保留当时的统计，测试文件旧条目未统一重算时以新增补录及最新扫描为准。
 
 ### 4.1 `app/src/main/java/com/example/` 根目录
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `MainActivity.kt`（1692 行） | 单 Activity 入口 + Navigation Compose | 装配四 Tab；`LocalSharedTransitionScope` / `LocalNavAnimatedVisibilityScope` 共享转场；`ComicJumpState` 漫画跳转；挂 `bgBackdrop` / `tabBackdrop`（按 `RenderQuality` 门控）；启动看门狗（"极致"档 20s 内连崩两次自动降档）；`installSplashScreen()` **必须在 `super.onCreate` 之前**；`LocalHapticsEnabled` / `LocalRenderQuality` 下发 |
-| `MainViewModel.kt`（1107 行） | 全局状态中枢 | 主题/护眼/触觉/隐私/收藏/统计等全局状态；本地书惰性加载采用选择代校验、取消旧任务、逐章已加载集合及显式错误状态。⚠️ `init` 块必须在所有被访问属性之后（历史竞态 bug） |
+| `MainActivity.kt`（1903 行） | 单 Activity 入口 + Navigation Compose | 装配五 Tab（含发现）；`LocalSharedTransitionScope` / `LocalNavAnimatedVisibilityScope` 共享转场；`ComicJumpState` 漫画跳转；在线漫画通过 `ComicReadingLogic.navigation` 统一前后章、目录、预取和进度下标；挂 `bgBackdrop` / `tabBackdrop`（按 `RenderQuality` 门控）；启动看门狗（"极致"档 20s 内连崩两次自动降档）；`installSplashScreen()` **必须在 `super.onCreate` 之前**；`LocalHapticsEnabled` / `LocalRenderQuality` 下发；标签搜索压栈独立 `library_search/{librarySession}`，详情与在线阅读继承搜索层状态；并行工作区已接入 `NavigationMotion`（待整体验收） |
+| `MainViewModel.kt`（1102 行） | 全局状态中枢 | 主题/护眼/触觉/隐私/收藏/统计等全局状态；本地书惰性加载采用选择代校验、取消旧任务、逐章已加载集合及显式错误状态。⚠️ `init` 块必须在所有被访问属性之后（历史竞态 bug） |
 
-### 4.2 `data/` 数据层（含子包 29 文件 / 6,897 行）
+### 4.2 `data/` 数据层（含子包 37 文件 / 7,851 行；2026-10-11 校准）
 
 #### 数据库与模型
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `Book.kt`（113 行） | Room 实体总定义 | `Book`（含 `sourceId`/`comicId`/`isComic`）、`Chapter`、`Bookmark`、`Highlight`、`CategoryEntity`（`isProtected`）、`ReadingRecord`、`SearchResultItem`；`ContentType` 枚举；`MAX_CHAPTER_LENGTH = 30_000`（超长章节入库前拆分） |
-| `AppDatabase.kt`（594 行） | Room 数据库 + DAO | `BookDao`（书籍/章节/书签/高亮/分类/阅读记录/会话 CRUD + Flow）、`AniListDao`（标题索引：`findMediaIds` / `findMediaIdsContaining` / `getRawTitlesFor`）、`DownloadTaskDao`、`FavoriteDao`；v11→v12 同时迁移章节书签列与神回表；实体含 `AniListTitleEntity`（`rawTitle`/`normalizedTitle`/`compactTitle`） |
+| `Book.kt`（116 行） | Room 实体总定义 | `Book`（含 `sourceId`/`comicId`/`isComic`）、`Chapter`、`Bookmark`、`Highlight`、`CategoryEntity`（`isProtected`）、`ReadingRecord`、`SearchResultItem`；`ContentType` 枚举；`MAX_CHAPTER_LENGTH = 30_000`（超长章节入库前拆分） |
+| `GithubUpdateChecker.kt`（163 行） | GitHub 更新检查 | 公开 API / 官方发布页回退、系统代理、四段数字比较、具体失败原因；同项目 HTTPS 发布路径校验；返回版本说明 / 安全附件 / 大小 / 摘要，API 回退沿用正式文件命名 |
+| `AppUpdateDownload.kt`（159 行） | APK 流式下载与校验 | 系统代理、官方 HTTPS CDN 白名单、取消 socket、长度 / EOF / 192MiB 预算；包名 / 精确版本 / 递增版本码 / 当前签名验证 |
+| `AppUpdateStore.kt`（81 行） | 安装包持久化 | 私有 app_updates、独立 part、原子元数据与实际摘要；192KiB 元数据允许长中文说明；确认已升级才清理，跨实例锁 |
+| `AppUpdateManager.kt`（148 行） | 应用级更新状态机 | 切页面不取消，进度 StateFlow、取消 / 校验 / 重试 / 恢复；前台单次安装请求、拒绝权限保留包；旧安装结果不得覆盖新状态 |
+| `AppUpdateInstaller.kt`（35 行） | 安装授权与安装 Intent | Android 8+ 分应用授权、Android 7 全局未知来源；FileProvider URI + MIME + 临时读授权 / ClipData |
+| `AppUpdateCleanupReceiver.kt`（17 行） | 升级后清理广播 | 非导出 MY_PACKAGE_REPLACED 接收器；goAsync 后目标版本码确认、仅清理应用更新目录 |
+| `AppDatabase.kt`（626 行） | Room 数据库 + DAO | `BookDao`（书籍/章节/书签/高亮/分类/阅读记录/会话 CRUD + Flow）、`AniListDao`（标题索引：`findMediaIds` / `findMediaIdsContaining` / `getRawTitlesFor`）、`DownloadTaskDao`、`FavoriteDao`；v11→v12 同时迁移章节书签列与神回表；实体含 `AniListTitleEntity`（`rawTitle`/`normalizedTitle`/`compactTitle`） |
 | `ReadingSession.kt`（44 行） | 阅读会话实体 | 一次连续阅读（`startTimeMs`/`endTimeMs`/`durationSeconds`/`startHour`），支撑精确统计；`DailyReadingTotal` / `MonthlyReadingTotal` / `YearlyReadingTotal` 聚合投影 |
-| `PreferencesManager.kt`（324 行） | SharedPreferences 封装 | 主题/护眼/方向/字体/滑条/每日目标/阅读时长与连续打卡（`calculateStreak`）、`migrateCardTweaksDefaultsV2` |
+| `PreferencesManager.kt`（332 行） | SharedPreferences 封装 | 主题/护眼/方向/字体/滑条/每日目标/阅读时长与连续打卡（`calculateStreak`）、`migrateCardTweaksDefaultsV2` |
 | `PrivacyManager.kt`（122 行） | 隐私模式 | PBKDF2 120000 次、随机盐、旧 SHA-256 验证后升级，失败冷却；CPU 工作由 suspend 回调移出主线程。 |
-| `BackupManager.kt`（109 行） | 本地备份 | 完整 ZIP 导入导出、旧 JSON 兼容；设置页 SAF 入口、暂停后台下载后恢复。 |
-| `TtsManager.kt`（108 行） | TTS 朗读 | 段落级 `startReading/pause/next/previous/stop`，`isPlaying` / `currentParagraphIndex` StateFlow |
+| `BackupManager.kt`（149 行） | 本地备份 | 完整 ZIP 导入导出、旧 JSON 兼容；设置页 SAF 入口、暂停后台下载后恢复。 |
+| `TtsManager.kt`（114 行） | TTS 朗读 | 段落级 `startReading/pause/next/previous/stop`，`isPlaying` / `currentParagraphIndex` StateFlow |
 | `BackupArchive.kt`（204 行） | 流式 ZIP 备份 | 12 张用户数据表、带类型设置、私有书籍与图片；文件路径重定位，恢复事务校验；不含凭据/模型/活跃下载。 |
 | `CharsetSniffer.kt`（44 行） | 文本编码嗅探 | BOM / UTF-8 合法性及多字节采样边界，旧中文编码兜底。 |
 | `ContentMutationGate.kt`（9 行） | 内容变更互斥 | 统一导入/删除/备份/恢复锁顺序，epoch 拒绝恢复前排队的进度和统计写入。 |
@@ -207,15 +214,15 @@ python novel-reader/.workbuddy/stale_check.py
 | `TtsPlaybackService.kt`（42 行） | 后台朗读服务 | mediaPlayback 前台通知、暂停按钮和代次校验；旧服务销毁不暂停新朗读。 |
 | `ChapterMerger.kt`（91 行） | 章节合并器 | **算法**：把入库时按 `MAX_CHAPTER_LENGTH` 拆出的 `"标题 (续N)"` 物理章节，每组最多 4 章合并；indexed lookup 避免反复扫描；维护 `physicalToLogical` / `physicalToLogicalOffset` / `logicalToPhysicalOrders` 三张映射表。读者看合并后的完整章节，数据库不动 |
 | `SearchLocator.kt`（102 行） | 全文搜索定位 | `countOccurrences` / `nthOccurrence` / `buildSnippet` / `buildResults`——搜索命中计数、跳到第 N 个命中、生成上下文摘要 |
-| `BookRepository.kt`（888 行） | 数据层门面 | 统一导入入口 `importBookFromUri`：按扩展名分派 EPUB/MOBI/Comic/DOCX/FB2/TXT；`detectCharset`、`sniffImageCapableFormat`、`migrateInlineImagesIfNeeded`（老书补内嵌图）、`splitOversizedChaptersInLibrary`、`copySourceIntoPrivateStorage`、删除级联与磁盘占用统计 |
+| `BookRepository.kt`（901 行） | 数据层门面 | 统一导入入口 `importBookFromUri`：按扩展名分派 EPUB/MOBI/Comic/DOCX/FB2/TXT；`detectCharset`、`sniffImageCapableFormat`、`migrateInlineImagesIfNeeded`（老书补内嵌图）、`splitOversizedChaptersInLibrary`、`copySourceIntoPrivateStorage`、删除级联与磁盘占用统计 |
 
 #### 格式解析器（Parser）
 
 | 文件 | 作用 | 关键算法 |
 | --- | --- | --- |
-| `EpubParser.kt`（986 行） | EPUB 解析 | 解压 ZIP → `container.xml` 找 OPF → 解析 OPF（metadata/manifest/spine）→ 逐 XHTML 抽正文 → 入库。**解压编码回退** UTF-8/GBK/GB18030；**封面三级策略**（EPUB3 `properties=cover-image` → EPUB2 `meta name=cover` → `<guide>`，再暴力兜底文件名含 cover / 首 spine 首图 / 体积最大图）；**字符集检测** BOM → 声明 → `isValidUtf8` → GBK；`extractCleanTextFromHtml`（块级标签转 `\n` + 实体反转义）；`embedImageTokens` 把图片转成正文 token（供阅读器内联渲染） |
+| `EpubParser.kt`（979 行） | EPUB 解析 | 解压 ZIP → `container.xml` 找 OPF → 解析 OPF（metadata/manifest/spine）→ 逐 XHTML 抽正文 → 入库；根目录 OPF 的目录前缀为空时不添加 `/`。**解压编码回退** UTF-8/GBK/GB18030；**封面三级策略**（EPUB3 `properties=cover-image` → EPUB2 `meta name=cover` → `<guide>`，再暴力兜底文件名含 cover / 首 spine 首图 / 体积最大图）；**字符集检测** BOM → 声明 → `isValidUtf8` → GBK；`extractCleanTextFromHtml`（块级标签转 `\n` + 实体反转义）；`embedImageTokens` 把图片转成正文 token（供阅读器内联渲染） |
 | `MobiParser.kt`（1011 行） | MOBI/AZW3/AZW/PRC（**自研，零第三方依赖**） | PDB 容器 → MOBI 头 + EXTH 元数据 → 正文解压 → 章节切分 → 封面。**三种解压**：1=无压缩、2=**PalmDOC LZ77**（`decodePalmDoc`，用 `scoreText` 判首记录是否跳 2 字节）、17480=**HUFF/CDIC 哈夫曼**（`HuffCdic`，逐比特解码 + 短语切片递归解压缓存，移植自 MIT 的 `Ephemerality.Unpack`）；**KF8 混合容器**扫 `BOUNDARY` 魔数切段；DRM 检测；`decodeMobiText` 多编码；`splitHtmlIntoChapters`（pagebreak 粗切 → h1-h6 细切 → 5000 字兜底）；`embedMobiImages` |
-| `ComicParser.kt`（146 行） | 漫画容器（CBZ/ZIP/PDF） | GBK→UTF-8 回退解压；PDF 用 `PdfRenderer` 逐页渲染（`scale = min(1080/w, 1920/h, 2.0)`，JPEG 85）；CBR/RAR/7Z 明确拒绝；**自然排序** `naturalOrderCompare`：`(\d+)\|(\D+)` 切段，数字段按数值比（`page_2 < page_10`） |
+| `ComicParser.kt`（160 行） | 漫画容器（CBZ/ZIP/PDF） | GBK→UTF-8 回退解压；PDF 用 `PdfRenderer` 逐页渲染（`scale = min(1080/w, 1920/h, 2.0)`，JPEG 85）；CBR/RAR/7Z 明确拒绝；**自然排序** `naturalOrderCompare`：`(\d+)\|(\D+)` 切段，数字段按数值比（`page_2 < page_10`） |
 | `DocxParser.kt`（277 行） | DOCX 解析 | 解 ZIP 取 `word/document.xml`，抽 `<w:p>` / `<w:t>`，`parseParagraphsWithImages` 支持段内图片 |
 | `Fb2Parser.kt`（271 行） | FB2 解析 | `<FictionBook>` → `<title-info>`（书名/作者/`<binary>` 封面）→ `<section>` / `<title>` 切章节，`decodeFb2Text` 处理 base64 图 |
 
@@ -224,9 +231,9 @@ python novel-reader/.workbuddy/stale_check.py
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
 | `FavoriteModels.kt`（158 行） | 收藏实体 | `FavoriteEntity`（`sourceId`+`comicId` 唯一键、`serialStatus`、`latestChapter*`、`sourceAlive`、`categoryName`）、`ComicProgressEntity`（`isChapterFinished`）、`FavoriteCategoryEntity`（**独立于书架 `categories` 表**）、`ChapterReadEntity`（含漫画章节书签 `bookmarked`）、`ChapterReadState` / `SerialStatus` 枚举、`FavoriteItem`（含 `alsoDownloaded`）、`ComicKey` |
-| `FavoriteDao.kt`（190 行） | 收藏 DAO | 收藏 CRUD、`moveFavoritesToCategory`、分类增删改名（`renameFavoriteCategoryCascade` / `deleteFavoriteCategoryAndRetag`）、进度与章节状态 upsert、`migrateKey`（换源迁移） |
-| `FavoriteRepository.kt`（461 行） | 收藏仓库 | `add/remove/moveToCategory`、`saveProgress`、`markChapter` / `markChaptersReadUpTo` / `markSeen`、`migrateKey` / `migrateByOrder`（按稳定身份/唯一标题迁移，保留无法确定的旧状态）、`updateGate` 节流（防并发打源）、`checkUpdates` / `retrySource` |
-| `ComicReadingLogic.kt`（190 行） | 漫画阅读状态逻辑 | `orderKey`（章节排序键，纯函数）、`ordered`、`chapterNumber`、`isFinished`、`resolveContinue`（续读目标）、`continueLabel`、`newChapterIds`（更新数）、`readRatio` / `unreadCount` |
+| `FavoriteDao.kt`（249 行） | 收藏 DAO | 收藏 CRUD、`moveFavoritesToCategory`、分类增删改名（`renameFavoriteCategoryCascade` / `deleteFavoriteCategoryAndRetag`）、进度与章节状态 upsert、`migrateKey`（换源迁移） |
+| `FavoriteRepository.kt`（517 行） | 收藏仓库 | `add/remove/moveToCategory`、`saveProgress`、`markChapter` / `markChaptersReadUpTo` / `markSeen`、`migrateKey` / `migrateByOrder`（按稳定身份/唯一标题迁移，保留无法确定的旧状态）、`updateGate` 节流（防并发打源）、`checkUpdates` / `retrySource` |
+| `ComicReadingLogic.kt`（203 行） | 漫画阅读状态逻辑 | `ordered` / `navigation` 统一阅读顺序；只有整列缺少 order 时才回退原下标，保留合法 0 序章；`chapterNumber`、`isFinished`、`resolveContinue`（续读目标）、`continueLabel`、`newChapterIds`（更新数）、`readRatio` / `unreadCount` |
 | `ChapterCatalog.kt`（45 行） | 漫画章节身份目录 | 有界 AtomicFile 快照；按唯一标题/卷和验证后的稳定 ID 迁移进度，禁止位置猜测。 |
 
 #### `data/remote/` — 网络错误语义（1 文件 / 151 行）
@@ -235,24 +242,25 @@ python novel-reader/.workbuddy/stale_check.py
 | --- | --- | --- |
 | `AppErrorInterceptor.kt`（151 行） | 统一网络错误中文提示 | `NetworkErrorMessage.toMessage` 把状态码/异常翻译成用户可读文案；`ServerMessageExtractor` 从响应体 JSON 里按 `MESSAGE_KEYS` 抽服务端 message。**⚠️ 硬约束：409 必须原样放行**（Z-Library 书架业务语义「这本书已经在书架里了」），早期版本无条件改写 body 把这条提示吃掉了 |
 
-### 4.3 `download/` 下载层（含子包 9 文件 / 988 行）
+### 4.3 `download/` 下载层（含子包 11 文件 / 1,246 行；2026-10-11 校准）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `DownloadTaskEntity.kt`（30 行） | 任务实体 | id（sourceId + 原始资源 ID 的长度前缀复合键）、sourceId、title/author/coverUrl/downloadUrl/format、`DownloadStatus` 枚举、downloadedBytes/totalBytes/filePath/errorMessage |
-| `DownloadTaskDao.kt`（47 行） | 任务 DAO | `getAllTasksFlow` / `getUnfinishedTasksSync` / `updateProgressAndStatus` / `deleteTaskById`；`DownloadTypeConverters` |
+| `DownloadTaskEntity.kt`（31 行） | 任务实体 | id（sourceId + 原始资源 ID 的长度前缀复合键）、sourceId、title/author/coverUrl/downloadUrl/format、`DownloadStatus` 枚举、downloadedBytes/totalBytes/filePath/errorMessage |
+| `DownloadTaskDao.kt`（48 行） | 任务 DAO | `getAllTasksFlow` / `getUnfinishedTasksSync` / `updateProgressAndStatus` / `deleteTaskById`；`DownloadTypeConverters` |
 | `DownloadState.kt`（20 行） | 状态密封类 | Idle / Pending / Downloading / Paused / Success / Error |
-| `DownloadRequest.kt`（11 行） | 请求 DTO | bookId/title/author/sourceId/downloadUrl/format/coverUrl |
+| `DownloadRequest.kt`（13 行） | 请求 DTO | bookId/title/author/sourceId/downloadUrl/format/coverUrl |
 | `DownloadProgressBroadcaster.kt`（23 行） | 进度广播 | `StateFlow<Map<String, DownloadState>>`，全 App 订阅 |
 | `DownloadManager.kt`（318 行） | 下载门面 | sourceId+bookId 复合任务身份，兼容历史 ID；摘要文件名；恢复先检查唯一 Work 存活，管理操作串行，暂停/取消等待 Worker 文件锁；入队等待 Work 注册。 |
-| `DownloadWorker.kt`（247 行） | 实际下载 Worker | 见下方**下载算法** |
+| `DownloadWorker.kt`（471 行） | 实际下载 Worker | 见下方**下载算法** |
 | `DownloadFileValidator.kt`（267 行） | 完成后真实格式校验 | 见下方**校验算法** |
+| `XbookcnEpub.kt`（132 行） | 书阁整本 EPUB 生成 | 逐章抓正文（180ms 间隔）、下载前后目录比对、任一章失败删除临时文件；结构对齐 `GuestNovelEpub`，可过 `GuestNovelIntegrity` |
 
 **下载算法（DownloadWorker）**：
 
 1. OkHttp + DNS + 加密 Cookie + DiamWall + 系统代理；dataSync 前台通知，全局并发 2，同任务文件锁。
 2. 侧车保存 URL、强 ETag/Last-Modified、总长与完成标志。可信前缀才使用 Range+If-Range；206 严格校验 Content-Range、版本、总长；200 重下，416 全量重启一次。
-3. 已知验证/错误 HTML 终止；无自动反复请求，合法 TXT 内 HTML 放行。显式错误保留文件，已下载成功但解析失败可以离线重试导入。
+3. 已知验证/错误 HTML 拒绝入库，合法 TXT 内 HTML 放行；Z-Library 的传输恢复最多两轮，取链接最多尝试三个节点，首次空响应/验证错误可先进行 15 秒浏览器交接。额度/频率/存储错误不换线。显式错误保留文件，已下载成功但解析失败可以离线重试导入。
 4. 缓冲 64KiB，内存进度 300ms、Room 写入 2s；取消立即关闭活动连接，保留可信临时前缀。
 5. 下载前检查空间，EOF 核对长度，真实格式校验，改名失败报错；保存真实格式/路径。
 6. 导入 Result.getOrThrow 成功后才完成；源身份与导入同事务，按身份复用已导入书；完成状态记账不可取消；TXT 原文保留供分享。不再计算没有预期值可比较的 MD5。
@@ -263,51 +271,52 @@ python novel-reader/.workbuddy/stale_check.py
 - **魔数识别真实格式** `detectRealFormat`：`%PDF-`（前 1KB 窗口扫描）→ `<?xml <FictionBook` → `PK`（ZipFile 内查 `word/document.xml`=docx、`META-INF/container.xml`/`mimetype`=epub、含图片=cbz）→ 偏移 60 `BOOKMOBI`=mobi → 文本启发式（UTF-16 BOM / 双字节模式 / 可打印占比）→ txt。
 - 声明 epub 实为 mobi/txt/pdf/cbz 时按真实格式放行。
 
-### 4.4 `library/` 书库层（含子包 24 文件 / 8,205 行；2026-10-02 校准）
+### 4.4 `library/` 书库层（含子包 28 文件 / 8,595 行；2026-10-11 校准）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `LibraryScreen.kt`（3523 行） | 书库页（**最大 UI 文件**） | `LibraryCollapsingHeader`、`UnifiedSearchField`、`SearchHistoryPanel` + `HistoryChips`/`HistoryChip`、`SourcePickerSheet`（书源选择 + 聚合选项 + `AggregateJumpSheet` 速跳）、`LibraryBookCard`、`StaggeredComicCard`（瀑布流）、`ComicDownloadGlassCard` / `ComicDownloadTaskRow`、`LibraryWelcomeScreen`、`SearchResultFavoriteButton`、`AggregateSourceHeader` / `AggregateSourceError`、`rememberCoverHeaders`；聚合已有书卡立即显示，后台补别名不再用骨架遮挡，速跳计数与显示同步 |
-| `LibraryViewModel.kt`（1353 行） | 书库 ViewModel | 逐源搜索 + **聚合搜索** `aggregateSearch`（漫画委托 `ComicAggregateSearch`，小说保留原调度；每源 6 条预览可展开）、`expandVariants`（繁简/变体扩展）、漫画章节/图片加载与解析、`prefetchNextComicChapter`、`downloadComicChapter`、搜索历史、`runSourceSmokeTest`（源自检）、`enrichMangaDexAuthors`、`startWebViewDownload` |
-| `ComicAggregateSearch.kt`（114 行） | 漫画聚合搜索调度 | 跨查询复用 8 个并发槽位，全部原词先排队；标题查询并行、别名源内串行补齐；逐批发布、源内 ID 去重；有结果的分组按首次命中顺序置前 |
+| `LibraryScreen.kt`（3100 行） | 书库页（**最大 UI 文件**） | `LibraryCollapsingHeader`、`UnifiedSearchField`、`SearchHistoryPanel` + `HistoryChips`/`HistoryChip`、`SourcePickerSheet`（书源选择 + 聚合选项 + `AggregateJumpSheet` 速跳）、`LibraryBookCard`、`StaggeredComicCard`（瀑布流）、`ComicDownloadGlassCard` / `ComicDownloadTaskRow`、`LibraryWelcomeScreen`、`SearchResultFavoriteButton`、`AggregateSourceHeader` / `AggregateSourceError`、`rememberCoverHeaders`；聚合已有书卡立即显示，后台补别名不再用骨架遮挡，速跳计数与显示同步；独立标签搜索页提供 `onBack` 按钮，输入与滚动位置使用导航记录下的 `rememberSaveable`；并行封面转场见 4.20 |
+| `LibraryViewModel.kt`（1355 行） | 书库 ViewModel | 漫画 / 小说聚合和单源共用分批关键词扩展；原词先发、搜索用词 StateFlow、独立在线补词开关；漫画 8 路 / 小说 4 路，Z-Library 聚合保留 55 秒预算，单源沿用传输层超时；章节、图片、下载及搜索历史功能保留；新增共享服务的导航级构造入口，各搜索层隔离搜索 / 选源 / 作品状态，根实例负责一次性服务初始化；关键词仓库、下载管理与全局偏好共享 |
+| `ComicAggregateSearch.kt`（137 行） | 聚合 / 单源搜索调度 | 原词先排队；有界源内队列重放本地与在线新增查询，同源串行、全轮最多 6 词；逐批显示、仅同源 ID 去重；保留类型化登录 / 网络错误 |
+| `KeywordSearchPreview.kt`（177 行） | 多语言用词可视反馈 | 书源管理同款 GlassKitCard / 名称标签 / 来源及提交状态；提供者失败原因与手动重新查词；生产 Lazy 列表 / 瀑布流条目随结果滚走；展开可复制；两项开关自适应文字高度 |
 | `SourceSearchCoordinator.kt`（50 行） | 同源搜索协调 | 源内互斥，完成后 1.1 秒间隔；60 秒正结果缓存（每源最多 8 个关键词），源实例更换失效；空结果与错误不缓存，冷却不占跨站 8 路槽位 |
 | `ReadingRecordMetadata.kt`（50 行） | 阅读目的地快照 | 记录原源 ID、资源 ID、封面和作者；按阅读记录 ID 保存，删除本地书后仍保留可用的在线目的地；旧缓存解码核对完整标题 |
 | `ReadingRecordResolver.kt`（81 行） | 阅读明细解析 | 本地书 / 原阅读快照 / 唯一同名收藏立即发布；旧记录才并行补搜，3 个标题 / 4 个请求，严格归一化全标题匹配，首命中取消其余请求 |
-| `LibraryUiState.kt`（26 行） | UI 状态密封类 | Loading/Empty/Ready/Searching/SearchResults/AggregateGroup/AggregateResults/Downloading/Error |
+| `LibraryUiState.kt`（27 行） | UI 状态密封类 | SearchResults 增补搜 loading；AggregateGroup 保留类型化 failure，避免单源登录错误被转换成普通网络错误 |
 | `LibraryError.kt`（13 行） | 错误类型 | NetworkUnavailable / SourceUnavailable / AuthenticationRequired / CloudflareBlocked / InvalidFile / ParseFailed / Unknown |
-| `LibraryLoginDialog.kt`（266 行） | 通用书源登录弹窗 | 账号密码 / Cookie 两种形态 |
-| `FormatPickerDialog.kt`（232 行） | 下载格式选择 | EPUB/MOBI/PDF/AZW3/TXT/FB2；`READER_UNSUPPORTED_FORMATS` 过滤（在 `LibraryViewModel`） |
-| `DownloadGlassCard.kt`（367 行） | 玻璃下载卡片 | 封面/进度/速度/剩余大小 + 暂停/继续/取消；`formatSize` |
-| `BookShareHelper.kt`（317 行） | 书架分享原文件 | `resolveShareTarget` / `resolveComicArchive` / `findCompletedTaskFile`；零拷贝（`isZeroCopyFormat`）或临时缓存用完即焚 |
-| `ComicDownloadManager.kt`（173 行） | 漫画章节批量下载 | AtomicFile 任务描述 + WorkManager 唯一任务；复合身份，启动补提交任务空档，暂停/取消等待 Worker。 |
+| `LibraryLoginDialog.kt`（265 行） | 通用书源登录弹窗 | 账号密码 / Cookie 两种形态 |
+| `FormatPickerDialog.kt`（212 行） | 下载格式选择 | EPUB/MOBI/PDF/AZW3/TXT/FB2；`READER_UNSUPPORTED_FORMATS` 过滤（在 `LibraryViewModel`） |
+| `DownloadGlassCard.kt`（374 行） | 玻璃下载卡片 | 封面/进度/速度/剩余大小 + 暂停/继续/取消；`formatSize` |（已删除，见 4.33）
+| `BookShareHelper.kt`（366 行） | 书架单本 / 多选原文件分享 | 原文件优先；保留漫画归档；旧逐页数据打包 CBZ；MIME 聚合、全附件 ClipData 读授权、24h 临时文件保留与取消清理。 |
+| `ComicDownloadManager.kt`（210 行） | 漫画章节批量下载 | AtomicFile 任务描述 + WorkManager 唯一任务；复合身份，启动补提交任务空档，暂停/取消等待 Worker。 |
 | `ComicDownloadWorker.kt`（64 行） | 持久漫画下载 Worker | 前台 dataSync、全局 2 个章节，重建书源并复用已下载页面/已入库书籍。 |
-| `ComicLocalImporter.kt`（341 行） | 漫画本地导入 | 带重试的图片抓取（`fetchWithRetry`）、全局页信号量、`hasImageBounds` 校验 |
+| `ComicLocalImporter.kt`（365 行） | 漫画本地导入 | 带重试的图片抓取（`fetchWithRetry`）、全局页信号量、`hasImageBounds` 校验 |
 | `GenericCoverLoader.kt`（49 行） | 通用封面加载器 | Coil ImageLoader 封装 |
 | `ZLibraryCoverLoader.kt`（66 行） | Z-Library 封面加载 | 带会话与自定义 Header，`rememberZLibraryImageLoader` |
 | `MhttuImageDecryptor.kt`（47 行） | 图床解密 | 特定域名（mhttu）图片字节解密 + 扩展名判定 |
-| `ImageBytes.kt`（144 行） | 图片字节工具 | gzip / **brotli** 解压、`normalizeImage`、`isAvif`、`webpVariants`、`decodeOk` |
-| `ZLibraryNodeConfig.kt`（15 行） | 节点配置常量 | 默认域名等 |
-| `ZLibraryNodeManager.kt`（231 行） | 节点管理 | `VERIFIED_LIVE_NODES` / `INITIAL_SCRAPED_NODES` / `RETIRED_NODES` 三张表，自定义节点增删、`selectNode` / `restoreSelection` / `scrapeNodes` |
+| `ImageBytes.kt`（153 行） | 图片字节工具 | gzip / **brotli** 解压、`normalizeImage`、`isAvif`、`webpVariants`、`decodeOk` |
+| `ZLibraryNodeConfig.kt`（21 行） | 节点配置常量 | 默认域名等 |
+| `ZLibraryNodeManager.kt`（197 行） | 节点管理 | `VERIFIED_LIVE_NODES` / `INITIAL_SCRAPED_NODES` / `RETIRED_NODES` 三张表，自定义节点增删、`selectNode` / `restoreSelection` / `scrapeNodes` |
 | `ZLibraryNativeSession.kt`（369 行） | 原生会话 | 用隐藏 WebView 承载登录/搜索/取真实下载链接；`clickDiamWallGate`、`parseCurrentPage`、轮询调度 |
 
-### 4.5 `mangatranslate/` 漫画翻译（含子包 12 文件 / 4,609 行）
+### 4.5 `mangatranslate/` 漫画翻译（含子包 13 个 Kotlin 文件 / 4854 行）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `MangaTranslationCore.kt`（899 行） | 翻译总控 | `MangaPageTranslator`（检测/识别/翻译编排，ONNX session 复用与释放）、`TranslationCache`（逐页磁盘缓存 + `trimIfNeeded` 容量治理）、`TextBlockGrouper`（横/竖排文本块聚类）、`OverlayRenderer`（`bake` 把译文烘焙到位图，横/竖排分别排版、`fitFontSize` 自适应）、`TranslationCoordinator`（调度：`schedule` / `bumpEpoch` / `onBitmapInvalidated` / `cancelAll`，`translateMutex` 串行） |
-| `MangaOcr.kt`（488 行） | PP-OCR 推理 | `OrtSessions`（ONNX 环境 + session 缓存/关闭）、`PaddleDetector`（`detectLines` / `detectLinesTiled` / `detectLinesWhole`、`extractLineRects` 概率图阈值 + 读序排序）、`PaddleRecognizer`（`ctcDecode`） |
-| `BubbleDetector.kt`（401 行） | YOLO-seg 气泡分割 | 输入 letterbox → ONNX 推理 → 原型 mask（`Prototypes.parsePrototypes`）→ 轮廓抽取（`computeMaskContour`）、`deduplicate` / `retainLargestConnectedComponent`、`letterboxInverse*` 还原到原图坐标 |
-| `PageRegionDetector.kt`（274 行） | 页面区域检测 | 融合 Paddle 文本行 + 气泡框；`detectLongImageTiledPage`（长图分块）、`remapRect` / `cropRegion` / `compressTile` |
+| `MangaTranslationCore.kt`（983 行） | 翻译总控 | `MangaPageTranslator`（检测/识别/翻译编排，ONNX session 复用与释放）、`TranslationCache`（逐页磁盘缓存 + `trimIfNeeded` 容量治理）、`TextBlockGrouper`（横/竖排文本块聚类）、`OverlayRenderer`（`bake` 把译文烘焙到位图，横/竖排分别排版、`fitFontSize` 自适应）、`TranslationCoordinator`（调度：`schedule` / `bumpEpoch` / `onBitmapInvalidated` / `cancelAll`，`translateMutex` 串行） |
+| `MangaOcr.kt`（491 行） | PP-OCR 推理 | `OrtSessions`（ONNX 环境 + session 缓存/关闭）、`PaddleDetector`（`detectLines` / `detectLinesTiled` / `detectLinesWhole`、`extractLineRects` 概率图阈值 + 读序排序）、`PaddleRecognizer`（`ctcDecode`） |
+| `BubbleDetector.kt`（402 行） | YOLO-seg 气泡分割 | 输入 letterbox → ONNX 推理 → 原型 mask（`Prototypes.parsePrototypes`）→ 轮廓抽取（`computeMaskContour`）、`deduplicate` / `retainLargestConnectedComponent`、`letterboxInverse*` 还原到原图坐标 |
+| `PageRegionDetector.kt`（273 行） | 页面区域检测 | 融合 Paddle 文本行 + 气泡框；`detectLongImageTiledPage`（长图分块）、`remapRect` / `cropRegion` / `compressTile` |
 | `PageRegionTiling.kt`（831 行） | **长图分块切片与去重** | 分块规划（自适应 `adaptiveNextTileTop`）、跨块框合并（`shouldTreatRectsAsSameBubbleForDedup` / `shouldTreatVerticallySplitTileRectsAsSameBubble`）、候选优选（`choosePreferredBubbleCandidateIndex` / `compareBubblePriority`）、mask 轮廓合并（`mergePageMaskContours` / `mergeBubblesSpannedByTextLines`）、小误检过滤 |
 | `TextBlockMerger.kt`（499 行） | 文本行→文本块 | 按方向（横/竖）聚类、`mergeScore`（间距一致性 + 重叠）、`absorbContainedSingletons` / `absorbAdjacentSingletons`、`buildMaskContour`（块轮廓） |
-| `BubblePipeline.kt`（447 行） | 气泡形状级渲染 | `buildRegions` → `bake`：`drawBubbleShape`（按轮廓裁字）、`drawFreeBlock`（无气泡时的实心底块）、`findLargestFilledRect`、`sampleBackgroundColor` / `contrastingTextColor`、`drawTextHorizontal` / `drawTextVertical` |
-| `TextTranslator.kt`（163 行） | 在线翻译兜底 | `ScriptDetector`（语种判定）、`OnlineFallbackTranslator`（`translateBatch`，`parseTransmart` + `gtxFallback`） |
-| `LlmBubbleTranslator.kt`（267 行） | 自定义 AI 接口 | OpenAI 兼容 / Gemini 两套 payload；术语表 `glossary` 持久化保证译名跨页一致；`parseStrict` |
-| `TranslateModelManager.kt`（302 行） | 模型按需下载 | det / rec / **bubble** 三个 `ModelSpec`，国内优先下载源、`ensureDownloaded` / `validateUrl` / `totalBytes` / `deleteModels` |
+| `BubblePipeline.kt`（480 行） | 气泡形状级渲染 | `buildRegions` → `bake`：`drawBubbleShape`（按轮廓裁字）、`drawFreeBlock`（无气泡时的实心底块）、`findLargestFilledRect`、`sampleBackgroundColor` / `contrastingTextColor`、`drawTextHorizontal` / `drawTextVertical` |
+| `TextTranslator.kt`（174 行） | 在线翻译兜底 | `ScriptDetector`（语种判定）、`OnlineFallbackTranslator`（`translateBatch` / `parseTransmart`；腾讯批量在线请求、对白去重与缓存、16 秒整批预算、瞬时故障最多重试一次、具体错误原因，无 Google 请求） |
+| `LlmBubbleTranslator.kt`（333 行） | 自定义 AI 接口 | OpenAI 兼容 / Gemini 两套 payload；按漫画隔离译名表；简洁漫画提示词、20 条 / 6000 字分批、28 秒整页预算，永久拒绝不重试；严格 ID 与显式空字符串校验 |
+| `TranslateModelManager.kt`（314 行） | 模型按需下载 | det / rec / **bubble** 三个 `ModelSpec`，国内优先下载源、`ensureDownloaded` / `validateUrl` / `totalBytes` / `deleteModels` |
 | `PageMemoryBudget.kt`（30 行） | 翻译图像预算 | 按设备堆大小限制单页，跨协调器推理互斥，分行计算像素 SHA-256。 |
 | `TranslationPrivacy.kt`（8 行） | 在线翻译隐私闸 | 隐私/无痕模式不将正文发送给第三方翻译服务。 |
 
-### 4.6 `source/` 书源体系（含子包 66 文件 / 11,440 行）
+### 4.6 `source/` 书源体系（含子包 97 文件 / 16,230 行；2026-10-19 校准）
 
 这是项目的**第二个技术高地**：所有书源统一实现 `BookSource` / `ComicSource` 接口，可插拔多源聚合。
 
@@ -315,65 +324,67 @@ python novel-reader/.workbuddy/stale_check.py
 
 | 文件 | 作用 |
 | --- | --- |
-| `BookSource.kt`（41 行） | 书籍源接口：`search` / `getDetail` / `getDownloadInfo` / `login` / `logout` / `isLoggedIn` / `getAvailableFormats` / `getAuthenticationState` / `getRegistrationUrl` |
+| `BookSource.kt`（53 行） | 书籍源接口：`search` / `getDetail` / `getDownloadInfo` / `login` / `logout` / `isLoggedIn` / `getAvailableFormats` / `getAuthenticationState` / `getRegistrationUrl` |
 | `SourceRegistration.kt`（7 行） | 注册地址校验：仅 HTTP(S)、无 URL 内嵌账号密码；登录窗口复用源声明链接 |
-| `ComicSource.kt`（36 行） | 漫画源接口：`getChapters` / `getChapterImages` / `getChapterText` / `getChapterImageHeaders` / `resolveChapterImage` / `getCoverHeaders` |
-| `SearchBook.kt`（22 行） | 搜索结果模型（含 `comicId` / `eapiId` / `eapiHash`） |
+| `ComicSource.kt`（32 行） | 漫画源接口：`getChapters` / `getChapterImages` / `getChapterText` / `getChapterImageHeaders` / `resolveChapterImage` / `getCoverHeaders` |
+| `SearchBook.kt`（24 行） | 搜索结果模型（含 `comicId` / `eapiId` / `eapiHash`） |
 | `BookFormat.kt`（21 行） | 可选下载格式 |
 | `ComicChapter.kt`（13 行） | 漫画章节（含 `external` / `externalUrl`） |
 | `DownloadInfo.kt`（13 行） | 下载信息（url/format/headers/referer） |
 | `SourceResult.kt`（18 行） | Success/Error 封装 |
 | `SourceException.kt`（9 行） | LoginRequired / NetworkError / ParseError / BookNotFound / Unknown |
-| `SourceConfig.kt`（85 行） | 书源配置：`SearchRule` / `DetailRule` / `DownloadRule` / `HtmlSearchRule` / `HtmlChapterRule` / `HtmlContentRule`、`insecureTls`、`type` |
-| `SourceCapabilities.kt`（24 行） | 能力声明：`supportComic` / `supportOnlineText` / `environmentOnly` / `requiresLogin` 等 |
+| `SourceConfig.kt`（89 行） | 书源配置：`SearchRule` / `DetailRule` / `DownloadRule` / `HtmlSearchRule` / `HtmlChapterRule` / `HtmlContentRule`、`insecureTls`、`type` |
+| `SourceCapabilities.kt`（29 行） | 能力声明：`supportComic` / `supportOnlineText` / `environmentOnly` / `requiresLogin` 等 |
 | `AuthenticationState.kt`（8 行） | NotRequired / Required / Authenticated / Expired |
 | `LoginCredential.kt`（8 行） | 用户名密码 / Cookie / extraData |
 | `SourceLog.kt`（38 行） | 书源调试日志环形缓冲 + `dump` |
-| `NetworkCalls.kt`（61 行） | 共享 HTTP 与取消策略 | OkHttp pool/dispatcher 复用、取消即时关闭 socket、响应关闭解绑；书源内网与 DNS 边界。 |
-| `SourceManager.kt`（177 行） | 书源管理器：注册/启用/激活/持久化，`Mutex` 保护初始化，三个 StateFlow（`allSources` / `availableSources` / `enabledStates`） |
-| `SourceViewModel.kt`（188 行） | 书源 ViewModel：导入（文件/字符串/URL）、`refreshJsSources`、成人源开关 |
-| `storage/SourceStorage.kt`（11 行） + `SharedPreferencesSourceStorage.kt`（85 行） | 书源持久化接口与 SP 实现 |
+| `NetworkCalls.kt`（79 行） | 共享 HTTP 与取消策略 | OkHttp pool/dispatcher 复用、取消即时关闭 socket、响应关闭解绑；书源内网与 DNS 边界。 |
+| `SourceManager.kt`（182 行） | 书源管理器：注册/启用/激活/持久化，`Mutex` 保护初始化，三个 StateFlow（`allSources` / `availableSources` / `enabledStates`） |
+| `SourceViewModel.kt`（154 行） | 书源 ViewModel：导入（文件/字符串/URL）、`refreshJsSources`、成人源开关 |
+| `storage/SourceStorage.kt`（11 行） + `SharedPreferencesSourceStorage.kt`（11 行） | 书源持久化接口与 SP 实现 |
 
 #### 4.6.2 `source/parser/` 规则解释器（2 文件 / 527 行）
 
 | 文件 | 作用 | 关键算法 |
 | --- | --- | --- |
-| `JsonPathResolver.kt`（202 行） | **JSONPath 子集解释器** | `$.a.b`、`$..books`（递归下降）、`books[]` / `books[*]`（数组通配）、`items[0]`（下标）、`@json:` 前缀；`resolveArray` / `getString` / `resolveStringArray`；递归用 `**` 标记 + `mergeRecursiveMarkers` |
+| `JsonPathResolver.kt`（206 行） | **JSONPath 子集解释器** | `$.a.b`、`$..books`（递归下降）、`books[]` / `books[*]`（数组通配）、`items[0]`（下标）、`@json:` 前缀；`resolveArray` / `getString` / `resolveStringArray`；递归用 `**` 标记 + `mergeRecursiveMarkers` |
 | `LegadoRule.kt`（321 行） | **Legado（开源阅读 3.0）规则解释器** | 见下方语法表 |
 | `RuleBudget.kt`（32 行） | 规则执行预算 | 规则/JSON 长度深度、正则 deadline-aware CharSequence；超时明确失败。 |
 
 **Legado 支持语法**：默认段 `class.xxx.0` / `id.xxx.0` / `tag.a.0` / `text.关键词` / `children` / `all`；位置 0 起正数、`-1` 倒数、`!0:1` 排除、留空取全部；列表规则首字符 `-` 倒序；CSS `@css:.name@text`（兼容 `.name@text` / `img@src`）；连接符 `||`（回退取首个有值）/ `&&`（合并全部）；内容关键字 `text`/`ownText`/`textNodes`/`html`/`all`/`href`/`src`/任意属性；正则替换 `规则##正则##替换`。**明确不支持**：`@js:`、webView、嗅探 sourceRegex。`isJsonRule` 判 JSON/HTML 分支，`cleanJsonPath` 去前缀。
 
-#### 4.6.3 `source/impl/` 内置源（3 文件 / 1,485 行）
+#### 4.6.3 `source/impl/` 内置源（4 文件 / 2,083 行）
 
 | 文件 | 作用 | 关键算法 |
 | --- | --- | --- |
-| `JsonBookSource.kt`（645 行） | 自定义 JSON 书源（原生 + Legado 兼容） | 模板 `{keyword}` / `{keyword_b64}`；URL 模板 `{{$.id}}` 取值；`insecureTls` 时 trust-all SSLContext；**漫画源判定** `isComicLike`（配置优先，否则看 imageSelector 是否含 `@src`/`data-src`/`img`）；`extractImageUrls` 支持纯 URL 列表与 `<img>` 片段（`data-src`/`data-original`/`data-lazy-src`/`src` 优先级）；`searchHtml` / `searchHtmlJson` 双通道 |
-| `MangaDexSource.kt`（766 行） | MangaDex 源 | `searchOfficialApi` + `searchMirror` 双路（镜像 ↔ 官方 UUID 与 slug 互查缓存）、`officialChapterImages` / `mirrorFallbackImages`、`parseJsonLdAuthor` 补作者、`languageLabel` |
+| `JsonBookSource.kt`（665 行） | 自定义 JSON 书源（原生 + Legado 兼容） | 模板 `{keyword}` / `{keyword_b64}`；URL 模板 `{{$.id}}` 取值；`insecureTls` 时 trust-all SSLContext；**漫画源判定** `isComicLike`（配置优先，否则看 imageSelector 是否含 `@src`/`data-src`/`img`）；`extractImageUrls` 支持纯 URL 列表与 `<img>` 片段（`data-src`/`data-original`/`data-lazy-src`/`src` 优先级）；`searchHtml` / `searchHtmlJson` 双通道 |
+| `MangaDexSource.kt`（950 行） | MangaDex 源 | `searchOfficialApi` + `searchMirror` 双路（镜像 ↔ 官方 UUID 与 slug 互查缓存）、`officialChapterImages` / `mirrorFallbackImages`、`parseJsonLdAuthor` 补作者、`languageLabel` |
 | `MockBookSource.kt`（93 行） | 测试用假源 | 样例书（生产构建会被过滤隐藏） |
+| `XbookcnSource.kt`（395 行） | 书阁（xbookcn.app）成人小说源 | 搜索 `/search?q=` 取 `#search-books li`；详情与目录同页解析，只保存 12 位 hex 作品 id（slug 变化由站点重定向兜底）；正文 `article.reading-text p`；整本下载返回 `#ciallo-xbookcn-epub-v1` 标记，由 `XbookcnEpub` 逐章打包；有界重试 + `CfWebViewSolver` 过盾 |
 
 #### 4.6.4 `source/importer/`（1 文件 / 639 行）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `SourceImporter.kt`（654 行） | 书源导入器 | JSON 字符串 / 文件 / 网络社区源批量导入；`parseNativeSource` + `convertLegadoSource`；`LegadoUrl` 与 `postUrl`（URL 模板 + POST）、`evalPageExpression`、`SimpleArithmetic`（Legado 页面表达式的四则运算）、`parseHeaderString` |
+| `SourceImporter.kt`（702 行） | 书源导入器 | JSON 字符串 / 文件 / 网络社区源批量导入；`parseNativeSource` + `convertLegadoSource`；`LegadoUrl` 与 `postUrl`（URL 模板 + POST）、`evalPageExpression`、`SimpleArithmetic`（Legado 页面表达式的四则运算）、`parseHeaderString` |
 
-#### 4.6.5 `source/js/` QuickJS 运行时（Venera JS 漫画源，13 文件 / 4,554 行）
+#### 4.6.5 `source/js/` QuickJS 运行时（Venera JS 漫画源，14 文件 / 4,737 行）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `JsSourceEngine.kt`（552 行） | 单源 QuickJS 运行环境 | 注入 Venera 运行时 + 源脚本；同步/异步桥；同源互斥与异步收尾；bootstrap 取消时完成一次性 guard 注册，缓存原 runtime；像素级 modifyImage |
-| `JsMessageHandler.kt`（997 行） | JS↔Kotlin 消息桥 | `load_data`/`save_data`/`load_setting`、`convert`（utf8/gbk/base64/md5/sha1/sha256/sha512/hmac/aes-ecb·cbc·cfb·ofb/rsa/hex）、`http`（Cronet 实现）、`cookie`、`html`（DOM）、`image`、`ui`、`async`、`random` |
-| `JsComicSource.kt`（804 行） | JS 漫画源封装 | 包装成 `ComicSource`；`numericIdFallback`（**号码牌直达**：纯数字 ID 搜索无结果时按 ID 直接加载详情）、`resolveEhentaiImage`、`resolveImageConfig`、`extractComicId`、`VeneraRuntime` |
-| `JsSourceRepo.kt`（1043 行） | JS 源仓库 | `ADULT_KEYS` / `LOGIN_KEYS` / `EXCLUDED_KEYS` / `INSECURE_KEYS` 四张策略表；`LOCAL_EXTRA_SOURCES`（`assets/js_extra/` 下的 `bilimanga.js` / `vomic.js`）；索引镜像 `INDEX_MIRRORS`、`fetchIndex` / `fetchScript` / `parseIndex`（891 行的 `patchScript` 做兼容补丁）、`healthCheck` / `needsRepair` |
-| `CfWebViewSolver.kt`（279 行） | **Cloudflare 挑战求解** | `isChallengeResponse` 识别 → 隐藏 WebView 求解 → `clearanceOf` 提取 cf_clearance → `syncToJsCookieJar` 回写；`inflight` 去重 + `lastFailAt` 冷却 |
-| `JsHtmlStore.kt`（181 行） | JS HTML DOM 存储 | Jsoup DOM；按所属文档释放元素与节点句柄，最多 8 文档 / 4MiB 估算驻留，身份映射避免线性查找 |
+| `JsSourceEngine.kt`（558 行） | 单源 QuickJS 运行环境 | 注入 Venera 运行时 + 源脚本；同步/异步桥；同源互斥与异步收尾；bootstrap 取消时完成一次性 guard 注册，缓存原 runtime；像素级 modifyImage |
+| `AimanhuaTls.kt`（54 行） | 爱漫画证书链兼容 | 系统 CA→官方 ISRG Root X2 CA→已知公钥到期后 14 天缓冲；保留域名验证，其他书源不启用此策略 |
+| `JsMessageHandler.kt`（1035 行） | JS↔Kotlin 消息桥 | `load_data`/`save_data`/`load_setting`、`convert`（utf8/gbk/base64/md5/sha1/sha256/sha512/hmac/aes-ecb·cbc·cfb·ofb/rsa/hex）、`http`（Cronet 实现）、`cookie`、`html`（DOM）、`image`、`ui`、`async`、`random` |
+| `JsComicSource.kt`（926 行） | JS 漫画源封装 | 包装成 `ComicSource`；`numericIdFallback`（**号码牌直达**：纯数字 ID 搜索无结果时按 ID 直接加载详情）、`resolveEhentaiImage`、`resolveImageConfig`、`extractComicId`、`VeneraRuntime` |
+| `JsSourceRepo.kt`（1549 行） | JS 源仓库 | `ADULT_KEYS` / `LOGIN_KEYS` / `EXCLUDED_KEYS` / `INSECURE_KEYS` 四张策略表；`LOCAL_EXTRA_SOURCES`（`assets/js_extra/` 下的 `bilimanga.js` / `vomic.js`）；索引镜像 `INDEX_MIRRORS`、`fetchIndex` / `fetchScript` / `parseIndex`（891 行的 `patchScript` 做兼容补丁）、`healthCheck` / `needsRepair` |
+| `CfWebViewSolver.kt`（293 行） | **Cloudflare 挑战求解** | `isChallengeResponse` 识别 → 隐藏 WebView 求解 → `clearanceOf` 提取 cf_clearance → `syncToJsCookieJar` 回写；`inflight` 去重 + `lastFailAt` 冷却 |
+| `JsHtmlStore.kt`（185 行） | JS HTML DOM 存储 | Jsoup DOM；按所属文档释放元素与节点句柄，最多 8 文档 / 4MiB 估算驻留，身份映射避免线性查找 |
 | `QuickJsAsyncLifecycle.kt`（39 行） | 固定 alpha13 的异步任务收尾 | 同源互斥锁内等待 native 桥任务完成，删除已完成 Job、恢复取消的内部 scope、清理异常并 GC；现有 ProGuard 保留 QuickJs 字段 |
-| `JsUiDialogs.kt`（97 行） | JS 侧弹输入 | `JsActivityTracker` 拿当前 Activity，`awaitJsInputDialog` 挂起等待用户输入 |
-| `SourceDns.kt`（53 行） | JS 源 DNS | `pinnedCandidates` 固定候选 + 解析缓存 |
-| `JsSourceProxy.kt`（134 行） | JS 源代理 | `PICACG_DOMAINS` 独占域名路由、`cachedSystemProxy`、`failoverClient` |
-| `JsCookieJar.kt`（35 行） | JS 源 Cookie | Cookie header 拼装 |
-| `JsImageProcessor.kt`（47 行） | JS 图片处理 | `copyRange` / `rotate` / `fillImageAt` |
+| `JsUiDialogs.kt`（176 行） | JS 侧弹输入 | `JsActivityTracker` 拿当前 Activity，`awaitJsInputDialog` 挂起等待用户输入 |
+| `SourceDns.kt`（66 行） | JS 源 DNS | `pinnedCandidates` 固定候选 + 解析缓存 |
+| `JsSourceProxy.kt`（227 行） | JS 源代理 | `PICACG_DOMAINS` 独占域名路由、`cachedSystemProxy`、`failoverClient` |
+| `JsCookieJar.kt`（114 行） | JS 源 Cookie | Cookie header 拼装 |
+| `JsImageProcessor.kt`（50 行） | JS 图片处理 | `copyRange` / `rotate` / `fillImageAt` |
 
 #### 4.6.6 `source/zlibrary/` Z-Library 深度集成（**项目第三技术高地**，13+5+8 = 26 文件）
 
@@ -381,23 +392,23 @@ python novel-reader/.workbuddy/stale_check.py
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `ZLibrarySource.kt`（740 行） | 书源主实现 | 搜索/详情/多格式下载；`checkCloudflare`、`resolveEapiBookKey`、`syncCookiesToWebView` / `syncWebViewCookiesToHttp`（HTTP ↔ WebView 双向同步）、`translateException` |
+| `ZLibrarySource.kt`（827 行） | 书源主实现 | 搜索/详情/多格式下载；`checkCloudflare`、`resolveEapiBookKey`、`syncCookiesToWebView` / `syncWebViewCookiesToHttp`（HTTP ↔ WebView 双向同步）、`translateException` |
 | `DiamWallInterceptor.kt`（247 行） | **DiamWall PoW 自动求解** | 见下方算法 |
-| `ZLibraryEapiClient.kt`（265 行） | eapi JSON 客户端 | `login` / `getDailyDownloadLimit` / `search` / `getBookInfo` / `getFormats` / `getDownloadLink`；`md5Hex` 签名 |
+| `ZLibraryEapiClient.kt`（264 行） | eapi JSON 客户端 | `login` / `getDailyDownloadLimit` / `search` / `getBookInfo` / `getFormats` / `getDownloadLink`；`md5Hex` 签名 |
 | `EncryptedCookieJar.kt`（124 行） | 加密 Cookie 存储 | `remix_userid` / `remix_userkey` 登录态，按 domain 作用域匹配请求主机 |
 | `ZLibraryCredentialStorage.kt`（64 行） | 凭证存储 | 账号 / Cookie / 当前域名持久化 |
-| `ZLibraryEndpointProvider.kt`（273 行） | 节点提供者 + 容灾 | `isNodeReachable` / `scanForLiveNode` / `adoptLiveNode` / `failoverFrom` / `getEndpoint` / `setCustomEndpoint` / `diagnoseAllEndpoints` |
-| `RemoteEndpointProvider.kt`（170 行） | 远程节点表 | 从多个 `PORTAL_SOURCES` 抓最新入口，`parseConfigs` + 缓存 |
-| `EndpointHealthChecker.kt`（224 行） | 节点健康检查 | 见下方算法 |
-| `ZLibraryDomainResolver.kt`（44 行） | 域名解析门面 | 组合 endpointProvider + healthChecker，`resolveDomain` / `invalidateCache` |
-| `ZLibraryWebViewHelper.kt`（199 行） | WebView 辅助 | `searchViaWebView`：交互式验证时用 WebView 取结果，`pageHasZlibMarkers` / `stillChallenged` 判定 |
+| `ZLibraryEndpointProvider.kt`（239 行） | 节点提供者 + 容灾 | `isNodeReachable` / `scanForLiveNode` / `adoptLiveNode` / `failoverFrom` / `getEndpoint` / `setCustomEndpoint` / `diagnoseAllEndpoints` |
+| `RemoteEndpointProvider.kt`（179 行） | 远程节点表 | 从多个 `PORTAL_SOURCES` 抓最新入口，`parseConfigs` + 缓存 |
+| `EndpointHealthChecker.kt`（212 行） | 节点健康检查 | 见下方算法 |
+| `ZLibraryDomainResolver.kt`（48 行） | 域名解析门面 | 组合 endpointProvider + healthChecker，`resolveDomain` / `invalidateCache` |
+| `ZLibraryWebViewHelper.kt`（252 行） | WebView 辅助 | `searchViaWebView`：交互式验证时用 WebView 取结果，`pageHasZlibMarkers` / `stillChallenged` 判定 |
 | `ZLibraryAccessChecker.kt`（36 行） | 可达性快速探测 | `checkResponse` |
 | `ZLibraryParser.kt`（49 行） | 解析入口 | `parseSearchPage` / `parseDetailPage` / `guessFileFormatFromUrl` |
 | `RemoteEndpointConfig.kt`（13 行） | 远程节点配置数据类 | url / priority / updatedAt / version |
 
-`zlibrary/network/`（5 文件）：`ZLibraryDns.kt`（319 行，**抗污染 DNS**）、`ZLibraryHttpClient.kt`（172 行，拦截器链组装）、`ZLibrarySessionManager.kt`（50 行）、`ZLibraryNetworkLogger.kt`（19 行）、`SystemProxyResolver.kt`（49 行）。
+`zlibrary/network/`（5 文件）：`ZLibraryDns.kt`（319 行，**抗污染 DNS**）、`ZLibraryHttpClient.kt`（172 行，拦截器链组装）、`ZLibrarySessionManager.kt`（332 行）、`ZLibraryNetworkLogger.kt`（332 行）、`SystemProxyResolver.kt`（332 行）。
 
-`zlibrary/parser/`（8 文件，多布局策略）：`ZLibraryLayoutParser.kt`（接口）、`ZLibraryParserManager.kt`（68 行，`detectLayoutName` 分派 + `fakeResponse`）、`BookcardLayoutParser.kt`（151 行）、`DesktopLayoutParser.kt`（113 行）、`MobileLayoutParser.kt`（106 行）、`LegacyLayoutParser.kt`（101 行）、`GenericFallbackParser.kt`（165 行，兜底：`bestContainer` / `extractCover` / `inferFormatFromUrl`）、`CoverExtractor.kt`（71 行）。
+`zlibrary/parser/`（8 文件，多布局策略）：`ZLibraryLayoutParser.kt`（接口）、`ZLibraryParserManager.kt`（68 行，`detectLayoutName` 分派 + `fakeResponse`）、`BookcardLayoutParser.kt`（23 行）、`DesktopLayoutParser.kt`（23 行）、`MobileLayoutParser.kt`（23 行）、`LegacyLayoutParser.kt`（23 行）、`GenericFallbackParser.kt`（165 行，兜底：`bestContainer` / `extractCover` / `inferFormatFromUrl`）、`CoverExtractor.kt`（23 行）。
 
 **DiamWall PoW 求解算法**：
 1. 拦截 517/403/503/513（个别节点以 200 + text/html 返回挑战页，按 `diamwall` / `checking your browser` / `var TOKEN=` 识别）。
@@ -408,7 +419,7 @@ python novel-reader/.workbuddy/stale_check.py
 6. **旧版 PoW（SHA-256）**：枚举 nonce 使 `SHA-256("TOKEN:nonce")` 以 `DIFF` 个 0 开头，跳转 `/__ab/verify?t=TOKEN&n=nonce&r=原路径`。
 7. 关闭自动重定向、手动跟随 Location；`seenUrls` 去重 + 最多 8 次 follow-up（防 OkHttp "Too many follow-up requests"）。
 
-**ZLibraryDns 抗污染 DNS 算法**：①内置私有/保留网段 + Meta/Facebook 段黑名单 CIDR 前缀过滤；②系统 DNS 结果仅进候选池（限时 2s）；③AliDNS / DNSPod / Cloudflare / Google **四家 DoH 并行**聚合 A 记录；④`probeAndSort` 对候选 IP 做 443 TCP 探测（1.5s）可达优先；⑤三级缓存（正向 5min、失败负缓存 5s、TCP 已验证可达 IP 24h）；⑥保留系统 IPv6 候选。TCP 可达不保证 TLS 正确，换网清缓存仍待完善。
+**ZLibraryDns 当前算法**：私有/保留地址过滤；系统 DNS 限时 2s 与 AliDNS / DNSPod / Cloudflare / Google 的 DoH 候选聚合；TCP 443 探测排序。正向与已知可达地址缓存各 5 分钟，负缓存 5 秒；TCP 可达不证明 TLS 或文件可用，也不能保证规避全部污染。与旧文案不同，当前代码没有完整的 Meta/Facebook 网段过滤。
 
 **EndpointHealthChecker 算法**：DNS → TLS 握手 → 首页（DiamWall 由拦截器自动解，校验 HTTP 200 + `zlibrary.js`/`z-cover`/`z-bookcard`/`book-item` 结构标记防停放域名）→ eapi 探针 `/eapi/info` → 搜索探针 `/s/{kw}`。
 
@@ -421,30 +432,45 @@ python novel-reader/.workbuddy/stale_check.py
 | `TitleNormalizer.kt`（45 行） | 标题归一化 / 压缩 / 变体可用性判定 |
 | `CjkFoldMap.kt`（28 行） | CJK 繁简/异体字折叠表 |
 
-用途：聚合搜索的「多语言搜索」——用本地标题索引把中文查询映射到 romaji/english/synonyms 变体。
+用途：作为 `source/keyword/` 的本地作品标题提供者，把中文查询关联到原名 / 英文 / 罗马音 / synonyms。旧 `SearchVariantBuilder` 保留兼容用途，发送去重已与繁简匹配分离。
 
-### 4.7 `ui/` UI 层（含子包 107 文件 / 48,893 行）
+#### 4.6.8 `source/keyword/` 通用关键词多语言搜索（2026-10-05，7 文件 / 1010 行）
 
-#### 4.7.1 顶层屏幕（16 文件 / 14,346 行）
+| 文件 | 实现 |
+| --- | --- |
+| `KeywordModels.kt`（156 行） | 实体与语言名称、每实体完整性、同实体合并、匹配 / 请求键分离；正式英语、原文、罗马音及短别名公平分配，最多 6 个完整查询 |
+| `KeywordExpansion.kt`（124 行） | 原词立即发布，12 秒在线补词窗口，逐提供者流式更新；多词完整组合、保留未知词、预留在线查询位置、取消与失败降级 |
+| `KeywordRepository.kt`（155 行） | 种子 / 词库 / AniList 标题 / 持久缓存合并；已知拉丁别名精确桥接原文，部分缓存继续补齐；按提供者重试和手动刷新，逐请求读取系统代理；词典维护独立后台执行 |
+| `LocalKeywordIndex.kt`（29 行） | 144 条项目自有中英日 / 罗马音常用词及专名种子 |
+| `KeywordDictionary.kt`（176 行） | 44,530 条名称独立 SQLite 反向索引，v3 增加人名 name_parts 精确索引；专名拉丁字母不冒充英语；装饰字符清理、网络下载不占查词锁、事务切换 |
+| `KeywordCache.kt`（82 行） | filesDir 下 AtomicFile JSON v2；512 查询上限、完整 30 天 / 部分 6 小时；提供者失败短重试、正缓存迁移、可靠反向别名 |
+| `OnlineKeywordLookup.kt`（288 行） | Wikidata + Bangumi 作品 / 角色 / 人物并行，AniList 验证别名补充；详情别名校验、重名不猜测、限流冷却、逐提供者状态与流式结果 |
+
+资料仍是本地优先，缺少或语言不完整才在线补充；搜索结果顶部的滚动卡片展示原词、名称、查询状态及提交数量。只发送普通关键词，不生成站点标签语法；返回资源仅按同源 ID 去重。全局无痕或关闭在线补词时不发补词请求，展示真实停用原因；书架分类 PIN 保护不会全局禁用搜索联网。真实离线《我的青春恋爱物语果然有问题》桥接、在线人物缓存、失败重试与 UI 流式更新见 4.10。
+
+### 4.7 `ui/` UI 层（含子包 127 文件 / 51,894 行；2026-10-11 校准）
+
+#### 4.7.1 顶层屏幕（18 文件 / 16,022 行；2026-10-11 校准）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `HomeScreen.kt`（2885 行） | 书架主页 | 正在阅读 → 我的书架（分类栏 + 网格）→ **我喜欢的** → 阅读统计，同一滚动容器；书架手势全收归 `ui/shelf` 宿主；`ShelfDragCover`、分享、分类/书籍操作面板。**⚠️ 主体极端长（约 1989 行）且拖拽几何与选中态强耦合，拆分风险高，历次评估均未动** |
-| `ReaderScreen.kt`（5147 行） | **文字阅读器**（最大核心文件） | 五档主题与五种翻页模式、图片命中、书签/划线/搜索/目录/TTS；章节占位仅显示加载状态，切章直接请求正文；庆祝只由主动翻到书末触发 |
-| `ReaderPagination.kt`（388 行） | **文字分页引擎** | 逐行估算后按独立页真实块高度复测，空间不足沿原有行/图片边界二分回退；见下方算法 |
-| `ComicReaderScreen.kt`（145 行） | 本地漫画阅读入口 | 委托 `ui/comic/ComicReaderCore` |
-| `OnlineComicReaderScreen.kt`（384 行） | 在线漫画阅读页 | `warmUpComicConnection` / `warmComicPage` 预热、`buildComicImageLoader`、统一引擎 |
-| `ComicChaptersScreen.kt`（1550 行） | 漫画章节页 | `ordered` 章节序、`newIds` 更新标记、`ChapterActionSheet`、`DownloadProgressOverlay`、`ComicHeader` |
-| `StatisticsScreen.kt`（837 行） | 阅读统计 | 周/月/年总览（`PeriodOverviewCard`）、`MiniStatCard`、`DayDetailSheet`、`mergeDuplicateReadingRecords`。**已修：本周无记录时把历史总时长塞进"今天"的凭空造数 bug** |
-| `SettingsTabScreen.kt`（1623 行） | 设置页 | 主题/护眼/方向/背景/字体/画质/触觉/隐私/存储/关于；`SettingsSectionHeader` / `CardTweakSlider` |
-| `CacheManagementScreen.kt`（906 行） | 缓存管理 | 系统占用总量优先、文件扫描兜底；导入原文件/书内图片/外部应用文件单列；分类统计与清理目标同源，扫描与清理反馈动画 |
-| `StorageDetailDialog.kt`（484 行） | 存储明细 | 书架和下载任务反查书名；逐书展示离线漫画、导入原文件与封面；单删/批删、只读明细及活跃写入二次保护 |
-| `TranslationCacheDetail.kt`（291 行） | 翻译缓存明细 | 按页列出缓存文件、区域数、批量删除 |
-| `SplashScreen.kt`（305 行） | 开屏 | 随机名言（`splash_quotes.xml`）、自定义海报 / 纯净模式、`ProceduralArtisticPoster`（程序化海报）；**海报最长停留 1800ms → 900ms**（2026-09-27） |
-| `OnboardingScreen.kt`（250 行） | 首次启动引导 | 分页 + 徽章 |
+| `HomeScreen.kt`（2870 行） | 书架主页 | 正在阅读 → 我的书架（分类栏 + 网格）→ **我喜欢的** → 阅读统计，同一滚动容器；书架手势全收归 `ui/shelf` 宿主；`ShelfDragCover`、分享、分类/书籍操作面板。**⚠️ 主体极端长（约 1989 行）且拖拽几何与选中态强耦合，拆分风险高，历次评估均未动** |
+| `ReaderScreen.kt`（5136 行） | **文字阅读器**（最大核心文件） | 五档主题与五种翻页模式、图片命中、书签/划线/搜索/目录/TTS；章节占位仅显示加载状态，切章直接请求正文；庆祝只由主动翻到书末触发 |
+| `ReaderPagination.kt`（588 行） | **文字分页引擎** | 逐行估算后按独立页真实块高度复测，空间不足沿原有行/图片边界二分回退；见下方算法 |
+| `ComicReaderScreen.kt`（143 行） | 本地漫画阅读入口 | 委托 `ui/comic/ComicReaderCore` |
+| `OnlineComicReaderScreen.kt`（434 行） | 在线漫画阅读页 | `warmUpComicConnection` / `warmComicPage` 预热、`buildComicImageLoader`、统一引擎 |
+| `ComicChaptersScreen.kt`（1547 行） | 漫画章节页 | `ordered` 章节序、`newIds` 更新标记、`ChapterActionSheet`、`DownloadProgressOverlay`、`ComicHeader` |
+| `StatisticsScreen.kt`（835 行） | 阅读统计 | 周/月/年总览（`PeriodOverviewCard`）、`MiniStatCard`、`DayDetailSheet`、`mergeDuplicateReadingRecords`。**已修：本周无记录时把历史总时长塞进"今天"的凭空造数 bug** |
+| `SettingsTabScreen.kt`（1527 行） | 设置页 | 主题/护眼/方向/背景/字体/画质/触觉/隐私/存储/关于；`SettingsSectionHeader` / `CardTweakSlider` |
+| `AppUpdateDialog.kt`（191 行） | 全局更新弹窗与系统回调 | 确认、进度、取消 / 收起、授权 / 导出 / 浏览器兜底；根 Host 按 RESUMED 触发安装，系统结果不作为升级成功依据 |
+| `CacheManagementScreen.kt`（911 行） | 缓存管理 | 系统占用总量优先、文件扫描兜底；导入原文件/书内图片/外部应用文件单列；分类统计与清理目标同源，扫描与清理反馈动画 |
+| `StorageDetailDialog.kt`（474 行） | 存储明细 | 书架和下载任务反查书名；逐书展示离线漫画、导入原文件与封面；单删/批删、只读明细及活跃写入二次保护 |
+| `TranslationCacheDetail.kt`（293 行） | 翻译缓存明细 | 按页列出缓存文件、区域数、批量删除 |
+| `SplashScreen.kt`（311 行） | 开屏 | 随机名言（`splash_quotes.xml`）、自定义海报 / 纯净模式、`ProceduralArtisticPoster`（程序化海报）；**海报最长停留 1800ms → 900ms**（2026-09-27） |
+| `OnboardingScreen.kt`（257 行） | 首次启动引导 | 分页 + 徽章 |
 | `AppBackground.kt`（91 行） | 软件背景 | 主题色 / 自定义图 + 遮罩；`loadBackgroundAvgLuminance` + `adaptiveTitleColor`（按背景亮度自适应标题色） |
 | `ReadingTimerEffect.kt`（127 行） | 定时休息 | 会话结束 flush、息屏判定 |
-| `NovelReaderScreen.kt`（220 行） | 在线小说阅读页 | 段落列表 + 翻页 |
+| `NovelReaderScreen.kt`（223 行） | 在线小说阅读页 | 段落列表 + 翻页 |
 
 **文字分页算法（ReaderPagination）**：
 - **真实排版分页**：用 Compose `Paragraph`（与 `Text` 同款排版引擎）测量，每个分页点都是真实行边界，段落跨页不丢行。
@@ -457,90 +483,89 @@ python novel-reader/.workbuddy/stale_check.py
 
 | 文件 | 作用 | 关键算法 |
 | --- | --- | --- |
-| `PageTurnContainer.kt`（1129 行） | 翻页容器主实现 | `PageTurnType` 枚举；覆盖/平移/渐变/滚动四种布局（`CoverPageTurnLayout` / `SlidePageTurnLayout` / `FadePageTurnLayout`）+ `Simulate3DCurlLayout`；`CurlFlapBackside`（镜像翻页背面，`mirrorAngleDeg`）、`shadowStripPath`、下拉书签 |
-| `PageCurlReaderContainer.kt`（382 行） | 仿真卷页容器 | 集成 `eu.wewox.pagecurl`；纸色来自 `PaperPalette`（由阅读主题推导，不是写死米黄）；`backPageContentAlpha` 控制背面内容占比 |
+| `PageTurnContainer.kt`（1203 行） | 翻页容器主实现 | `PageTurnType` 枚举；覆盖/平移/渐变/滚动四种布局（`CoverPageTurnLayout` / `SlidePageTurnLayout` / `FadePageTurnLayout`）+ `Simulate3DCurlLayout`；`CurlFlapBackside`（镜像翻页背面，`mirrorAngleDeg`）、`shadowStripPath`、下拉书签 |
+| `PageCurlReaderContainer.kt`（405 行） | 仿真卷页容器 | 集成 `eu.wewox.pagecurl`；纸色来自 `PaperPalette`（由阅读主题推导，不是写死米黄）；`backPageContentAlpha` 控制背面内容占比 |
 | `PageScrubber.kt`（561 行） | **串珠快速翻页** | 长按 1s 唤出圆柱式页面环，`PaperFlipPlayer`（SoundPool 翻书声），拖动跟手 + 松手磁吸 + 甩动按力度连翻 |
 | `PaperPalette.kt`（93 行） | 纸色推导 | 由阅读主题背景色推导 face / edgeHighlight / edgeStroke / `isDark` |
 
-#### 4.7.3 `ui/comic/` 漫画引擎（本地 + 在线统一引擎，17 文件 / 11,998 行）
+#### 4.7.3 `ui/comic/` 漫画引擎（本地 + 在线统一引擎，24 文件 / 13,841 行）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `ComicReaderCore.kt`（2220 行） | 阅读核心状态机 | 五模式 × 三方向编排；`ComicPagedReader`（Pager）/ `ComicVerticalList`（条漫/无缝）；`ComicMagneticPager`（磁吸）、`dampEdgeDrag` 越界阻尼、`fadeCancelOffset` / `fadeCrossAlpha`（FADE 引擎纯函数，按引擎镜像分轴抵消 LTR/RTL/TTB 位移）；`engineFadeAlpha` 引擎切换 240ms 淡入（GL 引擎豁免）；`ComicVolumeKeyBridge` 音量键翻页；翻译调度 `scheduleTranslationWindow`；`rememberPageBitmap`（所有渲染器共享当前页优先、渐进预览、高清失败保留预览与重试） |
-| `ComicReaderConfig.kt`（352 行） | 配置模型 | 全部可调参数 + 枚举（`ComicMode` / `ComicDirection` / `ComicFit` / `ComicEnhanceMode` / `ComicScene` / `ComicPageAnim` / `ComicGestureAction`）；`imagePipelineFingerprint`（决定处理后缓存键）；`ComicBookState`（含 `pageRotations` / `mergeAnchors`） |
-| `ComicSettingsStore.kt`（335 行） | 设置持久化 | 全局配置 + **每本独立配置** + 预设（内置/自建/收藏/默认）+ 自定义缩放预设；内置模板迁移保留用户配置，缺失模板直接补齐，避免递归 |
-| `ComicImagePipeline.kt`（1239 行） | **图像处理管线** | 见下方算法 |
-| `ComicPageLoader.kt`（965 行） | 页面加载器 | 解码限幅、processed/preview/thumb/region 多级 LRU、`pinIfWindowed` 窗口钉住、`preloadWindow`（仅 Wi-Fi 开关）、`ComicProcessedDiskCache` 落盘、`exifOrientationOf`（EXIF 方向）、**`decodeRemote` 必须 `.allowHardware(false)`**（Coil 默认产出 HARDWARE 位图，喂 CURL 软件画布 `drawBitmap` 抛 IAE，曾导致"翻页不推进 + 整屏白"） |
-| `ComicPageLayout.kt`（251 行） | 布局引擎 | `ComicSpread` / `ComicSlot` / `ComicSplitHalf`；`ComicScrollStrategy`（条漫 = 用户间距 + 可关磁吸；无缝 = 0 间距 + 像素进度 + 宽预取）；`verticalPreloadIndices`（无缝 4 / 条漫 2） |
-| `ComicZoomGesture.kt`（721 行） | 缩放手势 | `ComicZoomState`（三档双击、`stepScales`、橡皮筋 `rubberPan`、`fling` + `settle`）、`ComicGestureCallbacks`（点击分区/长按/捏合/边缘返回/缩放态边缘滑） |
-| `ComicReaderChrome.kt`（733 行） | 阅读 UI 框架 | `ComicTopBar` / `ComicBottomBar` / `ChapterNavButton` / `ComicThumbPreview`；半透明面板 0xD9，**面板打开且非 CURL 引擎时挂真毛玻璃**（`comicPanelGlass` = layerBackdrop + blur 22dp + 饱和 1.15），CURL 回退纯半透明（GLSurfaceView 采不到 Compose 图层） |
-| `ComicReaderSheets.kt`（1872 行） | 设置面板 | 六 Tab（模式/页面/图像/效果/自动/手势）+ 目录页 + 预设页 + **手动裁边编辑器**（`CropCanvas`，`rememberUpdatedState` 修四边互覆） |
+| `ComicReaderCore.kt`（2415 行） | 阅读核心状态机 | 五模式 × 三方向编排；`ComicPagedReader`（Pager）/ `ComicVerticalList`（条漫/无缝）；纵向列表按项内像素偏移同步滑条与百分比，滑条支持长图内定位；`ComicMagneticPager`（磁吸）、`dampEdgeDrag` 越界阻尼、`fadeCancelOffset` / `fadeCrossAlpha`（FADE 引擎纯函数，按引擎镜像分轴抵消 LTR/RTL/TTB 位移）；`engineFadeAlpha` 引擎切换 240ms 淡入（GL 引擎豁免）；`ComicVolumeKeyBridge` 音量键翻页；翻译调度 `scheduleTranslationWindow`；`rememberPageBitmap`（所有渲染器共享当前页优先、渐进预览、高清失败保留预览与重试）；Pager 的长期 collector 与等长章节复用的磁吸 `pointerInput` 经 `rememberUpdatedState` 调用当前章节回调，防止预加载跨章后页码状态失联 |
+| `ComicReaderConfig.kt`（410 行） | 配置模型 | 全部可调参数 + 枚举（`ComicMode` / `ComicDirection` / `ComicFit` / `ComicEnhanceMode` / `ComicScene` / `ComicPageAnim` / `ComicGestureAction`）；`imagePipelineFingerprint`（决定处理后缓存键）；`ComicBookState`（含 `pageRotations` / `mergeAnchors`） |
+| `ComicSettingsStore.kt`（345 行） | 设置持久化 | 全局配置 + **每本独立配置** + 预设（内置/自建/收藏/默认）+ 自定义缩放预设；内置模板迁移保留用户配置，缺失模板直接补齐，避免递归 |
+| `ComicImagePipeline.kt`（1207 行） | **图像处理管线** | 见下方算法 |
+| `ComicPageLoader.kt`（1116 行） | 页面加载器 | 解码限幅、processed/preview/thumb/region 多级 LRU、`pinIfWindowed` 窗口钉住、`preloadWindow`（仅 Wi-Fi 开关）、`ComicProcessedDiskCache` 落盘、`exifOrientationOf`（EXIF 方向）、**`decodeRemote` 必须 `.allowHardware(false)`**（Coil 默认产出 HARDWARE 位图，喂 CURL 软件画布 `drawBitmap` 抛 IAE，曾导致"翻页不推进 + 整屏白"） |
+| `ComicPageLayout.kt`（255 行） | 布局引擎 | `ComicSpread` / `ComicSlot` / `ComicSplitHalf`；`ComicScrollStrategy`（条漫 = 用户间距 + 可关磁吸；无缝 = 0 间距 + 自由滚动；两者均跟随像素进度）；`verticalPreloadIndices`（两种列表均提前 4 页） |
+| `ComicZoomGesture.kt`（848 行） | 缩放手势 | `ComicZoomState`（三档双击、`stepScales`、橡皮筋 `rubberPan`、`fling` + `settle`）、`ComicGestureCallbacks`（点击分区/长按/捏合/边缘返回/缩放态边缘滑） |
+| `ComicReaderChrome.kt`（846 行） | 阅读 UI 框架 | `ComicTopBar` / `ComicBottomBar` / `ChapterNavButton` / `ComicThumbPreview`；纵向滑条、百分比与像素定位共用滚动指标，含阅读进度语义；缩略图气泡跟随实际滑条落点；阅读玻璃由采样背景与 ReadingGlassStyle 提供；所有模式直接以当前页像素提供玻璃背景，不保留活动阅读 RenderNode 引用（见 4.20） |
+| `ComicReaderSheets.kt`（2081 行） | 设置面板 | 七 Tab（翻页/显示/图像/翻译/主题/自动/手势）+ 目录页 + 预设页 + **手动裁边编辑器**（`CropCanvas`，`rememberUpdatedState` 修四边互覆） |
 | `ComicReaderBackground.kt`（164 行） | 背景 | 纯色 / `paperTexture` 程序化纸纹 / 沉浸动态主色（挂钟驱动逐帧插值，模拟器假 vsync 会让时间基准 tween 跳终值） |
-| `ComicSceneEngine.kt`（257 行） | 氛围音 | `ComicAmbientAudio`：CC0 分层 MediaPlayer 循环 + 等功率交叉淡化；无素材时 `Synth` 合成兜底（Rain/Ocean/Campfire/Night/Breeze） |
+| `ComicSceneEngine.kt`（274 行） | 氛围音 | `ComicAmbientAudio`：CC0 分层 MediaPlayer 循环 + 等功率交叉淡化；无素材时 `Synth` 合成兜底（Rain/Ocean/Campfire/Night/Breeze） |
 | `ComicSceneFx.kt`（629 行） | 氛围粒子特效 | `ComicSceneFxEngine`：粒子 Euler 积分 + `stepRain` / `stepSnow` / `stepSakura`（三运动叠加）/ `stepFirefly` / `stepCampfire` / `stepDrift` + 涟漪 |
-| `ComicHarismCurl.kt`（1516 行） | harism 卷页整合层 | 见下方 |
-| `ComicProcessedDiskCache.kt`（117 行） | 处理后页落盘缓存 | 键化文件 + `trimLocked` 容量治理 |
-| `ComicPanelDesign.kt`（336 行） | 面板设计令牌 | `PanelSectionCard` / `PanelTabRow` / `PanelSlider`（带 snap 与 reverse）/ `PanelSwitch` / `PanelBgSwatch` |
-| `Anime4KCnn.kt`（213 行）+ `Anime4KCnnWeights.kt`（447 行） | **Anime4K CNN CPU 引擎** | 固定权重网络（脚本机器提取自上游 GLSL）：`RESTORE_S`（轻量线条重建）+ `UPSCALE_S`（2x 超分）；列主序 mat4 求值 / `go_0·go_1` 正负半波激活 / **残差语义**（`restore` 末层输出是卷积增量，合成必须 `plane + out*d`，写成 `plane+(out-plane)*d` 会把整页压暗近黑）/ depth-to-space |
+| `ComicHarismCurl.kt`（1818 行） | harism 卷页整合层 | 见下方；1.3.0 相邻跨页预览 / 最终图同时通知，纹理直接查询共享精确缓存；翻页期间延后刷新，先校验当前跨页再撤销旧待刷新回调 |
+| `ComicProcessedDiskCache.kt`（118 行） | 处理后页落盘缓存 | 键化文件 + `trimLocked` 容量治理 |
+| `ComicPanelDesign.kt`（301 行） | 面板设计令牌 | `PanelSectionCard` / `PanelTabRow` / `PanelSlider`（带 snap 与 reverse，手势读取最新回调，避免重组后旧定位闭包）/ `PanelSwitch` / `PanelBgSwatch` / `PanelDecorativeIcon`（装饰标记共享语义策略） |
+| `Anime4KCnn.kt`（257 行）+ `Anime4KCnnWeights.kt`（257 行） | **Anime4K CNN CPU 引擎** | 固定权重网络（脚本机器提取自上游 GLSL）：`RESTORE_S`（轻量线条重建）+ `UPSCALE_S`（2x 超分）；列主序 mat4 求值 / `go_0·go_1` 正负半波激活 / **残差语义**（`restore` 末层输出是卷积增量，合成必须 `plane + out*d`，写成 `plane+(out-plane)*d` 会把整页压暗近黑）/ depth-to-space |
 | `debug/ComicVisualProbeActivity.kt` `debug/ComicReaderTestActivity.kt` `debug/GpuAbTestActivity.kt` | 仅 debug 的验证探针 | 合成漫画页生成、intent 注入配置、`dispatchKeyEvent` 音量键拦截、GPU A/B 测试 |
 
-**图像处理管线（ComicImagePipeline，纯 Kotlin 手写像素算法）**，顺序：**裁边 → 拆片 → 旋转 → 色调 → 锐化/增强 → 放大**：
+**图像处理管线（ComicImagePipeline，Kotlin 像素核 + 内置 ONNX CPU CNN）**，顺序：**裁边 → 拆片 → 旋转 → 色调 → 锐化/增强 → 放大**：
 
 - **自动裁边 v2（`detectContentRect`）**：降采样（最长边 768）→ 边缘环 3px RGB 中位数作基准 → 逐通道容差 16 判"内容" → **连续段（run）判定**（run ≥ 该方向采样数 5% 且 ≥3，免疫孤立灰尘）→ 逐边向内扫描 + **单边 1/3 防御** → 全局 30% 保护 + 1% 安全边距。
 - **跨页拆片 gutter 检测（`detectCenterGutterDetail`）**：降采样到宽 256 → 列亮度**中位数**（装订缝贯穿全高，用列均值会被画面平均成假缝）→ 在 `[0.42w, 0.58w]` 搜"窄带 + 两侧等值平台"结构（带宽 2 列~6% 页宽；平台 = 连续 3 列两两差 <4；带内与平台亮度差 > 18）→ 左右两半列均值方差 >25 排除空页。aspect ≥1.8 无条件拆，1.35~1.8 按判定。
 - **色调 LUT（`buildToneLut`）**：亮度/对比度/Gamma/阴影（提亮暗部 `(1-v)²` 二次权重，压暗 `(1+shadow·0.45·w)`，纯黑不动防压死线稿）逐通道 LUT。
 - **色矩阵（`buildFilterMatrix`）**：饱和度缩放 + 色相旋转（标准 SVG/CSS `feColorMatrix hueRotate` 绕亮度轴旋转矩阵）。
-- **Unsharp Mask**：3×3，`nv = v + (v*4 - 邻域和)*k/4`，输出限幅到十字邻域 `[min−16, max+16]` 消白边 halo。
-- **CAS（对比度自适应锐化）**：`amp = amount * (1 - (max-min)/255*0.8)`，overshoot 限幅 ±16。
-- **Anime4K 档**：`bilateralLite` 预降噪 → `Anime4KCnn.restore`（≤1600 钳制）→ Lanczos 回原尺寸 → `anime4kLines` 收尾（线深 `0.35+0.85×strength+kExtra`）、`casSharpenEdges` 边缘掩码 CAS（3×3 亮度极差 ≥34 的像素及 1px 邻域才锐化）。
-- **Waifu2x 类**：bilinear 2x + 双边滤波 + 限幅 Unsharp。
-- **超分辨率**：Lanczos3（a=3，水平+垂直两级 pass）2x + CAS。
-- **overshoot 限幅** 统一 `OVERSHOOT_CLAMP = 16`（≈ FidelityFX CAS 的 0.061×255）。
-- **尺寸护栏**：逐像素操作前 >2M 像素先等比降到 ~2M。
+- **普通锐化 / 锐化增强**：`ComicEdgeUpscaler.sharpen`，平坦噪声门控 + 亮度细节增益；共同 RGB 增量钳在邻域和通道合法范围，保色、无白边；不会将增强结果缩回 2M。旧 Unsharp/CAS 工具函数保留用于独立像素工具与回归。
+- **Anime4K 轻量**：保边双边预降噪 → 原始像素分块 Restore CNN → 抑噪亮度细节恢复。CNN 去直流残差与边缘门控保留纸底 / 色差。
+- **超分 完整（保留 WAIFU2X 设置枚举）**：输出可 2× 时使用带 halo 的 Upscale CNN + EASU 基准 + 局部可信残差；其它比例用原始像素 Restore + EASU；收尾保色锐化。
+- **超分辨率**：AMD FSR1 EASU 12 tap、旋转各向异性核、最近 2×2 去振铃 + 项目保色抑噪锐化；不是官方 RCAS。
+- **Lanczos3**：半像素中心映射，降采样加宽核抗混叠，归一化预计算一维 taps，边界先算距离再 clamp 索引。
+- **尺寸护栏**：最高 2×、长边 3200、目标 6M；已有大图不缩小；收益不足 15% 不放大；256px CNN 工作块 + 8px halo。只回收私有中间位图，不回收输入 / 显示缓存。
 - **沉浸式主色提取（`dominantBackground`）**：量化直方图（RGB 各 5 位 → 15 位 key）+ 去近黑/近白 → 取最高频 → **降饱和到 65% + 压暗到亮度 64**（早期 30%/34 会把色调差异压扁）。
-- **并行**：`parallelStripes` 行条带多核并行（全尺寸 ANIME4K 4.6s → 1.4s）。
+- **并行**：最多 4 个 worker、32 行取消检查；CNN 采样 scratch 各 worker 独立；重增强加载串行闸门 + 90 秒可见截止时间。原生 CPU 图不可用自动回退 Kotlin。
 
-**ComicHarismCurl 整合层**：快 tap 拦截 + 拖拽过 slop 补投合成 DOWN；逻辑索引保持阅读顺序，RTL 同步镜像 GL 书本几何、页面矩形和触摸坐标，并预镜像纹理保持文字正向；PageProvider 信箱式合成纹理（背面 = 本页正面 1/6 降采样轻模糊 + 20% alpha 叠纸底，"单面印刷透纸"观感）；自动翻页合成事件流（**按 `downTime` 匹配直通 `super.onTouch`**，此前被 `autoFlipping` 早退全部吞掉）；外部跳转双策略（大跨度 = 先同步解码目标页再切换；相邻步进 = 120ms 防抖合并，纯函数 `curlSyncPlan`）；`displayGeneration` 代校验根治快速翻页闪回；`slotCache` 同页任意变体回退。**双页书脊模式（CURL+DOUBLE）**：harism `SHOW_TWO_PAGES`（书脊 = 屏幕中线，只抓取侧绕轴卷曲）+ `buildCurlFlatUnits` 展开 spread + `setSpreadStep(2)` + `RigidPageDecider` 首末页刚体平折。**手势仲裁全部在 `ComicCurlView.onTouch`（View 层）完成**。
+**ComicHarismCurl 整合层**：快 tap 拦截 + 拖拽过 slop 补投合成 DOWN；逻辑索引保持阅读顺序，RTL 同步镜像 GL 书本几何、页面矩形和触摸坐标，并预镜像纹理保持文字正向；PageProvider 信箱式合成纹理（背面 = 本页正面 1/6 降采样轻模糊 + 20% alpha 叠纸底，"单面印刷透纸"观感）；自动翻页合成事件流（**按 `downTime` 匹配直通 `super.onTouch`**，此前被 `autoFlipping` 早退全部吞掉）；外部跳转双策略（大跨度 = 先同步解码目标页再切换；相邻步进 = 120ms 防抖合并，纯函数 `curlSyncPlan`）；`displayGeneration` 代校验根治快速翻页闪回；`slotCache` 同页任意变体回退并优先保留当前跨精确键。缩放用共享加载器的单页 / 双页内容，缺缓存重新加载、失败重试；不再轮询控制器缓存或合成屏幕尺寸快照。**双页书脊模式（CURL+DOUBLE）**：harism `SHOW_TWO_PAGES`（书脊 = 屏幕中线，只抓取侧绕轴卷曲）+ `buildCurlFlatUnits` 展开 spread + `setSpreadStep(2)` + `RigidPageDecider` 首末页刚体平折。**手势仲裁全部在 `ComicCurlView.onTouch`（View 层）完成**。
 **⚠️ 铁律：不能在 GL 视图上叠 Compose `pointerInput` 仲裁层**——即使从不 consume，整条触摸流也会被 Compose 截获，GLSurfaceView 一个事件都收不到。
 
-#### 4.7.4 `ui/components/` 玻璃组件库（34 文件 / 7,855 行）
+#### 4.7.4 `ui/components/` 玻璃组件库（35 文件 / 7,836 行）
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `GlassCard.kt`（998 行） | **玻璃卡片（第一套玻璃）** | 3D 倾斜（按压跷跷板 + 滚动惯性摆动）、AGSL 法线光照压痕（`buildIndentUnitPath` + `dentRenderEffect`）、`GlassDecoKey` 装饰缓存键、`lightPathLayer` / `edgeLayer` 装饰预录（每卡 ~6 批绘制命令压到 1 批）、内容包独立 RenderNode |
-| `LiquidGlass.kt`（481 行） | 液态玻璃基础 | `supportsRealtimeBlur`（API≥31）、`frostedGlassFallback()`、`rememberScreenGlassBackdrop` / `rememberThemedGlassBackdrop` / `rememberGlassPanelBackdrop`、`rememberIridescentColors` / `rememberCrystalPrismColors`、`createGrainBitmap` 噪点 |
+| `GlassCard.kt`（35 行） | **玻璃卡片（第一套玻璃）** | 3D 倾斜（按压跷跷板 + 滚动惯性摆动）、AGSL 法线光照压痕（`buildIndentUnitPath` + `dentRenderEffect`）、`GlassDecoKey` 装饰缓存键、`lightPathLayer` / `edgeLayer` 装饰预录（每卡 ~6 批绘制命令压到 1 批）、内容包独立 RenderNode |
+| `LiquidGlass.kt`（244 行） | 液态玻璃基础 | `supportsRealtimeBlur`（API≥31）、`frostedGlassFallback()`、`rememberScreenGlassBackdrop` / `rememberThemedGlassBackdrop` / `rememberGlassPanelBackdrop`、`rememberIridescentColors` / `rememberCrystalPrismColors`、`createGrainBitmap` 噪点 |
 | `GlassKit.kt` | — 见 4.7.5（在 `ui/glasskit/`） | |
-| `AppBottomTabBar.kt`（572 行） | 悬浮收缩 Tab 栏 | **选中指示 = 顶部 3dp 小横条**（宽 40%、居中、自动对比色，`TabIndicatorSpring`）；`TabBarNeutralOutlineColor` 中性描边；`tabBarGlassTint` 主色降到 5%/4%；`TabBarCollapseState` 滚动折叠 |
-| `AppButton.kt`（367 行） | 统一按钮 | `AppButtonVariant` / `AppButtonSize`（height/hPadding/fontSize/iconSize）、`primaryGlassStyle`、按压缩放 + 阴影 |
-| `AppSwitch.kt`（51 行） | 统一开关 | 接收的 `modifier` 必须真正应用（历史 bug：被静默丢弃） |
-| `AppSnackbar.kt`（170 行） | Snackbar 语义分级 | `AppSnackKind` + `AppSnackbarVisuals.kind`；**只有 ERROR 走红色错误卡**，其余走中性卡。语义走 `kind` 字段，**不要往 message 里塞前缀**（"复制日志"复制的是 message） |
+| `AppBottomTabBar.kt`（539 行） | 五 Tab 等宽槽位与指示条；栏高和标签高度使用同一个弹簧进度，标签节点常驻，字体缩放决定预留空间，消除退出末帧跳动；`app/src/main/java/com/example/ui/components/AppBottomTabBar.kt` |
+| `AppButton.kt`（389 行） | 统一按钮 | `AppButtonVariant` / `AppButtonSize`（height/hPadding/fontSize/iconSize）、`primaryGlassStyle`、按压缩放 + 阴影 |
+| `AppSwitch.kt`（59 行） | 统一开关 | 接收的 `modifier` 必须真正应用（历史 bug：被静默丢弃） |
+| `AppSnackbar.kt`（168 行） | Snackbar 语义分级 | `AppSnackKind` + `AppSnackbarVisuals.kind`；**只有 ERROR 走红色错误卡**，其余走中性卡。语义走 `kind` 字段，**不要往 message 里塞前缀**（"复制日志"复制的是 message） |
 | `AppErrorSnackbar.kt`（165 行） | 错误条 | 友好文案 + 一键复制日志 |
 | `AppToast.kt`（117 行） | **统一 Toast（2026-09-27 新增）** | 与 `Toast.makeText` 同签名；内部优先走 SnackbarHost，无 Host 回落系统 Toast；`bind/unbind` + `BindAppToastHost`；`internal dispatch()` 收敛访问 |
-| `AcrylicDialog.kt`（201 行） | 亚克力弹窗 | 棱镜描边 + 虹彩 + `AcrylicBottomOverlay` |
-| `SettingsControls.kt`（742 行） | 设置控件 | `SegmentedPillSelector`、`PageTurnSelectorRow`、`CustomMinutesDialog`、`JunoSlider`（自研玻璃滑条）、`PageTurnPreview` |
-| `WeeklyReadingChart.kt`（663 行） | 周阅读图表 | 柱状 / 折线 + `DayCoverCarousel`（当天封面轮播，低画质档停自动滚动） |
+| `AcrylicDialog.kt`（199 行） | 亚克力弹窗 | 棱镜描边 + 虹彩 + `AcrylicBottomOverlay` |
+| `SettingsControls.kt`（463 行） | 设置控件 | `SegmentedPillSelector`、`PageTurnSelectorRow`、`CustomMinutesDialog`、`JunoSlider`（自研玻璃滑条）、`PageTurnPreview` |
+| `WeeklyReadingChart.kt`（667 行） | 周阅读图表 | 柱状 / 折线 + `DayCoverCarousel`（当天封面轮播，低画质档停自动滚动） |
 | `ReadingRecordCover.kt`（28 行） | 阅读明细封面 | 与书库共用 Coil 缓存、Cookie、站点 Referer；Z-Library 复用其专用加载器 |
-| `ReadingCalendarCard.kt`（575 行） | 日历热力图 | `MonthGrid` + **`YearHeatmap`（GitHub 贡献图布局：列=周、行=星期、强制正方形格子、打开自动滚到本周）**；`YearGrid.buildYearGrid`、`heatAlpha` + `HEAT_LEVELS` 共用常量 |
-| `ReadingTrendCard.kt`（401 行） | 趋势图 | `TrendLineChart`（峰值脉冲 + 揭示动画）+ `PeakHoursBars` 时段分布 |
-| `ReadingStats.kt`（194 行） | 统计工具函数 | `rememberTodayCalendar`（**可观察的"今天"，每分钟比对年月日，跨天/跨周/跨年刷新**）、`readingRecordsToDailyTotals`、`formatReadDuration` / `formatShortDuration`（不足 1 分显示秒）、`weekDatesOf`、`sumSecondsBetween`、`streakEndingAt` / `longestStreakIn`、`dailySeries` / `monthlySeries`、`peakHourTotals` |
-| `ScrollTilt.kt`（214 行） | 滚动倾斜 | `ScrollTiltController`（速度→角度，静止复位）+ `ScrollTiltHost`，支持 LazyList / LazyGrid / LazyStaggeredGrid |
-| `TabScreenHeader.kt`（187 行） | Tab 页头 | `rememberHeaderCollapsed` / **`rememberHeaderCollapsedSource`（返回 lambda，把滚动状态读取下沉到头部内部，页面主体不再逐帧重组）** |
+| `ReadingCalendarCard.kt`（573 行） | 日历热力图 | `MonthGrid` + **`YearHeatmap`（GitHub 贡献图布局：列=周、行=星期、强制正方形格子、打开自动滚到本周）**；`YearGrid.buildYearGrid`、`heatAlpha` + `HEAT_LEVELS` 共用常量 |
+| `ReadingTrendCard.kt`（402 行） | 趋势图 | `TrendLineChart`（峰值脉冲 + 揭示动画）+ `PeakHoursBars` 时段分布 |
+| `ReadingStats.kt`（200 行） | 统计工具函数 | `rememberTodayCalendar`（**可观察的"今天"，每分钟比对年月日，跨天/跨周/跨年刷新**）、`readingRecordsToDailyTotals`、`formatReadDuration` / `formatShortDuration`（不足 1 分显示秒）、`weekDatesOf`、`sumSecondsBetween`、`streakEndingAt` / `longestStreakIn`、`dailySeries` / `monthlySeries`、`peakHourTotals` |
+| `ScrollTilt.kt`（231 行） | 滚动倾斜 | `ScrollTiltController`（速度→角度，静止复位）+ `ScrollTiltHost`，支持 LazyList / LazyGrid / LazyStaggeredGrid |
+| `TabScreenHeader.kt`（264 行） | Tab 页头 | `rememberHeaderCollapsed` / **`rememberHeaderCollapsedSource`（返回 lambda，把滚动状态读取下沉到头部内部，页面主体不再逐帧重组）** |
 | `MascotEmptyState.kt`（206 行） | 吉祥物空状态 |  moods：float / breath / happyBounce / runJitter / sadAlpha |
 | `SourceAvatar.kt`（59 行） | 书源头像 | 首字 + 主题底色 |
-| `MaxCardEffects.kt`（151 行）+ `MaxFx.kt`（198 行） | MAX 档特效 | `maxCardAura`（三色极光）/ `chromaFlowEdge`（边缘光弧巡游）/ `glassSheen`（高光带）/ `shimmerPearl`（珠光）；**仅 RenderQuality.MAX 激活**，其余返回 this（零开销） |
+| `MaxCardEffects.kt`（151 行）+ `MaxFx.kt`（151 行） | MAX 档特效 | `maxCardAura`（三色极光）/ `chromaFlowEdge`（边缘光弧巡游）/ `glassSheen`（高光带）/ `shimmerPearl`（珠光）；**仅 RenderQuality.MAX 激活**，其余返回 this（零开销） |
 | `CardTweaks.kt`（57 行） | 卡片调参令牌 | 模糊半径/圆角/倾斜/相机距离/涟漪/染色/按压/透明度 + `LocalCardTweaks` |
-| `GlassQuality.kt`（32 行） | 画质档 | `RenderQuality` 枚举（流畅/均衡/高/极致）+ `LocalRenderQuality` |
-| `ChasingDots.kt`（169 行）+ `ChasingDotsTransition.kt`（54 行） | 加载动画 | 追逐圆点（六个 path 角度/半径乘数） |
-| `ShimmerBox.kt`（54 行） | 微光占位 | ShimmerFy 参考 |
-| `ColorMorph.kt`（191 行） | 颜色弹簧过渡 | 主题色切换 + `ColorMorphSwatch` |
-| `PlayPauseMorph.kt`（112 行） | 播放/暂停形态 | TTS 按钮 |
+| `GlassQuality.kt`（39 行） | 画质档 | `RenderQuality` 枚举（流畅/均衡/高/极致）+ `LocalRenderQuality` |
+| `ChasingDots.kt`（22 行） | 加载兼容入口 | 统一调用 AppProgressIndicator；`ChasingDotsTransition.kt` 已删除（1.5.14，旧多时钟追逐圆点实现） |
+| `ShimmerBox.kt`（58 行） | 微光占位 | ShimmerFy 参考 |
+| `ColorMorph.kt`（192 行） | 颜色弹簧过渡 | 主题色切换 + `ColorMorphSwatch` |
+| `PlayPauseMorph.kt`（83 行） | 播放/暂停形态 | TTS 按钮 |
 | `LiquidBlob.kt`（68 行） | 液态气泡 | 两圆 metaball 桥接 |
-| `LiquidGlassControls.kt`（72 行） | 玻璃控件 | `DialogLiquidGlass` / `AppLiquidButton` |
-| `CustomButtons.kt`（74 行） | `AppIconButton` / `AppButton` | 全局统一图标按钮 |
+| `LiquidGlassControls.kt`（89 行） | 玻璃控件 | `DialogLiquidGlass` / `AppLiquidButton` |
+| `CustomButtons.kt`（63 行） | `AppIconButton` / `AppButton` | 全局统一图标按钮 |
 | `GradientActionButton.kt`（34 行） | 渐变动作按钮 | |
-| `HazeProgress.kt`（69 行） | 流动渐变进度条 | |
+| `HazeProgress.kt`（76 行） | 流动渐变进度条 | |
 | `StarryNightBackground.kt`（75 行） | 星空背景 | |
-| `OverlayAnimations.kt`（88 行） | 弹窗/底 sheet 入场 | `DialogEntrance` / `BottomSheetEntrance` / `ScrimEntrance` |
+| `OverlayAnimations.kt`（45 行） | 弹窗/底 sheet 入场 | `DialogEntrance` / `BottomSheetEntrance` / `ScrimEntrance` |
 
 > 已删除的旧文件（历史文档仍会提到）：`CustomSwitch.kt`、`JellySwitch.kt`（统一为 `AppSwitch`）、`InkSlider`（被 FluidSlider 取代）。
 
@@ -548,7 +573,7 @@ python novel-reader/.workbuddy/stale_check.py
 
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
-| `GlassKit.kt`（496 行） | **GlassKit** | `GlassTokens`（圆角/模糊/行高/间距/发丝线）、**连续曲率 `SquircleShape`**（`squirclePath`）、`GlassKitHost`（`layerBackdrop` + `drawBackdrop` 实时图层录制，GPU 上叠加 vibrancy/blur/透镜折射）、`GlassKitCard`（显隐/尺寸动画期间自动降轻量档）、`GlassTopBarStrip`、`rememberReduceTransparency`。**只服务书源管理页与书库搜索历史卡**，与 `GlassCard` 并行存在、互不影响 |
+| `GlassKit.kt`（508 行） | **GlassKit** | `GlassTokens`（圆角/模糊/行高/间距/发丝线）、**连续曲率 `SquircleShape`**（`squirclePath`）、`GlassKitHost`（`layerBackdrop` + `drawBackdrop` 实时图层录制，GPU 上叠加 vibrancy/blur/透镜折射）、`GlassKitCard`（显隐/尺寸动画期间自动降轻量档）、`GlassTopBarStrip`、`rememberReduceTransparency`。**只服务书源管理页与书库搜索历史卡**，与 `GlassCard` 并行存在、互不影响 |
 
 #### 4.7.6 `ui/favorite/` 「我喜欢的」（6 文件 / 1,637 行）
 
@@ -559,8 +584,8 @@ python novel-reader/.workbuddy/stale_check.py
 | 文件 | 作用 | 关键实现 |
 | --- | --- | --- |
 | `ShelfChips.kt`（305 行） | 分类胶囊 | `CategoryPill`（按压缩放 + 触觉）、`AddCategoryPill`（虚线） |
-| `ShelfMultiSelect.kt`（670 行） | 多选与拖拽状态机 | `ShelfPhase` / `ShelfSelectionScope`；几何表 `itemRects` / `coverRects` / `targetRects` + **`pruneGeometry(aliveKeys, aliveTargets)`**（`onGloballyPositioned` 没有 dispose 回调 → 条目消失后矩形残留会变幽灵热区）；`pickTarget`（含 `HYSTERESIS` 滞回）；**`ShelfGestureSink` / `DropSink` 回调水槽**（`Modifier.pointerInput` 的 lambda 会被冻结，捕获的是首次组合的闭包 → 必须用 sink 传最新回调）；`endDrag()` 只把 phase 收回 SELECTING，落点分支必须再调 `exitSelection()` |
-| `ShelfSelectionHost.kt`（1468 行） | 拖拽宿主 | `DragFlight`（带 `origins: Map<key, Rect>`，多本各自归位）、`DragStack` / `DragFlightLayer`（倾斜 + 抛物线）、`MultiSelectTopBar` / `MultiSelectActionBar` / `MoreActionSheet` / `CategoryPickerSheet`、`PlaceholderBox`（原位虚线占位）、`HeartBurst`（拖到 ♡ 落点反馈）、`favShelfKey` / `isFavShelfKey` 分流 |
+| `ShelfMultiSelect.kt`（677 行） | 多选与拖拽状态机 | `ShelfPhase` / `ShelfSelectionScope`；几何表 `itemRects` / `coverRects` / `targetRects` + **`pruneGeometry(aliveKeys, aliveTargets)`**（`onGloballyPositioned` 没有 dispose 回调 → 条目消失后矩形残留会变幽灵热区）；`pickTarget`（含 `HYSTERESIS` 滞回）；**`ShelfGestureSink` / `DropSink` 回调水槽**（`Modifier.pointerInput` 的 lambda 会被冻结，捕获的是首次组合的闭包 → 必须用 sink 传最新回调）；`endDrag()` 只把 phase 收回 SELECTING，落点分支必须再调 `exitSelection()` |
+| `ShelfSelectionHost.kt`（1484 行） | 拖拽宿主 | `DragFlight`（带 `origins: Map<key, Rect>`，多本各自归位）、`DragStack` / `DragFlightLayer`（倾斜 + 抛物线）、`MultiSelectTopBar` / `MultiSelectActionBar` / `MoreActionSheet` / `CategoryPickerSheet`、`PlaceholderBox`（原位虚线占位）、`HeartBurst`（拖到 ♡ 落点反馈）、`favShelfKey` / `isFavShelfKey` 分流 |
 
 #### 4.7.8 `ui/feedback/` 动效与触觉令牌（1 文件 / 231 行）
 
@@ -569,13 +594,13 @@ python novel-reader/.workbuddy/stale_check.py
 
 #### 4.7.9 `ui/mascot/` 吉祥物（6 文件 / 782 行）
 
-`MascotAnimationController.kt`（102 行，`MascotEvent` 事件总线 + `MascotOverlay`）、`MascotSpriteSheet.kt`（49 行，七套姿态 + `MascotMood`）、`BookCompleteAnimation.kt`（182 行，含礼花）、`BookmarkHappyAnimation.kt`（151 行）、`DeleteSadAnimation.kt`（151 行）、`MoveBookAnimation.kt`（150 行）。
+`MascotAnimationController.kt`（102 行，`MascotEvent` 事件总线 + `MascotOverlay`）、`MascotSpriteSheet.kt`（49 行，七套姿态 + `MascotMood`）、`BookCompleteAnimation.kt`（182 行，含礼花）、`BookmarkHappyAnimation.kt`（101 行）、`DeleteSadAnimation.kt`（101 行）、`MoveBookAnimation.kt`（101 行）。
 素材：`res/drawable/roxy_*.xml`（矢量五姿态）+ `res/drawable-nodpi/mascot_*.webp`。
 
 #### 4.7.10 `ui/reader/` 小说内嵌图（2 文件 / 610 行，2026-09 新增）
 
-`NovelInlineImages.kt`（406 行）：`TOKEN_REGEX` 解析正文里的图片 token、`NovelImageCache`（内存 + EPUB 原包流）、`epubImageRef` 解码 `file://...!条目` 引用、`ImageHitRegistry`、`splitIntoBlocks`（图文混排切块）、`buildAnnotatedWithImages`、`displaySize`。
-`NovelImageFullscreen.kt`（204 行）：全屏查看 + `saveNovelImageToGallery`，解码失败显示明确错误。
+`NovelInlineImages.kt`（437 行）：`TOKEN_REGEX` 解析正文里的图片 token、`NovelImageCache`（内存 + EPUB 原包流）、`epubImageRef` 解码 `file://...!条目` 引用、`ImageHitRegistry`、`splitIntoBlocks`（图文混排切块）、`buildAnnotatedWithImages`、`displaySize`。
+`NovelImageFullscreen.kt`（248 行）：全屏查看 + `saveNovelImageToGallery`，解码失败显示明确错误。
 
 #### 4.7.11 `ui/privacy/` 隐私（1 文件 / 633 行）
 
@@ -585,16 +610,25 @@ python novel-reader/.workbuddy/stale_check.py
 
 `AdaptiveSpec.kt`：`WindowWidthClass` 断点、`AdaptiveSizing`（dialog/sheet/page 最大宽）、`AdaptiveSheetContent` / `AdaptivePageContent`、`Modifier.adaptiveWidth`。
 
-#### 4.7.13 `ui/help/`（4 文件 / 697 行）、`ui/source/`（3 文件 / 2,449 行）、`ui/theme/`（7 文件 / 699 行）、`ui/design/`（1 文件 / 58 行）
+#### 4.7.13 `ui/help/`（4 文件 / 697 行）、`ui/source/`（3 文件 / 2,449 行）、`ui/theme/`（7 文件 / 699 行）、`ui/design/`（1 文件 / 111 行）
 
 | 包 | 文件 |
 | --- | --- |
-| `help/` | `LibraryHelpBottomSheet.kt`（354 行）、`JsonSourceGuideCard.kt`（139 行）、`HelpSection.kt`（115 行：`HelpSectionHeader` / `FlowStepItem` / `TextDetailCard`）、`FaqExpandableItem.kt`（90 行） |
-| `source/` | `SourceManagementScreen.kt`（1589 行：**v1.1.0 重排版**——一张玻璃卡内三等分快捷入口 + `SourceTileDivider`、分组标题去吸顶玻璃改纯文字、行高 56、`SourceRow` / `SourceGroupCard` / `SourceImportEntryRow` / `SourceCollapsingTopBar`）、`ZLibraryNodeManagementScreen.kt`（517 行，节点测速与选择）、`ZLibraryLoginDialog.kt`（351 行） |
-| `theme/` | `Theme.kt`（92 行，主/辅色 StateFlow 过渡 + 明暗配色）、`Color.kt`（62 行，六套阅读主题色 + `glassTitleColor` 自适应）、`Type.kt`（139 行）、`AppFonts.kt`（147 行，**字体唯一来源**：`uiSans`/`uiSerif` 打包 Noto 子集 + `readingFontFamily()`）、`IosMotion.kt`（80 行，iOS 缓动曲线）、`ModifierExtensions.kt`（152 行，iOS 按压反馈 `clickableRowFeedback`）、`AppInsets.kt`（33 行，`LocalAppBottomInset` / `LocalAppBottomInsetNoTabBar`） |
-| `design/` | `DesignTokens.kt`（59 行，圆角/间距/ elevation 令牌 + `shape()`） |
+| `help/` | `LibraryHelpBottomSheet.kt`（358 行）、`JsonSourceGuideCard.kt`（358 行）、`HelpSection.kt`（115 行：`HelpSectionHeader` / `FlowStepItem` / `TextDetailCard`）、`FaqExpandableItem.kt`（358 行） |
+| `source/` | `SourceManagementScreen.kt`（1607 行：**v1.1.0 重排版**——一张玻璃卡内三等分快捷入口 + `SourceTileDivider`、分组标题去吸顶玻璃改纯文字、行高 56、`SourceRow` / `SourceGroupCard` / `SourceImportEntryRow` / `SourceCollapsingTopBar`）、`ZLibraryNodeManagementScreen.kt`（517 行，节点测速与选择）、`ZLibraryLoginDialog.kt`（1556 行） |
+| `theme/` | `Theme.kt`（92 行，主/辅色 StateFlow 过渡 + 明暗配色）、`Color.kt`（62 行，六套阅读主题色 + `glassTitleColor` 自适应）、`Type.kt`（142 行）、`AppFonts.kt`（147 行，**字体唯一来源**：`uiSans`/`uiSerif` 打包 Noto 子集 + `readingFontFamily()`）、`IosMotion.kt`（80 行，iOS 缓动曲线）、`ModifierExtensions.kt`（152 行，iOS 按压反馈 `clickableRowFeedback`）、`AppInsets.kt`（33 行，`LocalAppBottomInset` / `LocalAppBottomInsetNoTabBar`） |
+| `design/` | `DesignTokens.kt`（111 行，圆角 / 间距 / 字号 / 行高 / elevation 令牌 + `shape()`；`ReadingPalette` 统一固定阅读叠色） |
 
 > 后端新增资源：`app/src/main/assets/js_safety/acorn.js`（Acorn 原文件，MIT 许可证 `ACORN_LICENSE.txt`）与 `instrument.js`（AST guard）；`app/src/main/res/xml/backup_rules.xml`、`data_extraction_rules.xml` 禁止系统复制凭据；`app/schemas/com.example.data.AppDatabase/12.json` 保存 Room 实际结构。
+
+#### 4.7.8 `god/` 神回窗口加载（本轮涉及，2026-10-05）
+
+完整 18 文件清单见历史神回章节；当前窗口使用亚克力表面，不采样阅读内容。
+
+| 文件 | 行 | 当前职责 |
+| --- | --- | --- |
+| `GodCoverEngine.kt` | 479 | 封面解码 / 合成；与阅读器共享图片 key，缓存优先、同页合并、缩略图 3 / 大封面 1 的独立闸门、请求级渐进 JPEG；小图中段裁剪与 320 px 上限 |
+| `GodMomentSheet.kt` | 1385 | 自绘神回窗口；缩略图按页面独立记忆，不随选中取消加载；来源切换清除旧大封面，点选不推动整排图片，失败点按重试 |
 
 ### 4.8 vendored 第三方库（`app/src/main/java/` 下非 `com/example` 包）
 
@@ -603,13 +637,13 @@ python novel-reader/.workbuddy/stale_check.py
 | 文件 | 作用 | 关键算法 |
 | --- | --- | --- |
 | `CurlMesh.java`（977 行） | **卷页网格**（核心数学） | 圆柱投影 `x′ = F + R·sin(s/R)`；正/背面双面网格顶点、阴影顶点、折角顶点 |
-| `CurlView.java`（1096 行） | 卷页视图 | 手势、动画状态机、PageProvider；**`CurlView(translucent)` 构造器**（EGL alpha 配置 + TRANSLUCENT surface，必须在 `setRenderer` 前设置）、`setPageRect` / `setRightToLeft`（书本几何与触摸方向） |
+| `CurlView.java`（1109 行） | 卷页视图 | 手势、动画状态机、PageProvider；**`CurlView(translucent)` 构造器**（EGL alpha 配置 + TRANSLUCENT surface，必须在 `setRenderer` 前设置）、`setPageRect` / `setRightToLeft`（书本几何与触摸方向） |
 | `CurlRenderer.java`（374 行） | OpenGL 渲染器 | GLSurfaceView 渲染、纹理绑定；**`setPageRectPixels`**（显式像素页面矩形 = 漫画本体矩形纸面）；`setRightToLeft` / `translate`（镜像屏幕坐标），背景独立于书页镜像 |
 | `CurlPage.java`（219 行） | 页面纹理容器 | **全方法 `synchronized`**（UI/GL 线程并发 recycle 会 native SIGSEGV） |
 
 #### `eu/wewox/pagecurl/` — Compose 版卷页（12 文件 / 1,588 行）
 
-`page/CurlDraw.kt`（268 行，卷页绘制核心）、`page/PageCurl.kt`（166 行）、`page/PageCurlState.kt`（310 行）、`page/DragGesture.kt`（73）、`page/DragCommonGesture.kt`（155）、`page/DragStartEnd.kt`（75）、`page/TapGesture.kt`（49）、`config/PageCurlConfig.kt`（395）、`utils/MathUtils.kt`（30）、`utils/Polygon.kt`（47）、`utils/RectUtils.kt`（11）、`ExperimentalPageCurlApi.kt`（9）。
+`page/CurlDraw.kt`（268 行，卷页绘制核心）、`page/PageCurl.kt`（268 行）、`page/PageCurlState.kt`（268 行）、`page/DragGesture.kt`（81）、`page/DragCommonGesture.kt`（171）、`page/DragStartEnd.kt`（83）、`page/TapGesture.kt`（49）、`config/PageCurlConfig.kt`（398）、`utils/MathUtils.kt`（30）、`utils/Polygon.kt`（47）、`utils/RectUtils.kt`（11）、`ExperimentalPageCurlApi.kt`（9）。
 
 **CurlDraw 数学**：卷页线 `[posA, posB]` 与页面上下边**线线相交**（`lineLineIntersection`）得裁剪边界；背面页四边形（`Polygon`，恒 4 点避免 3/4 点切换伪影）；**镜像 + 旋转**（`scale(-1,1)` + `angle = π - atan2(dy,dx)·2`）；阴影 API 28+ 用 `setShadowLayer`，以下位图离屏绘制。
 
@@ -620,7 +654,7 @@ python novel-reader/.workbuddy/stale_check.py
 
 #### `com/ramotion/fluidslider/` — FluidSlider（2 文件 / 1,099 行）
 
-`FluidSlider.kt`（598 行，纯 Canvas 复刻：胶囊轨道 + 按下气泡 Overshoot 升起 + metaball 液态连接 + 数值圆盘）、`FluidSliderCompose.kt`（501 行，Compose 封装 + 手势仲裁）。
+`FluidSlider.kt`（598 行，纯 Canvas 复刻：胶囊轨道 + 按下气泡 Overshoot 升起 + metaball 液态连接 + 数值圆盘）、`FluidSliderCompose.kt`（501 行，Compose 兼容适配，实际渲染统一代理到 LiquidSlider）。
 ⚠️ metaball 的 `bottomCircle` 圆心必须在 `vOff + botCD/2`；`maxMove` 必须 `coerceAtLeast(1f)`（否则窄容器拖动方向反转）。
 
 #### `me/trishiraj/shadowglow/` — ShadowGlow（6 文件 / 1,235 行）
@@ -631,7 +665,7 @@ python novel-reader/.workbuddy/stale_check.py
 `consistentShadow` **必须复刻 `Modifier.shadow` 的裁剪语义**（阴影 `drawBehind` 可外溢 + 内容 `.clip(shape)`），否则整圈在卡片边界外的装饰（如 `maxCardAura`）会外泄成大块品牌色框。
 不换的场合：位于带 scale/rotation/alpha 的 `graphicsLayer` 内部、宽度连续动画的容器（缓存键每帧失效）、1dp 发丝线、第三方库内部、Canvas-only 路径。
 
-#### `com/swapnil/squishyswitch/presentation/SquishyToggle.kt`（201 行）
+#### `com/swapnil/squishyswitch/presentation/SquishyToggle.kt`（194 行）
 
 四阶段弹性挤压动画（550ms）+ 轨道色过渡 250ms + `Role.Switch` 语义 + 触觉。受控（传 `checked`）与自控双模式。
 
@@ -644,20 +678,20 @@ python novel-reader/.workbuddy/stale_check.py
 | 文件 | 行 | 作用 |
 | --- | --- | --- |
 | `Backdrop.kt` | 33 | 背景抽象接口（所有 background 实现的根） |
-| `BackdropEffectScope.kt` | 39 | 效果作用域（expect）：`size` / `layoutDirection` / `shape` / `padding` |
-| `DrawBackdropModifier.kt` | 59 | `Modifier.drawBackdrop` 的 expect 声明 |
+| `BackdropEffectScope.kt` | 85 | 效果作用域（expect）：`size` / `layoutDirection` / `shape` / `padding` |
+| `DrawBackdropModifier.kt` | 401 | `Modifier.drawBackdrop` 的 expect 声明 |
 | `ShapeProvider.kt` | 47 | 形状提供者（跨效果共享同一个 Outline，避免重复创建） |
 | `Outline.kt` | 21 | 轮廓工具 |
-| `backdrops/LayerBackdrop.kt` | 48 | 图层式背景（expect） |
+| `backdrops/LayerBackdrop.kt` | 81 | 图层式背景（expect） |
 | `backdrops/CanvasBackdrop.kt` | 49 | 直接 Canvas 绘制的背景 |
 | `backdrops/CombinedBackdrop.kt` | 108 | 多背景组合（按优先级叠加采样） |
 | `backdrops/WrappedBackdrop.kt` | 43 | 包装另一个背景（变换后转发） |
 | `backdrops/EmptyBackdrop.kt` | 29 | 空实现（降级/禁用时使用） |
 | `effects/Effects.kt` | 88 | 公共效果定义（模糊 / 染色 / 振动） |
-| `effects/ProgressiveBlur.kt` | 24 | 渐进模糊（expect） |
-| `effects/SdfShader.kt` | 61 | SDF 着色器（expect） |
+| `effects/ProgressiveBlur.kt` | 55 | 渐进模糊（expect） |
+| `effects/SdfShader.kt` | 115 | SDF 着色器（expect） |
 | `highlight/Highlight.kt` | 47 | 高光模型 + `Highlight.Default` |
-| `highlight/HighlightStyle.kt` | 41 | 高光样式（expect） |
+| `highlight/HighlightStyle.kt` | 158 | 高光样式（expect） |
 | `shadow/Shadow.kt` / `shadow/InnerShadow.kt` | 26 / 40 | 外 / 内阴影模型 |
 
 `androidMain`（**23 文件**）：
@@ -671,10 +705,10 @@ python novel-reader/.workbuddy/stale_check.py
 | `LayerRecorder.kt` | 26 | 层录制封装 `recordLayer` | 与 `LayerRecordKey` 配合 |
 | `LayerRecordKey.kt` | 30 | 录制缓存键 | 像素值 + 形状 + 样式；**键未变跳过 `record()`** |
 | `InverseLayerScope.kt` | 124 | 反向遮罩作用域 | 内阴影 / 内高光的"挖洞"绘制 |
-| `platform/PlatformEffects.kt` | 141 | 平台效果实现 | API 版本分派 |
+| `platform/PlatformEffects.kt` | 142 | 平台效果实现 | API 版本分派 |
 | `backdrops/LayerBackdrop.kt` | 81 | 图层背景（actual） | 持有 `GraphicsLayer` + `layerCoordinates` |
 | `backdrops/LayerBackdropModifier.kt` | 86 | `Modifier.layerBackdrop`（actual） | **`captureStripHeightPx` 条带裁剪**：只把底部条带录进捕获层，用 `translate(0,-stripTop)` + `layer.topLeft=(0,stripTop)` 维持原坐标系，消费方数学与像素内容完全不变；底栏 1080×2400 → 1080×~450，成本降 ~5 倍 |
-| `backdrops/PreBlurredBackdrop.kt` | 193 | 整屏预烘焙模糊 | **⚠️ 已整体回退、禁止直接启用**（实机液态玻璃效果异常；若重试，探针必须覆盖链式 RenderEffect、需等待背景图解码完成、真机像素对比后才可上线） |
+| `backdrops/PreBlurredBackdrop.kt` | 205 | 整屏预烘焙模糊 | **⚠️ 已整体回退、禁止直接启用**（实机液态玻璃效果异常；若重试，探针必须覆盖链式 RenderEffect、需等待背景图解码完成、真机像素对比后才可上线） |
 | `effects/Blur.kt` | 28 | 模糊效果 | |
 | `effects/ColorFilter.kt` | 133 | 染色 / 振动 / 对比度 | |
 | `effects/Lens.kt` | 99 | **透镜折射**（MAX 档） | AGSL 链式 shader，华为驱动可能抛异常 |
@@ -696,24 +730,24 @@ python novel-reader/.workbuddy/stale_check.py
 | `GlassMath.kt` | 130 | 折射 / 倾斜 / 高光的数学（法线、折射向量、边缘衰减） |
 | `LiquidGlassShaders.kt` | 130 | AGSL 着色器源码（折射 / 虹彩 / 高光） |
 | `GlassUniforms.kt` | 80 | Uniform 打包（尺寸 / 圆角 / 厚度 / 折射率 / 光方向） |
-| `GlassShapePacker.kt` | 76 | 形状参数打包进 uniform |
+| `GlassShapePacker.kt` | 88 | 形状参数打包进 uniform |
 | `GlassRenderTier.kt` | 53 | 渲染档位（决定走硬件 shader 还是降级路径） |
 
 #### `liquidglass-compose/`（`dev/liquidglass/compose/`，16 文件 / 1,476 行）
 
 | 文件 | 行 | 作用 |
 | --- | --- | --- |
-| `LiquidGlass.kt` | 222 | `Modifier.liquidGlass`（主入口） |
+| `LiquidGlass.kt` | 244 | `Modifier.liquidGlass`（主入口） |
 | `GlassStyle.kt` | 215 | 玻璃样式模型（模糊 / 折射 / 染色 / 描边 / 高光） |
-| `LiquidGlassProvider.kt` | 106 | `CompositionLocal` 提供者 |
+| `LiquidGlassProvider.kt` | 110 | `CompositionLocal` 提供者 |
 | `LiquidGlassProviderState.kt` | 63 | 提供者状态 |
 | `LiquidGlassTier.kt` | 16 | 档位枚举 |
 | `GlassShape.kt` | 46 | 形状定义 |
-| `container/LiquidGlassContainer.kt` | 215 | 容器（把子项效果合并到同一层，避免多层叠加） |
+| `container/LiquidGlassContainer.kt` | 216 | 容器（把子项效果合并到同一层，避免多层叠加） |
 | `container/GlassEffectChild.kt` | 165 | 容器内子项的效果声明 |
 | `container/LiquidGlassContainerState.kt` | 102 | 容器状态（子项注册 / 布局收集） |
-| `internal/GlassPainter.kt` | 258 | 实际绘制（把 style 翻译成绘制命令） |
-| `internal/GlassRenderEffects.kt` | 102 | RenderEffect 组装 |
+| `internal/GlassPainter.kt` | 322 | 实际绘制（把 style 翻译成绘制命令） |
+| `internal/GlassRenderEffects.kt` | 166 | RenderEffect 组装 |
 | `internal/GlassMotion.kt` | 29 | 动效参数 |
 | `components/GlassButton.kt` | 89 | 玻璃按钮 |
 | `components/GlassBottomBar.kt` | 43 | 玻璃底栏 |
@@ -730,10 +764,10 @@ python novel-reader/.workbuddy/stale_check.py
 
 ### 4.10 测试（`app/src/test/`，纯 JVM/Robolectric）
 
-现状（2026-09-29）：**76 个测试文件 / 399 个 `@Test`**，纯 JVM + Robolectric，**无 instrumentation 用例**。
-另有 `app/src/debug/` 3 个可视化探针 Activity（`ComicVisualProbeActivity` / `ComicReaderTestActivity` / `GpuAbTestActivity`，不参与单测）。
+现状（2026-10-11 扫描）：**135 个 JVM/Robolectric 文件 / 791 个 `@Test`**；另有 **34 个 androidTest 文件 / 133 个 `@Test`**。这是源码定义数，不代表当前工作区全部执行或通过；已执行专项与待验证情况见第 54–56 章。
+另有 `app/src/debug/` 4 个探针 / 测试宿主 Activity（`ComicVisualProbeActivity.kt` / `ComicReaderTestActivity.kt` / `GpuAbTestActivity.kt` / `ReaderPolishProbeActivity.kt`），仅存在于 debug 变体，供可视化与 Robolectric 交互测试调用。
 
-> 下表是**完整清单**（不是"代表文件"）。括号内为 `@Test` 数 / 文件行数。
+> 下表及 4.11–4.20 补录共同覆盖测试清单。括号内为 `@Test` 数 / 文件行数；这些数字描述用例定义，不是运行回执。
 
 **根目录 `com/example/`（8 文件）**
 
@@ -760,8 +794,8 @@ python novel-reader/.workbuddy/stale_check.py
 | `data/ImageBlockSplitTest.kt`（3 / 64） | 图文混排切块 |
 | `data/NovelInlineLayoutTest.kt`（3 / 126） | 内嵌图布局 |
 | `data/PaginationImageHeightTest.kt`（7 / 171） | 图片高度分页、渐进分页完成判定，以及 20/24/26sp 小行距、大字号、首页标题与图文混排的渲染高度回归 |
-| `data/NovelImageCacheTest.kt`（3 / 83） | 内嵌图缓存 |
-| `data/NovelInlineImagePipelineTest.kt`（2 / 163） | 内嵌图管线与 EPUB 原包引用解码 |
+| `data/NovelImageCacheTest.kt`（5 / 128） | 内嵌图缓存、旧 Android 目录别名引用兼容与越界拒绝 |
+| `data/NovelInlineImagePipelineTest.kt`（2 / 174） | 有效 PNG 原生解码、内嵌图导入迁移与 Windows 测试 URI 适配 |
 | `data/NovelInlineImageRenderTest.kt`（2 / 124） | 内嵌图渲染 |
 | `data/RealEpubPipelineTest.kt`（1 / 86） | 真实 EPUB 端到端 |
 | `data/Round7DataTest.kt`（10 / 307） | 第七轮数据层回归 |
@@ -771,10 +805,10 @@ python novel-reader/.workbuddy/stale_check.py
 
 | 文件 | 内容 |
 | --- | --- |
-| `data/favorite/ComicReadingLogicTest.kt`（12 / 148） | 章节排序 / 续读 / 更新数 / 已读比例 |
+| `data/favorite/ComicReadingLogicTest.kt`（20 / 241） | 章节排序 / 续读 / 更新数 / 已读比例；前后章覆盖倒序、乱序、0 序章、小数番外与未知章节 |
 | `download/CorruptedFileTest.kt`（4 / 100） | 损坏文件与 HTML 伪装页识别 |
 | `integration/IntegrationChainTest.kt`（2 / 127） | 跨层串联 |
-| `library/LibraryFirstLaunchTest.kt`（3 / 54） | 首启动引导与空态 |
+| `library/LibraryFirstLaunchTest.kt`（3 / 60） | 首启动引导与空态 |
 | `library/ReadableFormatFilterTest.kt`（4 / 46） | `READER_UNSUPPORTED_FORMATS` 过滤 |
 
 **`mangatranslate/`（1 文件）**
@@ -783,7 +817,7 @@ python novel-reader/.workbuddy/stale_check.py
 
 **`god/`（2 文件）**
 
-`GodMomentSheetComposeTest.kt`（3 / 97）——神回窗口组合与阅读器 Referer 头校验；`GodUiShotTest.kt`（10 / 377）——神回界面截图与交互表现（含全屏排行榜和末页拉拽态）。
+`GodMomentSheetComposeTest.kt`（9 / 340）——神回窗口组合、Referer、阅读缓存复用、大小图去重、连续点选不跑位 / 不中断、失败重试与长条漫裁剪；`GodUiShotTest.kt`（10 / 377）——神回界面截图与交互表现（含全屏排行榜和末页拉拽态）。
 
 **`source/`（14 文件）**
 
@@ -798,7 +832,7 @@ python novel-reader/.workbuddy/stale_check.py
 
 **`source/zlibrary/`（9 文件）**
 
-`ZLibraryEndpointProviderTest.kt`（4 / 74）、`ZLibraryDomainResolverTest.kt`（2 / 60）、`EncryptedCookieJarTest.kt`（3 / 76）、`ZLibraryParserTest.kt`（3 / 86）、`ZLibrarySourceTest.kt`（3 / 80）、`ZLibraryFlowIntegrationTest.kt`（2 / 49）、`EndpointHealthCheckerTest.kt`（1 / 34）、`RemoteEndpointProviderTest.kt`（1 / 34）、`ZLibraryRealIntegrationTest.kt`（1 / 54）、`ZLibraryRealSearchIntegrationTest.kt`（1 / 52）。
+`ZLibraryEndpointProviderTest.kt`（4 / 74）、`ZLibraryDomainResolverTest.kt`（3 / 71）、`EncryptedCookieJarTest.kt`（3 / 76）、`ZLibraryParserTest.kt`（3 / 86）、`ZLibrarySourceTest.kt`（3 / 80）、`ZLibraryFlowIntegrationTest.kt`（2 / 49）、`EndpointHealthCheckerTest.kt`（1 / 34）、`RemoteEndpointProviderTest.kt`（1 / 34）、`ZLibraryRealIntegrationTest.kt`（1 / 54）、`ZLibraryRealSearchIntegrationTest.kt`（1 / 52）。
 
 **`ui/`（2 文件）**
 
@@ -809,7 +843,7 @@ python novel-reader/.workbuddy/stale_check.py
 
 | 文件 | 用例 / 行 | 内容 |
 | --- | --- | --- |
-| `ComicUpgrade28Test.kt` | 27 / 531 | **漫画阅读器 28 条修复的验收单测** |
+| `ComicUpgrade28Test.kt` | 27 / 532 | **漫画阅读器 28 条修复的验收单测**；条漫与无缝进度均跟随像素偏移 |
 | `ComicNewFeedbackTest.kt` | 20 / 575 | 新反馈 8 条验收 |
 | `ComicRefinementTest.kt` | 20 / 312 | 二次精修验收 |
 | `ComicImagePipelineTest.kt` | 18 / 221 | 图像管线（裁边 / gutter / LUT / CAS / Lanczos） |
@@ -823,8 +857,8 @@ python novel-reader/.workbuddy/stale_check.py
 | `ComicReaderConfigTest.kt` | 6 / 121 | 配置与指纹 |
 | `ComicSettingsStoreTest.kt` | 6 / 102 | 预设持久化 |
 | `ComicTranslationConfigTest.kt` | 4 / 53 | 翻译配置 |
-| `ComicCurlGestureArbitrationTest.kt` | 3 / 114 | CURL 手势仲裁 |
-| `ComicReaderScreenshotTest.kt` | 2 / 119 | Roborazzi 截图基线 |
+| `ComicCurlGestureArbitrationTest.kt` | 10 / 236 | CURL 单双指、双击、竖拖与章节边界仲裁 |
+| `ComicReaderScreenshotTest.kt` | 6 / 161 | 手机 / 平板 / 短横屏 / 大字体设置、外部点击与关闭回归 |
 | `ComicBatchStatsTest.kt` | 2 / 411 | 批量统计 |
 | `EnhanceBenchmarkTest.kt` | 2 / 246 | 增强算法基准（**含平坦恒等断言**——只测相对比值的用例会在坏引擎上空洞通过） |
 | `KeyMoveSemanticsTest.kt` | 1 / 79 | 按键移动语义 |
@@ -842,8 +876,40 @@ python novel-reader/.workbuddy/stale_check.py
 | `data/BackendImportSafetyTest.kt` | 12 / 158 | 解压边界、CBZ 真导入、Room 回滚、私有 URI、拆章、搜索与删除历史 |
 | `download/BackendDownloadPolicyTest.kt` | 5 / 50 | Content-Range、If-Range 验证器、身份/文件名、PoW 与 HTML TXT |
 | `download/BackendDownloadWorkerTest.kt` | 7 / 216 | 本地 socket + Room + 真实 Worker；完整下载、续传、失败入库离线重试、错误页单请求与阻塞读取取消 |
-| `library/ComicAggregateSearchTest.kt` | 10 / 230 | 首批延迟、8 路上限、原词优先、源内串行、别名完整性、取消、超时/异常隔离、分组顺序与加载期间速跳计数 |
+| `library/ComicAggregateSearchTest.kt` | 15 / 316 | 首批延迟、8 路上限、原词优先、源内串行、别名完整性、取消、超时/异常隔离、分组顺序与加载期间速跳计数 |
 
+
+
+**多语言搜索专项测试清单（2026-10-05，含 v3 修复）**
+
+| 文件 | 测试数 / 行数 | 覆盖 |
+| --- | --- | --- |
+| `source/keyword/KeywordExpansionTest.kt` | 23 / 230 | 原词、12 秒窗口、流式补词、复合查询预留、实体完整性、实际语言优先、缓存 / 失败状态 |
+| `source/keyword/KeywordLocalDataTest.kt` | 13 / 203 | 真实捆绑词库与春物三语言桥接、完整种子合并、持久缓存 / 反向别名 |
+| `source/keyword/KeywordRepositoryTest.kt` | 8 / 159 | 实际仓库在线缓存 / 离线命中 / 补齐 / 重试 / 迁移，PIN 不误伤搜索、全局无痕原因、在线开关实时读取 |
+| `source/keyword/OnlineKeywordLookupTest.kt` | 18 / 246 | 结构化提供者响应、人物与角色详情别名、原文 / 罗马音、重名和异常 JSON、缓存提供者跳过 |
+| `library/KeywordSearchPreviewTest.kt` | 7 / 169 | Compose 原词 / 在线流式反馈，长名称使用外层滚动；聚合跨列 / 单源滚走回顶；320dp 与 1.5 字体开关防重叠截图 |
+| `app/src/androidTest/java/com/example/source/KeywordSearchDeviceTest.kt` | 3 / 115 | 设备端组件更新、实际 LibraryScreen + ViewModel 离线调度；定义已编译，设备运行未通过验收 |
+
+**多语言搜索 v4 与详情手势新增测试（2026-10-05）**
+
+| 测试文件 | 定义 / 行数 | 作用 |
+| --- | --- | --- |
+| `ui/ComicTextSelectionTest.kt` | 3 / 106 | 生产标签点按仅搜索一次；长按选字、复制且不搜索；标题 / 作者 / 编号共用手势。Robolectric 仅替代不支持的 Magnifier popup。 |
+| `ui/components/TabBarMotionTest.kt` | 2 / 126 | 指示线移动与收缩对齐；五图标收缩 / 展开各 100 帧位置连续性、固定横向槽位。 |
+| `network/KeywordLookupLiveTest.kt` | 2 / 94 | 环境变量启用的真实 Bangumi 角色 / 人物 API 探针（无类型提示），另验洛琪希的完整生产仓库发布 / 缓存 / 离线复用；只替代 Robolectric 系统代理 getter，HTTP 和生产查词逻辑真实执行。 |
+
+**1.2.2 更新检查测试（2026-10-05）**
+
+| 测试文件 | 定义 / 行数 | 作用 |
+| --- | --- | --- |
+| `data/GithubUpdateCheckerTest.kt` | 13 / 144 | 数字版本、旧正式版不误报、限流 / 超时回退、取消；附件 / 标签 / 摘要 / 歧义与说明校验。 |
+| `data/AppUpdateDownloadTest.kt` | 8 / 144 | 官方 CDN、进度、禁止外部跳转、长度 / EOF、错误重试、未知总长、取消清理。 |
+| `data/AppUpdatePackageTest.kt` | 10 / 171 | 包名 / 版本码 / 签名、摘要、元数据恢复 / 长中文说明、升级确认与清理范围、真实 Manifest/XML、安装 Intent 授权。 |
+| `data/AppUpdateManagerTest.kt` | 6 / 142 | 拒绝权限 / 取消安装保留、校验失败与重试、重启恢复 / 篡改、立即取消、旧安装回调。 |
+| `ui/AppUpdateDialogTest.kt` | 4 / 87 | Native 确认 / 进度 / 取消、授权 / 导出 / 浏览器入口、无需重复下载安装；记录两个窗口截图。 |
+| `network/AppUpdateLiveDownloadTest.kt` | 1 / 59 | 显式开启真实网络探针；通过生产代理与官方回退下载完整 APK、摘要匹配正式包并验证单调进度。 |
+| `network/GithubUpdateLiveTest.kt` | 1 / 39 | 环境变量开启真实 HTTPS；生产客户端系统代理、真实 GitHub API 与官方发布页回退。 |
 
 ### 4.11 2026-10-01 既有及并行工作新增源码补录
 
@@ -852,7 +918,7 @@ python novel-reader/.workbuddy/stale_check.py
 | 文件 | 作用 / 类型 |
 | --- | --- |
 | `app/src/androidTest/java/com/example/source/AutoNovelSourceDeviceTest.kt`（170 行） | 设备回归测试 |
-| `app/src/androidTest/java/com/example/source/IxdzsSourceDeviceTest.kt`（175 行） | 设备回归测试 |
+| `app/src/androidTest/java/com/example/source/IxdzsSourceDeviceTest.kt`（237 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/NovelSearchInteractionDeviceTest.kt`（90 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/SourceIsolationDeviceTest.kt`（230 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/Wenku8LibraryDeviceTest.kt`（102 行） | 设备回归测试 |
@@ -860,40 +926,40 @@ python novel-reader/.workbuddy/stale_check.py
 | `app/src/androidTest/java/com/example/source/ZLibraryPublicDetailDeviceTest.kt`（35 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/js/ComicEmptyResponseDeviceTest.kt`（156 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/js/ComicSearchRepairDeviceTest.kt`（74 行） | 设备回归测试 |
-| `app/src/androidTest/java/com/example/source/js/JsSourceEngineCompatibilityTest.kt`（308 行） | 设备回归测试 |
-| `app/src/androidTest/java/com/example/source/js/LiveComicSourcesAuditTest.kt`（332 行） | 设备回归测试 |
+| `app/src/androidTest/java/com/example/source/js/JsSourceEngineCompatibilityTest.kt`（328 行） | 设备回归测试 |
+| `app/src/androidTest/java/com/example/source/js/LiveComicSourcesAuditTest.kt`（378 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/js/PublicSourceRoutesDeviceTest.kt`（57 行） | 设备回归测试 |
-| `app/src/androidTest/java/com/example/source/js/PufeiLayoutDeviceTest.kt`（211 行） | 设备回归测试 |
+| `app/src/androidTest/java/com/example/source/js/PufeiLayoutDeviceTest.kt`（212 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/js/PufeiRegexpDeviceTest.kt`（58 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/js/PufeiSearchPathsDeviceTest.kt`（178 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/js/PufeiSourceTest.kt`（124 行） | 设备回归测试 |
-| `app/src/androidTest/java/com/example/source/js/PufeiSupplierDeviceTest.kt`（96 行） | 设备回归测试 |
+| `app/src/androidTest/java/com/example/source/js/PufeiSupplierDeviceTest.kt`（321 行） | 设备回归测试 |
 | `app/src/androidTest/java/com/example/source/js/PufeiMirrorNetworkDeviceTest.kt`（38 行） | 并行源工作新增设备测试；仅补录文件索引，本轮未修改或运行 |
 | `app/src/androidTest/java/com/example/source/js/PufeiRecoveryNetworkDeviceTest.kt`（45 行） | 并行源工作新增设备测试；仅补录文件索引，本轮未修改或运行 |
 | `app/src/androidTest/java/com/example/source/js/WebsiteVerificationDeviceTest.kt`（35 行） | 设备回归测试 |
-| `app/src/androidTest/java/com/example/ui/comic/ReaderLoadingStrategyDeviceTest.kt`（64 行） | 设备回归测试 |
-| `app/src/main/java/com/example/data/favorite/ComicChapterMatching.kt`（74 行） | 漫画章节稳定匹配 |
+| `app/src/androidTest/java/com/example/ui/comic/ReaderLoadingStrategyDeviceTest.kt`（132 行） | 设备回归测试 |
+| `app/src/main/java/com/example/data/favorite/ComicChapterMatching.kt`（53 行） | 漫画章节稳定匹配 |
 | `app/src/main/java/com/example/data/favorite/ComicFavoriteMatching.kt`（49 行） | 漫画收藏身份匹配 |
 | `app/src/main/java/com/example/download/NovelDownloadStore.kt`（53 行） | 小说下载入库 |
 | `app/src/main/java/com/example/download/NovelTextArchive.kt`（140 行） | 小说文本归档 |
-| `app/src/main/java/com/example/library/NovelBookUi.kt`（288 行） | 小说详情界面 |
+| `app/src/main/java/com/example/library/NovelBookUi.kt`（294 行） | 小说详情界面 |
 | `app/src/main/java/com/example/library/ZLibraryNovelMetadata.kt`（21 行） | Z-Library 小说元数据 |
 | `app/src/main/java/com/example/source/ComicInfo.kt`（40 行） | 漫画详情模型 |
 | `app/src/main/java/com/example/source/NovelInfo.kt`（33 行） | 小说详情模型 |
 | `app/src/main/java/com/example/source/PufeiImageCacheRetry.kt`（27 行） | 扑飞图片缓存重试 |
-| `app/src/main/java/com/example/source/impl/AutoNovelSource.kt`（180 行） | 自动小说源 |
-| `app/src/main/java/com/example/source/impl/IxdzsSource.kt`（112 行） | 爱下电子书小说源 |
-| `app/src/main/java/com/example/source/impl/Wenku8LibrarySource.kt`（103 行） | 文库8小说源 |
-| `app/src/main/java/com/example/source/js/JsComicMetadata.kt`（65 行） | JS 漫画元数据 |
-| `app/src/main/java/com/example/ui/ComicMetadataUi.kt`（103 行） | 漫画元数据界面 |
+| `app/src/main/java/com/example/source/impl/AutoNovelSource.kt`（186 行） | 自动小说源 |
+| `app/src/main/java/com/example/source/impl/IxdzsSource.kt`（120 行） | 爱下电子书小说源 |
+| `app/src/main/java/com/example/source/impl/Wenku8LibrarySource.kt`（111 行） | 文库8小说源 |
+| `app/src/main/java/com/example/source/js/JsComicMetadata.kt`（66 行） | JS 漫画元数据 |
+| `app/src/main/java/com/example/ui/ComicMetadataUi.kt`（87 行） | 漫画元数据界面：标签点按搜索；SelectionContainer 长按选字复制，无自定义菜单 |
 | `app/src/main/java/com/example/ui/comic/ComicLoadSupport.kt`（54 行） | 漫画加载状态支持 |
 | `app/src/main/java/com/example/ui/comic/ComicStreamPreview.kt`（115 行） | 漫画流式预览 |
-| `app/src/main/java/com/example/ui/favorite/DuplicateComicSheet.kt`（122 行） | 重复漫画收藏处理 |
-| `app/src/main/java/com/example/ui/source/SourceInfoDialog.kt`（38 行） | 书源信息弹窗 |
+| `app/src/main/java/com/example/ui/favorite/DuplicateComicSheet.kt`（126 行） | 重复漫画收藏处理 |
+| `app/src/main/java/com/example/ui/source/SourceInfoDialog.kt`（40 行） | 书源信息弹窗 |
 | `app/src/test/java/com/example/data/favorite/ComicChapterMatchingTest.kt`（39 行） | JVM/Robolectric 回归测试 |
 | `app/src/test/java/com/example/data/favorite/ComicFavoriteMatchingTest.kt`（33 行） | JVM/Robolectric 回归测试 |
 | `app/src/test/java/com/example/library/ZLibraryNovelMetadataTest.kt`（24 行） | JVM/Robolectric 回归测试 |
-| `app/src/test/java/com/example/source/js/JsComicMetadataTest.kt`（29 行） | JVM/Robolectric 回归测试 |
+| `app/src/test/java/com/example/source/js/JsComicMetadataTest.kt`（39 行） | JVM/Robolectric 回归测试 |
 | `app/src/test/java/com/example/ui/NovelBookUiShotTest.kt`（88 行） | JVM/Robolectric 回归测试 |
 | `app/src/test/java/com/example/ui/comic/ComicLoadingReliabilityTest.kt`（272 行） | JVM/Robolectric 回归测试 |
 
@@ -906,8 +972,8 @@ python novel-reader/.workbuddy/stale_check.py
 | `app/src/test/java/com/example/library/SourceSearchCoordinatorTest.kt`（107 行） | 7 项：跨站 8 路、同站间隔、并发同词合并、空/错误不缓存、过期/源替换、取消释放、冷却不占跨站槽位 |
 | `app/src/test/java/com/example/library/ReadingRecordResolverTest.kt`（86 行） | 5 项：本地立即返回、首命中发布取消、超过 5 条和同名去重、完整标题匹配、异常/超时隔离 |
 | `app/src/test/java/com/example/library/ReadingRecordMetadataTest.kt`（34 行） | 2 项：删除本地书后在线目的地保留、同名记录来源独立且拒绝标题错配 |
-| `app/src/test/java/com/example/source/js/JsHtmlStoreTest.kt`（90 行） | 4 项：释放文档及子节点、数量上限、最近使用保留、页面体积预算 |
-| `app/src/androidTest/java/com/example/source/js/ReportedComicSearchDeviceTest.kt`（165 行） | Android 原生：hitomi 括号别名、冷初始化与异步搜索取消后同源复用、已完成任务清理及其他源仍可执行、截图原词现场诊断 |
+| `app/src/test/java/com/example/source/js/JsHtmlStoreTest.kt`（103 行） | 4 项：释放文档及子节点、数量上限、最近使用保留、页面体积预算 |
+| `app/src/androidTest/java/com/example/source/js/ReportedComicSearchDeviceTest.kt`（174 行） | Android 原生：hitomi 括号别名、冷初始化与异步搜索取消后同源复用、已完成任务清理及其他源仍可执行、截图原词现场诊断 |
 | `app/src/androidTest/java/com/example/source/js/RepeatedComicSearchDeviceTest.kt`（136 行） | Android 原生：全部在架漫画源连续 3 次直接搜索、共享协调器复查与详情/章节/图片；逐源结果落盘，不将审计完成当作源全部通过 |
 
 
@@ -917,7 +983,7 @@ python novel-reader/.workbuddy/stale_check.py
 | --- | --- |
 | `app/src/test/java/com/example/source/SourceRegistrationTest.kt`（26 行） | 注册地址与固定链接免初始化 |
 | `app/src/test/java/com/example/ui/comic/ComicReaderFeedbackTest.kt`（72 行） | 预设迁移、日漫合绘纹理与完整跨页放大 |
-| `app/src/test/java/com/example/ui/comic/ComicPresetLayoutTest.kt`（61 行） | 320dp / 160% 字号排版与 RTL 滑条手势 |
+| `app/src/test/java/com/example/ui/comic/ComicPresetLayoutTest.kt`（78 行） | 320dp / 160% 字号排版、RTL 滑条手势与重组后的最新回调 |
 | `app/src/androidTest/java/com/example/ui/comic/ReaderDirectionDeviceTest.kt`（176 行） | 实际 GL 渲染、单/双页两方向卷起与落定；坐标矩形镜像 |
 | `app/src/androidTest/java/com/example/ui/comic/ReaderModeLoadingDeviceTest.kt`（121 行） | 七种真实阅读方式的慢网预览、当前优先、高清替换与单次下载 |
 
@@ -930,15 +996,553 @@ python novel-reader/.workbuddy/stale_check.py
 | `app/src/test/java/com/example/source/impl/MangaDexChapterFallbackTest.kt`（75 行） | MangaDex 官方章节图 404、旧 UUID 收藏与完整标题回退 |
 | `app/src/test/java/com/example/source/impl/MangaDexImageHeadersTest.kt`（28 行） | 官方与镜像图片请求头隔离 |
 | `app/src/test/java/com/example/source/js/MxsSpacerPagesTest.kt`（53 行） | 只剔除短纯白间隔页，保留高页、黑页和细线内容 |
-| `app/src/test/java/com/example/ui/comic/ComicChapterNavigationTest.kt`（201 行） | 方向、翻页效果与章节边界组合 |
+| `app/src/test/java/com/example/ui/comic/ComicChapterNavigationTest.kt`（329 行） | 9 项定义：方向、翻页效果、章节边界及滚动进度；新增五个等长预加载章节逐页前进 / 返回，覆盖普通、磁吸与 RTL，复用同一阅读器而不靠销毁重建掩盖回调问题 |
 | `app/src/test/java/com/example/ui/comic/ComicDoubleTapFocusTest.kt`（88 行） | 双击缩放时焦点连续、动画结束位置正确 |
 | `app/src/androidTest/java/com/example/source/js/ThreeSourceLiveReadingDeviceTest.kt`（90 行） | 三源真实读取链路的 Android 设备回归 |
 | `app/src/androidTest/java/com/example/source/js/ThreeSourceRepairDeviceTest.kt`（123 行） | 绅士漫画、漫小肆和 MangaDex 修复回归 |
 
-## 5. 关键算法清单汇总（速查表）
+### 4.14 2026-10-05 在线漫画阅读顺序与滚动进度新增文件
+
+| 文件 | 作用 / 验证 |
+| --- | --- |
+| `app/src/main/java/com/example/ui/comic/ComicScrollMetrics.kt`（90 行） | 根据列表项高度、间距、视口及首项偏移计算进度，反算滑条的项内像素落点；单图与章尾边界处理 |
+| `app/src/test/java/com/example/ui/comic/ComicScrollMetricsTest.kt`（88 行） | 5 项纯逻辑回归：单张长图、末图未到底、混合高度与间距、图内定位、空章与短章 |
+
+### 4.15 2026-10-07 阅读设置与漫画翻页、翻译新增文件
+
+| 文件 | 作用 / 验证 |
+| --- | --- |
+| `app/src/main/java/com/example/ui/components/OverlayTouchShield.kt`（17 行） | 面板空白触摸隔离，不合并子节点语义、不抢滑动 |
+| `app/src/main/java/com/example/ui/reader/ReadingSettingsPanel.kt`（92 行） | 小说主题玻璃、动画退出、底部 / 右侧自适应窗口 |
+| `app/src/main/java/com/example/ui/comic/ComicTurnGesture.kt`（27 行） | dp 有界行程、同向甩动和回甩取消，普通 Pager 阈值 |
+| `app/src/debug/java/com/example/ui/comic/ReaderPolishProbeActivity.kt`（48 行） | 仅 debug 的真实小说阅读器生成正文测试宿主 |
+| `app/src/test/java/com/example/ui/ReaderTypography125Test.kt`（45 行） | 真实小说阅读排版手机 / 平板截图及关闭测试 |
+| `app/src/test/java/com/example/ui/comic/Reader125GestureTest.kt`（34 行） | 4 项纯逻辑：尺度、速度、抖动、反向与点按区保持 |
+| `app/src/test/java/com/example/mangatranslate/OnlineTranslation125Test.kt`（50 行） | 3 项在线批量、缓存、失败无逐句扇出、严格响应校验 |
+| `app/src/test/java/com/example/network/OnlineTranslation125LiveTest.kt`（31 行） | 生产腾讯 HTTPS 日英批量 / 缓存验证，环境变量显式开启 |
+
+| `app/src/main/java/com/example/source/js/JsChapterOrder.kt`（122 行） | 补录既有 1.2.4 源码：JS 目录按显式顺序或连续话卷号归一化，保留特别组 |
+| `app/src/test/java/com/example/source/js/JsChapterOrderTest.kt`（174 行） | 补录既有 1.2.4 章节顺序与真实目录测试 |
+| `app/src/test/java/com/example/data/favorite/ComicCatalogOrderReconciliationTest.kt`（70 行） | 补录既有收藏目录顺序协调与迁移测试 |
+| `app/src/androidTest/java/com/example/ui/comic/Reader125CurlDeviceTest.kt`（104 行） | 实际生产 Core 与 GL 的左侧落指前进、两侧点击动画、背景静态验证 |
+
+| `app/src/test/java/com/example/mangatranslate/BubbleRender125Test.kt`（57 行） | Native 像素回归：错误大分割掩膜不能涂改漫画、深色竖排裁切与对比度 |
+
+| `app/src/test/java/com/example/ui/SplashLifecycle125Test.kt`（67 行） | 3 项开屏生命周期：退出组合不导航、点击只触发一次、使用最新回调 |
+
+
+| `app/src/test/java/com/example/ui/comic/ComicFeaturePolishTest.kt`（179 行） | 15 项：54 字段契约、异常参数、合页拆分、零强度、双页适配与 AI 地址 |
+| `app/src/test/java/com/example/ui/comic/ComicFeatureInteractionTest.kt`（145 行） | 7 项实际 Compose 设置：适配、整行开关、辅助功能、恢复、书级隔离与预设更新 |
+| `app/src/androidTest/java/com/example/ui/comic/ComicFeatureDeviceTest.kt`（130 行） | 3 项真实 GL / Core：首次双击、长按恢复、面板暂停自动与音量键 |
+
+
+#### 4.15.2 跟手翻页与翻译重构新增文件
+
+| 文件 | 作用 / 验证 |
+| --- | --- |
+| `app/src/main/java/com/example/mangatranslate/TranslationFailure.kt`（36 行） | 安全错误原因、HTTP 分类与是否适合重试；不暴露密钥、响应正文或接口地址 |
+| `app/src/test/java/com/example/ui/comic/ComicCurlTrackingTest.kt`（72 行） | 4 项定义：手机 / 平板 / 双页 / RTL 抓取点 1:1 跟随、松手连续与取消回落 |
+| `app/src/test/java/com/example/mangatranslate/TranslationRecoveryTest.kt`（84 行） | 8 项定义：永久拒绝、瞬时恢复、协议校验、漫画间译名隔离、分批和 OCR 原文缓存 |
+| `app/src/androidTest/java/com/example/mangatranslate/TranslationRecoveryDeviceTest.kt`（50 行） | 1 项真实 ONNX 定义：960 / 1472 方页不回收原 Bitmap，识别与译文排版完成 |
+
+### 4.16 1.2.6 分享新增文件（2026-10-07）
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/library/FavoriteShareHelper.kt` | 78 | 收藏公开链接优先；并发 3、单项 4s / 整批 25s；离线缓存，无网页来源明确标注应用详情链接 |
+| `app/src/main/java/com/example/source/DetailLink.kt` | 19 | HTTP(S) 详情链接验证、相对路径解析；拒绝凭据与控制字符 |
+| `app/src/test/java/com/example/library/FavoriteShareHelperTest.kt` | 140 | 16 个收藏链接 / 同名来源隔离 / 自定义协议编码与校验回归 |
+| `app/src/androidTest/java/com/example/library/BookShareDeviceTest.kt` | 162 | 14 个 Android 原文件、多附件、导入与 FileProvider 回归测试 |
+
+#### 1.2.7 新增文件补充
+
+| 文件 | 行数 | 职责 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/library/SharedWorkLink.kt` | 30 | 无公开网页来源的 ciallo://detail 编码和参数校验；来源 + 作品 ID 独立，无账号数据 |
+| `app/src/test/java/com/example/data/favorite/FavoriteSourceHealthTest.kt` | 72 | 4 个来源健康回归：瞬时失败、来源移除、分类 / 删除隔离、取消不误报 |
+| `app/src/androidTest/java/com/example/ui/shelf/Reader127InteractionDeviceTest.kt` | 133 | 10 个真实指针 / Android 链接解析回归；两种抬指、连续缩放、普通惯性、双板块底栏、留白 / 禁用、长按 |
+
+### 4.17 2026-10-08 漫画增强重构新增文件
+
+| 文件 | 行数 | 职责 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/ui/comic/ComicEdgeUpscaler.kt` | 190 | EASU 边缘自适应重建；等比输出预算；保色抑噪锐化 |
+| `app/src/main/java/com/example/ui/comic/ComicNeuralBackend.kt` | 77 | 内置 ONNX CPU 图、受控会话与 Kotlin 回退；共用既有运行时 |
+| `app/src/test/java/com/example/ui/comic/ComicEnhancementV2Test.kt` | 230 | 15 项：确定性、块边界、质量、噪声 / 纸底、透明度、取消、所有权、截止时间、当前页缓存压力与迟到预览拒绝 |
+| `app/src/test/java/com/example/ui/comic/ComicEnhancementZoomTest.kt` | 114 | 4 项 Native Compose：各档共享缓存、失败重试、双页独立高清位图与设置细节预览失败恢复 |
+| `app/src/androidTest/java/com/example/ui/comic/ComicEnhancementDeviceTest.kt` | 128 | 5 项可选设备用例：JNI 等价、卷页单 / 双页与各档放大、JM 1444347；本轮未执行 |
+| `tools/generate-comic-cnn-models.py` | 108 | 仓库固定权重生成两份约 5.5KB ONNX 图；scalar / ONNX evaluator / 实际 CPU Runtime 数值核对 |
+
+内置模型与 MIT 许可：`app/src/main/assets/comic_enhancement/`；FSR 许可 `app/src/main/assets/FidelityFX-FSR-MIT.txt` / `docs/vendor-licenses/FidelityFX-FSR-MIT.txt`。专项说明 `docs/comic-enhancement-rebuild-2026-10-08.md`。
+
+
+### 4.18 2026-10-09 增强可见性补录
+
+| 文件 | 行数 | 作用 |
+| --- | ---: | --- |
+| `app/src/test/java/com/example/ui/comic/ComicEnhancementVisibilityTest.kt` | 146 | 4 项 Native 图像与加载回归：墨线中心、阅读尺寸质量、原始细节与共用几何、最终图完成后退役预览 |
+
+### 4.19 2026-10-09 1.3.0 卷页增强修复补录
+
+| 文件 | 行数 | 职责与验证状态 |
+| --- | ---: | --- |
+| `app/src/test/java/com/example/ui/comic/ComicCurlEnhancementPagingTest.kt` | 202 | 4 项 Native 回归：增强尚未完成时相邻页纹理已有可读原图、共享最终图优先、RTL / 拆页 / 旋转身份、翻页结束后刷新与旧页回调隔离；包含在 1.3.0 的 290 项已通过专项中 |
+
+### 4.20 2026-10-11 阅读导航与并行界面工作补录
+
+以下为工作区已有实现；并行 AI 仍在修改。文件入清单不等于已编译、已发布或完成真机验收。
+
+| 文件 | 行数 | 职责与验证状态 |
+| --- | ---: | --- |
+| `app/src/main/java/com/example/library/LibraryNavigation.kt` | 63 | 标签搜索每次生成独立 session 并压栈；SavedStateHandle 保存初始关键词 / 文本模式，ViewModelProvider 按导航记录持有状态；详情及两种在线阅读器按可选 session 取同一模型 |
+| `app/src/main/java/com/example/ui/components/CatalogCoverMotion.kt` | 23 | 书源 + 作品 ID 构成共享封面键；使用导航可见性 / 共享转场上下文，减少动态效果时回退原 Modifier；并行实现待验收 |
+| `app/src/main/java/com/example/ui/components/CompletionGlyph.kt` | 32 | 下载完成反馈：Canvas 逐步绘制圆环与勾号，减少动态效果时直接显示完成态；已接入 DownloadGlassCard，并行实现待验收 |
+| `app/src/main/java/com/example/ui/feedback/NavigationMotion.kt` | 14 | 页面前进 / 返回成对动效，统一时长与缓动；减少动态效果返回 None；并行实现待验收 |
+| `app/src/main/java/com/example/ui/reader/ReadingGlass.kt` | 46 | 阅读背景与文字色经 LocalReadingGlass 下发；阅读面板采样阅读底层，避免采样自己的文字 / 内层卡片；按画质降级，没有 backdrop 时使用染色回退；并行实现待验收 |
+| `app/src/main/java/com/example/ui/comic/ComicFrozenGlassBackdrop.kt` | 89 | 所有漫画翻页模式在面板打开时，以 Backdrop 直接绘制当前页处理位图、背景及 RTL / 双页几何；不引用活动 RenderNode，不包裹 GLSurfaceView。实际点击设置与原尺寸编辑路径已确认通过。 |
+| `app/src/main/java/com/example/ui/shelf/ShelfMotion.kt` | 167 | 可见书卡快照、分片消散与书架补位；去重删除，截图失败 / 减少动态效果仍执行业务删除；完成或异常清理视觉状态；并行实现待验收 |
+| `app/src/test/java/com/example/library/LibraryNavigationTest.kt` | 263 | 5 项定义：四层重复标签与搜索结果保留、漫画 / 小说阅读返回、搜索层独立选源和共享偏好、空标签；多层测试最后调整未重跑，不能记为全部通过 |
+| `app/src/test/java/com/example/ui/MotionPolishTest.kt` | 199 | 5 项定义：碎片完整覆盖、顶部折叠阈值、真实封面碎裂 / 排序 / 筛选与补位、减少动态效果 / 离屏删除只执行业务一次、导航取消不丢失确认删除；并行新增待验收 |
+| `app/src/test/java/com/example/ui/ReaderGlassPolishTest.kt` | 47 | 2 项手机 / 平板排版面板截图与退出生命周期定义，使用 ReaderPolishProbeActivity；并行新增待验收 |
+| `app/src/test/java/com/example/ui/comic/ComicGlassPolishTest.kt` | 86 | 2 项手机 / 平板漫画设置玻璃界面定义，覆盖设置选项可操作性与七个分类；并行新增待验收 |
+
+改动说明：`docs/reader-navigation-fixes-2026-10-11.md`；动效审查与尚未执行的实机场景：`docs/motion-audit-2026-10-11.md`。本章与第 56 章仅记录可核对的源码现状，不代替其他 AI 的最终交付报告。
+
+### 4.21 2026-10-13 发现板块
+
+| 文件 | 行数 | 作用与关键实现 |
+| --- | --- | --- |
+| `DiscoverFilters.kt`（`app/src/main/java/com/example/discover/DiscoverFilters.kt`） | 134 | 只负责布局的主题筛选玻璃卡、文字 Tab、状态分段、排序胶囊、已选分类与删除回调 |
+| `DiscoverCards.kt`（`app/src/main/java/com/example/discover/DiscoverCards.kt`） | 268 | 三级筛选托盘、列表 / 网格 / 大图、榜单名次、收藏与滑动、封面源请求头、骨架与标记 |
+| `DiscoverDesign.kt`（`app/src/main/java/com/example/discover/DiscoverDesign.kt`） | 68 | 主题派生对比文字、独立语义色；复用全局 GlassCard；当前 MascotSpriteSheet 素材 |
+| `DiscoverModels.kt`（`app/src/main/java/com/example/discover/DiscoverModels.kt`） | 183 | 四维度 / 查询 / 源分页 / 聚合作品模型；同维度稳定源内名次分数、等源贡献、可信身份和别名去重、日历时间窗口与中文计数 |
+| `DiscoverScreen.kt`（`app/src/main/java/com/example/discover/DiscoverScreen.kt`） | 363 | 共用书库渐进折叠顶栏；精简固定维度条；可滚动书源/范围入口、独立分类/设置窗口、分页会话与滚动恢复 |
+| `DiscoverSettings.kt`（`app/src/main/java/com/example/discover/DiscoverSettings.kt`） | 73 | 独立 AcrylicDialog：浏览布局、个性化、涨跌色、缓存、屏蔽；原 AppSwitch，无默认源/成人/休息选项 |
+| `DiscoverStore.kt`（`app/src/main/java/com/example/discover/DiscoverStore.kt`） | 124 | 发现偏好与有界缓存，保留原源身份、别名和空指标；偏好监听驱动界面更新 |
+| `DiscoverTaxonomy.kt`（`app/src/main/java/com/example/discover/DiscoverTaxonomy.kt`） | 111 | 题材 / 情感 / 设定 / 受众 / 形式来源 / 默认显示成人内容三级分类；中英文标签映射，同类 OR、跨类 AND |
+| `DiscoverViewModel.kt`（`app/src/main/java/com/example/discover/DiscoverViewModel.kt`） | 310 | StateFlow 发现状态；分离目录/内容并发、50 秒分阶段超时、到即发布及独立轻量元数据补全、切换取消、逐源分页与原页重试 |
+| `DiscoverEngineTest.kt`（`app/src/test/java/com/example/discover/DiscoverEngineTest.kt`） | 86 | 源公平性、去重与别名、四维独立排序、分类组合、时间窗口、主题文字对比度专项测试 |
+| `DiscoverUiTest.kt`（`app/src/test/java/com/example/discover/DiscoverUiTest.kt`） | 339 | 390dp 浅色网格、深色 130% 榜单、大图长按菜单、收藏交互和偏好 / 缓存恢复；生产不含测试书源 |
+| `DiscoverViewModelTest.kt`（`app/src/test/java/com/example/discover/DiscoverViewModelTest.kt`） | 401 | 快源先发布、旧维度取消、分页失败原页重试、停用源隔离专项测试 |
+| `MangaDexDiscoverTest.kt`（`app/src/test/java/com/example/discover/MangaDexDiscoverTest.kt`） | 105 | MangaDex 更新按章节发布时间、原生榜单分页与不支持维度无请求 / 无伪造数据验证 |
+
+接线修改：MainActivity 的导航为书库(0) / 发现(1) / 书架(2) / 统计(3) / 设置(4)，默认仍为书架；ComicSource 新增 discover 默认缺失协议，JsComicSource 与 MangaDexSource 实现适配；发现偏好经页面设置按钮或全局设置的「书库与发现」入口打开同一独立窗口。完整分类、协议和视觉冲突说明见 `novel-reader/docs/discover.md`。
+
+### 4.22 2026-10-13 既有文件索引补录
+
+以下文件在本任务开始前已存在，本轮仅补录索引，没有修改或宣称验收这些模块。
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `MangaJaNaiFullPerformanceDeviceTest.kt`（`app/src/androidTest/java/com/example/ui/comic/MangaJaNaiFullPerformanceDeviceTest.kt`） | 53 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiPerformanceDeviceTest.kt`（`app/src/androidTest/java/com/example/ui/comic/MangaJaNaiPerformanceDeviceTest.kt`） | 54 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `ComicChapterResume.kt`（`app/src/main/java/com/example/ui/comic/ComicChapterResume.kt`） | 26 | 已有章节级恢复状态 |
+| `MangaJaNai.kt`（`app/src/main/java/com/example/ui/comic/MangaJaNai.kt`） | 261 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiFull.kt`（`app/src/main/java/com/example/ui/comic/MangaJaNaiFull.kt`） | 244 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiFullRuntime.kt`（`app/src/main/java/com/example/ui/comic/MangaJaNaiFullRuntime.kt`） | 155 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiGpu.kt`（`app/src/main/java/com/example/ui/comic/MangaJaNaiGpu.kt`） | 12 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiMobile.kt`（`app/src/main/java/com/example/ui/comic/MangaJaNaiMobile.kt`） | 74 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiRuntime.kt`（`app/src/main/java/com/example/ui/comic/MangaJaNaiRuntime.kt`） | 183 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiTiles.kt`（`app/src/main/java/com/example/ui/comic/MangaJaNaiTiles.kt`） | 63 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `ReleaseHistoryDialog.kt`（`app/src/main/java/com/example/ui/components/ReleaseHistoryDialog.kt`） | 93 | 已有更新历史窗口 |
+| `MangaJaNaiFullPrefetchTest.kt`（`app/src/test/java/com/example/ui/comic/MangaJaNaiFullPrefetchTest.kt`） | 94 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiFullTest.kt`（`app/src/test/java/com/example/ui/comic/MangaJaNaiFullTest.kt`） | 65 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiMobileTest.kt`（`app/src/test/java/com/example/ui/comic/MangaJaNaiMobileTest.kt`） | 82 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiPrefetchTest.kt`（`app/src/test/java/com/example/ui/comic/MangaJaNaiPrefetchTest.kt`） | 94 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `MangaJaNaiTilesTest.kt`（`app/src/test/java/com/example/ui/comic/MangaJaNaiTilesTest.kt`） | 72 | 已有 MangaJaNai 增强实现 / 运行时 / 分块缓存或对应专项验证 |
+| `Release132Test.kt`（`app/src/test/java/com/example/ui/comic/Release132Test.kt`） | 267 | 已有 UI / 主题 / 版本专项验证 |
+| `Release133Test.kt`（`app/src/test/java/com/example/ui/comic/Release133Test.kt`） | 62 | 已有 UI / 主题 / 版本专项验证 |
+| `OverlayPolishTest.kt`（`app/src/test/java/com/example/ui/OverlayPolishTest.kt`） | 155 | 6 项定义：普通退出 / 确认时序、前进动作绕过关闭拦截、受控菜单交接与重开 |
+| `ThemeMotionPolishTest.kt`（`app/src/test/java/com/example/ui/ThemeMotionPolishTest.kt`） | 42 | 已有 UI / 主题 / 版本专项验证 |
+
+
+### 4.23 2026-10-13 发现审查返工与当前文件补录
+
+| 文件 | 行数 | 职责 |
+| --- | --- | --- |
+| `JsDiscoverAdapter.kt`（`app/src/main/java/com/example/source/js/JsDiscoverAdapter.kt`） | 75 | JS 目录/作品解析；保留原站顺序/来源、精确整数、有效日期与缺失提示 |
+| `DiscoverNativeCatalog.kt`（已删除） | — | 原固定分类栏已由 DiscoverPanels.kt 的独立弹窗替代 |
+| `DiscoverAdapterTest.kt`（`app/src/test/java/com/example/discover/DiscoverAdapterTest.kt`） | 143 | 15 项协议元数据/分类映射/稳定分数/个性化/日期、整数及成人命名空间边界回归 |
+| `DiscoverDeviceTest.kt`（`app/src/androidTest/java/com/example/discover/DiscoverDeviceTest.kt`） | 106 | 3 项原生 Compose：追漫/布局、130% 深色菜单、原站分类阅读结果 |
+| `DiscoverProtocolDeviceTest.kt`（`app/src/androidTest/java/com/example/discover/DiscoverProtocolDeviceTest.kt`） | 98 | 4 项真实 QuickJS/宿主 DOM：嗶哩、扑飞、vomic；可输出生产分类映射矩阵 |
+| `AiManhuaDeviceTest.kt`（`app/src/androidTest/java/com/example/source/js/AiManhuaDeviceTest.kt`） | 134 | 既有并行任务文件索引补录；爱看漫网络/阅读诊断，本轮未执行 |
+
+资产桥接 `app/src/main/assets/venera/discover_bridge.js` 兼容 Venera 原站推荐/排行/分类/游标协议；`tools/discover-source-audit.cjs` 盘点并固定响应验证 36 份配置。嗶哩/扑飞/vomic 本地资产补充原站入口与原始更新时间。原有排除书源政策沿用 JsSourceRepo，不重新启用已禁用源。
+
+### 4.24 2026-10-13 无模拟器实时书源校验与并行文件索引
+
+| 文件 | 行数 | 职责 |
+| --- | --- | --- |
+| `tools/discover-live-prepare.py` | 108 | 拉取全量官方配置；独立编译生产 Kotlin patchScript 导出真实补丁；记录版本指纹，不依赖整项目构建 |
+| `tools/discover-live-http.py` | 90 | 匿名会话实时 HTTP JSONL 传输；记录状态/长度/哈希/防护特征，不使用假响应 |
+| `tools/discover-live-audit.cjs` | 194 | App 同步桥与发现协议桌面适配；逐源执行原站推荐/声明维度/分类首页；区分账号、防护、网络和解析失败 |
+| `tools/discover-live-mangadex.js` | 11 | 对应原生 MangaDex 更新/排行端点的小样本探测；仅审查工具，不注册生产源 |
+| `tools/discover-live-report.py` | 124 | 保留基准与重试，生成完整逐源矩阵及结构化报告；HTTP 200/空结果不冒充成功 |
+| `LiquidSegmentPhysics.kt`（`app/src/main/java/com/example/ui/components/`） | 128 | 并行任务文件补录：分段控件动画物理逻辑；本轮未修改或验收 |
+| `LiquidSegmentShader.kt`（同上） | 103 | 并行任务文件补录：分段控件着色器；本轮未修改或验收 |
+| `LiquidSegmentView.kt`（同上） | 314 | 并行任务文件补录：原生分段控件视图；本轮未修改或验收 |
+| `LiquidSegmentedSelector.kt`（同上） | 150 | 并行任务文件补录：Compose 分段控件；本轮未修改或验收 |
+| `LiquidSegmentPhysicsTest.kt`（`app/src/test/java/com/example/ui/components/`） | 59 | 并行任务文件补录：物理逻辑测试；本轮未执行 |
+| `LiquidSegmentSelectorTest.kt`（同上） | 176 | 并行任务文件补录：分段控件测试；本轮未执行 |
+
+报告 `docs/discover-live-2026-10-13.md`；证据 `artifacts/discover-live/live-results.json`，包含 38 份配置 / 37 个源 key 与重试记录。本地资产新增的 `aimanhua.js` 也纳入范围，但该脚本在该轮尚无发现入口；第 60 章已补齐真实目录与分类。
+
+### 4.25 2026-10-14 书库现有 20 源修复（未全部完成）
+
+| 文件 | 行数 | 本轮职责 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/source/js/JsSourceRepo.kt` | 1549 | 补丁版本 41；发现请求/分页修复、旧缓存兼容与禁漫只读有限切线 |
+| `app/src/main/java/com/example/source/js/JsSourceEngine.kt` | 558 | Comic 兼容构造器保留白名单中的原始作者/日期/统计字段 |
+| `app/src/main/java/com/example/source/js/JsMessageHandler.kt` | 1035 | Goda 复用已有 Cronet HTTP/2 路径 |
+| `app/src/main/java/com/example/source/js/JsComicSource.kt` | 926 | MYCOMIC 可见浏览器验证与浏览器身份/会话同步 |
+| `app/src/main/java/com/example/ui/source/SourceManagementScreen.kt` | 1556 | MYCOMIC 验证入口可触达 |
+| `app/src/main/java/com/example/ui/source/ZLibraryLoginDialog.kt` | 342 | MYCOMIC 站点验证说明和按钮 |
+| `app/src/main/java/com/example/discover/DiscoverTaxonomy.kt` | 138 | 19r/R-18 等成人别名，保持作者/角色命名空间隔离 |
+| `app/src/test/java/com/example/discover/DiscoverAdapterTest.kt` | 158 | 15 项元数据/分类/排序/日期回归含成人命名空间边界 |
+| `app/src/main/assets/venera/discover_bridge.js` | 186 | 跳过声明不支持的上游空榜单 |
+| `app/src/main/assets/js_extra/vomic.js` | 372 | 结构化 Flight/RSC 解析及显式元数据 |
+| `app/src/main/assets/js_extra/aimanhua.js` | 190 | MCCMS 最新目录、真实分类与分页；最新连接阻断未解除 |
+| `app/src/main/assets/js_extra/bilimanga.js` | 310 | 发现目录请求身份修复 |
+| `tools/discover-live-http.py` | 90 | 大小写无关请求头；Requests/curl 可选；不保存凭据/正文 |
+| `tools/discover-live-audit.cjs` | 194 | 修复 DOM 数字命名空间；授权登录/第二页新 ID；离线协议与禁漫切线契约 |
+| `tools/discover-repair-report.py` | 116 | 仅汇总现有 20 源证据、50 项 XML 和 APK；显式保留未完成状态，无网络请求 |
+
+报告 `docs/discover-repair-2026-10-14.md`，回执与 Debug 验证包 `artifacts/discover-repair/`。已通过源停止重复在线测试，18 个源有近期成功抽样；MYCOMIC 验证拦截、爱漫画最新断连仍未修至可用。
+
+### 4.26 2026-10-14 爱漫画线路恢复与 MYCOMIC 候选链路（未发布）
+
+| 文件 | 行数 | 职责 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/source/js/MyComicBrowserReader.kt` | 135 | MYCOMIC 同源 HTTPS GET 的 Chromium HTML 读取，与可见验证共享 UA/Cookie；大小、状态、超时、取消与销毁约束 |
+| `app/src/test/java/com/example/source/js/MyComicBrowserReaderTest.kt` | 40 | 3 项读路由边界、挑战/错误不冒充成功、章节属性与引号标题保持回归 |
+| `app/src/androidTest/java/com/example/source/js/MyComicVerificationDeviceTest.kt` | 85 | 1 项显式真实链路：可见人工验证→发现目录→详情→章节→首尾图片实际阅读器解码；未执行 |
+| `app/src/main/java/com/example/source/js/JsSourceRepo.kt` | 1549 | 补丁 42；MYCOMIC 图片身份复用、解码 DOM 属性与平衡章节 JSON，支持引号和 ]，保留真实链接回退 |
+| `app/src/main/java/com/example/source/js/JsComicSource.kt` | 926 | MYCOMIC 图像与 HTML 初始化为相同浏览器 UA，验证后才持久化身份 |
+| `app/src/main/java/com/example/source/js/JsMessageHandler.kt` | 1035 | 仅 MYCOMIC 公开 HTML 经浏览器读取；图像和写入仍使用原通道 |
+| `app/src/main/assets/js_extra/aimanhua.js` | 190 | 原站 Mcpath.url 明示 mh.iqtao.cn；HTTPS 双线路，保留 canonical 作品/章节 ID |
+| `tools/aimanhua-reading-audit.cjs` | 30 | 只检查爱漫画真实详情/章节/图片；保留首尾原始图片用于实际解码，没有其他源或账号请求 |
+| `tools/discover-live-audit.cjs` | 194 | 可导出生产主机；新增 MYCOMIC 验证 UA 与转义章节 JSON 的离线契约 |
+
+候选发布说明 `docs/release-1.3.7-2026-10-14.md`；真实爱漫画证据 `artifacts/discover-final-repair/aimanhua/` 与 `aimanhua-reading/`。MYCOMIC 实际链路未通过前不推送/发布。
+
+| `tools/verify-discover-candidate.py` | 67 | 本地候选 APK / 96 项 XML / 打包资产 / 签名 / 输入 / 对齐核验，不推送发布 |
+
+### 4.27 合并补录源码
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/source/SourceResponse.kt` | 75 | 远端共用响应解码、载荷校验及格式回归 |
+| `app/src/main/java/com/example/source/js/JsSourcePayload.kt` | 31 | 远端共用响应解码、载荷校验及格式回归 |
+| `app/src/test/java/com/example/source/SourceResponseTest.kt` | 49 | 远端共用响应解码、载荷校验及格式回归 |
+| `app/src/test/java/com/example/source/SourceTransportFormatTest.kt` | 52 | 远端共用响应解码、载荷校验及格式回归 |
+| `app/src/test/java/com/example/source/js/JsSourcePayloadTest.kt` | 132 | 远端共用响应解码、载荷校验及格式回归 |
+
+
+
+### 4.28 发现前后端返工（2026-10-14）
+
+| 文件 | 行数 | 职责 |
+| --- | --- | --- |
+| `DiscoverPanels.kt` | 174 | 独立书源底层弹窗、标准分类草稿/搜索/应用、原站分类懒加载；未知标签保留入口 |
+| `LiquidGlassShaderCompileTest.kt` | 19 | SDK 35 Native 渲染器编译实际通用玻璃 AGSL；SDK 33/34 的 Robolectric 限制见上游 #9691 |
+### 4.28 2026-10-15 发布兼容性修复
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `values-v29/themes.xml`（`app/src/main/res/values-v29/themes.xml`） | 10 | 仅 Android 10+ 的强制深色属性，继承公共基础样式 |
+| `ProducedState.kt`（`app/src/main/java/com/example/ui/components/ProducedState.kt`） | 15 | 标准 remember + LaunchedEffect 异步状态封装，保留旧值并按 key 取消/重启 |
+| `ReleaseCompatibilityTest.kt`（`app/src/test/java/com/example/ui/components/ReleaseCompatibilityTest.kt`） | 60 | API 28 弹窗清理、producer 重启及音量键按下/抬起回归 |
+| `EpubCompatibilityTest.kt`（`app/src/test/java/com/example/data/EpubCompatibilityTest.kt`） | 49 | 根目录/嵌套 OPF 的 EPUB 正文目录导入及越界路径拒绝回归 |
+
+### 4.29 2026-10-17 顶部与分类联动补录
+
+| 文件 | 行数 | 职责 |
+| --- | ---: | --- |
+| `app/src/main/java/com/example/discover/DiscoverStatusScope.kt` | 32 | 榜单、原站推荐与分类的状态作用域；完结强约束、新作说明与否定标签排除 |
+| `app/src/test/java/com/example/discover/DiscoverStatusScopeTest.kt` | 42 | 5 项状态作用域回归：完结/新作优先级、原站入口、否定词与普通状态筛选 |
+| `app/src/test/java/com/example/discover/DiscoverUiTest.kt` | 432 | 22 项 Compose 回归；顶栏紧凑几何、130% 字体、分类窗口、完结与新作层级、来源切换与缓存 |
+
+### 4.30 2026-10-19 Z-Library 下载与任务可见性，以及工作区清单补录
+
+新实现的验证状态见第 73 章；已有互传、小说、收藏变更只补文件索引，不冒充本轮验收。
+
+| 文件 | 行数 | 作用 |
+| --- | ---: | --- |
+| `app/src/androidTest/java/com/example/source/GuestNovelIntegrityDeviceTest.kt` | 58 | 工作区已有的小说下载/完整性/阅读源码或测试；本轮仅补录清单，未复验 |
+| `app/src/androidTest/java/com/example/source/PublicNovelReaderDeviceTest.kt` | 72 | 工作区已有的小说下载/完整性/阅读源码或测试；本轮仅补录清单，未复验 |
+| `app/src/androidTest/java/com/example/source/PublicNovelSourceDeviceTest.kt` | 171 | 工作区已有的小说下载/完整性/阅读源码或测试；本轮仅补录清单，未复验 |
+| `app/src/androidTest/java/com/example/source/ZLibraryDownloadDeviceTest.kt` | 218 | 显式开启的账号/目标书实网探针；一次性凭据文件登录前删除，报告不保存账号/会话/下载签名 |
+| `app/src/androidTest/java/com/example/source/js/NineteenDeviceTest.kt` | 250 | 工作区已有的书源/界面源码或测试；本轮仅补录清单，未复验 |
+| `app/src/androidTest/java/com/example/transfer/ArchiveMergeDeviceTest.kt` | 63 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/androidTest/java/com/example/transfer/TransferGlassDeviceTest.kt` | 44 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/androidTest/java/com/example/transfer/TransferTlsDeviceTest.kt` | 108 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/androidTest/java/com/example/ui/NovelDownloadPanelDeviceTest.kt` | 68 | Android 原生下载面板的进度、字节量、失败操作与截图验证 |
+| `app/src/main/java/com/example/download/GuestNovelEpub.kt` | 115 | 工作区已有的小说下载/完整性/阅读源码或测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/download/GuestNovelIntegrity.kt` | 125 | 严格 UTF-8、NUL、CRC、目录、图片与缺译检查；有界容忍源站长章节孤立缺字，保留原文 |
+| `app/src/main/java/com/example/library/NovelDownloadPanel.kt` | 147 | 持久下载任务与准备/失败任务列表；进度、字节量、文件明细、暂停/继续/重试/取消；未知总长不伪报百分比 |
+| `app/src/main/java/com/example/source/ComicChapterTitle.kt` | 46 | 工作区已有的书源/界面源码或测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/source/NovelContentChecks.kt` | 8 | 工作区已有的小说下载/完整性/阅读源码或测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/source/impl/GuestNovelTransport.kt` | 21 | 工作区已有的小说下载/完整性/阅读源码或测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/source/impl/PublicNovelSource.kt` | 418 | 工作区已有的小说下载/完整性/阅读源码或测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/source/zlibrary/ZLibraryBookReference.kt` | 43 | 节点迁移时保留路径与查询；直接提取数字 id/hash，额度/频率/存储错误不切线 |
+| `app/src/main/java/com/example/source/zlibrary/ZLibraryNodeSelection.kt` | 27 | 有预算的并发节点探测，先成功返回并取消其余探针；真实页面结构识别 |
+| `app/src/main/java/com/example/transfer/ArchiveImporter.kt` | 223 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/ArchiveRows.kt` | 71 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/BookBodyFingerprint.kt` | 72 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/ImportJournal.kt` | 80 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/IncomingChapterIndex.kt` | 60 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/NearbyConnector.kt` | 98 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/NearbyHandshake.kt` | 31 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/PortableArchive.kt` | 315 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/PortableSettings.kt` | 139 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferConnection.kt` | 82 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferDiscovery.kt` | 279 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferManager.kt` | 568 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferModels.kt` | 70 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferRoutes.kt` | 17 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferScreen.kt` | 391 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferService.kt` | 48 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferTls.kt` | 73 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/transfer/TransferWire.kt` | 24 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/ui/favorite/FavoriteCover.kt` | 94 | 工作区已有的收藏封面源码或测试；本轮仅补录清单，未复验 |
+| `app/src/main/java/com/example/ui/glasskit/GlassManagementTopBar.kt` | 27 | 工作区已有的书源/界面源码或测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/library/NovelDownloadPanelTest.kt` | 72 | 恢复任务、准备阶段失败、重试动作与未知长度显示回归 |
+| `app/src/test/java/com/example/source/ComicChapterTitleTest.kt` | 48 | 工作区已有的书源/界面源码或测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/source/zlibrary/ZLibraryDownloadRecoveryTest.kt` | 60 | 节点取消、地址迁移、限额错误与挑战页回归 |
+| `app/src/test/java/com/example/transfer/NearbyConnectorTest.kt` | 100 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/transfer/NearbyHandshakeTest.kt` | 57 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/transfer/PortableArchiveTest.kt` | 302 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/transfer/TransferConnectionTest.kt` | 70 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/transfer/TransferUiTest.kt` | 88 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/transfer/TransferWireTest.kt` | 66 | 工作区已有的设备互传源码/测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/ui/ComicChapterLabelsTest.kt` | 45 | 工作区已有的书源/界面源码或测试；本轮仅补录清单，未复验 |
+| `app/src/test/java/com/example/ui/favorite/FavoriteCoverTest.kt` | 100 | 工作区已有的收藏封面源码或测试；本轮仅补录清单，未复验 |
+
+| `app/src/test/java/com/example/source/zlibrary/ZLibraryCardMetadataTest.kt` | 30 | 搜索卡不透明书号与直链格式元数据回归，不依赖故障详情页 |
+
+### 4.28 小说插图修复新增源码与测试
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `app/src/test/java/com/example/download/GuestNovelIntegrityTest.kt` | 66 | 有效源站缺字不改写、编码损坏/NUL/密集缺字/缺译占位拦截 |
+| `app/src/androidTest/java/com/example/source/NovelIllustrationDeviceTest.kt` | 109 | 指定 Wenku8/Novelia 正式 Worker 下载入库、全部插图解码与旧书引用兼容 |
+| `app/src/androidTest/java/com/example/source/NovelIllustrationReaderDeviceTest.kt` | 90 | 指定 Wenku8/Z-Library 非封面插图通过正式 ReaderScreen 显示并截图 |
+
+
+### 4.29 1.4.11–1.4.13 触控与公共动效（2026-10-21）
+
+| 文件 | 行数 | 职责 |
+| --- | ---: | --- |
+| `TouchZones.kt` | 93 | 归一化矩形、点击 / 滑动独立枚举、最高层命中、持久化及单向手势判定；`app/src/main/java/com/example/ui/reader/TouchZones.kt` |
+| `TouchZoneGestures.kt` | 112 | 锁定 DOWN 区域、原生 PAGE 拖动交接、快速距离、多指取消、长按及缩放让位；`app/src/main/java/com/example/ui/reader/TouchZoneGestures.kt` |
+| `TouchZoneEditor.kt` | 373 | 小说 / 漫画公共矩形编辑器、四角缩放、范围端点、动态虚线 / 模拟手指与物理 dp 校准；`app/src/main/java/com/example/ui/reader/TouchZoneEditor.kt` |
+| `LiquidSlider.kt` | 494 | 公共 Android Canvas 透镜滑动条；96 点轨道、双子步弹簧、分档磁吸、范围间距、静止停绘；`app/src/main/java/com/example/ui/components/LiquidSlider.kt` |
+| `PullOutMotion.kt` | 315 | 来源几何、冻结交接入口与上级返回位置；近临界展开 / 独立关闭弹簧；同一物理时钟控制保留与关闭；`app/src/main/java/com/example/ui/components/PullOutMotion.kt` |
+| `PullOutRender.kt` | 238 | 实时 StablePaperSurface：128 前向点→64 行逆向表，AGSL 单次内容采样；完整页面显式启用，透明全屏包装器仍排除；`app/src/main/java/com/example/ui/components/PullOutRender.kt` |
+| `PullOutHosts.kt` | 511 | 弹窗 / 菜单 / 底部面板、paperOpen 向前交接与 pullOutPage 完整页面公共宿主；原窗口销毁后从冻结按钮位置展开，页面背景独立采样；`app/src/main/java/com/example/ui/components/PullOutHosts.kt` |
+| `PullOutButtons.kt` | 78 | 保持 Material 交互语义的按钮代理；自动注册纸面来源与动作关闭适配；`app/src/main/java/com/example/ui/components/PullOutButtons.kt` |
+| `TouchZoneSystemTest.kt` | 135 | 持久化、旧配置回退、重叠分区、触发距离、多指与漫画方向回归；`app/src/test/java/com/example/ui/TouchZoneSystemTest.kt` |
+| `PaperAndSliderTest.kt` | 241 | 21 项：解析弹簧平稳落定 / 反转、来源冻结与返回、逆向行表及滑条既有触摸 / 范围 / 分档约束；`app/src/test/java/com/example/ui/components/PaperAndSliderTest.kt` |
+| `TouchZoneInteractionDeviceTest.kt` | 344 | 真实 Compose / Android Canvas 交互、编辑器与纸面关闭时序、设备截图；`app/src/androidTest/java/com/example/ui/TouchZoneInteractionDeviceTest.kt` |
+| `XbookcnSnapshotTest.kt` | 57 | 第 76 轮书阁源站快照与结构回归（补录文件索引）；`app/src/test/java/com/example/source/impl/XbookcnSnapshotTest.kt` |
+| `XbookcnSourceTest.kt` | 140 | 第 76 轮书阁搜索 / 目录 / 下载回归（补录文件索引）；`app/src/test/java/com/example/source/impl/XbookcnSourceTest.kt` |
+| `XbookcnSourceDeviceTest.kt` | 245 | 第 76 轮书阁设备实网验证（补录文件索引）；`app/src/androidTest/java/com/example/source/XbookcnSourceDeviceTest.kt` |
+
+
+| `JsAccessErrorTest.kt` | 16 | 同工作区书源修复任务新增的 HTTP 451 错误分类测试（已按用户确认合入 1.4.11）；`app/src/test/java/com/example/source/js/JsAccessErrorTest.kt` |
+
+| `FanqieGateway.kt` | 153 | 并行书源修复任务：番茄网关适配（已合入 1.4.11）；`app/src/main/java/com/example/source/impl/FanqieGateway.kt` |
+| `FanqieGatewayTest.kt` | 86 | 并行书源修复任务：网关解析与签名测试（已合入 1.4.11）；`app/src/test/java/com/example/source/impl/FanqieGatewayTest.kt` |
+| `GuestNovelTransportTest.kt` | 27 | 并行书源修复任务：访客源传输测试（已合入 1.4.11）；`app/src/test/java/com/example/source/impl/GuestNovelTransportTest.kt` |
+| `NovelRepairDeviceTest.kt` | 65 | 并行书源修复任务：书源设备验收（已合入 1.4.11）；`app/src/androidTest/java/com/example/source/NovelRepairDeviceTest.kt` |
+
+| `PaperPolishDeviceTest.kt` | 524 | 10 项定义；本轮选 5 项：原地交接 / 真实管理与去重 / 缓存两层 / 小说底部物理安全区 / 2 倍字体；未重跑无关历史 5 项；`app/src/androidTest/java/com/example/ui/PaperPolishDeviceTest.kt` |
+
+| `PaperSnapshotCapture.kt`（已删除，1.4.14） | — | 删除额外 HardwareRenderer / ImageReader、离屏目标池、像素打包；历史记录见第 80 章 |
+
+
+### 4.30 小说发现与统一页面转场补充（1.4.17）
+
+| 文件（app/src 下） | 行数 | 职责 |
+| --- | ---: | --- |
+| `DiscoverPartition.kt`（`main/java/com/example/discover/DiscoverPartition.kt`） | 19 | 漫画 / 小说书源边界、独立偏好后缀、小说元数据和原有详情 / 章节路由策略 |
+| `DiscoverNovelDetails.kt`（`main/java/com/example/discover/DiscoverNovelDetails.kt`） | 42 | 发现复用小说详情、下载进度和本地阅读，成功后才刷新本地书籍状态 |
+| `HtmlNovelDiscovery.kt`（`main/java/com/example/source/impl/HtmlNovelDiscovery.kt`） | 112 | 复用源网络层，提取真实首页、推荐、分类和下一页；不猜测搜索 / 榜单接口 |
+| `NovelDiscoverTest.kt`（`test/java/com/example/discover/NovelDiscoverTest.kt`） | 124 | 独立存储 / 缓存 / 请求、静态 Legado 规则、目录身份与封面头部的 6 项回归 |
+| `UnifiedPaperPageDeviceTest.kt`（`androidTest/java/com/example/ui/UnifiedPaperPageDeviceTest.kt`） | 186 | 实际 HWUI 的完整页面、菜单到设置、内联面板及水滴分区的 4 项验收 |
+
+现有公共入口：`BookSource.kt` 提供所有内容类型的发现、目录与封面头部；`ComicSource.kt` 保留章节与图片扩展。
+`SourceConfig.kt` 增加可选 `HtmlExploreRule`，`SourceImporter.kt` 解析原生 explore 和静态 Legado exploreUrl / ruleExplore；含脚本的发现规则不执行。
+`PullOutHosts.kt` 增加 Activity 原窗口内的 paperComposable / dismissPaperPage / replacePaperPage，原生弹窗仍复用原宿主。
+
+### 4.31 平板性能与无视觉变更验证（2026-10-23）
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/data/ReaderChapterWindow.kt` | 39 | 后台三章窗口合并；只读取新入窗逻辑章，复用已加载章节对象，窗口外回退元数据，完整性检查保留 |
+| `app/src/main/java/com/example/ui/ReaderProgressEffect.kt` | 38 | snapshotFlow 滚动防抖与派生回顶阈值，滚动不重组整页，切章取消旧保存 |
+| `app/src/test/java/com/example/data/ReaderChapterWindowTest.kt` | 65 | 5 项：顺序切章单章读取、跳章释放、续章拼接、合法空章复用、缺片失败 |
+| `app/src/test/java/com/example/data/LibraryPerformanceQueryTest.kt` | 83 | 4 项：实际 Room 计数 / 发现标题 / 超长章候选，10001 条记录的本周索引等价检查 |
+| `app/src/test/java/com/example/ui/ReaderPaginationCacheTest.kt` | 75 | 3 项：8 MiB 与 8 项 LRU 预算、超大项旁路、替换计量与清理 |
+| `app/src/test/java/com/example/ui/ReaderProgressEffectTest.kt` | 102 | 2 项：60 次滚动父组合零增加、阈值单次更新、保存防抖 / 最新回调 / 切章和禁用取消 |
+
+既有 `NovelImageCacheTest.kt` 新增内存清理不 recycle 当前页位图的回归。`Book.kt` 中 `DownloadedComicCount` 为查询 DTO，不新增实体表。`AppDatabase.kt` 新增三个只读投影 / 候选查询，不改数据库版本与 schema。原统计、阅读器和所有渲染参数保留；完整范围见 `docs/performance-2026-10-23.md`。
+
+***
+
+
+以下四项为此前已有源码，本轮补充遗漏索引：
+
+| 文件 | 行数 | 说明 |
+| --- | --- | --- |
+| `app/src/androidTest/java/com/example/discover/NovelDiscoveryLiveDeviceTest.kt` | 105 | 既有小说发现设备校验，本轮未运行 |
+| `app/src/androidTest/java/com/example/ui/CardTweakLayoutDeviceTest.kt` | 59 | 既有卡片参数布局设备校验，本轮未运行 |
+| `app/src/test/java/com/example/data/BuiltInGuideRemovalTest.kt` | 58 | 内置指南清理回归，本轮 2 项通过 |
+| `app/src/test/java/com/example/discover/NovelDiscoveryCoverageTest.kt` | 149 | 既有小说发现覆盖回归，本轮不计入最终 59 项 |
+
+### 4.32 1.5.1 性能验证补充（2026-10-23）
+
+| 文件 | 行数 | 说明 |
+| --- | --- | --- |
+| `app/src/test/java/com/example/ui/comic/ComicChromePerformanceTest.kt` | 67 | 两项：极简 / 高画质平板连续 60 次进度更新，父组合不增加，底栏百分比继续更新 |
+
+`ComicScrollMetrics.kt` 新增不可变 `ComicScrollGeometry` 与测量缓存，5000 项表在 10000 次位移中复用；目标定位二分与原线性结果逐项比较。`ComicReaderCore.kt` 必须显式观察项内像素偏移：只观察 layoutInfo 会因对象复用压掉长图进度。`AppUpdateManagerTest.kt` 目标版本采用当前版本加一；`ComicChapterNavigationTest.kt` 精确目标使用 SetProgress，避免把带端部留白的触摸框百分比误当轨道数值。
+
+### 4.33 2026-11-05 补录（远端 1.5.11 与统一下载中心）
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `app/src/test/java/me/trishiraj/shadowglow/ShadowHorizontalBlurTest.kt` | 36 | 回归检查 |
+| `app/src/test/java/me/trishiraj/shadowglow/ShadowScratchPoolTest.kt` | 56 | 回归检查 |
+| `app/src/test/java/me/trishiraj/shadowglow/ShadowVerticalBlurTest.kt` | 55 | 回归检查 |
+| `app/src/test/java/com/example/data/AdultSourceDefaultsTest.kt` | 69 | 回归检查 |
+| `app/src/test/java/com/example/data/BookImportBatchTest.kt` | 44 | 回归检查 |
+| `app/src/test/java/com/example/data/HomeRenderRecoveryTest.kt` | 62 | 回归检查 |
+| `app/src/test/java/com/example/data/StartupDiagnosticsBundleTest.kt` | 69 | 回归检查 |
+| `app/src/test/java/com/example/data/StartupDiagnosticsTest.kt` | 51 | 回归检查 |
+| `app/src/test/java/com/example/download/GuestNovelResumeTest.kt` | 173 | 回归检查 |
+| `app/src/test/java/com/example/source/SourceTlsVerificationTest.kt` | 300 | 回归检查 |
+| `app/src/test/java/com/example/ui/ChapterPageBufferTest.kt` | 86 | 回归检查 |
+| `app/src/test/java/com/example/ui/PaginationChunkIntegrityTest.kt` | 101 | 回归检查 |
+| `app/src/test/java/com/example/ui/comic/ComicCurlDeviceAdaptationTest.kt` | 82 | 回归检查 |
+| `app/src/test/java/com/example/ui/comic/ComicRegionLifecycleTest.kt` | 260 | 回归检查 |
+| `app/src/test/java/com/example/ui/components/GlassDecorationCacheTest.kt` | 140 | 回归检查 |
+| `app/src/test/java/com/example/ui/components/HomeEntryCompatibilityTest.kt` | 87 | 回归检查 |
+| `app/src/test/java/com/example/ui/components/LiquidSliderLifecycleTest.kt` | 37 | 回归检查 |
+| `app/src/test/java/com/example/ui/components/MotionQualityTest.kt` | 174 | 回归检查 |
+| `app/src/test/java/com/example/ui/components/ScrollTiltSchedulingTest.kt` | 84 | 回归检查 |
+| `app/src/test/java/com/example/ui/components/StartupDiagnosticsExportButtonTest.kt` | 53 | 回归检查 |
+| `app/src/main/java/me/trishiraj/shadowglow/GlowDrawCache.kt` | 99 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/me/trishiraj/shadowglow/ShadowScratchPool.kt` | 50 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/ReaderApplication.kt` | 11 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/data/BookImportBatch.kt` | 47 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/data/HomeRenderRecovery.kt` | 62 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/data/ProcessExitDiagnostics.kt` | 27 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/data/StartupDiagnostics.kt` | 220 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/download/GuestNovelCheckpoint.kt` | 85 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/ui/components/CardDentEffect.kt` | 50 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/ui/components/OrdinaryControls.kt` | 79 | 远端既有实现，随本轮统一保留 |
+| `app/src/main/java/com/example/ui/components/StartupDiagnosticsExportButton.kt` | 58 | 远端既有实现，随本轮统一保留 |
+| `app/src/debug/java/com/example/ui/perf/MotionResourceProbeActivity.kt` | 258 | 远端既有实现，随本轮统一保留 |
+| `app/src/androidTest/java/com/example/library/ComicLocalImporterDeviceTest.kt` | 77 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/library/UnifiedDownloadLifecycleDeviceTest.kt` | 49 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/source/UnifiedNovelRoutesDeviceTest.kt` | 100 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/ui/FoldMotionDeviceTest.kt` | 277 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/ui/HomeEntryDeviceTest.kt` | 81 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/ui/LiquidSliderLifecycleDeviceTest.kt` | 84 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/ui/PreBlurredSourceLifecycleDeviceTest.kt` | 65 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/ui/WindowResizeStabilityDeviceTest.kt` | 113 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/ui/comic/ComicRegionDeviceTest.kt` | 64 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/ui/components/SliderLayerParityDeviceTest.kt` | 91 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/source/js/StartupSourceDeviceTest.kt` | 57 | 设备验证与实际通路审计 |
+| `app/src/androidTest/java/com/example/source/js/ThreeSourceNetworkRecoveryDeviceTest.kt` | 72 | 设备验证与实际通路审计 |
+| `liquidglass-core/src/test/kotlin/dev/liquidglass/core/GlassPackingReuseTest.kt` | 19 | 回归检查 |
+| `app/src/androidTest/java/com/example/ui/UnifiedDownloadEntryDeviceTest.kt` | 67 | 跨页面下载中心实际设备验证 |
+| `app/src/test/java/com/example/library/ImageBytesTest.kt` | 28 | 公开阅读器图片字节封装的两域名无损恢复与原图保护 |
+| `app/src/androidTest/java/com/example/library/UnifiedComicMigrationDeviceTest.kt` | 68 | 旧漫画 JSON/损坏文件保护、Room 迁移、删除记录保留书架文件 |
+
+`DownloadGlassCard.kt` 已删除；其旧兼容卡片由 `NovelDownloadPanel.kt` 中单一 DownloadCenter 取代。
+
+
+
+
+### 4.34 2026-11-05 抽纸过渡与资源复用
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/ui/components/WindowBackdrop.kt` | 118 | 窗口级渐变模糊/压暗、多 owner 最大半径、整数步进与有界效果缓存 |
+| `app/src/test/java/com/example/ui/components/PaperMotionTimingTest.kt` | 91 | 8–120 Hz/长帧计时、发布版形变参考和 CPU 微基准 |
+| `app/src/debug/java/com/example/ui/perf/PaperMotionProbeActivity.kt` | 122 | 真实原生窗口受控掉帧计时，仅 debug，未进入正式 APK |
+| `app/src/test/resources/paper-warp-1.5.12.csv` | 84 | 发布版 84 个状态的亚像素形变参考 |
+
+
+### 4.35 2026-11-05 共用状态反馈与下载入口
+
+| 文件 | 行数 | 作用 |
+| --- | --- | --- |
+| `app/src/main/java/com/example/library/DownloadCenterButton.kt` | 190 | 共用状态绘制/业务边界 |
+| `app/src/main/java/com/example/library/DownloadIndicatorState.kt` | 82 | 共用状态绘制/业务边界 |
+| `app/src/main/java/com/example/ui/components/StateIcons.kt` | 93 | 共用状态绘制/业务边界 |
+| `app/src/main/java/com/example/ui/components/AppProgressIndicator.kt` | 65 | 共用状态绘制/业务边界 |
+| `app/src/test/java/com/example/library/DownloadIndicatorStateTest.kt` | 62 | 回归与实际渲染验证 |
+| `app/src/test/java/com/example/library/DownloadCenterButtonTest.kt` | 63 | 回归与实际渲染验证 |
+| `app/src/test/java/com/example/ui/components/SharedStateMotionTest.kt` | 70 | 回归与实际渲染验证 |
+| `app/src/androidTest/java/com/example/ui/DownloadIndicatorDeviceTest.kt` | 112 | 回归与实际渲染验证 |
+| `app/src/androidTest/java/com/example/ui/SharedStateMotionDeviceTest.kt` | 94 | 回归与实际渲染验证 |
+
+## 5. 关键算法清单汇总
+
+- 1.4.12：HardwarePaperSurface 按行计算昂贵函数、复用顶点与颜色数组，原生硬件 drawBitmapMesh 直接提交缓存纹理；弹簧按实际帧时推进，单一生命周期驱动绘制、遮罩与关闭动作。fastPageCommit 仅在速度模长 ≥850dp/s 且配置了距离时按二维位移覆写完成判定，慢速保持原生。
+
+新增 1.4.11 核心算法：`TouchGestureDecision` 单向点击 / 滑动分类与起始区域锁定；`PaperMesh` 平滑压缩铰链、单位自由长度、26×150 网格与按行纹理融合；`LiquidSliderView` 两子步弹簧、96 点高斯弹性轨道、实时透镜放大与静止停绘。详细文件索引见 4.29。
+
+1.4.1 补充：禁漫动态目录和已验证线路持久化；手动线路选择隔离，标准 TLS 的只读 GET 限时换线，鉴权/取消不重试；旧补丁匹配兼容缩进及 CRLF。
+
+本轮新增：独立会话保存分页游标和视口；持久缓存键不含实例地址；原站稳定动态 ID 与多分类游标；配置真实能力目录；屏蔽解除清理跨源身份组。见第 65 章。（速查表）
 
 | 算法 | 所在文件 | 一句话说明 |
 | --- | --- | --- |
+| 状态反馈与一次完成事件 | `DownloadIndicatorState.kt` / `DownloadCenterButton.kt` / `StateIcons.kt` / `AppProgressIndicator.kt` | 历史与事件分离，徽标在按钮圆形裁剪层外；共用有限图标过渡、单绘制进度时钟和当前无障碍语义 |
+| 抽纸真实时间与背景复用 | `PullOutMotion.kt` / `WindowBackdrop.kt` / `PullOutRender.kt` | 解析弹簧一次消费实际 dt；窗口级同曲线驱动背景，owner 最大半径、有界整数缓存、固定三角项复用，不降低网格精度 |
+| 平板热路径去重与缓存预算 | `ReaderChapterWindow.kt` / `ReaderProgressEffect.kt` / `AppDatabase.kt` / `ReaderPagination.kt` | 只加载新入窗章；快变偏移在组合外观察；数据库返回计数 / 标题；分页同时受条目与字节预算约束 |
+| Z-Library 下载容灾 | `ZLibrarySource.kt` / `ZLibraryEndpointProvider.kt` / `DownloadWorker.kt` | 保留搜索卡下载链接和实际来源；数字书号直接提取 API key；直连阶段先于系统代理。失败节点排除并冷却，持久保存成功节点；跨节点重新按书名/作者/格式唯一匹配，额度/频率/存储错误终止；文件仍须完整性校验与入库成功。 |
+| 下载任务可见性 | `LibraryViewModel.kt` / `NovelDownloadPanel.kt` / `LibraryScreen.kt` | 准备阶段与持久 Room 任务合并，右侧单一图标与任务数/进度环，切页后不丢历史；失败不伪报空列表，未知大小不伪报 0%。 |
+| MYCOMIC 浏览器会话读链路 | `MyComicBrowserReader.kt` / `JsComicSource.kt` / `JsSourceRepo.kt` | 可见验证与后续 HTML 同 Chromium/UA/Cookie；只允许同源 HTTPS GET、20s/2M 字符预算及取消，图像同步身份；DOM 解码和平衡 JSON 避免带引号/方括号章节名截断。代码通过不代替真实链路验收 |
+| 原站故障隔离与只读切线 | `JsSourceRepo.kt` / `JsSourceEngine.kt` / `discover-live-audit.cjs` | 明确元数据白名单；官方已知线路最多 5 路、18 秒重试预算、解密 JSON 验证后学习线路，401 不切线；DOM 文档和元素 ID 分域，防止校验器制造假故障 |
+| 发现实时在线分层验证 | `discover-live-prepare.py` / `discover-live-audit.cjs` / `discover-live-http.py` / `discover-live-report.py` | 使用生产补丁与真实 HTTP，分别记录站点响应和作品解析；默认匿名、独立重试、防护与账号不冒充解析失败，桌面结果不冒充 Android 全链路验收 |
+| 旧 Android 发布兼容性 | `EpubParser.kt` / `JsDiscoverAdapter.kt` / `LiquidGlass.kt` / `ProducedState.kt` | canonicalPath 加分隔符校验导入边界；BigDecimal 先校验整数和 Long 范围；玻璃效果创建/清理按 API 防护；标准 remember/LaunchedEffect 保持异步状态可观察 |
+| 发现状态与可恢复榜单缓存 | `discover_bridge.js` / `DiscoverViewModel.kt` / `DiscoverStore.kt` | 仅原站明确应用状态选项时补回缺失状态；代表作统一状态，未知不臆造；持久保存页码/游标/目录及防循环数据，完整未过期会话直接恢复 |
+| 发现状态作用域 | `DiscoverStatusScope.kt` / `DiscoverScreen.kt` / `discover_bridge.js` | 新作仅代表新上架；完结约束覆盖旧选择并只保留确认完成的版本；否定状态名称不按包含关键词归为完结 |
+| 发现真实排序与稳定会话 | `DiscoverModels.kt` / `DiscoverViewModel.kt` / `discover_bridge.js` / `tools/discover-semantic-audit.cjs` | 有数值按真实数值排序，缺数值显示原站顺序；按源 ID/版本/查询缓存，元数据独立补全；原站周/月及状态选项按标签匹配不猜参数 |
+| 发现按源公平聚合 | `DiscoverModels.kt` / `DiscoverViewModel.kt` / `DiscoverTaxonomy.kt` | 各维独立稳定源内名次分数；可信身份 / 别名 / 作者约束去重、每源每作品一票；完成即发布、原页重试；同类并集跨类交集 |
+| 发现协议兼容与分页防循环 | `JsDiscoverAdapter.kt` / `DiscoverViewModel.kt` / discover_bridge.js | 原站列表/多区块/mixed/游标/ranking.loadWithNext/optionLoader；按真实 Venera 1-based mixed 行为，显式 0-based 可选；重复 token 或连续两页无新作停加载 |
+| 标准分类与原站分类共存 | `DiscoverTaxonomy.kt` / `DiscoverPanels.kt` | 繁简/复合标签，宽泛词映射父类；作者/角色命名空间隔离；未知标签不推断，原站分类可搜索/分组，数量 0 不冒充不支持 |
+| 有界轻度个性化 | `DiscoverModels.kt` / `DiscoverScreen.kt` | 同维度相邻分数差≤8%，最多移一位；未读/已知作者/阅读历史；榜单和原站顺序不动，可关闭 |
+| 预加载跨章后的回调更新 | `ComicReaderCore.kt` | 保留 Pager / pointerInput 时，以 rememberUpdatedState 调用当前章节回调，避免画面与父级页码状态失联 |
+| 标签搜索导航层隔离 | `LibraryNavigation.kt` / `LibraryViewModel.kt` / `MainActivity.kt` | 每次标签搜索压栈独立 session；搜索、详情与在线阅读器共享该层模型，各层搜索状态隔离，应用服务只初始化一次 |
+| 增强等待期间的卷页纹理补齐 | `ComicHarismCurl.kt` / `ComicPageLoader.kt` | 当前及前后跨预览 / 最终图通知；纹理直接查精确缓存，翻页期间延后刷新，迟到预览和旧页回调不能覆盖新展示 |
+| 并行界面动效与阅读玻璃（待验收） | `NavigationMotion.kt` / `CatalogCoverMotion.kt` / `ShelfMotion.kt` / `ReadingGlass.kt` | 转场按方向配对、封面按来源身份关联、删除视觉不吞业务操作、阅读玻璃只采样底层；减少动态效果独立回退 |
+| 增强大图缩放生命周期 | `ComicHarismCurl.kt` / `ComicReaderCore.kt` / `ComicPageLoader.kt` | 当前跨优先缓存；缩放直接加载最终独立页；预览 / 错误 / 重试共用；可见超时转失败并释放前台优先权 |
+| 原生尺度模糊墨线恢复与清晰度门控 | `ComicEdgeUpscaler.kt` / `ComicImagePipeline.kt` | 支持双向软梯度的极值有限扩展、两个尺度细节；陡峭边缘比例保护清晰页面；原图先恢复再超分、重建后独立抗锯齿 |
+| 原始像素 CNN 分块与 EASU 重建 | `Anime4KCnn.kt` / `ComicNeuralBackend.kt` / `ComicEdgeUpscaler.kt` | halo 工作块、worker 私有 scratch、去直流及边缘门控；受控 CPU 会话和 Kotlin 回退；等比 6M 输出预算，保纸底 / 色差 / 源所有权 |
+| 缩放速度隔离与底栏事件仲裁 | `ComicZoomGesture.kt` / `ZoomState.kt` / `ShelfMultiSelect.kt` / `ShelfSelectionHost.kt` | 速度采样画面平移并隔离缩放，抬指不混入质心跳变；底栏整面接收输入，宿主尊重消费 |
+| 收藏健康与详情分享 | `FavoriteRepository.kt` / `FavoriteDao.kt` / `JsComicSource.kt` / `SharedWorkLink.kt` | 瞬时请求失败不判来源移除，定向 SQL 不复活删除记录；拷贝 path_word 对应网页详情，同名跨源隔离 |
+| 原文件批量分享与收藏详情链接 | `BookShareHelper.kt` / `FavoriteShareHelper.kt` / `DetailLink.kt` / `ComicParser.kt` | 源文件优先、全附件授权与 MIME 聚合；收藏按来源身份解析，公开链接持久化；漫画原归档归属解压目录 |
+| 漫画配置正常化与书级隔离 | `ComicReaderConfig.kt` / `ComicSettingsStore.kt` / `ComicReaderCore.kt` | 54 字段统一修复非有限数与边界；关本书覆盖读取全局；仅未完成持久化任务退出时 flush，避免盖掉新默认预设 |
+| 原生 CURL 首次缩放交接 | `ComicHarismCurl.kt` / `ComicZoomGesture.kt` | 双击 / 按住 / 双指从原生首帧连续交给共享缩放；单页 / 双页复用共享高清加载内容，按实际 fit / RTL / 间隙布局，背景独立 |
+| 漫画自动阅读仲裁 | `ComicReaderCore.kt` / `ComicHarismCurl.kt` | 面板与 RESUMED 生命周期门控，缩放暂停；垂直 dt 钳制并避让触摸，canScrollForward 判断真实底部 |
+| 临时合页统一规则 | `ComicReaderConfig.kt` / `ComicPageLayout.kt` | 两入口统一移除相邻锚点，末页不合；双方免拆分，垂直忽略合页，换章清旧锚点 |
+
+| 跟手卷页与独立收尾判定 | `ComicHarismCurl.kt` / `CurlView.java` | 抓取点按手指原始位移移动，距离 / 速度只确定松手目标；setReleaseCommit 保留实际动画起点，CANCEL 始终回落 |
+| 漫画识别与译文分层缓存 | `MangaTranslationCore.kt` / `TranslationFailure.kt` | OCR 缓存独立于翻译引擎；失败重试复用识别结果，取消旧窗口预取；明确故障类别，降级结果不写 AI 缓存 |
+| 模型位图身份与批量像素读取 | `MangaOcr.kt` / `BubbleDetector.kt` | getPixels 批量读取替代逐像素 JNI；缩放同尺寸复用原对象时禁止回收调用方图像 |
+| 翻译任务注册与清除 | `MangaTranslationCore.kt` / `ComicReaderCore.kt` | LAZY Job 先注册后启动，按 Job 身份移除；清除等待取消完成，发布前 ensureActive，撤销内存烘焙与对白 / 磁盘缓存 |
+| 阅读设置自适应与触摸隔离 | `ReadingSettingsPanel.kt` / `ComicReaderSheets.kt` / `OverlayTouchShield.kt` | 手机底部、宽屏右侧有界玻璃，宽屏侧栏；动画退出保留内容，空白区指针节点隔离触摸但不合并子语义 |
+| 漫画距离与速度翻页 | `ComicTurnGesture.kt` / `ComicHarismCurl.kt` | 慢拖 64–104dp、同向 850dp/s 且至少 18dp 才甩动，反向取消；卷页按滑动方向从真实书页边缘启动，点按区保持 |
+| 仿真书页边界与点击动画 | `ComicHarismCurl.kt` | 校验 GL 矩形有效性、保留独立尺寸，动画期间延后纹理重建；真实帧 260ms 揭页再原引擎收尾，阅读背景静态 |
+| 腾讯漫画翻译批量缓存 | `TextTranslator.kt` / `MangaTranslationCore.kt` / `BubblePipeline.kt` | 24 段 / 6000 字、2 并发、16 秒整批预算、512 句缓存；失败不逐句重试、不永久缓存半页；实际字号排版裁切 |
+| 在线漫画前后章顺序 | `ComicReadingLogic.kt` / `MainActivity.kt` | 从 order 归一化序列统一取得前后章、目录、预取与进度下标，倒序书源不再颠倒跨章；0 序章不替换为原下标 |
+| 纵向漫画进度与定位 | `ComicScrollMetrics.kt` / `ComicReaderCore.kt` / `ComicReaderChrome.kt` | 按列表高度减视口高度得到滚动范围，项内偏移实时更新滑条与百分比；未实测页高按已实测均值估算，加载后校准；顶部 0%、真实底部 100%，滑条反算像素落点 |
 | 同源连续搜索协调 | `SourceSearchCoordinator.kt` | 跨站保留 8 路；同站完成后短间隔；重复成功结果 60 秒复用，错误/空结果不缓存；旧单源搜索也取消 |
 | 小说源分类隔离 | `SourceCapabilities.kt` / `SourceRegistration.kt` / `LibraryViewModel.kt` | 按 source capability 分小说与漫画；切换类别或源时取消旧请求，失败源不阻断其他结果 |
 | 整本小说更新 | `NovelDownloadStore.kt` / `BookRepository.kt` | 独立下载、解析后事务替换；校验章节位置映射，保留阅读进度、书签与笔记，失败回滚旧书 |
@@ -949,6 +1553,16 @@ python novel-reader/.workbuddy/stale_check.py
 | 阅读明细目的地 | `ReadingRecordMetadata.kt` / `ReadingRecordResolver.kt` / `ReadingRecordCover.kt` | 记录阅读时原目的地；先本地与缓存，旧记录并行精确补搜，逐条发布；封面共用站点会话与缓存 |
 | JS HTML 缓存回收 | `JsHtmlStore.kt` | 释放文档时同时删除元素/节点句柄；最多 8 文档及 4MiB 估算驻留，超限淘汰旧文档；身份映射消除每次线性查找 |
 | 聚合漫画首批加速 | `ComicAggregateSearch.kt` / `LibraryScreen.kt` | 原词 8 路优先排队且不等标题库；别名源内串行追加，书卡到即显示，首命中分组置前；取消和代次检查隔离旧搜索 |
+| 普通关键词跨语言扩展 | `KeywordExpansion.kt` / `KeywordRepository.kt` | 常用词、作品、角色与人物本地优先，20 秒流式在线补齐，语言公平分配，最多 6 个完整查询含原词；不添加站点语法、不过滤返回结果 |
+| 在线补词政策与滚动布局 | `KeywordRepository.kt` / `KeywordSearchPreview.kt` / `LibraryScreen.kt` | 分类 PIN 与全局无痕区分，停用原因与实际判断一致；用词是普通滚动条目，聚合全宽，速跳 / 当前组 / 流式定位计入首部偏移；开关行按文字自然测量 |
+| 在线请求隔离与恢复 | `OnlineKeywordLookup.kt` / `KeywordRepository.kt` | 系统代理逐请求解析；连接 / 读取 / 总请求 4 / 6 / 8 秒，流式窗口 20 秒；仅 429 / 503 按 Retry-After 冷却域名，单资源失败不抑制其他查询；复用内嵌 infobox；手动刷新重试提供者并覆盖旧失败状态 |
+| 详情选字与点击分工 | `ComicMetadataUi.kt` / `ComicChaptersScreen.kt` | 普通 clickable 点按搜索，SelectionContainer 独立消费长按选字；原生复制，不创建复制 / 搜索弹窗 |
+| Tab 指示线与背景连续性 | `AppBottomTabBar.kt` / `MainActivity.kt` | Animatable 槽位坐标在绘制读取；弹簧移动及 RTL，对齐与高度收缩解耦；滚动不切换到不透明降级背景 |
+| GitHub 正式版更新检查 | `GithubUpdateChecker.kt` / `SettingsTabScreen.kt` | 共享可取消 HTTP 与系统代理；API 失败读取官方重定向，限定同项目稳定 tag；数字版本比较，错误可见、按钮 finally 恢复 |
+| 应用内更新与安装回退 | `AppUpdateManager.kt` / `AppUpdateDialog.kt` / `AppUpdateDownload.kt` / `AppUpdateStore.kt` / `AppUpdateInstaller.kt` / `AppUpdateCleanupReceiver.kt` | 确认下载 → 进度 → 官方包身份校验 → 前台系统安装；拒绝权限保留、授权 / 导出 / 浏览器三路；真实已安装目标码触发清理，重启再验缓存 |
+| 人名简称与唯一性 | `KeywordModels.kt` / `KeywordDictionary.kt` / `OnlineKeywordLookup.kt` | 结构化中文人名中间点前的 2–6 汉字作为名字简称，仅人物 / 角色；完整名称优先，多个实体同简称拒绝扩展；本地独立 name_parts 索引，在线验证前 5 个结构化候选 |
+| 名称补齐与缓存状态机 | `KeywordRepository.kt` / `OnlineKeywordLookup.kt` / `KeywordCache.kt` | 每实体检查原文 + 外文完整性；种子 / 词库 / 本地作品别名桥接；提供者并行发布、独立失败重试、可靠实体写盘和反向索引；缓存 v3 保留旧名称、重试旧规则空结果；界面区分发现、缓存及书源提交 |
+| 匹配与发送去重分离 | `KeywordModels.kt` / `KeywordDictionary.kt` | 匹配可繁简折叠，发送保留不同汉字、标点和假名长音；词库译名装饰 emoji 清理，不修改原始外文词 |
 | 数据库历史恢复 | `LegacyDatabaseMigration.kt` | 按现有列复制到 v12，保留旧表影子；schema 自动导出至 `app/schemas`。 |
 | 用户数据备份 | `BackupArchive.kt` | SQLite 一致快照 + NDJSON/ZIP 流式内容，先提取/校验再事务替换，路径随设备重定位。 |
 | 内容锁与恢复代次 | `ContentMutationGate.kt` | 下载控制 → Worker 锁 → 内容锁 → Room；恢复后拒绝旧进度任务。 |
@@ -989,8 +1603,9 @@ python novel-reader/.workbuddy/stale_check.py
 | 小行距分页防裁切 | `ReaderPagination.kt` | 行高估算后按页复测实际块高度，超高二分回退；首页全程预留标题，缓存使用实际行高 |
 | 本地书加载代际隔离 | `MainViewModel.kt` / `ReaderScreen.kt` | 切书取消旧任务且旧元数据入状态前先核对选择代；切章直接启动正文读取，按已加载章节集合区分元数据占位与真正空章；失败显式可重试 |
 | 插图命中与菜单触摸隔离 | `ReaderScreen.kt` / `NovelInlineImages.kt` | 仅当前页登记图片矩形，非当前页图片不安装点击节点，菜单点击可穿透 |
-| EPUB 插图原包解码 | `NovelInlineImages.kt` / `NovelImageFullscreen.kt` | 从 `[IMG:epzip:file://...!entry|宽|高]` 提取并解码文件 URI 后交给 `ZipFile`；阅读预热、正文、全屏和保存共用该引用解析，解码失败展示错误 |
-| 神回在线封面复用 | `OnlineComicReaderScreen.kt` / `GodMomentSheet.kt` | 神回页引用继承阅读器 Referer 防盗链请求头；选中缩略图复用封面源位图，其他缩略图用 12MB LRU 缓存，避免重复加载 |
+| EPUB 插图原包解码 | `EpubParser.kt` / `NovelInlineImages.kt` / `NovelImageFullscreen.kt` | 图片与根目录同时 canonicalize 后生成包内引用；兼容旧 Android 目录别名混入的 cache/epub 时间戳前缀，ZIP 内归一化拒绝越界；预热、正文、全屏和保存共用解析，旧书无需改章节 |
+| 源站缺字与编码损坏区分 | `GuestNovelIntegrity.kt` | 严格 UTF-8 解码并在 HTML 解析前拒绝 NUL；字面 U+FFFD 仅每个至少 1000 字符章节至多一个、全书至多三个，原文不改写；CRC/缺译/目录/插图完整性仍强制检查 |
+| 神回在线封面复用 | `GodCoverEngine.kt` / `GodMomentSheet.kt` | Referer 和阅读器图片缓存 key 一致；缓存命中不排网络队列，缩略图 3 / 封面 1 名额，同页合并；格子独立加载并使用 12MB 小图 LRU，选中不取消 / 不借用其它页面位图 |
 | 在线漫画页请求同步 | `OnlineComicReaderScreen.kt` | 书源晚到的图片 Header 或 Referer 更新时重建页面引用，避免缓存旧的无头请求 |
 | 神回陈列与封面占位 | `GodRankingExhibits.kt` / `GodRankingShared.kt` | 三种陈列分别使用高低领奖台、唱片套封、双列相纸；封面异步解码或失败时保留中性占位，避免留白 |
 | 阅读完成触发 | `ReaderScreen.kt` / `ReaderPagination.kt` / `BookRepository.kt` | 主动向前翻且整章分页完毕才庆祝；完成状态串行写入并保持 |
@@ -1025,6 +1640,27 @@ python novel-reader/.workbuddy/stale_check.py
 | RTL 物理书本镜像 | `CurlRenderer.java` / `CurlView.java` / `ComicHarismCurl.kt` | 同时镜像几何、触摸、页面矩形；纹理补偿，逻辑索引恒等；双页跨页原画拼接与非镜像放大 |
 | 共用当前页优先 | `ComicPageLoader.kt` / `ComicReaderCore.kt` | 所有模式及翻译后台 loadForDisplay；屏幕外等待当前结果，晋升立即加载；解码并发 2、重处理 1，预览与高清失败重试共用 |
 | 注册与预设迁移 | `SourceRegistration.kt` / `JsComicSource.kt` / `ComicSettingsStore.kt` | 固定注册地址免 JS 初始化，动态地址限时读取；直接补齐内置模板并保留自建与每书配置 |
+
+新增算法（1.4.0）：聚合等待每源目录/结果，不被部分目录取消；同栏目状态是稳定作品组的版本子集；粗粒度日期按源内位置归一化；AimanhuaTls.kt 用官方 CA 兼容正常续签，并限制已过期已知公钥缓冲。
+
+### 1.4.13 公共动效打磨算法
+
+| 算法 | 文件 | 要点 |
+| --- | --- | --- |
+| 无环玻璃采样 | `MainActivity.kt` / `LiquidGlassControls.kt` / `LiquidGlassProvider.kt` | 背景与玻璃消费者为兄弟层；每个实际 Dialog View 独立 Provider，同窗嵌套复用，保留完整折射 / 模糊而不记录自身 |
+| 轻量柔性过渡 | `PullOutMotion.kt` / `PullOutRender.kt` | 原窗口的实时图层通过逆向行表一次 AGSL 采样；无截图回读和隐藏来源，停稳为恒等变换；旧平台 / 不支持 shader 使用稳定过渡 |
+| 连续跟手与开合反转 | `PullOutMotion.kt` / `PullOutHosts.kt` | 同一时钟采样最新目标，反转保留速度；嵌套初始内容直接显示，静止等待 Flow；关闭后先移除旧窗口再执行动作 |
+| 滑条手势意图 | `LiquidSlider.kt` | DOWN 不寻址，横向确认后才更新，纵向交还滚动；固定指针 ID，多指取消；透镜仅点击不发布滞后的视觉值，曲线每帧建一次并供透镜复用 |
+| 向前交接与关闭区分（1.4.16） | `PullOutHosts.kt` / `PullOutMotion.kt` | paperOpen 冻结点击入口，立即结束旧层保留，再等原生窗口销毁后提交下一界面；确认仍等待关闭。pullOutPage 只变形目标页面，保留调用页面和底栏；展开阻尼 24 避免铺平后的二次变形。 |
+
+| 窗口与物理安全区（1.4.16） | `PullOutHosts.kt` / `AcrylicDialog.kt` / `AppButton.kt` / `NovelBookUi.kt` | 全高浮动窗口取消 WindowManager fitInsets，根窗口从屏幕原点布局，内容单独消费状态栏 / 导航栏 / IME 安全区；按钮以最小高度替代固定高度。局部语义 bounds 完整不代表物理屏幕未裁切，验收需加窗口屏幕偏移。 |
+
+| 小说发现独立分区 | `DiscoverPartition.kt` / `DiscoverScreen.kt` / `DiscoverStore.kt` / `DiscoverViewModel.kt` | 共用 UI，按内容类型隔离 ViewModel、SaveableState、偏好与磁盘缓存；小说持久化原格式 / 元数据，不恢复成漫画 |
+| 真实原站小说列表 | `HtmlNovelDiscovery.kt` / `AutoNovelSource.kt` / `Wenku8LibrarySource.kt` / `JsonBookSource.kt` | 仅复用源站列表与同源下一页；实际声明才展示榜单，静态 Legado 规则走已有解析与网络策略 |
+| Activity 页面纸面生命周期 | `PullOutHosts.kt` / `PullOutMotion.kt` / `PullOutRender.kt` | 保留阅读器窗口所有权、导航参数和保存状态；异步关闭与原子替换分开，返回已有页面不重新抽出 |
+| 阅读设置关闭连续性 | `ComicReaderCore.kt` / `ComicReaderChrome.kt` / `ReadingSettingsPanel.kt` | 用实际纸面生命周期保持背景，实际面板承载形变；返回原点只改坐标、不改变内容 key |
+
+本轮算法补充：下载中心以 Room 状态为生命周期依据，广播仅覆盖活动字节；13→14 保存逐章 progress；EPUB 32 章批次写入与取消清理；漫画恢复完成后再执行孤儿清理，见第 89 章。
 
 ## 6. 如何快速上手
 
@@ -1099,7 +1735,7 @@ adb logcat -b crash
 | 改动范围 | 必跑 |
 | --- | --- |
 | 任何代码 | `./gradlew :app:compileDebugKotlin --offline` |
-| `HomeScreen` / `ui/shelf/` | `python .workbuddy/audit_shelf.py`（68 条断言，**必须全 PASS 才允许出包**） |
+| `HomeScreen` / `ui/shelf/` | `python tools/audit-shelf.py`（68 条断言；沿用旧审计并校准已过期的四项架构识别，**必须全 PASS 才允许出包**） |
 | 任何 UI | `powershell -File tools/ui-gate.ps1`（防劣化 ratchet，见 6.4 第 17 条） |
 | 单测相关 | `./gradlew :app:testDebugUnitTest --offline` |
 | 玻璃 / 画质 / 性能 | 读 `HANDOFF_PERF.md`，用 `verify_perf.ps1`（`install` / `gfxreset` / `gfx` / `shot` / `diff`） |
@@ -1125,6 +1761,49 @@ adb logcat -b crash
 
 ### 6.4 工程约定与已知陷阱（**改代码前必读**）
 
+- 下载中心入口是导航，不是单任务的暂停/完成动作。历史完成记录不控制常态图标；只有观察到的活动任务完成才发短确认，事件时钟不能以每次队列更新为 key。数量徽标必须在 IconButton 的圆形裁剪层之外，并留稳定布局槽；检查 1/两位数/99+ 和出场中间帧。实际渲染截图需等待绘制提交，不能仅凭语义树判定像素状态。
+
+- 抽纸解析弹簧不得再把真实 dt 截成 33 ms：解析解为 O(1)，无需分步补算；截断会令掉帧变成额外慢放。模糊/原生 dim/Compose 遮罩必须使用窗口生命周期；子窗口只释放自身 owner，不能清父窗口。窗口属性只初始化一次，不能在每次内容重组时归零 dim。形变参考 fixture 固定为 1.5.12，改数学实现必须保持亚像素一致，不能用降网格/画质掩盖卡顿。
+
+- 下载完成历史属于下载中心，不随书架删除而删除。记录右侧叉号必须每次确认；只删除记录时保留已入架文件。
+- 漫画初始化异步后，清理目录前必须 awaitInitialized；不得用尚未恢复的空集合判断孤儿文件。
+
+
+- 2026-10-23：不能把连续滚动像素放入整页 LaunchedEffect 键；回顶可见性用 derivedStateOf，保存用 snapshotFlow。正文缓存复用必须依据显式 loaded 集合，不能把空字符串视作未加载，也不能标记缺片邻章为完整。清理插图缓存只释放引用，不 recycle 活跃位图。JBR Unix-domain 管道连接失败时本轮使用命令级不可用临时目录触发 TCP 回退，不改工程 JDK 配置。
+
+**1.4.14–1.4.15 图层稳定性约束**：轻量柔性变形只允许在原窗口常规 RenderEffect 内完成。禁止为弹层动效借用 / 回收实时列表卡片的 RenderNode、额外离屏提交其图层或隐藏来源卡片；静止窗口不得保留捕获重试。第 80 章的捕获方案仅为历史，现行轻量变形见第 82 章；快速输入回归见第 81 章。
+
+- 1.4.13：Compose 1.7.6 的 toImageBitmap 在 API 28+ 内部同步调用 Bitmap.createBitmap(Picture)，挂起函数不代表后台执行。API 29+ 改为 UI 线程记录 / 提交 RenderNode，ImageReader 及时获取缓冲，后台只处理像素；RenderNode 不得跨线程操作，取消时淘汰目标，空闲 15 秒释放，保留同画质兼容后端。
+
+- 1.4.13：不能用慢帧写入进程级“普通过渡”标记，也不能清除轮廓阴影。真实软件画布 / 不支持设备和用户主动减弱动态效果可用兼容路径；不要用新 Dialog 尚未附着时的 View.isHardwareAccelerated 判定。
+- 1.4.13：玻璃 Provider 不能包住采样自身的消费者，独立窗口也不能复用主窗口坐标。按钮来源要在点击 / 长按实际触发时激活，不能只在 DOWN 时记一次后让长按过期。
+- 1.4.13：拖动目标不能成为逐 MOVE 重启动画的 LaunchedEffect 键；自定义头栏不再叠加宿主头栏，但须接入 paperSheetDragHandle 保留拖动收回。初始化的嵌套内容共享父纹理，用户后续展开 / 收起仍走纸面。
+- 1.4.13：像素读回不属于 Compose 虚拟动画时钟，生命周期单测须等待真实 flat 状态后测完整关闭；开场取消另测，不能把未出现纸面时的立即取消误判为退出时序错误。
+
+
+- 1.4.12：自定义分区只控制原生卷页的起点权限与快速释放完成距离；严禁消费 PAGE 拖动后直接播放整页动画，或把原始二维轨迹投影成水平线。慢速释放返回原引擎判定。
+- 1.4.12：纸面生命周期不能由另一个 AnimatedVisibility 的 isIdle 提前结束；菜单选择后等待旧窗口实际 dispose 再执行下一步，避免同调用点复用已关闭状态。按钮仅注册几何，真正打开时才截图。
+- 1.4.12 轮廓阴影特例：纸面在后台对真实 alpha 使用一次 BlurMaskFilter 生成缓存阴影，再随网格硬件变形；不得每帧软件模糊。普通 UI 阴影继续遵守第 6 条 consistentShadow 约定。
+
+- Android `/data/user/0` 与 `/data/data` 是同一私有目录的别名；计算解压图片相对路径时，两端都必须 canonicalize。只规范化正文端会把临时路径写入数据库；旧下载书不会自动重解析，需阅读端兼容且保留进度。
+- 有效 UTF-8 中的字面 U+FFFD 不等于字节编码损坏；源站偶发缺字不能无限放行或凭空修文。NUL 会被 HTML 解析吞掉，必须在解析前检查。
+
+- Z-Library（2026-10-19）：首页有响应不代表搜索、详情或文件可用。搜索卡上的临时下载链接不能在下载前丢弃；不透明书号不能跨镜像直接照搬，必须重查并唯一匹配。探针必须随取消关闭 socket，代理连接不得先用污染的本地 DNS 否决。旧网页上的“验证可用”不代替当天实测。
+
+- 1.4.2：主导航 Scaffold 不再叠加状态栏 inset，由各页应用一次安全区。完结 / 新作是上层作用域，隐藏冲突状态层；普通状态仍筛当前数据，不把状态筛选改成另一个原站目录。未完结、uncompleted、unfinished 不能用包含 completed / 完结 来判断。
+
+- 发现 1.3.11：Dialog 明确 decorFitsSystemWindows=false 后只消费一次安全区；面板固定受约束高度，内部列表 weight，按钮留底部间距。状态筛选选项的真实请求可证明状态，未实现的选项不能给作品强填状态。Content-Range 键名不区分大小写；未知总数不是零；Hitomi 分类分页上下文必须按分类/选项恢复。
+
+
+- 发现 1.3.10：允许 HTML 的混合 Accept 不能强判 JSON；弹窗空白拦截不使用合并语义的父 clickable。容器按实际窗口减去系统栏/IME 测量；横向拖动过阈值应取消点击，不能变成打开作品。当前修复见第 67 章。
+
+- 增强大图可把控制器当前页逐出，但 GL 纹理仍可见：放大不能无限轮询小缓存，必须接共享加载状态机。CNN scratch 不能跨 worker 共享；不能先缩图再宣称细节增强；测试全图 / 档间 MAD 下限会奖励色偏和噪声，应用已知参考恢复误差、纸底与噪声保护验证。自有超时须转换成可重试错误，外部取消须继续传播；只回收私有中间位图。
+
+
+- 双指缩放不能采样某根手指的绝对坐标作为平移速度；连续滚动库也需隔离缩放。底栏空隙 / 禁用项应隔离事件，宿主忽略已消费 down；裸几何命中会选到后面书卡。短暂联网失败不代表书源移除；启动时等来源注册完再检查。拷贝漫画作品 ID 是 path_word，网页 /comic/{path_word} 与 API 域名分开；同名多源收藏按完整主键处理。
+
+- 分享多附件必须把每个 URI 放进 ClipData 并添加读取授权；仅 EXTRA_STREAM 不足。漫画解压页不是原始 PDF/CBZ，导入时保存 original/ 原件；旧数据无法恢复已删除的字节。JS 源 API base / 下载 URL 不能冒充作品详情。Windows Robolectric 的 FileProvider 使用 Android `/` 根路径判断，与 Windows canonical 路径不兼容，文件分享改用 Android 原生测试；取消 socket 可能先抛 IOException，暂停持久化必须在 NonCancellable 中完成。
+
 **产品语义（已定稿，不要改错）**
 
 1. **三套数据互不干涉**：`我的书架`（本地下载制，有本地文件才算在架）、`我喜欢的`（在线收藏制，只有 `(sourceId, comicId)` 一条记录，**不落地任何文件**）、`阅读进度`（`comic_progress` / `comic_chapter_read`，两边共用）。取消喜欢 ≠ 动下载与进度；删除下载 ≠ 动喜欢与进度。
@@ -1134,6 +1813,12 @@ adb logcat -b crash
 5. **明确不做**：跨 Tab 的 spring-load（拖着悬停自动切栏）；**任何"飞向屏幕另一处"的奖励动效**（曾做过爱心/迷你封面沿贝塞尔飞向底部书架图标，做精致后仍被判定冗余而整体删除）。反馈要发生在用户手指按下的那个控件自己身上；书架里"拖到 ♡ 上"的 `HeartBurst` 属落点即反馈，保留。
 
 **代码级陷阱**
+
+- 1.2.5：关闭本书配置不能把本书值写进全局；恢复页码应初始化 lastRawPage 为恢复值，否则首次布局重建会覆盖。
+- 1.2.5：SurfaceView 不参与 Compose backdrop 捕获，不能强挂 graphicsLayer；仿真设置回退更安静底色，缩放只合成书页。
+- 1.2.5：异步任务先 LAZY 注册再 start，finally 按 Job 身份 remove，避免快速完成 / 旧取消任务移除新任务。清磁盘前等待原生在飞任务完成。
+- 1.2.5：裁边不能构造倒置 coerceIn 区间，角 / 边移动均守住至少 5%；自动滚动用实际能否继续滚动判断末页底部。
+
 
 6. **阴影**：绝不用 `BlurMaskFilter`；用 `me/trishiraj/shadowglow` 的 `Modifier.consistentShadow`，且必须复刻 `Modifier.shadow` 的裁剪语义（见 4.8）。
 7. **玻璃降级**：`LiquidGlass.kt` 的 `supportsRealtimeBlur`（API≥31）与 `frostedGlassFallback()`；`ComicChaptersScreen` 曾直接调 `RenderEffect.createBlurEffect`，API<31 会 VerifyError 崩溃，已判级。
@@ -1149,7 +1834,7 @@ adb logcat -b crash
 **验证与流程**
 
 16. 改完 `HomeScreen` / `ui/shelf` 包**必须跑** `python .workbuddy/audit_shelf.py`，全部 PASS 才允许出包（68 条断言，每条对应一次真实翻车）。断言是**按标识符字面量 grep** 的，重写方法时**不能顺手改局部变量名**，否则行为没坏审计也会红。
-17. **`tools/ui-gate.ps1`** 防劣化 ratchet：字体/圆角/颜色/dp/sp 字面量、`contentDescription=null` 只降不升，`contentType` 只增不减。当前基线：fontLiteral 513 / radiusLiteral 294 / colorLiteral 259 / dpLiteral 2261 / spLiteral 562 / descNull 113 / contentType 21。改完跑一次，如需抬高基线用 `-UpdateBaseline`。
+17. **`tools/ui-gate.ps1`** 防劣化 ratchet：字体/圆角/颜色/dp/sp 字面量、`contentDescription=null` 只降不升，`contentType` 只增不减。当前基线：fontLiteral 516 / radiusLiteral 302 / colorLiteral 298 / dpLiteral 2536 / spLiteral 598 / descNull 111 / contentType 31。改完跑一次，如需抬高基线用 `-UpdateBaseline`。
 18. **验证动画前先确认模拟器动画开着**：`adb shell settings get global animator_duration_scale` 为 0 时 App 判定"减少动态效果"，所有动画走 120ms 降级分支 → 抓到的帧全是"已经结束"，会把正确实现误判成坏的。
 19. **批量脚本必须用 `[System.IO.File]::ReadAllText/WriteAllText` + UTF8 无 BOM**：`Get-Content`/`Set-Content` 在 GBK 默认编码下会把中文注释读坏。
 20. **编辑器工具可能在 `old_text` 匹配失败时把整个文件重写**（曾把未被 git 跟踪的 `AppErrorInterceptor.kt` 截断且无从回滚）。改完 tracked 文件用 `git diff --numstat` 看增删量是否合理；未跟踪文件用 `_balance.js`（括号/引号状态机）自检。
@@ -1196,6 +1881,62 @@ adb logcat -b crash
 53. **Pager 预组合也会启动加载**：只改 preloadWindow 仍会让邻页 produceState 越过优先级和 Wi-Fi 策略；渲染、预载与翻译调度须共用当前可见状态。
 54. **预设补齐不能调用 loadPresets**：loadPresets 本身会 ensureBuiltinPresets，缺少内置模板时会递归；直接解码、迁移并写回。
 55. **内存安全看峰值与缓存替换**：本地解码先采样，解码和重管线有并发上限；替换 curl 位图时计入新旧字节差，正在绘制的位图不 recycle。API 24/25 不能无条件引用 API 26 的 HARDWARE。
+56. **跨章不能按书源原始列表的 ±1 下标**：目录已通过 `ComicReadingLogic.ordered` 排序，阅读器若仍用原列表就会在倒序源中把上一章、下一章颠倒；目录跳转、预取、神回章节号和进度记录须共用归一化序列。只有整列都缺 order 时才回退原下标，0 可以是合法序章。
+57. **长图滚动进度不能只观察最可见页码**：同一页内滚动不改页号；单张图的 `totalItemsCount - 1` 为 0，末图顶端也不等于读到章尾。条漫和无缝列表都观察 `layoutInfo` 的像素变化，滑条与百分比共用滚动范围。手势回调通过 `rememberUpdatedState` 更新，避免沿用首次组合的旧定位对象。
+
+58. **查词匹配键不能用来给请求去重**：繁简折叠会将“眼镜”和日文“眼鏡”变为相同键；给书源发送时必须保留这两种字符串。词库展示名中的 emoji 也不应进入名称匹配键。多语言扩展只改变请求，不能再按标题包含关系过滤书源结果。
+59. **分批补词必须给慢源重放历史批次**：无 replay 的广播会让还在等待原词响应的源漏掉本地别名；使用源内有界队列，并把所有批次纳入含原词的同一查询预算。在线补词失败、超时、取消不能清空已经显示的书卡。
+
+60. **罗马音不等于正式英文名**：作品完整性不能仅凭拉丁字母名称判定；人物罗马音可以作为外文关键词。每实体判断，不能把不同对象的语言拼成“完整”。
+61. **部分缓存不等于无需联网**：按提供者状态重试；空结果短缓存，HTTP / JSON 失败更短重试。200 响应结构异常必须标为失败；有效旧名称仍可搜索。
+62. **用词预览不能依赖大于 1 个关键词**：原词唯一时仍显示查词状态；发现名称立即入列表，尚未送到书源标“等待提交”。“已提交”指进入书源调度，协调器可返回短期缓存，并非证明已实际发送网络请求。
+63. **Robolectric 的 Legacy SQLite 与多测试共享 Room 异步初始化会造成 Future 等待**：字典 / 缓存专项改用 Native SQLite，缺失本地标题的仓库用例注入空标题提供者；Compose Native 截图单独执行，不把等待进程或已写图片当成整套测试通过。
+
+64. **分类 PIN 不等于全局无痕**：`PrivacyManager.isEnabled()` 控制书架分类保护，不能直接用于全局禁用搜索资料查询；全局无痕仍暂停补词，并显示具体原因。此修复只改搜索，翻译政策保留。
+65. **两行说明不能锁死 56dp 行高**：支持文字换行或放大时，ListItem 自然测量；连续开关不能靠固定高度挤在一起。
+66. **滚动首部条目会改变索引**：关键词卡片移入结果后，书源速跳、当前组与流式对准必须加同一首部偏移；测试同时覆盖折叠、展开、加载组以及无卡片情况。
+
+67. **短超时加无代理会让元数据查询始终失败**：与应用系统代理策略保持一致，4 / 6 / 8 秒请求预算与 20 秒流式窗口；先发原词和本地词，不等在线。
+68. **单资源失败不能毒化整个域名**：Bangumi 作品 404 / JSON 失败不能停止角色和人物接口；仅 429 / 503 暂停同域请求。手动重试的新结果替换旧失败，状态不得粘住。
+69. **长按复制与点按搜索需要分开消费手势**：不要叠加 combinedClickable 的长按菜单或整段复制；使用 SelectionContainer 原生选字、普通 clickable 点按，覆盖长按不误搜索回归。
+
+70. **接口返回成功不等于名称被采用**：洛琪希接口返回完整中文名 / 日英文名，旧算法全名严格相等拒绝简称。应区分精确别名与结构化人名简称，保留唯一性；不能以首条结果或任意前缀推定身份。
+71. **匹配规则升级不能沿用旧空结果缓存**：v3 保留旧可靠名称，但丢弃旧提供者决定并标记待刷新；SQLite 可重建词库 v3 重建 name_parts，同步更新在线词库事务。
+
+72. **独立 URLConnection 会绕开应用已实现的代理策略**：更新检查同样使用系统代理与共享传输，不能仅凭 VPN 已开就认为所有客户端路径一致；API 与官网发布页可达性也需分别验证。
+73. **比较版本不能只判断相等**：本地 1.2.2、线上 1.2.1 属于已最新；按数字段比较，避免 1.2.10 小于 1.2.9 的字符串错误。
+74. **Release 构建与签名兼容是两件事**：实际验证旧 GitHub 包与当前本地包证书不同；README / Release 必须说明备份迁移，私钥不入库；签名相同的本地 v5 可直接覆盖。
+
+75. **选中索引不是位图身份**：来源变更的同一帧重建封面状态；缩略图只显示自身页面结果，不能把旧 sourceBitmap 交给新选中位置。选中不应作为缩略图下载协程的 key。
+76. **空缓存探测可能触发书源重试**：先检查内存 / 磁盘是否存在，再执行只读缓存请求，避免 only-if-cached 的 504 导致冷启动等待。已有阅读缓存与小图不应排在其它网络下载之后。
+
+77. **打开安装器不等于安装成功**：只有实际安装版本码达到持久化目标才清理；系统升级会杀旧进程，新版本广播与启动清理互补，拒绝 / 取消均保留包。
+78. **授权结果码不能代替实际权限**：返回后重新读取 canRequestPackageInstalls；拒绝不自动反复跳设置，始终提供导出与浏览器下载。旧安装回调不能造出不存在的 ready 包或覆盖新状态。
+79. **中文说明的字节数大于字符数**：24,000 字符说明可能超过 64KiB，原子更新元数据读取预算采用 192KiB；仍有明确有界读取。
+80. **Windows 的 FileProvider 路径不是 Android 路径**：Robolectric 宿主 File 使用反斜杠；测试验证真实 manifest/XML，只替代 URI 创建，生产默认原生 FileProvider，不能将宿主库异常误判为手机安装流程失败。
+
+79. **模型 Ready 必须在最终路径校验之后发布**：tmp 文件 SHA 缓存不能代表 rename 后最终文件；否则第一次 Ready 触发调度时 UI 判未验证、后台再发布相同 Ready 无新事件，当前页不会翻译。下载完成先在 IO 校验最终文件，再发布 Ready。
+80. **分割掩膜不能直接整块涂抹画面**：粗分割轮廓可能跨到分镜边框；有 OCR 行时仅擦原文附近，保留气泡轮廓，排字锚定原文并裁切；用 Native 像素测试保护文字区域之外的画面。
+76. **拦截面板空白不能用父级 clickable 合并语义**：大字体滚动定位和无障碍会只看见整张面板；用不消费子拖动的 pointerInput 触摸节点。
+77. **卷页矩形缓存相同不代表 GL 边界还有效**：引擎刷新可能清除显式矩形；校验 renderer 状态，缓存缺图时保留已知尺寸和边界，动画中不重建纹理。
+78. **批量翻译失败不能自动逐句扇出**：每个段落再发两次网络请求会放大延时和限流；有限整批预算、部分失败可重试、不把部分成功写成永久完整页缓存。
+
+81. **缩放结果可能就是原 Bitmap**：createScaledBitmap 同尺寸直接返回原对象；OCR / YOLO 回收临时图必须检查身份，960 / 1472 方页需要设备回归。
+82. **轻触手势判定不能放大书页位移**：短行程与速度阈值只决定松手后完成还是回落；动画从实际抓取点继续，RTL 与双页使用同一物理像素位移。
+83. **机翻接口可用不等于免 Key 大模型可用**：发布前核实服务实际认证要求，不依赖历史宣传；公共网页机翻明确标注。失败后复用 OCR，永久拒绝不盲目重试，降级译文不能污染 AI 缓存。
+
+
+- **增强可见性与预览退役**：邻域 min/max 不能钳掉模糊墨线中心本身；增强只在放大后一个像素处理，整页适配会削弱效果。最终位图需显式拒绝迟到预览，卷页须显示 `PageLoadResult.error`；设置不能把失败原图缓存为“当前效果”。细节对比使用同一原始像素区域与几何，见第 53 章。
+84. **同一 pagerState 不等于同一章节状态**：预加载切章可以不出现 loading 空帧，父级 remember(pages) 已换状态而 LaunchedEffect(pagerState) 仍在运行。长期 collector 与 equal-length pointerInput 必须读取最新回调；回归要复用同一个阅读器连续跨章，不能用 key(chapter) 重建掩盖问题。
+85. **只改 navigate 还不能保证逐层返回**：popBackStack(home) 会删除详情记录；全局单一 comicBook / 搜索结果也会覆盖下面的页面。标签搜索应独立压栈，按 NavBackStackEntry 保存搜索模型，并把 session 传给详情和阅读器。共享书源 / 下载服务，不共享每层搜索与作品状态。
+86. **预览进入缓存不等于卷页纹理已经更新**：相邻页完成也要通知显示端；创建纹理时直接查询共享精确缓存。延迟刷新须先核对当前跨页，再清除或替换待刷新任务，旧回调不能取消新页刷新。
+87. **并行源码快照不能写成发布验收**：版本号、历史 APK 和当前未提交文件须分别记录；本次用户明确要求不编译打包，文档校准只跑源码 / 覆盖检查，不启动 Gradle，也不把测试定义数或现有截图当作全套验收。
+
+88. **CURL 的独立位图采样层不等于采样真实 GL Surface**：并行 ComicFrozenGlassBackdrop 复用处理位图绘制独立隐藏 Compose 背景，只在面板打开期间存在；禁止给实际 GLSurfaceView 外层添加 haze / graphicsLayer 的规则仍有效。独立方案的显示合成、内存与降级需实测，不能因源码存在就宣布解决 GL 玻璃问题。
+
+发现兼容补充（2026-10-13）：Venera mixed 文档与运行页码不一致；宿主自动生成的 search.load 只是首页包装，推荐分类分页需保留 loadNext 游标；作者/角色/IP 字段不能当题材，未映射分类和加载数量 0 都不能证明该源不支持。见第 58 章与 DiscoverProtocolDeviceTest。
+
+1.4.17 新增：不能按来源对象给整张纸的内容 key。菜单被冻结后在关闭时解析到存活的上级按钮，属于几何变化；重新 key 会把玻璃设置树拆掉重建。漫画面板不能用固定 240ms 定时清掉背景，必须等真实关闭结束。Activity 纸面宿主已静止后，新打开的内联面板需要独立弹簧；只有嵌在正在展开的父纸面里，初始可见子控件才直接铺平。
 
 ## 7. 关键概念词汇表
 
@@ -1381,7 +2122,7 @@ MultiLanguageSearchTest 4 项（含 9.4 万行真实资产端到端导入+查询
   自动解压 `.gz` 后缀资产（改名 `.gzip` 规避）；fmt 版本标记清表重灌（旧未折叠归一化列）；
 
 - ambient 7 段 CC0 音频 6.66MB → 16kHz 单声道 vorbis 1.46MB（时长不变；原始音频备份在
-  旧 APK 内可恢复）；
+  修复前代码 内可恢复）；
 
 - 启动器图标 PNG 1.57MB → webp q90 216KB（mipmap 全密度）；
 
@@ -1737,6 +2478,8 @@ z-lib.is/.io/.id）与 App 退役名单交叉吻合。（验证工具：node\_ve
 
 **⑩ 验证**：编译零错误；单测 6/6 通过。交付 APK：根目录
 `漫画阅读器-终版-release(第十四轮-六活节点+全链路验证).apk`（9.88MB）。
+
+**1.4.16 弹层交接约束**：进入下一界面不能复用“收回后确认”的流程。来源屏幕矩形必须在旧窗口销毁前冻结；菜单的受控 expanded=false 不会自动立即结束内部保留。完整页面应使用独立宿主，仅目标内容变形，不能把调用页面 / Tab 一起包进纸面。欠阻尼 spring 的 p>=1 被夹平后再跌回 1 以下，会重新启用 shader，形成迟发抖动；展开现用近临界阻尼，不在铺平后重新扭曲。
 
 ### 第二十轮（2026-09-05）：书库搜索展开状态跨页保持 —— 1.0.5 正式版
 
@@ -2323,8 +3066,8 @@ ONNX Runtime。当前维持本地 OCR 以保证离线可用。
 
 新增 `ui/reader/` 两个文件，并把 ReaderScreen 的渲染改成**块驱动**：
 
-- **`NovelInlineImages.kt`（345 行）**：`TOKEN_REGEX` 解析正文里的 `[IMG:…]` 占位符；`NovelImageCache`（内存 + 磁盘）；`ImageHitRegistry`（命中登记）；`splitIntoBlocks` 把内容切成 `Text` / `Image` 两类 `InlineBlock`；`buildAnnotatedWithImages` 把图塞进 `AnnotatedString`；`displaySize` 收敛图片高度（不超过页高）。
-- **`NovelImageFullscreen.kt`（190 行）**：全屏查看 + `saveNovelImageToGallery`。
+- **`NovelInlineImages.kt`（406 行）**：`TOKEN_REGEX` 解析正文里的 `[IMG:…]` 占位符；`NovelImageCache`（内存 + 磁盘）；`ImageHitRegistry`（命中登记）；`splitIntoBlocks` 把内容切成 `Text` / `Image` 两类 `InlineBlock`；`buildAnnotatedWithImages` 把图塞进 `AnnotatedString`；`displaySize` 收敛图片高度（不超过页高）。
+- **`NovelImageFullscreen.kt`（251 行）**：全屏查看 + `saveNovelImageToGallery`。
 - **分页改造（`ReaderPagination.kt`，+98）**：图片**不再**用 `ParagraphIntrinsics` 的 placeholder（大图场景下测量与渲染不一致会叠绘）；改为**原子项序列**——文本按真实排版拆成「行」原子项，图片按 (宽, 收敛高) 独立占空间且不可分割；逐原子项累加断页；页拼接与 chunk 严格相等。
 - **搜索结果精确跳转**：`pendingSearchJump` 携带逻辑章内字符偏移，跳转后页内高亮关键词；**取「第 N 处出现」而不是绝对偏移**（免疫缩进/清洗造成的漂移）；翻页离开目标页自动清除，且渐进分页期加 1.5s 保护期防误清。
 - **相邻页插图预加载**：翻页前把上一页/下一页的图 `prewarm` 进缓存，消除"翻页背后灰白、翻完才出图"。
@@ -2898,8 +3641,1779 @@ ONNX Runtime。当前维持本地 OCR 以保证离线可用。
 
 - 本轮未重跑 JVM / instrumentation 测试，也未安装到用户手机；APK 仍使用本机构建环境的 Android debug 证书。
 
+## 36. 第四十二轮执行（2026-10-05：在线漫画跨章方向与纵向滚动进度修复）
+
+### 已落地
+
+- 在线阅读路由通过 `ComicReadingLogic.navigation` 取得归一化章节序列，上一章 / 下一章、目录跳转、章尾预取、神回章节号与页级进度记录共用下标。修复倒序书源中首页回翻进入后一章、章尾前翻进入前一章的问题；同时修复合法 order=0 序章被原始下标替代。
+- 条漫与无缝列表都逐次观察 `LazyListState.layoutInfo`，根据项高、间距、视口和项内偏移更新滑条及百分比；单张长图也有连续进度，进入末图不再提前显示 100%，实际滚到底才完成。页码、旋转及预载目标继续跟随最可见项。
+- 滑条按同一滚动范围反算到列表项内像素位置；单张长图可直接定位。缩略图气泡按实际滑条位置显示；`PanelSlider` 通过 `rememberUpdatedState` 获取最新定位回调，避免重组后沿用旧闭包。
+- 新增 10 项回归：3 项章节导航、5 项滚动范围纯逻辑、1 项双模式长图手势与滑条定位、1 项滑条回调更新；既有滚动策略测试同步更新。新增源码与测试文件登记在 4.14。
+- `:app:compileDebugKotlin --offline` 通过。全量 JVM/Robolectric 执行 519 项，508 项通过、11 项失败；其中漫画阅读器及章节逻辑 245 项全部通过。完整失败摘要保存在 `.workbuddy/online-reader-full-test-summary.json`，日志 `.workbuddy/online-reader-navigation-progress-tests.log`。
+- 最终源码单独执行 `:app:compileDebugKotlin :app:testDebugUnitTest --offline --tests 'com.example.data.favorite.ComicReadingLogicTest' --tests 'com.example.ui.comic.*'`：245 项通过、0 失败 / 跳过，BUILD SUCCESSFUL（1 分 13 秒）；日志 `.workbuddy/online-reader-focused-tests.log` 与摘要 `.workbuddy/online-reader-focused-test-summary.json`。
+- 源码覆盖检查 510 文件、未登记 0；反向检查仅报告两项明确标注“已删除”的旧开关文件。UI gate 旧基线报告字体、圆角、颜色等计数超标；与本轮起始 `HEAD 8c29a57` 对比，全部 7 项 UI 指标增量为 0，未抬高基线。
+
+### 未做
+
+- 未重新打包 APK、发布版本或安装到用户手机；当前 adb 无已连接设备，未跑设备测试。
+- 未处理全量测试中的 11 项其他模块失败：EPUB 图片导入 / 迁移 3 项、下载取消 1 项、Legado 正则规则 1 项、Z-Library 登录与联网搜索 6 项；本轮未修改这些模块，也不把全量结果记为通过。
+
+### 踩到的坑
+
+- 章节列表的 UI 正序不代表书源返回列表也是正序；所有跨章路径必须采用同一归一化序列，不能只交换手势回调。
+- 最可见项不变时仍会滚动；无缝旧公式还把单项进度固定为 0、末项顶端当作 100%。列表尚未实测的页高按已实测均值估算，图片加载或高度改变后重新校准，不声称未知页高时已掌握整章精确长度。
+- 指针协程的 key 不变时回调仍可能变化，滑条手势必须读取最新回调。滑条像素反算使用四舍五入，避免浮点误差把项边界定位到上一项的尾部。
+
 
 
 
 ***
 
+
+## 37. 第四十三轮执行（2026-10-05：中文关键词跨语言搜索）
+
+### 已落地
+
+- 常用词和作品 / 角色 / 作者 / 社团名称映射，144 条自有种子 + 44,530 条标签名称资料，复用旧 AniList 标题索引。资料本地优先、缺语言时按需用 Wikidata / Bangumi 补充；没有调用或修改翻译引擎。
+- 关键词模块见 4.6.8；漫画、小说聚合和单源原词立即请求，本地词 / 在线词分批追加。同源有界队列重放批次、每轮含原词最多 6 个完整查询；不添加站点语法，不按标题 / 语言过滤返回结果。
+- 修复繁简匹配键被误用作发送去重、单字原词被丢弃、词库中文展示名 emoji 导致无法命中的问题。保留类型化登录错误和已有书卡，切换查询按取消与代次隔离。
+- 主 Room 库仍为 v12。词库使用独立可重建 SQLite，查词用 256 查询上限的 AtomicFile 缓存；新增在线补充开关与搜索用词提示，备份设置类型登记同步补充。资料署名 / 许可 / 派生版本已记录并打包。
+- 最终相关 JVM / Robolectric 测试 50/50，0 失败 / 错误 / 跳过；主库迁移与真实旧标题导入回归通过。集成 Release 构建成功；最后只将新增 UI 样式改成现有主题和间距 token，再构建成功（2 分 59 秒）。
+- APK 交付副本 `artifacts/multilingual-search/CialloReader-multilingual-search.apk`，1.2.0 / 201、arm64-v8a、23,981,380 B，SHA-256 `b07b09cb1b6c08f37875a8382a599de8eda6323604b71424d1476385ba527984`，v2 签名和 ZIP CRC 校验通过。未发布远端 Release。
+- 覆盖校验 520 源码、未登记 0；两项旧删除文件的反向告警继续显式保留。全局旧 UI gate 仍有既有基线超标，本次 LibraryScreen 的 7 项计数增量均为 0，未改基线。实施细节、资料来源、测试及边界见 `docs/multilingual-keyword-search-implementation-2026-10-05.md`。
+
+### 未做
+
+- 本机未连接 Android 设备，也无现成 AVD；未安装用户手机或实测 E-Hentai 等账号 / 网络下的命中率。只声明专项 50 项通过，没有重跑全应用 547 项，也不改前一轮全量测试失败记录。
+- 用户映射编辑、点击学习、任意中文长句自动分词、AI 猜词和翻译兜底未加入。第三方资料无相应语言 / 名称时保持缺失，不编造名称。
+- 上游 README 请求的下游项目登记待维护者处理；本次未向他人发消息。第三方词库的许可独立于应用代码，发行用途以资料许可为边界。
+
+### 踩到的坑
+
+- 繁简 / 日式汉字折叠用于查词，不能用于发送去重；日文“眼鏡”和中文“眼镜”需要分别搜索。词库“眼镜👓”的装饰 emoji 只在资料导入匹配侧清理。
+- metadata 的部分成功也可能缺少目标语言，应继续查询备用来源；接口结果排名高不证明属于同一作品，不能把外传或相似人名永久合并。
+- 仅返回最终变体列表会拖住已知本地词；不带重放的广播则会让慢源漏词。源内队列和全轮预算必须一起约束，补词失败不覆盖已有结果。
+
+
+## 38. 第四十四轮执行（2026-10-05：多语言搜索二次完善与在线缓存可见性）
+
+### 已落地
+
+- 名称资料本地优先，缺少或只有部分语言时继续在线补齐；种子不再遮挡大词库，本地中文作品经已知外文别名精确连接 AniList 原文 / 英文 / 罗马音。实际捆绑《我的青春恋爱物语果然有问题》已离线回归。
+- Bangumi 不再只查图书：覆盖所有作品类别、角色和人物，取详情核对中文名和别名；Wikidata 并行补齐，AniList 验证已知别名。原文纯汉字、罗马音、正式英语分开标记，每实体判断完整性，重名不自动猜测。
+- 提供者流式发布和立即写盘；filesDir 的 AtomicFile v2 缓存记录独立重试状态，迁移可靠旧缓存和反向别名，最多 512 查询。有效部分缓存仍可补缺少语言，失败短重试不等于确认无名称。大词典刷新独立后台执行，网络阶段不占查词锁。
+- 原词唯一也显示搜索用词组件，在线词到达立即追加；详情可复制、来源可见、区别“等待提交”与“已提交 N 个书源”，长名称限高滚动。补词窗口 12 秒，原词先请求，不添加站点语法、不过滤实际资源。
+- 最终 79 项核心 / 调度回归通过；Compose Native 截图另跑 3 项通过，共 **82 / 82，0 失败 / 错误**。真实资产、持久缓存、人物详情、部分缓存补齐、异常 JSON、复合词预算和最后释放在线词的状态均覆盖。androidTest 定义编译成功，Release 构建成功。
+- 交付副本 `artifacts/multilingual-search-v2/CialloReader-multilingual-search-v2.apk`，1.2.0 / 201、arm64-v8a、23,993,604 B，SHA-256 `4d19627efbe0af22eb38e414f85f53f6097199d09ed97f689a0bc22419c025c7`；签名 / 版本 / 对齐 / ZIP CRC 校验通过，与第一轮 APK 的签名一致。未发布远端 Release。
+- 新增生产 `KeywordSearchPreview.kt`、JVM `KeywordRepositoryTest.kt` / `KeywordSearchPreviewTest.kt`、设备 `KeywordSearchDeviceTest.kt`；现有源码表和测试统计同步更新。完整说明 `docs/multilingual-keyword-search-v2-2026-10-05.md`，XML / 截图 / 指纹 / 验收步骤见交付目录。覆盖 524 个源码文件，未登记 0；反向仅两项已明确删除的旧文件。
+
+### 未做
+
+- 模拟器未正常完成启动，设备测试仅声明编译成功；未在用户真实手机或 E-Hentai 登录账号上确认命中率。网络、资料收录与重名仍会影响补词，不能承诺任意人名都有多语言名称。
+- 没有重跑全应用 573 项 JVM 定义。全局旧 UI gate 仍有既有阅读器基线超限，本轮新组件用 DesignTokens，未更新基线或回退其他工作。
+- 任意中文长句语义分词、生成式猜词、用户映射编辑及点击学习未加入；翻译 / OCR / 书源语法没有修改。
+
+### 踩到的坑
+
+- 将作品罗马音当正式英语、把不同实体的语言合起来看完整、种子提前返回，都会阻止缺失语言补齐。部分正缓存也不能在整个有效期内一律阻止其他提供者。
+- HTTP 200 的异常响应不能作为无名称的证据；提供者失败与空结果分别记录。流式名称先采用、队列稍后提交，界面必须诚实区分两者，提交数也不能声称网络请求次数。
+- Robolectric 的 Legacy SQLite / 共享 Room 异步初始化出现 Future 等待；名称资产与缓存专项使用 Native SQLite，缺失标题用例注入空提供者，截图独立执行。构建期间改动源文件会使新测试读到旧编译结果，最终冻结源码重跑并核对 Release 构建前后文件指纹。
+
+
+
+## 39. 第四十五轮执行（2026-10-05：在线补词开关与滚动界面修复，合并上游 1.2.1）
+
+### 已落地
+
+- 修复分类 PIN 误伤在线搜索，保留全局无痕暂停并显示真实原因；已有搜索开启在线补词会重新查词。固定行高改为文字自适应，两项说明不重叠。
+- 关键词改为标签玻璃卡片，默认紧凑、展开显示完整来源 / 提交情况；在聚合瀑布流与单源 / 等待 / 错误 / 空结果列表内随内容滚走。速跳与流式定位同步校准偏移。
+- `origin/main` 两个提交快进合并至 `74983bf0`；原本修改由 stash 保全并恢复，无冲突，上游版本 `1.2.1 / 202` 与漫画源 / 详情 / 导航更新保留。合并快照 ID 记录在 `.workbuddy/keyword-v3-upstream-stash.txt`。
+- 合并后 87 项核心 + 6 项 Compose Native 测试共 93 项通过；androidTest 编译成功，Release 构建成功且期间输入未变。APK 23,994,940 B，SHA-256 `b4cf46db5f16de11372768b0a4957158d0654c745be90031d5e5fec8ee5f8909`，签名 / 包身份 / arm64 / 16KB 对齐 / CRC / 词库内容校验通过，与本地 v2 同证书。详见 `artifacts/multilingual-search-v3/verification.json` 与 `docs/multilingual-keyword-search-v3-2026-10-05.md`。
+
+### 未做
+
+- 未修改翻译路径。未把组件截图或设备测试编译当成真机运行通过，未使用用户 E-Hentai 登录账号验证实际命中率。未发布 GitHub Release。全局 UI gate 保留既有工作区及上游字面量超限，未更新基线。
+
+### 踩到的坑
+
+- 原来把分类密码保护与全局无痕合为一个布尔值，再统一提示“未启用”，导致已开启的开关看起来失效。独立判断后用准确原因反馈。
+- 关键词从固定区域移入瀑布流后，多了一个跨列 item，不能只搬 UI 而忽略分组索引。大字体防遮挡和两个生产滚动条目函数已加入专项测试。
+- 合并上游前需保全整个已跟踪工作区；使用 stash 保存并 apply，保留恢复快照及未跟踪资料，不覆盖既有阅读器 / 搜索工作。
+
+
+## 40. 第四十六轮执行（2026-10-05：在线查词恢复、Tab 动画与原生选字复制）
+
+### 已落地
+
+- 在线查词逐请求读取系统代理，4 / 6 / 8 秒请求预算、20 秒流式窗口；原词与本地词仍先发送。只有 429 / 503 冷却整个域名，作品接口失败不抑制角色和人物。复用 infobox，减少详情请求。
+- 缓存保留提供者具体失败原因，兼容旧格式；展开可见，支持手动重新查词并覆盖旧失败状态，隐私和限流规则保留。生产 HTTP 的真实 API 探针取得雪ノ下雪乃 / Yukino Yukinoshita 与 Watari Wataru。
+- 搜索用词采用书源管理同款 GlassKitCard，保留生产滚动首项与跨列布局；Tab 横杠等宽槽位弹簧移动 / RTL 对齐，实时背景不再因滚动转实心。
+- 按用户最终要求移除详情复制 / 搜索弹窗：标题、作者、编号、标签点按搜索；SelectionContainer 长按选字原生复制。手势回归验证长按不搜索。
+- 91 项核心 + 11 项 Compose Native + 1 项真实接口共 103 项通过；androidTest 编译、Release 构建成功，期间输入一致。APK 23,997,396 B，SHA-256 `4ef77152db06d66d44f6fa2cc9c646f06362d46ce7b8e7021d5821d5ff808a89`；签名 / 身份 / arm64 / 16KB 对齐 / CRC / 词库匹配通过，与本地 v3 同证书。
+- 全部 527 个源码文件覆盖，未登记 0，反向仅两项明确删除历史文件；专项报告 `docs/multilingual-keyword-search-v4-2026-10-05.md`，APK / 原始 XML / 截图 / 验收说明在 `artifacts/multilingual-search-v4/`。
+
+### 未做
+
+- 未改翻译路径，未发布 GitHub Release，未做用户手机与 E-Hentai 登录账号验证。UI gate 仍有既有 / 上游字面量超限，数量与 v3 相同，未修改基线。
+
+### 踩到的坑
+
+- 单资源失败触发全域冷却、过短超时与未显式解析系统代理叠加，使所有在线查询看起来失败；真实 HTTP 验证复现直连超时与代理成功。
+- 手动刷新若仍粘住旧失败布尔值，会得到成功却显示失败；每个提供者新状态覆盖旧状态并重新计算。
+- Robolectric API 35 缺少系统连接代理 binder 与 Magnifier Surface：真实接口探针只替代代理 getter；选字测试只替代放大镜 popup。HTTP、选择 / 复制、生产点击逻辑仍实际执行，不把测试容器当真机。
+- Tab 动画截图需等待主线程绘制完成，仿真时钟未自动刷新 View；逐帧检查等待绘制后取得中间位置与最终对齐。
+
+
+## 41. 第四十七轮执行（2026-10-05：洛琪希中文简称复现、索引与完整查词验证）
+
+### 已落地
+
+- 复现用户代理已开、洛琪希仍显示“未找到更多可靠名称”：真实 Bangumi API 返回全名，旧全名相等判定拒绝简称。支持人名中间点前的明确 2–6 汉字名字简称，仅角色 / 人物，完整名优先，多个同级实体拒绝猜测；检查前 5 个结构化候选。
+- 本地 SQLite 词典 v3 新增 name_parts 索引；含洛琪希的简称可离线命中 roxy migurdia，旧 v2 重建可恢复数据。线上词典更新同步事务维护索引。
+- 查询缓存 v3 保留旧可靠名称，但不沿用旧规则的空结果 / 重试决定，标记待刷新；用户书库不迁移。
+- 真实接口探针去掉人工类型提示，验证雪乃、渡航、洛琪希；完整生产仓库验证中文输入发布英文 / 日文全名，状态“已在线补充并缓存”，新仓库关闭在线后“已使用缓存”。前轮 UI / Tab / 原生复制保留。
+- 98 核心 + 11 Compose Native + 2 真实网络共 111 项通过；包含简称唯一性 / 相似前缀 / 姓氏拒绝、精确名优先、旧 SQLite 升级与旧缓存失效。androidTest 编译、Release 构建成功且输入稳定。APK 24,000,448 B，SHA-256 `059edc5929720647c07349225826e3e8d0df1a47b9ef2551f56994180e554836`；签名 / 身份 / arm64 / 16KB 对齐 / CRC / 词库匹配通过，与本地 v4 同证书。
+- 全部 527 个源码文件已登记；106 个 JVM 文件 / 600 项定义，设备 28 文件 / 98 项定义。报告 `docs/multilingual-keyword-search-v5-2026-10-05.md`，APK / XML / 真实网络摘要在 `artifacts/multilingual-search-v5/`。
+
+### 未做
+
+- 未改翻译、未发布 GitHub、未做用户手机或 E-Hentai 登录账号验证。不承诺每个简称与名字都会被资料服务收录。UI gate 保留既有 / 上游超限，未改基线。
+
+### 踩到的坑
+
+- 前次接口验证带类型提示，且只覆盖完整名，无法证明应用未知名字 / 简称路径可用。必须增加用户实际输入和真实仓库发布、缓存、离线重建验证。
+- 匹配规则升级但旧空结果还在，会继续显示未找到；保留可靠名称同时废弃旧提供者决定，不能要求用户清掉整个应用数据。
+- 放宽任意前缀会把同姓人物、相似标题或片段混进来；只用结构化人名边界、精确优先与唯一候选，不采用首条排名。
+
+
+## 42. 第四十八轮执行（2026-10-05：GitHub 更新检查、1.2.2 编译与发布）
+
+### 已落地
+
+- 新增 GithubUpdateChecker：公开 API / 官方发布页回退、系统代理、8 / 10 / 12 秒单次预算、四段版本比较、实际 DNS / HTTP / TLS / 超时原因；同项目 HTTPS 稳定 tag 校验，无账号 token、无第三方镜像。
+- 设置页采用新客户端，BuildConfig 版本回退、检查按钮 finally 恢复，新版本直接打开具体发布页；1.2.2 / 203、README / CHANGELOG 同步。
+- 此前已验收的多语言搜索、简称 / 缓存、Tab 动画、滚动卡片、原生复制及既有漫画滚动进度工作纳入本次发布；原上游漫画源修复保留。
+- 131 核心 + 47 Compose Native + 3 真实网络，共 181 项通过。真实 Github API 与正式发布页回退读到 1.2.1；旧正式版不误报为本地 1.2.2 的新版。androidTest 编译与 Release 构建成功且输入稳定。
+- APK 24,001,884 B，SHA-256 `520605e895fc91427f847739b6ea6f52d6b405d1c95592068c96df15572ddcd0`；签名 / 身份 / arm64 / 16KB 对齐 / CRC / 词库核验通过，与本地 v5 同证书；旧 GitHub 1.2.1 证书不同，README / Release 明确先备份再迁移。
+- GitHub `main` 与 `v1.2.2` 已推送至 `38d76801`；正式 Release `https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.2` 已公开，APK 与 SHA256SUMS 上传并匹配 GitHub 服务端 digest。发布后生产客户端 API 与官方回退都读到 1.2.2。记录 `artifacts/release-1.2.2/github-publication.json`；公开报告 `docs/release-1.2.2-2026-10-05.md`。
+
+### 未做
+
+- 未改翻译，未做用户手机 / 登录书源实测；UI gate 保留既有 / 上游超限，未重设基线。未上传 APK 到 Git 历史、未提交密钥或本地日志；宣传工作目录保留。
+
+### 踩到的坑
+
+- 旧检查错误提示吞掉根因，且网络 / 版本比较独立于已有可靠路径。统一可取消传输与系统代理，API 受限时读取官方重定向。
+- 多资料提供者先返回完整名称时会取消其余查询；真实 Roxy 别名可能为婚前或完整姓氏，测试应验证可靠名称与缓存，不固定某一提供者先赢。
+- Windows PowerShell 5 默认按本地编码读 XML，会破坏中文测试名；显式 UTF-8，最终结果由 XML 重新汇总。TSV 尾部空字段为格式要求，不能为消除 whitespace 提示而删掉。
+
+
+## 43. 第四十九轮执行（2026-10-05：神回封面加载、图片跑位修复与 Ciallo Reader 1.2.3）
+
+### 已落地
+
+- 神回缩略图独立绑定页面、选中不取消加载；封面来源变化同帧清除旧位图，封面就绪后保存。打开时定位当前页，点选不推动整排图片，失败点按重试。
+- 共享阅读器 URL / 请求头缓存 key，缓存优先且不排网络名额；跳过空缓存探测的 504 重试。神回专用缩略图 3 / 大封面 1 并发、同页请求合并、请求级渐进 JPEG，12MB 小图 LRU 与长条漫中段缩略图。
+- 按用户要求统一为 Ciallo Reader；桌面名称、欢迎 / 关于、分享文案、新内置指南与图片导出目录一致。版本 1.2.3 / 204，README / CHANGELOG 与发布说明同步。
+- 41 项 JVM / Compose Native 回归、68 项书架静态检查通过；Release 构建期间全部源码与资源输入一致。APK 24,005,868 B，SHA-256 `0aa92167395ba2d9072d201fbc0118285c6770765f3d730f30987c2a69ddfba9`，与 1.2.2 同证书；版本 / 名称 / arm64 / 16KB 对齐 / CRC / 捆绑词库校验通过。
+- GitHub `main` 与 `v1.2.3` 已推送至 `250005b1`；正式 Release `https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.3` 已公开，APK 与 SHA256SUMS 的服务端 digest 已核对。
+- 发布后生产更新检查与强制官方回退均读到 1.2.3；1 项真实 HTTPS 测试通过，本轮合计 42 项测试通过。结果记录 `artifacts/release-1.2.3/live-update-results.json`，原始 XML 在 `live-test-results/`。
+- 专项报告 `docs/god-cover-loading-2026-10-05.md`、发布报告 `docs/release-1.2.3-2026-10-05.md`；APK、XML、构建日志和发布回执在 `artifacts/release-1.2.3/`。
+
+### 未做
+
+- 未改漫画阅读器预取 / 网络配置；未改翻译或多语言搜索。未做用户手机实测。UI gate 既有字面量超限数量不变，未改基线。GitHub 推送与公开 Release 状态以本轮发布回执为准。
+
+### 踩到的坑
+
+- 上一页 sourceBitmap 与新选中索引同时进入组合，会在未加载格子显示错页；只清空异步 effect 内状态晚了一帧，需按来源同步重建状态容器。
+- 选中作为 LaunchedEffect key 会取消自己的下载；下载身份只能由页面 / 加载器 / 显式重试决定。
+- 冷缓存的 only-if-cached 504 会被书源正常重试链路处理；先判断缓存存在性，不能靠带重试的网络请求探测空缓存。
+
+
+## 44. 第五十轮执行（2026-10-05：应用内下载更新、安装权限兜底与升级清理）
+
+### 已落地
+
+- 新正式版触发确认弹窗；下载进度 / 未知总长、取消与重试；校验后在前台打开系统安装器。拒绝权限时保留包，提供授权、导出和浏览器下载，授权返回重新检测并继续安装。
+- 应用级任务可切页面 / 收起窗口；已完成包保存实际摘要与目标版本码，重启重新校验恢复。更新广播 / 启动核对安装结果后只清理应用内更新目录，不碰书籍或导出副本。
+- 沿用系统代理与官方发布页回退；限定同项目 / tag 附件及 GitHub HTTPS CDN、192MiB 包上限；安装前校验摘要、包名、准确版本、递增版本码、最低系统及当前签名。
+- 37 项 JVM / 4 项 Compose Native / 1 项真实网络，共 42 项通过。真实下载 1.2.3 完整正式包 24,005,868 B，SHA-256 `0aa92167395ba2d9072d201fbc0118285c6770765f3d730f30987c2a69ddfba9` 与本地正式包一致，31 次进度发布。此次正常 API 资料亦经回退，不能声称取得 API 附件元数据。
+- 本地 Release / androidTest 编译成功；验收包 `artifacts/update-flow-2026-10-05/Ciallo-Reader-in-app-update-preview.apk`，24,023,980 B，SHA-256 `a6aa00b874a4bca6e73169efc0fa083d52e19b75a1956c7bd2e8096cae48c361`，与正式 1.2.3 同证书；包身份 / 名称 / arm64 / 16KB 对齐 / ZIP CRC 校验通过。全部源码与资源文件修改时间均早于本轮构建开始，构建后输入摘要已归档。
+- 本轮本地验收时曾更新 README、Unreleased 变更记录与 `docs/in-app-update-2026-10-05.md`；下一轮按用户要求恢复 README 并归入正式 1.2.3；验收 XML / 截图 / 实际网络记录在 `artifacts/update-flow-2026-10-05/`。Release 本地构建结果以本轮 `verification.json` 为准。
+
+### 未做
+
+- 本轮验收完成时保留已公开 1.2.3 的正式安装包与 tag，尚未发布；下一轮已按用户要求同版本替换（见第 45 章）。未做用户手机实装验证；进程被系统杀死时未完成下载需要重试，已完成包可恢复。UI gate 既有超限数量不变，未改基线。
+
+### 踩到的坑
+
+- 调安装器就删包、以 RESULT_OK 推定成功均会让授权拒绝 / 安装取消丢包；须以 PackageManager 实际安装码为准。
+- 极早取消发生在临时文件路径创建之前，也要进入统一 finally 和状态恢复；流读取取消可能表现为 IO 异常，需要按协程活跃状态识别。
+- 测试模拟已安装版本时不能丢弃 GET_PROVIDERS / GET_META_DATA；Windows AndroidX FileProvider 路径差异单独说明，原生 URI 实装需手机确认。
+
+
+## 45. 第五十一轮执行（2026-10-05：1.2.3 同版本附件替换与源码发布）
+
+### 已落地
+
+- 按用户要求替换现有 1.2.3 Release，保持 `versionName=1.2.3 / versionCode=204` 和原证书。应用内下载更新、未知应用安装权限兜底与安装后清理已纳入正式包。根 README 与 docs/README 均恢复到原发布内容，本次提交未改 README。
+- GitHub `main` 与 `v1.2.3` 同步至 `35514eb5`；主分支正常快进，仅原版本标签在校验旧 tag 后按租约移动。Release ID `403446495`、名称 Ciallo Reader 1.2.3 与正式下载链接保持一致。
+- 新 APK 24,023,980 B，SHA-256 `a6aa00b874a4bca6e73169efc0fa083d52e19b75a1956c7bd2e8096cae48c361`；APK 和 SHA256SUMS 先以临时附件上传，两个服务端 digest 校验通过后才替换旧附件；正式 Release 仍为最新稳定版。
+- 发布后使用生产更新检查、官方回退与真实 HTTPS 下载取得新 APK，50 次进度发布，大小与 SHA-256 均匹配本地新正式包；原有 42 项测试验收保留，另一次相同真实下载用例复核通过，不重复计入独立用例总数。
+- CHANGELOG 与公开更新 / 发布报告同步；发布回执 `artifacts/update-flow-2026-10-05/github-publication.json`，下载验收 `post-publication-live-download.json` / `post-publication-test-results/`；原发布日志与安装包在同目录 `original-release-1.2.3/` 保留。当前正式产物与校验记录同步到 `artifacts/release-1.2.3/`。
+
+### 未做
+
+- 版本码未增加；已安装首次发布 1.2.3 的用户需手动下载覆盖安装，此后的更高版本可触发应用内更新。未做用户手机实装；测试 URI 适配及进程死亡中断未完成下载的限制仍见第 44 章。既有未跟踪宣传 / 辅助文件未提交或删除。
+
+### 踩到的坑
+
+- 本机 Git OpenSSL 的 TLS 握手偶发 EOF；本次使用命令级 schannel 后完成拉取与原子推送，未修改仓库全局网络配置。
+- 同版本附件替换必须同步校验文件和标签对应源码，并保留首次发布回执；下载 URL 不变不能代替实际下载摘要验收。
+
+
+## 46. 第五十二轮执行（2026-10-07：阅读设置、漫画手势与在线翻译，1.2.5）
+
+**已落地**
+
+- 小说阅读排版使用阅读主题玻璃底、浅色分组卡和应用强调色，保留现有设置逻辑、原 Switch；漫画七分类改为手机横向分类、宽屏侧栏及独立滚动。窗口支持进入退出、分类过渡与滑条按压动画，外部点击不误关漫画设置。
+- 漫画滑动采用设备尺度有界行程与速度，仿真滑动方向不再由落指位置决定；原左右点击区域保留且相邻翻页播放真实揭页动画。GL 矩形失效、缓存缺图与动画纹理竞态得到防护，背景静态。
+- 在线翻译使用腾讯公开服务，批量去重、并发与超时有界、成功对白缓存；失败可手动重试，文字缩放 / 竖排裁切与 OCR 行排序修正。模型下载由阅读器持有，分类切换不取消。
+- 版本 1.2.5 / 206，README / CHANGELOG / 实施报告同步更新；最终验收与发布回执见 `novel-reader/docs/reader-polish-1.2.5-2026-10-07.md`。
+
+**未做 / 验证边界**
+
+- 未删减漫画设置，未更换全局玻璃库或开关；没有本地翻译服务部署，也没有 Google 翻译请求。公共接口无 SLA，漫画清晰度、语种与网络仍影响 OCR 和译文，未承诺所有功能达到竞品顶尖。
+- 未在用户真实手机、所有平板型号实装；模拟器与 Native 截图的尺寸矩阵、测试数量和发布包检验以实施报告最终数据为准。
+
+**踩到的坑**
+
+- Windows Unix socket 路径会令 Gradle daemon 失联，使用 JVM Unix socket 临时目录开关回退 TCP；PowerShell 的带点 `-P` 参数须整体引用。
+- 空白区 clickable 合并语义造成大字体预设滚动测试失败，已改成指针隔离；滑条端点内缩应同时检查像素进度定位。
+- Native 图像增强回归与 Android 模拟器同时运行会耗尽本机内存，测试和设备截图改为顺序执行。截图必须开启 Roborazzi record 并确认当轮修改时间。
+
+- 第 46 章最终验收：269 项专项 JVM / Robolectric 测试、3 项真实 GL 模拟器设备测试通过；模型重新下载后的无缓存当前页翻译自动触发，样例两页各 4 区域成功。整页冷启动仍受 OCR 初始化和资源负载影响。正式包 24,042,188 B；SHA-256 `332c0fa06bcbde8189476537a5ed09d5c1c78b91c3a865d3df7a4a3dde740245`，签名与 1.2.3 / 1.2.4 一致。UI gate 旧字面量基线未通过，未重设基线；完整边界见仓库验收报告。
+- 新排查要点：`LaunchedEffect(Unit)` 观察外部页码应使用 `rememberUpdatedState`，否则初始捕获值会绕过点按动画；模型文件由 tmp 重命名后须验证最终文件签名再发布 Ready；粗分割蒙版应以 OCR 行限定擦字，不能填满轮廓破坏漫画线条。
+- 玻璃捕获修正：阅读背景绘制必须放在 `layerBackdrop` 内，源层不能只捕获透明文字，否则跨窗口合成会透出底层清晰正文，形成双层文字影像。小说五主题截图复核后再发布。
+- 正式包冷启动补查发现：Splash 的取消路径在 `finally` 中继续导航，遇到配置重建 / 离开组合会从已移除的 entry 再发跳转，触发 home 的 INITIALIZED→DESTROYED 崩溃；取消直接重抛、仅正常完成才导航，并使用最新回调。补充 3 个生命周期回归测试后重新构建正式包。
+- 最终正式包模拟器验收：swangle / 禁用 Vulkan 后端下覆盖安装、两次冷启动及启动期窗口变化通过；swiftshader_indirect 的 QEMU 宿主访问违规已由 Windows 事件日志确认，未当成 Android 应用崩溃。
+- 发布完成：GitHub main / v1.2.5 `2ab77a160d4541bb7738ff2687d0752933165ae0`；Release ID 405449572，正式链接 https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.5 。APK + SHA256SUMS 两个附件的服务端大小 / digest、最新稳定版标记和 tag 源码提交均已复核；原始回执 `novel-reader/artifacts/release-1.2.5/github-verification.json`。
+
+## 47. 第五十三轮执行（2026-10-07：漫画设置逐项打磨，1.2.5）
+
+### 已落地
+
+- 七分类、54 字段和全部原操作保留；补齐方向 / 主题 / 引擎选择动效、单选语义、整行开关和有意义滑条读值，Switch 本体不变。
+- 修复双页 fit、自定义 GL 重复缩放、原生首次缩放流；放大保持独立背景与真实双页几何，按住松开恢复。
+- 自动阅读与后台 / 面板 / 放大门控，垂直触摸避让、帧时间上限和真实底部判断；音量键面板不拦截。
+- 修复恢复页码、本书覆盖全局、退出重写默认预设；新增预设当前快照更新、删除确认、实时收藏入口。
+- 裁边完整重置、框内移动、边界与触觉节流；合页两入口统一，解决相邻冲突、末页、拆分和换章锚点。
+- 图像原图 / 效果对照，增强与纸张 0 值严格无处理；声音异步准备、安全停止，录音失败保留合成兜底。
+- 翻译清理覆盖任务 / 对白内存 / 烘焙 / 磁盘；AI 遮蔽、输入防抖与离开补存、实请求测试、地址编码与空译文拒绝；韩文可选。
+- 逐项表与证据：`novel-reader/docs/comic-feature-polish-1.2.5-2026-10-07.md`；294 项专项 / 37 套件通过（0 失败 / 错误 / 跳过），6 项真实设备通过，四种屏幕七分类验证通过；正式包数据待构建补入。
+
+### 未做
+
+- 未删除功能；未改全局玻璃库、Switch 绘制或应用主题架构。未接入用户真实 AI 密钥、未完成大样本竞品基准和真实手机长期体验，不能宣称业内顶尖。
+- 不把专项测试数量写成全应用执行数量。旧 UI gate 字面量基线不改成通过；没有覆盖所有平板型号。
+
+### 踩到的坑
+
+- 真实 AndroidView 和 Compose 时钟需同步，设备测试先 waitForIdle 并验证面板已打开；单纯等待挂钟不能保证已完成重组。
+- 短横屏侧栏需要纵向滚动，不能复用手机分类栏的横滑脚本；测试脚本应按实际 UI 坐标选择方向。
+
+- 本轮 1.2.5 / 206 按用户明确要求替换原 Release 附件，首次发布归档 artifacts/release-1.2.5/ 保留，本轮 artifacts/release-1.2.5-comic-polish/ 独立存证。已安装首次同版本的用户需手动覆盖安装。
+
+- 正式包检验：1.2.5 / 206，24,061,360 B，原签名一致，arm64-only，ZIP CRC 与 16KB 对齐、797 构建输入冻结均通过。SHA-256 `95c8fb2e102a8149b422d5cee1a7806f05bbfc1fde0f85832f2f166b137eb117`。
+
+- 最终设备复核：本轮最终 1.2.5 / 206 Debug 的 6 项 GL / Core 测试再次全绿；短横屏裁边画布适配并保存成功。正式包手机冷启动、重新启动平板模拟器安装 / 冷启动成功；动态 wm 尺寸切换触发 Windows QEMU 宿主 0xc0000005（非 AndroidRuntime 崩溃），该动态变更未计为通过。在线设置测试 755ms，已缓存页约 173ms；无缓存当前样例页约 11.66s，不能外推所有漫画。
+
+- 发布完成：main / v1.2.5 `8ca33e30fa6d3a9472116693a52829f900ffd853`，保留 Release ID 405449572 与原链接，两个最终附件为 Ciallo-Reader-v1.2.5.apk + SHA256SUMS.txt；服务端 size / SHA-256 digest、最新版标记及 tag 指向均已核对。原说明 / 附件元数据归档 github-original-release.json；本轮回执 artifacts/release-1.2.5-comic-polish/github-verification.json。
+
+
+## 48. 第五十四轮执行（2026-10-07：跟手翻页与翻译调用链重构）
+
+### 已落地
+
+- 抓取点 1:1 跟随手指，距离 / 速度与拖动几何分开；收尾从实际位置开始，取消始终回落，保留左右快捷点按动画。
+- 按用户澄清继续使用手机 OCR，只将对白交给在线翻译。修复临时图与原图对象相同时错误回收，批量读取模型像素，识别异常不标为无字成功页。
+- OCR / 译文独立缓存；过期预取取消，当前页优先；错误原因可见，当前页重试与直接进入翻译设置。
+- AI 简洁漫画规则、分批与 28 秒整页预算、按漫画隔离译名；瞬时失败可降级腾讯机翻，显示原因且不写入 AI 译文缓存。密钥仅安全存储，切换服务不沿用其他服务密钥。
+- 最新源码 306 项 JVM / 39 套件与 7 项设备测试再次通过；真实日英混合页 4 处译文首屏5795ms，连接241ms；硅基流动匿名请求实返回401，错误提示可见并直达翻译分类。手机411×731dp与平板1280×800dp布局复核。
+- 正式包同版本1.2.5 / 206，24,073,860 B，arm64-only、旧签名一致、ZIP CRC / 16KB对齐、801输入指纹一致性通过；SHA256 `3181a0259111cb8e94831d5446e3a23d043ac7e14b2bd4aa40cdc885519cfe9b`；新归档 artifacts/release-1.2.5-translation-rebuild/。
+
+- 用户要求 UI gate 实际通过：小说 / 漫画读取固定设计令牌，装饰图标共享语义策略；脚本和基线未改。最终 font503 / radius297 / color289 / descNull114 / dp2394 / sp581 / contentType31 全通过。翻译提示按底栏实测高度避让。
+
+### 未做
+
+- 没有核实到稳定的免费免 Key 大模型调用源；不冒充，不部署本地翻译大模型，不使用 Google 网络兜底。免费入口明确为腾讯机翻，自定义入口支持云端大模型。
+- 没有用户真实 AI Key 或真实手机连接，不宣称已达到专业翻译组或业内最好，质量仍需真实复杂漫画对照。
+
+### 踩到的坑
+
+- 同尺寸 scale 可能复用原图，旧代码回收后会导致后续识别 / 哈希 / 排版失败；必须测试模型原生尺寸。
+- Robolectric 不提供可用 Android Keystore，匿名接口不应强制存储空密钥；真实密钥仍必须安全保存，安全存储失败要反馈而不能降级为明文。
+- 上一轮空白译文测试保留：空格是非法输出，显式空字符串才表示跳过乱码；不能把一个气泡的乱码变成整页三轮重试。
+
+- 设备旧用例 95dp 在平板低于 104dp 慢滑阈值，应回落；校准为实际阈值 +16dp 并断言收尾目标，生产阈值未放宽。
+
+- 手机动态尺寸切换在主机CPU96%时出现输入ANR，未计通过；固定配置冷启动后阅读 / 设置通过。正式包覆盖安装、冷启动ok（5226ms），随后Windows QEMU宿主0xc0000005退出，持续正式包UI运行未验证；事件与失败日志归档。
+
+- 发布完成：main / v1.2.5 `ae7a44a75ea99b75a35c256592778149723902a6`；保留Release ID405449572和原链接 https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.5 。两个最终附件 Ciallo-Reader-v1.2.5.apk / SHA256SUMS.txt 的大小与服务端digest、最新稳定版、标签提交均验证；回执 artifacts/release-1.2.5-translation-rebuild/github-verification.json。
+
+## 49. 第五十五轮执行（2026-10-07：1.2.6 原文件分享与收藏链接）
+
+### 已落地
+
+- 书架分享发送原文件，单本 / 多选完整附件读取授权；收藏分享对应作品详情链接，来源身份与离线缓存独立于本地书架。
+- 新导入漫画保留 original/ 原归档，PDF / CBZ / ZIP 字节不变；在线逐页下载与旧漫画按数据库页序打包 CBZ，缺页报错。
+- 准备中反馈与重复点击门控，部分失败中止整批；取消下载的 socket IOException 边界补齐暂停状态。
+- 1.2.6 / 207；README / CHANGELOG / 新增分享说明同步。39 项 JVM、14 项 Android 原生分享测试与原有 UI gate 全通过；Debug / 设备测试 APK 编译成功，正式包 24,079,476 B、arm64-only、旧签名一致、CRC / 16KB 对齐、1603 输入指纹一致性通过；SHA256 `7ddf6a6477f944f5d0faf0d0ce3ec1dc75bf5f5b68958b90f0a8d424a654faeb`；归档 artifacts/release-1.2.6/。
+
+### 未做
+
+- 源脚本没有公开详情 URL 且作品 ID 不是网页地址时，不能凭空构造一个有效链接，明确反馈原因。
+- 已删除的旧漫画原归档无法逐字节恢复；CBZ 保留当前页面字节。不宣称已在用户真机微信 / QQ 完成真实发送。
+
+### 踩到的坑
+
+- Windows Robolectric FileProvider 根路径分隔符兼容问题，原文件读验证迁到 Android；不修改生产路径配置来迁就测试。
+- 回归发现下载取消时普通 IOException 先到，DAO 的取消检查使旧 catch 留下“下载中”；先不可取消地落盘暂停，再传播取消。
+
+- 发布完成：main / v1.2.6 `6d9b00cc82ab14e74f9777c1f0c2d2e9180b7d04`；Release ID 405714602，最新稳定版 https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.6；APK / SHA256SUMS.txt 两附件大小与服务端 digest、远程标签提交均验证一致。1.2.5 历史 Release 未替换。回执 artifacts/release-1.2.6/github-verification.json。
+
+
+## 50. 第五十六轮执行（2026-10-07：1.2.7 缩放 / 底栏 / 收藏修复）
+
+### 已落地
+
+- 修复分页与连续阅读缩放后误触惯性；跟手平移与正常单指惯性保留，指针切换清空旧速度。
+- 书架和收藏多选底栏完整触摸隔离，按钮等宽，保留液态玻璃与动效；普通卡片长按 / 点击回归通过。
+- 收藏来源缺失或停用才显示警告；复核旧误报并在打开章节后恢复，取消不误报，健康 SQL 不覆盖分类或复活删除记录。
+- 针对用户报告的拷贝漫画《百合甜心》，验证源站短编号 baihetianxin 及公开详情页面；同名漫画人共存保持来源隔离，分享无需再次获取章节。
+- 无公开网页源提供明确标注的 Ciallo 详情链接，冷启动 / 新 Intent 接线；JS 相对链接解析与公开缓存保留。
+- 1.2.7 / 208；40 项 JVM、手机 24 / 平板横屏 11 次设备执行通过（10 个交互用例两配置各执行一次），原 UI gate 通过。正式 APK 24,083,676 B，arm64-only，原签名、CRC / 16KB 对齐及 1607 构建输入指纹一致；SHA256 eee91244017acc75de7bcde623cb6cd5f5b0850f264b7ab1cba85581985c7531；GitHub 已发布，归档 artifacts/release-1.2.7/。
+
+### 未做
+
+- 未连接用户真实手机，未验证微信 / QQ 的实际接收端；自定义协议链接需要 Ciallo 与相同书源，部分应用可能不支持直接点击。
+- 源站可改域名，未承诺所有网络环境永远可达；1.2.6 历史 Release 保留。
+
+### 踩到的坑
+
+- 手机与平板应使用真实容器尺寸注入双指手势，测试固定像素内容比容器小会缺少平移余量、掩盖错误惯性；增加全屏对角捏合及正常拖动惯性对照。
+- 拷贝漫画 loadInfo 的联网 / 登录失败被旧收藏检查直接标记成来源失效，同时其 metadata 无公开 URL，两个问题需分别修复。
+
+- 发布完成：main / v1.2.7 `d548856884528943e6fc1f1782e7a1d8a55fc15b`；Release ID 405783068，最新稳定版 https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.7；APK / SHA256SUMS.txt 两附件大小与服务端 digest、远程 main / 标签提交均已核验。1.2.6 的 Release ID、说明与附件 ID / 大小 / digest 保持不变。回执 artifacts/release-1.2.7/github-verification.json。
+
+## 51. 第五十七轮执行（2026-10-08：四档画质增强重构与大图放大加载修复）
+
+### 已落地
+
+- 禁漫天堂搜索 1444347 反馈对应的通用缓存生命周期修复：当前跨精确键优先，卷页放大共用正式页面加载、预览、失败与重试；双页独立高清位图。
+- 锐化增强、Anime4K 轻量、超分 完整、超分辨率及普通锐化重构；EASU 重建、原始像素带 halo CNN、现有 ONNX CPU 运行时、抑噪保色残差及细节恢复；移除整页 2M 缩图和 CNN 整页降采样。
+- 90 秒可见截止、可取消像素 worker、错误回退保留几何、不缓存失败替代图；enhance-v2 指纹、等比输出估算及中间位图所有权管理。
+- 模型生成与真实 ONNX CPU 数值核对通过：初始小图 Restore 最大误差 0.000000194，Upscale 0.000000179；另测 67×89、272×272 动态输入，最大误差小于 4.48e-7；MIT 许可随包保留。
+- 280 / 280 项漫画 JVM / Robolectric 测试通过（34 个套件，无跳过）；Android 设备测试 Kotlin 编译通过，但没有执行设备测试。UI gate 通过；指南覆盖检查无遗漏，反向检查只有已显式删除的 2 个历史文件。 2× 斜线 / 文字参考 PSNR 24.08 → 30.25 dB；四档软化整页参考 MSE 均下降。
+- 本地预览 APK 24,094,767 B，1.2.7 / 208，arm64-only，原证书、CRC / 16KB ZIP 对齐、811 项输入指纹、模型与许可字节一致性通过；SHA256 `a0fd553d4a4eec6cadb2bab0115e71df1cf253b6e99de80a559904c0f241a0ba`；归档 `artifacts/enhancement-2026-10-08/`。
+
+### 未做
+
+- 用户明确要求不做模拟器实测，本轮不启动模拟器、不计设备用例通过；JM 1444347 实际源站内容未在 Android 运行。
+- 未修改版本、发布 GitHub、提交工作区或更新线上附件；预览包沿用 1.2.7 / 208。
+- 单一合成质量指标不代表全部作品或市场横向第一；大型 GAN / Vulkan 后端未引入。
+
+### 踩到的坑
+
+- GL 纹理仍显示不代表来源位图仍在小 LRU；旧放大无限等待不会主动加载，增强大图和邻页预载很容易触发。
+- 原 CNN 的共享 scratch 会竞争、平坦残差会变纸底；Restore 去直流，Upscale 使用 EASU 基准与局部可信残差，必须验证纸底、颜色及真实恢复误差。
+- 旧全图差异阈值鼓励无意义色移，替换为清晰参考恢复误差；耗时 / 锐度阈值保留，输出估算按新预算更新。
+
+## 52. 第五十八轮执行（2026-10-09：Ciallo Reader 1.2.8 发布）
+
+### 已落地
+
+- 用户明确授权发布 GitHub；版本升级 1.2.8 / 209，README 最新下载 / 徽章 / 安装 / 功能 / 测试定义 / 历史表、CHANGELOG 与本指南同步。
+- 发布包含上一轮四档增强及普通锐化重构、增强大图放大加载修复；逐项核对 280 项已验证漫画回归对应的源码 / 资源，发布准备只改版本号。
+- 发布报告 `docs/release-1.2.8-2026-10-09.md`，正式 APK、SHA256SUMS.txt、构建与 GitHub 回执归档 `artifacts/release-1.2.8/`；正式构建 24,094,767 B，实际版本 1.2.8 / 209；原证书、CRC / 16 KiB ZIP 对齐、811 项构建输入、模型与许可字节一致性通过；SHA256 `8aeba76847513868157c6c8e5ab1e28a5f4f03eb871332b4e0ba7b597004379f`。GitHub Release `407030136` 已公开并设为 Latest，发布页 https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.8。
+
+- GitHub 源码提交 `0c4dd2b5608dd94a99fa897d55921cd2b15077e7`，`main` / `v1.2.8` 指向一致；811 项构建输入逐项与提交 blob 核对通过，远端 README 与版本文件一致。APK `24,094,767` B 和 SHA256SUMS.txt 92 B，服务端 SHA256 与本地一致；1.2.7 Release 与历史标签未改动。完整回执 `artifacts/release-1.2.8/github-verification.json`。
+
+### 未做
+
+- 保留用户不做模拟器实测的要求；没有执行设备测试，没有把电脑端模型数值验证当作 Android JNI 性能验收。
+- 不修改历史 Release，不纳入无关 promo 素材、临时文件或本地凭据。
+
+### 踩到的坑
+
+- 发布号与 versionCode 必须一起递增，README 安装段和历史记录中的“当前版本”也需同步；APK 不能直接使用上一轮 1.2.7 预览包。
+- Release 的两个附件应在草稿中完成大小与服务端 SHA256 校验再公开，标签必须指向这次源码提交。
+
+## 53. 第五十九轮执行（2026-10-09：1.2.9 增强可见性修正）
+
+### 已落地
+
+- 用户实用反馈推动再次检查：原管线执行，但模糊墨线中心被极值钳回原值；超分主要在放大后增强、整页适配削弱变化。改为原始尺寸两个尺度的墨线恢复、已清晰页面门控、原图先恢复再超分及独立抗锯齿收尾。
+- 补齐卷页增强失败提示与处理进度；最终图退役临时预览，卷页缓存拒绝迟到预览覆盖。设置共享原始细节、统一几何和可重试失败，enhance-v3 缓存指纹。
+- 版本 1.2.9 / 210；README、CHANGELOG 和本指南同步。报告 `docs/comic-enhancement-visibility-1.2.9-2026-10-09.md`；对比证据归档 `artifacts/enhancement-visibility-2026-10-09/`。
+- 286 / 286 项漫画 JVM / Robolectric 回归通过（35 个套件，无跳过），UI gate / 指南覆盖检查通过；同步更新临时预览完成即退役的生命周期断言。Android 测试源码编译通过，但没有执行。
+- 正式 APK 24,096,983 B，实际版本 1.2.9 / 210；原证书、CRC / 16 KiB ZIP 对齐、812 项构建输入、模型与许可字节一致性通过。SHA256 `b07f8546bbb371ed3a1e9c3e5bcbbce58299cb9859ed5ad5c486f566903e83eb`；归档 `artifacts/release-1.2.9/`，GitHub Release `407097106` 已公开并设为 Latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.2.9。
+
+- GitHub 源码提交 `2ad0185422dc8dd0be53c97f0fd8e4b3a1bd10c1`；`main` / `v1.2.9` 指向一致，812 项构建输入与提交 blob 逐项相符；远端 README / 版本文件一致。APK 24,096,983 B 与 SHA256SUMS.txt 92 B，服务端大小、SHA256 与本地一致，1.2.8 Release 和标签未改动；完整回执 `artifacts/release-1.2.9/github-verification.json`。
+
+### 未做
+
+- 按用户要求未运行模拟器或设备实测；合成参考图验证不代表所有漫画同等改善，也不能证明市场横向排名。
+
+### 踩到的坑
+
+- 单一质量数字不能代替实际阅读尺寸的可见性；加强模糊线条后要继续保护已清晰的斜线 / 小字，不能盲目整体拉高锐化。
+- 仅检查 loader 缓存是否有最终图不够：缓存淘汰后，迟到预览仍可能覆盖另一个渲染缓存中的最终图，必须记录展示阶段。
+
+
+## 54. 第六十轮执行（2026-10-09：1.3.0 仿真卷页增强期间空白修复，补录）
+
+### 已落地
+
+- 预加载的相邻跨页在增强尚未完成时接入可读原图预览；当前、下一及上一跨页的最终图也同步通知卷页。纹理创建直接查共享精确最终图 / 预览，避免只读卷页缓存导致空白。
+- 相邻页完成后补齐已创建纹理；翻页、拖动和自动翻页期间延后刷新，落定后补齐。先校验页码再替换待刷新任务，旧跨页回调不能取消新页；迟到预览不能覆盖最终增强图。
+- 保留双页、RTL、拆页、本页旋转以及既有增强算法和缓存预算。新增 ComicCurlEnhancementPagingTest；290 / 290 项漫画 JVM / Robolectric 回归通过，36 个套件，无失败 / 错误 / 跳过。UI gate、Release 构建和 Android 测试源码编译通过；没有设备实测。
+- 版本 1.3.0 / 211；正式 APK 24,099,067 B，arm64-v8a，沿用 1.2.9 证书。签名、ZIP CRC、16 KiB ZIP 对齐、模型 / 许可字节和 813 项构建输入验证通过。SHA256 `3ec4fabaf366cdc51bed771232ffba3264eb0afbdb1a8730ed7debb3cd3594c9`；副本 `releases/Ciallo-Reader-v1.3.0.apk`。
+- 本地保存的 GitHub 发布回执记录 Release `407861385`，提交 `90249411036097b4d7c9c7b7c4179d1c3216c7af`，main / 标签、README / 版本文件和附件校验一致，1.2.9 历史发布未变。发布链接 https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.3.0 。这些是当时的回执，本次文档更新未联网重新核验 GitHub 状态。
+- 报告 `docs/comic-curl-enhancement-paging-1.3.0-2026-10-09.md`；测试、构建和发布回执归档 `artifacts/release-1.3.0/`。此次只是补齐漏记，未重新构建或发布。
+
+### 未做
+
+- 未证明 Android 真机的完整 OpenGL 显示表现；JVM / Robolectric 验证不等于设备显示验收。图片本身尚未下载或解码时仍有正常加载提示。
+- 历史 1.3.0 正式包不包含 2026-10-11 的未提交阅读导航与并行界面修复。
+
+### 踩到的坑
+
+- 邻页增强完成仅填缓存仍会留下旧空白纹理；“加载结果存在”和“渲染器已接到更新”必须分开核对。
+- 旧页回调先撤销再检查身份，会取消新页等待的刷新；页面身份检查必须在修改共享延迟任务之前。
+
+## 55. 第六十一轮执行（2026-10-11：跨话翻页与标签搜索逐层返回）
+
+### 已落地
+
+- 复现预加载下一话后，Pager 沿用第一话的 onSpreadChanged 回调，当前画面和父级页码不同步；末页继续翻可能回到本话首页。磁吸在等长章节复用 pointerInput 时也有同类问题。
+- ComicReaderCore 两处长期监听使用 rememberUpdatedState 调用当前回调。新增连续五个等长章节逐页前进 / 返回回归，覆盖普通、磁吸和 RTL；修复前已复现第二话页码不更新。
+- 标签快捷搜索由清栈回主页改为每次独立压入 library_search 层，即使同一标签也保留层级。LibraryNavigation 按导航记录持有搜索模型；详情 / 漫画阅读 / 小说阅读通过可选 librarySession 使用所属层状态。
+- 搜索页增加返回按钮；保留每层关键词、结果、选源、作品和导航下的输入 / 滚动状态；共享根实例的书源、下载、关键词仓库与全局偏好，避免每次搜索重复初始化服务。
+- 漫画相关 313 项回归已通过，结果保存在 artifacts/comic-chapter-navigation-fix/。停止构建前四个导航场景通过：漫画 / 小说阅读返回、空标签与独立选源；git diff --check 和原 UI gate 通过。
+- 改动说明 `docs/reader-navigation-fixes-2026-10-11.md`；导航测试日志归档 `artifacts/reader-navigation-fix/`。版本保持 1.3.0 / 211，没有本轮安装包或发布。
+
+### 未做
+
+- 多层返回测试等待异步搜索结果超时；随后增加 Robolectric 暂停主 Looper 的推进，最后调整未重跑。不得把五个导航场景全部记成通过，完整整合回归与真机检查仍待执行。
+- 用户明确要求其他 AI 修改期间不编译打包，已停止本任务 Gradle 调用；后续文档更新只进行静态扫描。其他 AI 的现有改动没有回退或覆盖。
+
+### 踩到的坑
+
+- 只压栈而继续使用全局作品状态，返回仍会显示后来打开的作品；导航记录与页面数据须一起隔离。
+- 回归若给章节套 key 强制重建，无法覆盖预加载瞬间切章与等长页数复用监听的真实路径。
+- Compose 的帧钟与 Robolectric 主 Looper 不同，测试等待异步搜索 / 冷却时应显式推进相应队列；调整后仍需真正重跑再宣称通过。
+
+## 56. 第六十二轮工作区补录（2026-10-11：并行动效与阅读玻璃界面，进行中）
+
+### 已落地到工作区
+
+- 源码审查报告 docs/motion-audit-2026-10-11.md 记录 20 个动效衔接 / 节奏问题与验收场景；它是排查和建议，不能当成 20 项都已实现或通过。
+- 当前并行源码新增 NavigationMotion 成对页面转场、CatalogCoverMotion 搜索封面与详情封面共享键、ShelfMotion 可见卡片快照 / 碎裂消散 / 删除补位；已能在 MainActivity、LibraryScreen、ComicChaptersScreen 与 HomeScreen 找到接线。
+- 阅读排版与漫画设置新增 ReadingGlass / LocalReadingGlass，让内层表面采样阅读背景，统一染色、文字色与画质回退；CURL 的新增 ComicFrozenGlassBackdrop 从处理位图另建采样层，不对真实 GLSurfaceView 做 Compose 采样；该并行方案的最终 GL 组合表现仍待验收。
+- 并行改动还涉及弹层退出生命周期、宽屏面板方向、搜索历史 / 用词展开、下载状态、主题与统计节奏、减少动态效果等现有组件；下载完成圆环与勾号由新增 CompletionGlyph 绘制。只按源码存在的内容补录，不宣布其他任务已经完成。
+- 新增 MotionPolishTest（5 项定义）、ReaderGlassPolishTest（2 项定义）、ComicGlassPolishTest（2 项定义）；文件职责与当前行数见 4.20。文件清单与当前定义总数已纳入本指南扫描。
+
+### 未做
+
+- 其他 AI 仍在修改，当前源码、行数与用例定义是阶段快照；本任务没有启动这些新增用例或制作它们的安装包。
+- 未将其他任务的截图、测试产物或日志代记为本任务的整套通过；具体交付结论需由相应任务完成后补充。
+- 动效审查所列快速打断、手机 / 平板、下载切换、拖拽删除、减少动态效果与真实掉帧场景仍需整合后验收。
+
+### 踩到的坑
+
+- 关闭时外层 if 立即移除弹层会吞掉退出动画；退出生命周期应由保留内容的可见性状态管理。
+- 删除动效只负责表现，截图失败、离屏或减少动态效果不应吞掉已经确认的删除操作；碎片与重排不得重复执行删除。
+- 读者接手时应先区分历史已发布 1.3.0 与当前并行未提交工作区，不要拿修复前代码 或旧测试汇总证明新实现已通过。
+
+
+## 57. 第六十三轮执行（2026-10-13：发现板块）
+
+### 已落地
+
+- 五 Tab 导航、四独立推荐维度、源同步与缺失提示、聚合去重与源内公平排序、完整三级分类与记忆。
+- 三布局、前三榜单、分页、刷新、长按 / 滑动 / 追漫 / 分享 / 随机最新话、聚合分项选源、未读入口与同分个性化。
+- 主题玻璃与对比文字、减少动画、前台浏览休息提醒、发现偏好和屏蔽 / 缓存管理。
+- 原有收藏隐私保护下不暴露发现页的追更列表。无新依赖，未修改版本号。
+
+### 未做 / 边界
+
+- 未打包、发布、装机或对全部第三方书源做实时数据验收；没有把测试书源混入生产。
+- 缺失讨论 / 点击 / 时间窗口的源不能自动获得这些统计；分类计数为当前已加载的去重作品。
+- 96dp 封面与上下各 10dp 内边距要求至少 116dp；保留封面比例与 130% 字体自然增高，首屏可见量依屏高变化。辅助 44% 与对比度冲突时提高文字透明度；图标沿用 Material outlined。
+- 最终 `:app:testDebugUnitTest` 编译与 36 项测试全部通过（发现 26 项 + 原有漫画元数据 / 请求头 / 章节回退 10 项）；浅色网格、深色 130% 榜单、大图菜单三张 Robolectric 截图经目视检查。截图使用极简渲染档，不代表真机实时玻璃验收。
+- 回执 `novel-reader/artifacts/discover/verification.json`、测试日志 / XML 与 `novel-reader/docs/screenshots/discover/`；文件索引覆盖检查零遗漏，反向仅保留两条明确标记已删除的历史条目；`git diff --check` 通过。
+
+### 踩到的坑
+
+- 本机 JBR 的 Unix domain socket 默认临时路径导致 Gradle 无法建立回环连接；本次命令使用进程级 JAVA_TOOL_OPTIONS 指向较短临时目录，不修改项目 / 用户全局配置。
+- 分页失败保持游标但必须暂停自动重试，防止列表底部重复发请求；手动重试仍取原页。
+- 双 Popup 菜单窗口在截图验证中存在多根 / 位置越界；改成页面内按卡片位置定位，并在底部向上翻转。
+
+## 58. 第六十四轮执行（2026-10-13：发现全面审查返工）
+
+### 已落地
+
+- 对照 Venera 实际实现及配置、Keiyoushi 嗶哩目录路由，补齐原站列表、分区、mixed、分页游标、排行榜游标、静态/动态分类及 optionLoader。
+- 独立原站推荐/分类入口使缺少四维统计的书源仍能浏览；账号卡过滤，嗶哩/扑飞补目录，vomic 保留更新时间。书源能力缺失如实提示，不创造讨论/点击数据。
+- 分类宽泛标签不再误映射细分叶子，繁简与复合标签归一，作者/角色标签隔离；原站未映射分类仍可访问、分组和搜索；0 仅表示当前已加载数量。
+- 稳定源内名次分数替换随分页改变的百分位；相同指标同分，大小站首位同待遇；轻度个性化最多相邻移一位；逐源保留刷新内容、游标原页重试、重复页停加载。
+- 原站分类和标准分类改为纵向堆叠，避免 AnimatedVisibility 子布局重叠。无作品时随机操作禁用。无效日期/小数/溢出统计值不伪造为有效指标。
+- 脚本 36 份配置：113 配置分派 + 19 边界契约，无错误；这是固定响应协议检查，非所有站点在线成功。
+- JVM/Compose 与既有源专项 52 项通过；Debug/x86_64 验证包及设备测试 APK 构建通过。Android 35 模拟器（390dp、130% 字体）7 项复验通过，真实 QuickJS/DOM、分类游标、原站分类、追漫/布局与长按菜单；最终 5 张截图已目视检查。逐源分类矩阵由生产分类器生成，报告 docs/discover-review-2026-10-13.md，回执 artifacts/discover-review/verification.json。
+
+### 未做 / 边界
+
+- 没有发布或修改版本；没有将测试书源/图片/账号加入生产。
+- 不能从原站缺失数据创造热议、点击、任意时间范围或作品标签；原站目录不混入四维统计。
+- 当前配置接入和模拟器检查不等于所有第三方站点登录/防护/网络均实时可用；真实手机 GPU 的玻璃性能与长时间阅读仍需实机观察。
+
+### 踩到的坑
+
+- Venera mixed 文档 0-based 与运行代码 1-based 不一致；必须核对实际调用与配置分页，而非只照文档。
+- Node 协议通过不证明 Android QuickJS/DOM 桥接；用模拟器运行本地源原始解析链路。
+- AnimatedVisibility 内容会按父 Box 排列，新增分类托盘需要显式 Column；仅检查节点存在不能证明控件可见或无重叠。
+- 测试源码变动后必须重新构建/安装测试 APK，安装完成后才能启动 instrumentation；设备截图需等待实际绘制帧。
+
+第 58 章完整入口诊断补充：模块设备 7 项复验通过，但 MainActivity 的全应用实测受 QEMU 宿主 0xc0000005 崩溃阻断；host GPU 启动未完成，swangle 只读实例中主页面启动超时，MID 隔离设置仍未解决。生产默认画质未变；不能宣布完整玻璃主页面验收通过。回执 verification.json，主日志 main-integration-logcat.log。
+
+## 59. 第六十五轮执行（2026-10-13：全部漫画书源实时在线验证，无模拟器）
+
+> 2026-10-14 勘误：本轮初版桌面 DOM 校验器混用了 document/element 数字 ID，若干解析/空流诊断是校验器误报，不能据此判源故障；请求头大小写也曾覆盖源 UA。旧证据保留，当前书库 20 源结论以第 60 章修正后证据为准。
+
+### 已落地
+
+- 按用户最新要求不启动模拟器，直接执行全量漫画书源真实 HTTP；33 份当次官方配置、4 个本地源、原生 MangaDex API 对应探测，共 38 份配置 / 37 个 key；没有改变已禁用源策略。
+- 独立 Kotlin 导出器直接编译生产 patchScript，运行真实补丁脚本及 App 同步桥/发现协议；临时 Node DOM 依赖放在仓库外，未改 App 依赖。
+- 第二轮北京时间 22:30:08–22:31:46，网络与匿名认证异常复查至 22:34:00。最终 22 份配置 / 21 个源至少一项返回非空作品；其中 20 份无本次探测报错、2 份部分报错。该数字不是全部维度通过。
+- 明确定位漫蛙吧分类 415、ykmh 分类未定义变量、MangaDex 重复 JS 源 locale 格式导致空标题、爱漫画缺少发现入口；保留 hitomi/wnacg 解析失败、多个源更新/点击/榜单空流证据。
+- 报告 `docs/discover-live-2026-10-13.md` 逐站列出推荐/维度/分类数量、HTTP 与可用性；`artifacts/discover-live/live-results.json` 保留时间、哈希和重试。脚本语法检查与独立生产补丁导出通过；指南索引补录现有并行控件文件，不将其算成本轮验收。
+
+### 未做 / 边界
+
+- 没有启动模拟器，没有 App/真机/Cronet/WebView 全链路验证；没有发布、修改版本或恢复已排除源。
+- 未提供账号、私有导入配置或自建服务地址；picacg 只判需登录，Lanraragi/Komga/Kavita 只判待配置。
+- 检查发现和分类首页，不代表全部分类、分页、详情、付费章节或图片可读。HTTP 200/0 结果、防护、TLS EOF 和超时均不直接判站点永久失效。
+- 尝试借全项目测试构建导出补丁时，受到并行 LiquidSegmentView 尚未完成的符号依赖阻断；改独立 Kotlin 编译导出成功。本轮没有据此宣称整项目编译或 JVM 回归通过。
+
+### 踩到的坑
+
+- 桌面宿主初版未覆盖 APP 同步 getter，导致 locale 返回 Promise；这是校验器错误，修正后重跑，不计入最终站点故障。
+- 结构化 POST 必须沿用 JsMessageHandler 的 JSON 编码，CBC 必须使用 PKCS 填充；不能因为宿主协议不一致误判接口不兼容。
+- 原站推荐成功和某个维度成功必须分别统计；vomic 分类有数据不代表更新流有数据，MangaDex 原生成功不代表重复 JS 配置成功。
+- ComicWalker 匿名认证递归失败会重复打接口；校验器增加重复失败上限，预算中止不能冒充站点离线。账号、防护、解析错误和空流需要分别处理。
+
+## 60. 第六十六轮执行（2026-10-14：异常源修复与复验，未全部完成）
+
+### 已落地
+
+- 按用户范围只处理书库当前提供的 20 个源，不要求未配置自建服务，不重新启用排除源；用户要求停止重复测试后，仅复验剩余异常。
+- WNACG 桌面目录/选择器/真实分页，漫蛙吧 JSON POST 与分类 URL，H-Comic 请求身份与空榜单能力，Vomic 结构化 RSC/HTML 与原始元数据，嗶哩目录身份，爱漫画 MCCMS 目录/分类/分页，Goda 现有 Cronet HTTP/2 路径。
+- 禁漫 GET 使用发布方已知线路有限切换，合法解密 JSON 后学习线路，401 不切线，写入请求未改变；离线契约覆盖错误正文、坏解密、路线/时间上限和外域 URL，未新增在线请求。
+- Comic 兼容构造器保留命名元数据；成人 19r/R-18 等标签补映射，作者/角色标签不误归成人。补丁版本 41，同样修复旧缓存。
+- 用户授权 Picacg 凭据真实登录成功，未将账号、密码或令牌写入源码/报告。MYCOMIC 管理入口打开可见站点验证并同步实际浏览器身份/会话；真实过盾尚未通过。
+- 最终 Debug 构建成功，50 项发现/Compose/JS DOM 回归通过，无失败、错误、跳过；ZIP CRC、封装源资产逐字节核对通过。验证包 53,608,701 B，1.3.6 / 217，SHA256 `62e778efd3f1c4e2bf0749447a2bbe05a3cba33e66cf43861fda56b115bf4c64`。
+- 报告 `docs/discover-repair-2026-10-14.md`，结构化回执 `artifacts/discover-repair/verification.json`，构建日志 `discover-repair-delivery-build.log`。18 个源有近期成功抽样，并非所有阅读链路或分类全部验收。
+
+### 未做 / 当前阻断
+
+- **未全部修复，不宣布任务完成。** MYCOMIC 首页/目录/榜单仍 Cloudflare 403；浏览器控制不可用，无通过实际验证的会话，官方扩展未提供已验证镜像。
+- 爱漫画之前首页、分类和第二页各 30 条新作品证明解析路径可执行；最新 HTTPS 首页、目录、章节 API 连接重置，HTTP 诊断 502。不能用之前成功覆盖当前失败，也不能断言永久停站。
+- 本轮没有启动模拟器、装机、完整图片/章节链路实测或发布。APK 是共享工作区 Debug 验证包，包含其他已有改动，未宣称整 App 视觉验收或市场排名。
+
+### 踩到的坑
+
+- 桌面文档 ID 与元素 ID 都从数字起始，不能共用一次查找；初版误报已撤回、旧报告加勘误。HTTP 请求头大小写不同不能覆盖源提供的 UA。
+- Venera Comic 构造器丢弃额外字段；需显式保留白名单，不能靠推测补日期/点击数。Next.js Flight 引号和长签名封面不能用固定长度正则解析。
+- 网络/防护阻断和代码修复成功须分开记录；当前请求失败不能用旧轮成功冒充最新可用。站点没有数据不应伪造为统计维度。
+- Windows JDK 的 Unix domain socket 使 Gradle 回环启动失败；本轮使用仓库外可信 JDK 17 和仅本进程的 TCP selector 兼容类，未修改系统网络或打入 APK。
+
+## 61. 第六十七轮执行（2026-10-14：爱漫画恢复与 MYCOMIC 真实链路门槛，进行中）
+
+### 已落地
+
+- 用户授权编译打包、更新 README / Release 和推送 GitHub，并进一步明确 MYCOMIC 必须真实验证链路通过。当前发布门槛未满足，未推送或创建 Release。
+- 爱漫画原域名仍断连，但原站页面 Mcpath.url 明示的 mh.iqtao.cn HTTPS 线路真实可用；核对同一作品 ID、标题和作者后接入双线路，canonical ID 未改变。目录/分类 30 条、第二页各 30 个新 ID；284 条章节完整目录、所选章节 20 张地址，首尾 JPEG 实际解码 1080×843 / 1080×777。
+- MYCOMIC 公开 HTML 改用与可见验证相同的 Android WebView、UA、CookieManager；不把 HTTP 写入/图片请求切入浏览器，不接受外域/HTTP/用户信息 URL，不关闭 TLS，不注入网页可调用原生 JS 接口。20 秒读取预算、200 万字符上限、取消和销毁收尾；挑战/HTTP 错误/无效页不计成功。
+- 图片/封面钩子使用可变验证 UA；初次引擎亦与浏览器 UA 一致，未验证身份不伪造登录。章节从 DOM 属性解码、以字符串转义感知的平衡 JSON 提取，保留真实链接回退；离线契约覆盖引号与 ]，无新健康源在线请求。
+- 新增只针对 MYCOMIC 的设备链路用例：实际 source.verifyWebsite、发现目录、详情、章节、阅读器首尾图片解码；不清除用户会话、不注入凭据、不自动点击 CAPTCHA。尚未运行，不能计为通过。
+- 中英文 README / CHANGELOG / 候选发布说明已更新。首个 1.3.7 Release/R8 包已构建，签名延续旧证书、16 KiB ZIP/原生库对齐、ZIP CRC 与 35 个打包资产相符；随后发现 UA/章节遗漏并返工，最终重建仍在执行，早包不作为最终 MYCOMIC 修复证明。
+- 第一轮 85 项中 4 项导航因 Robolectric 不同 TLS provider 跨类缓存污染失败；使用既有逐类隔离参数后，96 项选定测试全部通过。默认 Kotlin daemon 堆不足导致首轮 Release 编译失败，改独立/进程内 3 GiB 堆后构建成功；完整初轮失败日志保留。
+
+### 未做 / 当前门槛
+
+- MYCOMIC 真实验证→目录→详情→章节→图片链路仍未通过；普通 HTTP 仍被 Cloudflare 拦截，不能用代码或单元测试替代。
+- 当前用户可见 IAB 标签在浏览器工具列表中不可见，连接请求已发出；没有连接的 Android 设备。按原“不启动模拟器”要求没有启动；仅针对 MYCOMIC 使用模拟器的澄清仍待用户回复。
+- GitHub 推送、Release 发布及任务完成均待门槛满足；没有改现有稳定 Release、版本标签或发布模型附件。未修改用户系统网络设置。
+
+### 踩到的坑
+
+- 原站隐藏在 Mcpath.url 中的自有线路比猜测镜像可靠；先核对作品身份和完整章节协议，再保留旧 canonical ID 切换请求线路。
+- HTML 经过 WebView outerHTML 序列化后 x-data 引号转为实体；非平衡正则会在章节标题的 ] 提前结束，且没匹配时原站链接回退原本不会执行。
+- HTML 的 UA 已更新并不等于图片钩子也更新：上游图片函数引用 const UA，需要作用域内改为可变 headers，同时保留顶部声明初始化。
+- 用户页面可见不代表浏览器工具已连接；未提供可操作状态时不能猜验证码位置、冒称过盾或导出浏览器秘密。设备用例编译成功也不等于真实运行通过。
+
+第 61 章最终候选构建补充：返工后 96 项选定回归再次全部通过，Release/R8 与 MYCOMIC Android 专项源码编译成功；最终 APK 28,939,839 B，SHA256 `0b55d08d916f80e5342ecb451ba6375e8f12bd8ec69c9a0ceba41a201acc9c74`，35 个资产字节、912 项输入、原证书与 ZIP/原生 16 KiB 对齐均通过。真实 MYCOMIC 链路仍未执行，未推送或发布；不能据构建成功宣布任务完成。
+
+
+## 62. 第六十八轮执行（2026-10-14：MYCOMIC Android 实际链路与 1.3.7 发布）
+
+### 已落地
+
+- 用户明确授权仅验证 MYCOMIC 使用模拟器；现有 AVD 只读启动，Android 35 / Google WebView 124.0.6367.219。实际 verifyWebsite、discoverCatalog/discover、详情、16 章目录、61 页章节及阅读器首尾图片解码通过，780×1157，62.675 秒，设备测试 1 项通过。
+- 私有文件注入的是公开上游源脚本，使用生产 Kotlin patchScript；与生产导出 SHA256 369c18cd76633fe475285888595f1ff4631be4f86eea38842fe5a59a5daeaf87 一致。未注入账号或 Cookie，未自动点击 CAPTCHA。公开回执 docs/mycomic-native-chain-2026-10-14.json 不含会话秘密。
+- 首次设备运行因夹具路径不存在失败，未发起源请求；修正设备用例读取 files/mycomic-production-source.js 后重编测试 APK 再执行成功。生产 APK 输入未变，设备用例是构建后唯一变化。
+- 96 项选定回归通过；Release 1.3.7/218、28,939,839 B，SHA256 0b55d08d916f80e5342ecb451ba6375e8f12bd8ec69c9a0ceba41a201acc9c74。原签名、35 个资产、16 KiB ZIP/ELF 对齐与生产输入稳定性核对通过。文档更新 README、README_EN、CHANGELOG、发布说明及历史报告勘误；原计划推送源码与 Release；随后发现远端已有 1.3.7，需要合并并递增版本，见第 63 章；没有创建本轮 1.3.7 Release。
+
+### 未做 / 边界
+
+- 没有重复请求其他已通过源，没有检查全部作品和章节，没有声称所有网络环境永久可用、视觉真机验收或业界排名；已有 1.3.6 Release 与模型附件保持不变。
+
+### 踩到的坑
+
+- 测试夹具路径错误是运行准备问题，不能归因站点失败；真实首尾图片须走生产阅读器解码，不能只记录图片 URL。发布门槛由实际回执和生产脚本哈希共同检查。
+
+
+## 63. 第六十九轮执行（2026-10-14：合并远端 1.3.7，递增 1.3.8）
+
+### 已落地
+
+- GitHub main 已推进到 3f62018a，并发布另一轮 1.3.7 / 218；本地修复提交 a8e388a6 先保留，再合并远端，保留响应解析、字节解码、章节校验和固定发布签名。不得覆盖已有 Release 或强制重写 main。
+- 当前版本递增 1.3.8 / 219，补丁 43；合并后的 JM 安装适配器补充最多 5 路和 18 秒重试预算、JSON 401 禁止切线，保留远端详情/章节结构验证；17 项离线响应契约与元数据检查通过，无健康源在线请求。
+
+### 未做 / 当前门槛
+
+- 原候选 APK 使用历史证书，不能发布为当前固定签名升级包。全盘文件名检查未找到 .signing/release.keystore 或 release-signing.properties，已请求原私有文件位置，不要求在聊天发送密码。合并后回归、MYCOMIC 专项链路、正式签名构建和发布必须有真实回执。
+
+### 踩到的坑
+
+- 发布前必须检查远端版本和证书；本地分支/旧签名通过不能替代当前 GitHub 固定签名的覆盖兼容验证。
+
+
+第 63 章验证补充：合并后 109 项选定回归零失败/错误/跳过，17 项响应离线检查及桥接契约通过。1.3.8 / 219 独立调试包编译成功；MYCOMIC 真实链路再次通过，63.889 秒，30 本/16 章/61 页、首尾 780×1157。921 项输入稳定。正式构建已实际执行并在固定签名检查处以 RELEASE_SIGNING_MISSING 停止；GitHub Actions 无签名 Secrets，未创建 1.3.8 Release，未宣称任务全部完成。
+
+第 63 章推送与签名补充：源码/README 已正常推送 cc0675b9，远端 main、README 与版本文件一致；现有 1.3.7 Release、标签和附件完整保留。用户短暂选择 1.3.6 后又明确改回沿用 1.3.7，1.3.6 签名构建已取消，本任务创建的临时私钥副本及配置已删除，公开指纹恢复 6f5d20ec0935627d60db7fcfa9989a9fed9b50c9897b548d53384a9f7877276b。Git 全历史不含 .signing/release.keystore / release-signing.properties，只有说明与示例；GitHub Actions 无签名 Secrets，已询问原发布环境的位置以恢复密钥，未发布或宣布任务完成。
+
+
+## 64. 第七十轮执行（2026-10-14：按用户最终要求以原方式打包 1.3.8）
+
+### 已落地
+
+- 用户最终表示 1.3.7 密钥找不到就按原方式构建；沿用已发布 1.3.6 的现有密钥，未生成新密钥。私有 .signing/release.keystore 与 release-signing.properties 已建立并保持 Git 忽略；公开证书恢复 d2115e3cc5880b210a120558aaab03eb30ee5de2952a80f3376dda7e45501146。固定签名检查通过，正式包重新编译中。
+- 已发布 1.3.6 APK 的本地 SHA256 与 GitHub 服务端摘要一致，可作为签名/升级基线；原 1.3.7 Release 保留，不覆盖旧附件。
+
+### 未做 / 边界
+
+- 1.3.7 使用另一证书，不能声称从该版保留数据覆盖安装。MYCOMIC 实际链路和 109 项回归沿用合并后的通过证据，应用生产代码未再改变；只改变发布证书选择，不重复请求健康源。正式 APK、升级检查及上传回执待构建完成补入。
+
+### 踩到的坑
+
+- 原发布私钥不是公开指纹，也不在 APK 或 Git 仓库中；缺失私钥不能从公开证书恢复。用户最终选择允许切回原方式后才恢复原密钥，不自动更换证书。
+
+第 64 章最终构建补充：Release/R8 成功，APK 28946709 B，SHA256 e3e16473285d6393c4372f7f6f6cdb247e4120165d03070a5dc33dc8a46ab7d6；38 个资产字节、921 项输入、ZIP CRC、16 KiB ZIP/ELF 对齐和原证书通过。与已发布 1.3.6 的覆盖升级检查通过；1.3.7 不同签名不可直接覆盖。GitHub 发布使用独立 1.3.8 标签与 APK/校验附件，最终回执 artifacts/release-1.3.8/github-verification.json。
+
+第 64 章发布回执：源码与 README/CHANGELOG 已推送 103161f4，v1.3.8 指向该提交；GitHub Release 412225581 已发布并成为 Latest。APK 与 SHA256SUMS 均上传完成且服务端大小/摘要与本地一致，APK SHA256 e3e16473285d6393c4372f7f6f6cdb247e4120165d03070a5dc33dc8a46ab7d6，28,946,709 B。远端 main、README、版本文件一致；1.3.6 / 1.3.7 Release 和标签完整保留。MYCOMIC 实际链路、109 项回归、17 项响应离线检查及打包核验已通过，按最终用户授权使用原 1.3.6 密钥发布；仅 MYCOMIC 使用的任务模拟器已关闭。
+
+
+## 65. 第七十一轮执行（2026-10-14：发现 UI 与分类/缓存返工，等待截图验收）
+
+### 已落地
+
+- 书库与发现共用 CollapsingTabScreenHeader；统一状态栏、字体和 GlassCard。高固定区域改为单维度条；源/范围/分类随内容滚动。独立发现设置与分类弹窗，删除冗余默认项、成人分类门禁、休息提醒和全局设置追加卡片。原 AppSwitch 保持原尺寸，状态页使用当前 MascotSpriteSheet。
+- 同查询免刷新，最多 12 个分页会话/8,000 行与视口恢复；刷新防重入/冷却、每源目录与数据独立预算、同地址 HTTPS GET 有限传输回退。缓存键改为持久身份，解除屏蔽同步清理跨源别名。
+- EH 10 个原站内容形式，哔哩 12 个题材，扑飞 212 个动态入口，MangaDex 官方 tag API；补繁简/复合标签。未知语言/年份/IP 分类保留原站入口，不猜题材。分类草稿一次应用；原站数据能力决定可用维度和时间范围。
+- 19 个配置 JS 源，55 个 feed / 1,357 个静态分类，1,412 次离线路由与 6 项边界检查通过。在线只抽查新改的哔哩/扑飞分类，不重复测试健康源：两源第二页分别新增 30/40 本。
+
+### 未做 / 边界
+
+- 用户明确要求先看截图再打包；本轮只做脚本、编译/JVM 与截图，不生成 APK，不发布 GitHub Release。截图为生产 Compose 界面、测试书源及仓库已有封面样例，不冒充实时站点内容；硬件实时模糊仍需真机验收。
+- 最终累计 116 项 JVM/Compose 回归零失败/错误/跳过，8 张截图目视复验；旧版本 MYCOMIC/爱漫画回执不替代本轮新改分类的验证。
+
+### 踩到的坑
+
+- 静态协议通过仍不能代替截图审查：LazyGrid 的一个 item 中多个无 Column 子节点会重叠；范围必须放纵向容器。哔哩分类页 30 本，按 50 本硬判断误终止，改读取原站分页链接。
+- Robolectric SDK 33/34 的 Native RuntimeShader 仍来自 Android 12，child shader.eval 报 cannot swizzle；上游 #9691 明确 SDK 35 可用。用 SDK 35 记录真实玻璃效果，未为测试环境限制篡改生产着色器。
+
+第 65 章验证补充：16 个选定 JVM 测试类累计 116 项通过（全套 114 项，新增目录/深色设置用例后针对复验至 116 项）；1,418 个离线路由/边界检查通过。最后的单源分类范围修正另复验 UI 11 项通过，8 张截图已检查。MYCOMIC 三个负号排序参数逐一分派；哔哩分页/标签及扑飞分类两页在线抽查通过。回执 artifacts/discover-rework-2026-10-14/verification.json；更新 README/CHANGELOG 与 docs/discover-rework-2026-10-14.md。当前仍未打包、未提交推送或发布，等待用户查看截图；没有启动模拟器或重复请求其他健康源。
+
+
+## 66. 第七十二轮执行（2026-10-14：用户批准截图，构建上传 1.3.9）
+
+### 已落地
+
+- 用户确认截图基本无问题并明确授权编译上传新版本。沿用 1.3.8 证书，版本 1.3.9 / 220；Release/R8、签名、922 项输入稳定、38 个资产字节、ZIP/ELF 16 KiB 对齐及从 1.3.8 覆盖升级条件通过。APK 28949433 B，SHA256 4928ecc21b541c1e4a9da8bf29d2f53ae3ba1f4fb5ac114892f432d1240ca5eb。
+- 本轮保留 116 项选定回归与 1,418 项离线路由证据，不重复检查健康源；爱漫画/MYCOMIC 阅读实测沿用 1.3.8，MY reader 脚本哈希一致，未宣称再次设备验证。更新中英文 README、CHANGELOG、3 张用户已批准截图、docs/release-1.3.9-2026-10-14.md 与版本校验文件。
+
+### 未做 / 边界
+
+- 未在手机安装或实测数据保留；没有模拟器全站复测，没有保证所有站点永久可用。既有 1.3.6/1.3.7/1.3.8 标签和附件保留，上传成功回执随后补入。
+
+### 踩到的坑
+
+- 1.3.7 采用另一证书，不能承诺覆盖升级；本版以实际已发布 1.3.8 包校验证书、包名与递增版本。离线脚本不代替实时可用性，旧设备链路明确标注来源版本。
+
+第 66 章发布回执：源码、README/CHANGELOG 和 3 张用户已批准截图已推送 0a78a053，v1.3.9 指向同一提交；GitHub Release 412301800 已发布并成为 Latest。APK 28949433 B，SHA256 4928ecc21b541c1e4a9da8bf29d2f53ae3ba1f4fb5ac114892f432d1240ca5eb，服务端大小/摘要与本地一致；SHA256SUMS 同时上传。主分支、README、版本文件与标签核对通过；1.3.6/1.3.7/1.3.8 Release、标签及附件原样保留。本版满足从 1.3.8 覆盖升级条件，未做手机安装；未重新进行 MYCOMIC/全站在线或模拟器检查。回执 artifacts/release-1.3.9/github-verification.json，下载 https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.3.9。
+
+
+## 67. 第七十三轮执行（2026-10-14：发现交互与真实排序返工，发布 1.3.10）
+
+**已落地**：筛选窗口实际高度、安全区及键盘避让，消除灰色矩形反馈与空白误关闭；封面卡片、同书库爱心、删除随机及全部发现追更 UI/横滑行为；标准圆环下拉及底栏双击刷新、全局设置入口；稳定源身份会话、实际指标排序、原站周/月和状态选项；爱漫画 HTML 接口误判修复与逐本轻量元数据，Comick 真实搜索 API/游标、排序和统计、图片请求头。
+
+**未做**：本轮不启动模拟器，不重复全站在线验证；MYCOMIC 已通过的原生阅读脚本保持不变。用户最终授权直接打包上传，不等待截图验收。最终 130 项选定回归、1414+6+10 项离线协议/路由及目标源在线链路通过；正式包 28957313 B，SHA256 ce3a4ffe3c9625468840b67e6859364daa734feea14931525e3e2d7aaa4cd0c2，签名/对齐/资产/升级检查通过，GitHub Release 412437570 已发布并设为 Latest，main/tag `9ef0ec11` 一致，APK 摘要和 README 远端一致，历史 1.3.6–1.3.9 Release/tag 均未改动。
+
+**踩到的坑**：父 clickable 会合并整张面板语义，导致点击标题落到内部其它位置；无水平滚动容器的卡片拖动需消费过阈值动作，避免松手点击。首次构建期间代码仍在审查修改，最终必须再次核验完整源码快照及实际测试结果。
+
+- 第 67 章补充：跨书源状态筛选隔离；切到另一书源重置状态选择，仅参考当前启用源的目录和作品状态。新增 Compose 回归覆盖 A 源完结 → B 源未提供状态，B 仍显示作品且不出现状态筛选。首个正式构建完成后仍发现此问题，未发布该候选包，修复后再次构建。
+
+
+- 第 67 章最终发布回执：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.3.10；APK ce3a4ffe3c9625468840b67e6859364daa734feea14931525e3e2d7aaa4cd0c2，28957313 B。用户要求直接构建上传，未发送新截图、未等待截图审批。本轮未启动模拟器；桌面线上链路与 Compose 回归证据分开记录。
+- 最后一个只涉及 Comick 游标映射初始化的 JS 字符串补丁在补编译中进入正式包，DEX 存在修复标记，源码输入冻结一致；复用上一候选已通过的完整 Release lint，不再重复与此纯 JS 字符串无关的 Android lint 分析。
+
+
+
+
+
+
+## 68. 第七十四轮执行（2026-10-14：主题筛选、分类状态、Hitomi 与缓存返工）
+
+### 已落地
+
+- 发现筛选区整合为随内容滚动的主题玻璃卡：文字 Tab、工具栏、排序胶囊、状态分段及可删除的已选分类；所有强调色跟随主题。
+- 分类窗口明确边到边安全区和实际高度，固定底部操作，留出底部安全间距；分类数量改为「本」，说明仅统计已加载作品。
+- 列表固定封面和卡片高度，标题两行、描边爱心、章节强调、图标统计、单行标签及溢出数量；缺失指标隐藏。
+- 五个板块复用同一个顶栏绘制，恢复书架、统计、设置英文副标题，移除书架额外外边距；全局设置顶部增加发现设置入口。
+- 修复原站状态筛选已生效但作品未提供状态导致的二次过滤；未知/停更独立显示，同作品采用一致状态；补齐语言分类映射。
+- 榜单内存会话扩至 32 个（8,000 行上限），持久缓存保存目录、页码、游标及分页防循环状态；有效完整缓存返回不发请求，可主动刷新。
+- Hitomi 更新入口、上传日期、Content-Range 大小写和未知总数分页修复；切换或冷恢复分类后补齐原站分页上下文。
+
+61 项本轮相关 JVM/Compose 回归通过；Hitomi 更新、第二页、周榜、中文分类各 25 本，第二页 25 个新 ID。桌面生产脚本线上验证不冒充 Android 真机验证。
+
+正式 APK 28,969,389 B；SHA256 `764a53080d6bf456b7659cc5b0a0b52413685f7a24805858f396762df1de5f9f`。Release/R8、发布 Lint、固定签名、1.3.10 覆盖升级条件、16 KiB 对齐和源码/资产一致性检查通过。
+
+### 未做 / 边界
+
+- 用户明确要求前后端一起改，且最终只审查有关改动；未重复全站在线验证。沿用已授权发布流程和原签名，没有启动模拟器或发送截图。分类数量只统计已加载作品，未知状态不冒充连载或完结。空白状态字段在原站确实应用状态筛选时补回；跨日更新时间范围缓存失效，截断缓存从第一页重验，完整缓存按设置有效期复用；主动刷新可重新请求。
+
+### 踩到的坑
+
+- 本轮 UI gate 按指定字号/触控尺寸与显式行高更新：522 font / 302 radius / 298 color / 111 null description / 2572 dp / 619 sp / 31 contentType；未增加固定颜色。定向 Gradle 初始化脚本只编译本轮四个测试文件，避免编译无关测试；不改变主程序构建。
+- 普通顶栏接收 subtitle 却不绘制导致三页英文缺失，现委托同一绘制组件。仅高度上限不能保证 OEM Dialog 的底部安全区；面板实际约束与明确边到边窗口同时修正。分类服务器已应用状态却漏逐本字段会被本地二次过滤，须保留已证实的过滤条件。Hitomi 分类内部缓存只有一份，冷恢复或切分类续页先恢复对应上下文。
+
+
+## 69. 第七十五轮执行（2026-10-15：用户追加要求修复发布 Lint 阻塞）
+
+### 已落地
+
+- 用户在发现改动审查完成后追加「看看是啥问题，顺便改一下」，授权处理本次全量 Lint 报告中的 39 个错误；没有扩展到其他未报错功能或重新验证健康书源。
+- EPUB 正文/目录改用 canonicalPath 加路径分隔符的边界检查，避免 API 26 Path 在 API 24 崩溃；仍阻止越界和相似目录前缀。
+- 发现数值使用 BigDecimal 的整数/Long 边界判断，避免 API 31 longValueExact，保留小数/溢出拒绝。
+- GlassCard 明确 API 33 shader 条件和辅助函数注解；LiquidGlass 关闭效果在 API 31 以下不调用 setRenderEffect。强制深色禁用属性移到 values-v29，基础样式由默认和 API 29 样式共同继承。
+- 音量按键改用公开 onKeyDown/onKeyUp 钩子，保留阅读器按下、抬起和默认音量行为；流操作在 remember 内构建，组合读取的页面尺寸改为生命周期订阅；不需要约束的容器改为 Box。
+- 10 处 produceState 原本已有 value 赋值但被当前 UAST/Lint 错判，先验证显式 MutableState 委托，仍有 10 条误报；最终改用标准 remember + LaunchedEffect 的 rememberAsyncState 封装，保留旧值并按 key 取消/重启。没有关闭或忽略写值检查，已验证初次发布及 key 变化重启。修正 4 处缩进和实验 API 的 BINARY retention。
+- 增加 6 项相关回归（5 个兼容性场景加数值边界）；不使用模拟器。
+
+### 未做 / 验证中
+
+- 67 项相关 JVM/Compose 回归全部通过（6 个测试类，0 failures / errors / skips）；全量 Release Lint 0 errors / 113 warnings，异步状态封装调整后再复核 3 项兼容性测试通过；正式签名 APK 构建、完整性、16 KiB 对齐及 1.3.10 覆盖升级条件核验通过；GitHub Release 与源码已发布。
+
+### 踩到的坑
+
+- assembleRelease 自动运行的是 lintVitalRelease，不能把它说成全量 lintRelease。1.3.11 首次显式全量检查发现 39 errors / 113 warnings；完整原报告保存在 artifacts/release-1.3.11/lint-before-fix.xml，首次失败构建在 full-lint-before-fix.log。必须以修复后的新报告与构建日志确认结果。
+- 当前 Compose/UAST 对这 10 处赋值及显式委托都持续误报，运行回归确认状态更新正常。最终改用标准 remember/LaunchedEffect 管理键控异步状态，复核兼容性测试并重跑全量 Lint。排查参照 https://raw.githubusercontent.com/androidx/androidx/androidx-main/compose/runtime/runtime-lint/src/main/java/androidx/compose/runtime/lint/ProduceStateDetector.kt 。本次未压制 Lint 规则、未添加错误 baseline。
+
+### 1.3.11 发布回执
+
+- Commit `ce33ad6c511ab25594f32200c1a85f4d627fe3c9`，tag `v1.3.11`，GitHub main / README / 版本对象核对一致。
+- Release 412958847：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.3.11，已设 latest；APK 28,969,389 B，SHA256 `764a53080d6bf456b7659cc5b0a0b52413685f7a24805858f396762df1de5f9f`。APK 与 SHA256SUMS 两个资产上传成功，GitHub 摘要与本地一致。
+- 1.3.10 原发布保持不变；沿用证书 `d2115e3cc5880b210a120558aaab03eb30ee5de2952a80f3376dda7e45501146`，覆盖升级条件通过；未启动模拟器。
+
+
+## 70. 第七十六轮执行（2026-10-15：1.4.0 聚合、状态与书源证书/二进制桥修复）
+
+### 已落地
+
+- 移除点击入口与旧默认值；聚合保持所选栏目，完整目录之前不自动回退；窄化能力预拒绝，对混合/不完整目录实探测，不把 unsupported 结果并入榜单。
+- 同栏目本地状态筛选、作品组内只保留匹配状态的源版本；完结榜严格过滤，详情真实状态优先；JS 通用详情元数据轻量补全（每源 8 本/页、5 分钟去重、500 个尝试记录上限）。
+- 同日更新按源内位置归一化，保留点击/讨论同指标并列规则；显示真实参与来源与异常/无数据原因；分页会话与持久缓存继续复用。
+- 新增 AimanhuaTls.kt 和 app/src/main/assets/certificates/isrg-root-x2.pem：只在爱漫画客户端使用，正常系统链→官方 CA 链→已知公钥有界续签缓冲，域名校验保留。爱漫画公开主线路直连 OkHttp 避免 Cronet 先失败。
+- Network.fetchBytes 将 Android Convert 解码的数组/typed array 统一为 ArrayBuffer；桌面审计模拟相同返回类型。
+- 66 项相关回归、Hitomi 更新/分页/周榜/中文分类/冷恢复分页、爱漫画目录→详情→章节→图片及生产 Kotlin TLS 验证（含 CA 链换钥成功、未知自签/过期新钥拒绝）；正式 APK 28,972,675 B；SHA256 `06162b3b79267a531c60ae762fa1d3708d53c1f7edd327fbefb21d74ff7eef1a`。Release/R8、发布必要检查、固定签名、1.3.11 覆盖升级条件、16 KiB 对齐和源码/资产一致性检查通过。 发布回执见下。
+- README、CHANGELOG 与 docs/release-1.4.0-2026-10-15.md 同步。
+
+### 未做
+
+- 未启动模拟器、未重复检查无关阅读器和已通过源；未将站点没有提供的状态/统计伪造为已知数据。未知和停更不计入连载/完结数量。
+- 客户端无法替站主续签证书；14 天是有界过渡，非永久信任过期证书。
+
+### 踩到的坑
+
+- 最快源只有更新目录时，自动改聚合栏目会取消其余源，呈现出「只用一个源」；聚合不执行该自动回退。
+- 状态分别发请求可导致全部少于连载；改用同一结果集，并过滤作品组里的源版本，避免完结作品显示到连载源。
+- Node 审计曾直接返回 ArrayBuffer，掩盖 Android 的字节数组；现用相同输入类型验证生产转换。
+- 爱漫画源站证书刚在 2026-10-14 到期，不是每天轮换；仅硬编码公钥不能承接新钥续签，必须优先常规 CA 验证，并补官方链兼容旧 Android。
+
+### 1.4.0 发布回执
+
+- Commit `a087bb20366c7d29e67e31c056e2ca22addc06c0`，tag `v1.4.0`；远端 main、README、版本对象一致。
+- Release 413040637：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.0，已成为 latest；APK 28972675 B，SHA256 `06162b3b79267a531c60ae762fa1d3708d53c1f7edd327fbefb21d74ff7eef1a`。APK 与校验文件均上传且 GitHub 摘要吻合。
+- 沿用 1.3.11 固定签名，覆盖升级条件验证通过；旧 Release 和 tag 保持。66 项相关回归、两源实际阅读链路、CA 换钥/拒绝边界和正式包核验通过；未启动模拟器。
+
+
+## 71. 第七十七轮执行（2026-10-15：1.4.1 禁漫连接、移除热议与设置更新目录）
+
+### 已落地
+
+- JsSourceRepo.kt 补丁 48：禁漫更新发布方四条线路，缓存动态目录、容忍初始化配置失败；识别无缩进旧 get 补丁，LF/CRLF 幂等迁移。
+- JsMessageHandler.kt：禁漫只读 GET 直接 OkHttp，JSON API 4 秒连接/6 秒整次；jm_response.js 与 source_responses.js 在实际运行适配器中保存并恢复已验证线路，尊重手动选择，不重放 POST。
+- DiscoverScreen.kt 移除热议入口并迁移旧选择；榜单分类不变。ReleaseHistoryDialog.kt 补齐 1.3.7–1.4.1 的七条记录。
+- tools/jm-connection-audit.cjs 新增只针对禁漫的断连/缓存/鉴权/重试预算检查；tools/verify-source-response.cjs 支持 CIALLO_RESPONSE_FILTER=JM，仅运行六项相关契约，DOM 依赖按需加载。
+- 24 项相关回归，禁漫冷目录 180 本、详情/章节 42 张及首图 95,604 B 在线链路，OkHttp HTTP/1.1/标准 TLS/API 请求通过；正式 APK 28,974,887 B；SHA256 `573c84c58af9060a9a7ef20b3b1bb996a6a8e52c637557b40bfc59cbc3548a25`。固定签名、1.4.0 覆盖升级条件、Release/R8、包内资产和 16 KiB 对齐检查通过。 发布回执见下。
+
+### 未做
+
+- 未启动模拟器、未检查无关书源和阅读功能；没有将热议混入榜单改变分类结构。
+
+### 踩到的坑
+
+- 内置旧域名与发布方当前域名不同；首条 Cronet 等待可能耗尽整个换线预算；旧 get 补丁被 trimIndent 去掉缩进，后续按固定四空格匹配会漏迁移。
+- 实际运行 source_responses.js 会覆写 src.get，因此可用线路记忆必须同步更新 jm_response.js，不能只修下载脚本。
+
+### 1.4.1 发布回执
+
+Commit `8d6e3847b1a8fd53df9adbee0ded4f89701bdc4e`；Release 413307957：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.1，已成为 latest。源码、README 和版本对象一致，原签名及 1.4.0 覆盖升级条件通过；APK 28974887 B，SHA256 `573c84c58af9060a9a7ef20b3b1bb996a6a8e52c637557b40bfc59cbc3548a25`，两个附件的 GitHub 摘要均吻合，1.4.0 发布保持不变。
+
+
+## 72. 第七十八轮执行（2026-10-17：1.4.2 顶部上移与发现分类联动）
+
+### 已落地
+
+- MainActivity 主导航 Scaffold 将 contentWindowInsets 设为零，各页面保留一次状态栏安全区；五页共享 TabScreenHeader 外边距 10→4dp、内边距 12→8dp；发现筛选区缩小行间空白，保留 48dp 点击区。
+- DiscoverStatusScope.kt 统一榜单 / 原站推荐 / 原站分类的状态作用域。新作仍允许连载并显示原站新上架说明，移除重复状态层；完结仅保留已确认完结版本，隐藏冲突状态选项。普通状态为独立行并继续筛选当前数据，保持排序 / 缓存。
+- discover_bridge.js 不再把未完结、uncompleted、unfinished 等否定标签识别成完结；正向父栏目可作用于普通命名子栏目，明确否定的子栏目排除。
+- 50 项回归通过：DiscoverUiTest 22 项、DiscoverViewModelTest 23 项、DiscoverStatusScopeTest 5 项；离线 JS 语义协议验证通过。截图位于 artifacts/discover-ui/screenshots/，本轮 XML / 日志位于 artifacts/release-1.4.2/。
+- 版本 1.4.2 / 225；中英文 README、CHANGELOG、应用内更新目录、发现文档和发布验证说明同步更新。正式 APK 28,973,267 B / SHA256 `b033f93c5a656f834eda37711a66186a15e5c8652f0ea33fefa9946b355fe67c`；固定签名、1.4.1 覆盖升级条件、R8 / Vital Lint、资产一致性及 16 KiB 打包对齐通过。
+
+### 未做
+
+- 未启动模拟器或执行真机安装；截图来自 Robolectric / Compose 测试书源；本轮未重新宣称第三方书源在线可用性。
+
+### 踩到的坑
+
+- 状态栏 padding 在主 Scaffold 和页面各处理一次会叠加。筛选层不能机械复制全部状态到已受约束的完结栏目；新作是时间排序而非连载状态。
+- 否定标签包含正向关键词；混合分区还须保留正向父栏目下的普通标题，不能因为子标题未重复“完结”而丢失有效内容。
+
+发布回执：main / v1.4.2 = `a365577d`；GitHub Release 已公开并设为最新版，APK 与 SHA256SUMS 上传哈希核对一致，远端 README / 版本源码一致，1.4.1 Release 和标签保持原样。
+
+
+## 73. 第七十九轮执行（2026-10-19：Z-Library 下载失败、自动换节点与下载任务可见性）
+
+### 已落地
+
+- 保留搜索卡的下载链接和实际来源，传统数字 ID/hash 从地址直接提取；文件链接、会话 User-Agent 与同源 Cookie 一致，第三方 CDN 不携带来源会话。
+- 自动节点选择先尝试直连，再使用系统代理；排除失败节点并冷却五分钟，成功节点持久化，跨节点按书名/作者/格式唯一匹配，额度、频率和磁盘错误停止换线。
+- 下载任务在书库有文字入口与可点击常驻状态条；准备、进度、字节量、失败原因、暂停/继续/取消/重试及完成文件明细统一展示，小说与漫画可同时查看。
+- 修复 EpubParser.readTocTitles：根目录 OPF 的相对目录为空，不能拼接前导 `/`；仅非空目录追加分隔符，根目录和嵌套 OPF 均可入库，保留 ArchiveBudget 解压边界与正文路径校验。
+- 实网：第一卷《无职转生 ~到了异世界就拿出真本事~》EPUB 4,768,164 B 下载、完整性校验及 Room 入库通过；故意失效的第二卷链接触发生产 Worker 自动从 zh.z-lib.by 切换到 z-lib.by，重新匹配同一版本，4,241,889 B、25 个章节入库通过；《3分钟未来日记》完整文件曾因根目录 OPF 失败，修复后保留文件重试在 1.2 秒内入库为 28 章、41,304 字符，前后 SHA-256 一致。
+- 32 项 JVM/Robolectric 回归通过（EPUB 路径/安全边界、节点选择与匹配、下载 Worker、面板状态等）；原生任务面板和真实入库内容另有验收记录。版本保持 1.4.8 / 231，APK、签名与最终校验详见 docs/zlibrary-download-recovery-2026-10-19.md。
+
+### 未做
+
+- 未发布 GitHub Release，未全量测试所有书源或全国网络；当前无代理环境多个域名 DNS 污染/超时，不能承诺各地永久免费免代理。
+- 用户指定《无职转生未来日记》一本；此前卷册和《3分钟未来日记》仅为补充回归，不能证明指定单本下载成功，详见后续范围更正。
+
+### 踩到的坑
+
+- 用户已明确《无职转生未来日记》是一本书，之前擅自拆成两个搜索词是验收错误。此前卷册及《3分钟未来日记》成功只作补充回归；指定单本仍须实际下载、校验并入库后才可声称解决。
+- EPUB 下载完成不等于入库成功：root-level OPF 拼出 `/toc.ncx` 会被安全检查正确拒绝，需修复路径拼接，不能放宽解压边界。保留完整文件可免重复消耗下载次数。
+- 模拟器旧快照曾无默认网络，WorkManager 停在 PENDING；冷启动并恢复 AndroidWifi 后验证正式后台调度。测试用代理仅作用于本轮模拟器，验收后还原并清理账号会话。
+- Gradle 的 Windows Unix domain socket 在本环境报 loopback invalid argument，沿用已有 JAVA_TOOL_OPTIONS 绕过配置；凭据不写入源码和交付日志。
+- UI gate 的旧 baseline 字体计数已落后于本轮开始的 HEAD（524 / 622），本轮没有增加这两项，不为过门槛修改无关界面。
+
+## 74. 第八十轮执行（2026-10-19：指定单本纠正与隐藏书卡误解析）
+
+### 已落地
+
+- 明确用户指定《无职转生未来日记》一本，撤回以两组其他书替代目标验收的结论；validation.json 增加 requestedBookAcceptancePassed=false，专项文档区分目标与补充回归。
+- z-library.website 与 z-lib.by 的完整标题公开搜索均返回一张被父节点 hidden / aria-hidden=true 标记的同名书卡，书号/格式随机变化，旧客户端把隐藏卡当成可下载结果；之前 HTTP 204 的排查对象即这类卡。
+- ZLibraryParserManager.parseSearchPage 在布局选择前移除显式隐藏子树，覆盖所有布局与 GenericFallbackParser；可见的同名/同作者版本不受影响。新增四个针对嵌套隐藏、内联样式、可见同名和通用兜底的回归。
+- Android 实网测试在两个节点复现：原始同名卡各 1、显式隐藏各 1、可见同名各 0，过滤验收通过；报告 exact-hidden-card-audit.json 不保存账号/会话/签名 URL。
+
+### 尚待指定资源验收
+
+- 客户端误展示隐藏条目的缺陷已定位并修复，尚未取得《无职转生未来日记》的有效文件，不能说该书已下载入库。已向用户索取具体详情链接或作者名，继续核对有效版本；不擅自拆分或替换书名。
+- 其他书籍的下载、自动换节点、EPUB 根目录 OPF 修复及入库结果仍是有效补充回归，不是本书下载成功证据。
+
+### 踩到的坑
+
+- 页面源码存在同名卡不等于用户可见结果。hidden/aria-hidden 的结构证据比关键词相关性强；仅检测标题包含输入词会把反映查询词的隐藏条目误当真书，重试不同镜像不能制造有效文件。
+
+本轮最终校验：39 项相关回归、两个节点原生隐藏卡过滤验收、会话清理通过；Release/R8/Vital Lint、原固定证书、16 KiB 对齐及 414 项构建输入哈希一致。指定单本下载状态仍为未通过，不作为发布完成；校验摘要见 artifacts/zlibrary-fix/validation.json。
+
+## 75. 第八十一轮执行（2026-10-19：指定小说插图、源站缺字、1.4.9 发布）
+
+### 已落地
+
+- `EpubParser.buildImageToken` 对图片和解压根目录统一 canonicalize；旧逻辑在 Android `/data/user/0` 与 `/data/data` 别名之间计算相对路径，将 `../../.../cache/epub_<time>/` 错写进章节。阅读端兼容归一化这类旧引用并拒绝 ZIP 越界，不重写已有章节、进度或标注。
+- 实际指定 Wenku8 搜索“青春恋爱物语”对应渡航作品 ID 1213，正式 Worker 下载 87,225,957 B EPUB，755 个章节、395 张独立插图全部原包解码；Z-Library 精确标题《青春猪头少年不会梦到兔女郎学姐》，3,386,637 B、18 章、13 张插图全部解码。两书非封面插图均在正式 ReaderScreen 渲染并人工核图。
+- Novelia《青春猪头少年不会梦到平行弹簧》确认 ID hameln/387502，原文件与章节 API 的同一译文均仅有一个字面缺字符 U+FFFD；编码本身有效。新校验保留原文，仅允许至少 1000 字符章节至多一个、全书至多三个；严格 UTF-8、NUL、CRC、缺译、目录及插图检查保持。实网 951,084 B、目录 73 章逐项对应，入库拆分为 74 节，一处源站缺字保留。
+- 原有 Z-Library 旧书 52 张插图无需重下可读，前后书籍和章节记录一致；两节点再次复现反映查询词的隐藏假卡，过滤后可见同名为零。账号会话和 Cookie 已清理。
+- 插图/完整性/路径/隐藏卡定向 JVM 22 项通过；指定下载、旧引用、阅读页面与两节点隐藏卡的设备验收通过。用户随后明确要求更新版本、上传仓库和 Release，版本升至 1.4.9 / 232，更新中英文 README、CHANGELOG、docs 索引与发布说明，最终包重新构建和核验。
+- 1.4.9 最终 Release/R8/Vital Lint 及 41 项定向 JVM 回归通过。旧节点测试错误地把 example.com 的 HTTP 200 当成真实书库；改为可控书库结构响应，核验缓存、自定义和手选节点优先级，避免公网依赖且保留严格站点校验。
+- 源码清单 700 个文件，无遗漏；反向检查只保留三条显式历史删除记录。发布最终哈希、回归数量与 GitHub 回执以 `docs/release-1.4.9-2026-10-19.md` 和 `artifacts/release-1.4.9/verification.json` 为准。
+
+### 未做
+
+- 没有为源站缺字杜撰译文，没有放宽损坏编码或缺章检查；未证明所有地区免代理或所有书籍均无源站问题。
+- 先前《无职转生未来日记》未取得有效文件；其隐藏假卡过滤已验证，不把其他书成功当成该书下载成功。
+- 非最终 ARM64 实体手机验收，设备链路为 Android 35 模拟器与实际生产代码。
+
+### 踩到的坑
+
+- Android 目录别名需在相对路径计算两端同时规范化；普通 JVM 路径 fixture 无法复现别名，必须验证实际入库引用和设备原包解码。
+- 一个有效编码的字面替换字符并不能证明全书编码损坏；NUL 又会被 Jsoup 吞掉，必须在 HTML 解析前独立拒绝。
+- EPUB 元数据可含目录别名（本次 Wenku 包含括号译名），验收应核对来源资源 ID 与确定的元数据，不把合法别名当成下载了其他作品。
+
+发布回执：代码与标签均指向 `bab7de2733f0759cbe6a77cc51e1ee54d3e67bf9`，GitHub Release https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.9 已公开并确认为 latest；APK 与 SHA256SUMS 两项附件的服务端摘要均与本地一致。APK 29130128 B，SHA-256 `c9001018846ea5d5fadd595771711413a8ad4159af1ccd312f05de71ecbcf073`；最终 1.4.9 / 232 正式包覆盖安装及冷启动通过。中英文 README、发布说明与仓库校验文件远端逐字节一致。
+
+## 76. 第八十二轮执行（2026-10-19：接入「书阁」xbookcn 成人小说源）
+
+### 已落地
+
+- 新增 `source/impl/XbookcnSource.kt`（386 行）：`ComicSource + UpdatableNovelSource`，`id = xbookcn`、`name = 书阁`。搜索 `GET /search?q=` 取 `#search-books li`（排除 `#search-chapters` 的章节结果）；详情与目录同页解析 `main > header` + `目录` section；正文取 `article.reading-text p`；`novelInfo` 带章数、字数、更新时间、分类、标签。TLS/连接抖动与 429/5xx 有界重试一次；真正的验证页用 `CfWebViewSolver` 过一次盾并带 Cookie 重试。
+- 作品 id 只保存 12 位十六进制；`/book/{id}` 与 `/book/{id}/{n}` 都会由站点 302 到带 slug 的规范地址，标题改动不影响旧记录。章节 id 为 `{bookId}/{n}`，解析时同时校验 id 与 1..100000 的序号，拒绝路径注入。
+- 新增 `download/XbookcnEpub.kt`（132 行）：书阁没有整本文件，`getDownloadInfo` 返回带 `#ciallo-xbookcn-epub-v1` 的地址；下载 Worker 逐章抓正文、180ms 间隔、下载前后各取一次目录并逐项比对，任何一章失败删除临时文件，绝不导入缺章 EPUB。ZIP 结构对齐 `GuestNovelEpub`，可过 `GuestNovelIntegrity.epub`。
+- 接线只做增量：`WholeBookNovelSources.ids` 增加 `xbookcn`；`LibraryViewModel` 启动时**无条件注册**（按用户要求不跟随成人源开关）；`DownloadWorker` 在 PublicNovel 分支后新增 `else if (sourceId == "xbookcn")`。既有 PublicNovel、流式下载与全部其它书源分支未改动。
+- 按 `docs/novel-source-integration-checklist.md` 完成验收，记录见 `novel-reader/docs/xbookcn-source-verification-2026-10-19.md`。设备实网 5 项通过（注册、搜索、目录、拒绝路径、下载+入库+阅读器）；JVM 9 项通过（6 项解析 + 3 项真实页面快照）。真实下载 4 章样本：EPUB 287,610 B、SHA-256 `f606bbbe…`、0 图、`GuestNovelIntegrity` 通过；入库 11 物理章经 `ChapterMerger` 合并为 4 逻辑章；`ReaderScreen` 截图见 `evidence/xbookcn-reader.png`（第 1/9 页 · 第 2/11 章 · 18%）。
+- 站点是 po18 系成人内容，但按用户要求**始终注册**，不再跟随成人源开关；关闭开关只影响 JS 成人源，书阁保持可用。
+
+### 未做
+
+- 未跑全量 JVM / androidTest 套件与 `assembleRelease`，未在实体手机上验收；本轮设备链路为 Android 35 x86_64 模拟器。
+- 未注入断网、取消、磁盘不足、429/5xx、下载期间目录变化与连载更新失败回滚；这些路径只有代码分支，没有执行回执。
+- 站点无封面（og:image 是站点图标），搜索结果与详情均不返回封面，`cover` 保持 null；未臆造占位图。
+- 搜索只有首屏 20 条（站点 `?page=` 不生效），已在验收记录中标注；未接入"发现"板块。
+
+### 踩到的坑
+
+- 站点是 React Router 流式 SSR，但 `#search-books`、目录 `ol`、`article.reading-text` 都在首屏 HTML 里，不需要 WebView/QuickJS；先抓 `window.__reactRouterContext` 反而绕远。
+- 搜索页同时有「书籍」和「章节」两个区块，章节结果也指向 `/book/{id}/{n}`；只按 `/book/` 前缀取会把章节当书，必须限定 `#search-books`。
+- 目录 267 章一次 SSR 全渲染（无分页/懒加载），所以 `getChapters` 不需要翻页；但详情与目录连续调用会重复下载同一页，已加 60 秒 `LruCache`。
+- `/book/{id}-任意slug` 都会 302 到正确页面，只有 id 错误才 404；因此 bookId 用纯 id 比保存完整 slug 更稳。
+- 正文段落里可能有全角空格与空段，入库前需过滤；同时剔除 C0 控制符，避免 `GuestNovelIntegrity` 以"正文包含乱码"拒绝整本。
+- **不能用 `SourceResponse.problem` 直接判定本站拦截页**：正常章节页也会被 Cloudflare 注入 `/cdn-cgi/challenge-platform/`，会被误报为验证页（设备上表现为详情/目录正常、正文全失败）。改为先确认页面已有 `article.reading-text` / `#search-books` / `main header h1` / 目录结构，再交给 `problem`。
+- 模拟器的系统代理会从宿主继承 `127.0.0.1:7897`，而模拟器内的 127.0.0.1 不是宿主，所有请求会 `ConnectException`；设备验收前必须 `settings put global http_proxy :0`，否则结论无效。
+- 本站 TLS 握手有偶发失败（curl `schannel` rc=35、OkHttp 首连也会中），必须有一次有界重试；否则逐章下载会随机整本失败。
+
+## 77. 第八十三轮执行（2026-10-19：1.4.10 发布收尾）
+
+### 已落地
+
+- 版本号 **1.4.10 / 233**（versionCode 由 232 递增，versionName 按用户指定为 1.4.10，不是 1.5.0）。
+- `assembleRelease` 成功（R8 + lintVital），APK 29,112,092 B，`com.aistudio.novelreader.kxmpzq`，versionCode 233 / versionName 1.4.10，仅 `arm64-v8a`；`apksigner verify` 通过（V2），证书 SHA-256 `d2115e3cc5880b210a120558aaab03eb30ee5de2952a80f3376dda7e45501146` 与此前发布一致；ZIP CRC 207 项无坏条目；8 个 `.so` 全部 16 KiB 对齐。
+- SHA-256 `a1bdd2da1e7b0c8fd6efb76642798b93c606450e8b195d3dc7c424a3356ecfd5`，写入 `releases/SHA256SUMS-v1.4.10.txt`。
+- 新增 `docs/release-1.4.10-2026-10-19.md`；中英文 README 的版本高亮、发布说明链接与直接下载链接同步到 1.4.10；README「中文小说与同人书源」表格加入「书阁」行并补充其无整本文件、无插图/封面、逐章打包与目录比对的说明。
+- 提交 `bce2e7c5`，标签 `v1.4.10` 与回滚点 `rollback-before-1.4.10`（指向 1.4.9 的 `bab7de27`）；远端 `origin/main` 与本地一致，`gh` CLI 不存在，改用 `~/.git-credentials` 中的 token 调 GitHub REST API 建 Release 并上传资产。
+- GitHub Release https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.10 已公开并确认为 latest，附 `Ciallo-Reader-v1.4.10.apk`（29,112,092 B）与 `SHA256SUMS.txt`（92 B）。
+- 模拟器已关闭（`adb emu kill` 后无 `emulator` 进程、`adb devices` 为空）。
+
+### 未做
+
+- 未在实体手机（ARM64）上安装 1.4.10 正式包做冷启动与覆盖安装验收；本轮设备链路仍为 x86_64 模拟器。
+- 未跑全量 JVM / androidTest 套件；本轮只跑定向的 9 项 JVM 与 5 项设备用例。
+- 未验证 Release 包内书阁源的实网链路（Release 与 debug 同源码，但 Release 包未做实网点按）。
+
+### 踩到的坑
+
+- **版本号必须由用户指定**：本轮一度自行升到 1.5.0 并开始构建，用户纠正为 1.4.10；已停构建、改回 `versionName`，并把 release 文档、中英文 README、CHANGELOG 与校准基准中的 1.5.0 全部替换为 1.4.10 后重新构建。版本升级只应改 versionName 的末位时不要自作主张跳次版本号。
+- Git Bash 的 `/tmp` 与 Windows Python 看到的路径不是同一个（curl 的 `-o` 与 python 读取会互不可见）；跨工具传文件要用明确的可读路径，或直接用 API 重新 GET 校验。
+- 顶层目录 `novel-reader (1)` 是另一个仓库（`Ciallo-Reader-ios`），Android 仓库在其 `novel-reader` 子目录，提交前必须确认 `git rev-parse --show-toplevel`。
+
+## 78. 第八十四轮执行（2026-10-20：1.4.11 触控分区与统一动效）
+
+### 已落地
+
+- 用户指定版本 **1.4.11 / 234**。小说与漫画使用同一矩形编辑器，分别配置点击和滑动动作；归一化存储、拖动 / 四角缩放 / 置顶 / 删除，最高层同时拥有两种行为，空白不执行自定义动作。
+- 滑动翻页显示主题色范围条、动态虚线和模拟手指；校准按实际手指位移 / 屏幕密度得到 dp，以原尺寸阅读 viewport 定位，工具不参与正文排版；微暗同层编辑，工具可收起 / 换侧，试读临时用草稿真实翻页，退出试读继续编辑，取消不写配置；支持手动端点、公共滑条微调、重新校准及恢复默认。
+- 未自定义时完整沿用原有引擎：普通小说 35% / 65% 点击分区与 15% 屏宽阈值、极简 48dp、仿真卷页原有三分点击区及跨屏幕中线；漫画原有三等分方向感知、64..104dp 距离策略与快速滑动行为不变。条漫自定义滑动以 90% 可视高度前进，在单张长图内部也不跳读剩余内容；自定义后短滑动不回退为点击，不以速度绕过所设距离；多指、取消和图片平移优先。
+- 漫画分区进入 ComicReaderConfig JSON，兼容旧全局 / 用户预设 / 每书配置；默认恢复移除分区覆盖并恢复原点击 / 单指开关，不更改图像设置。
+- 公共 LiquidSlider 原生 Canvas 实时自绘透镜、液体鼓起、弹性轨道与滞后中心；96 点采样、每帧两子步、DPR 上限 2、连续 / 分档 / 双滑块范围、读屏和纵向滚动、静止停绘；FluidSlider / PanelSlider / JunoSlider / Material 调用均代理到它。
+- PullOutConfig 集中参数；全部弹层与展开入口接入公共网格与宿主，按钮 / 长按区域自动注册屏幕矩形，真实按钮纹理及卡片纹理变形融合，26×150 顶点、平滑铰链、收口 / 弯曲 / 拱起 / 飘动，透明圆角 / 软件超采样 / 轮廓阴影、独立关闭弹簧、共享动作关闭生命周期；减少动态 / 极简 / 渲染失败统一降级。
+- README（中英文）、CHANGELOG、发布说明与本文索引同步；UI gate 不改 baseline，全部指标通过。
+
+### 未做
+
+- 构建、设备与发布最终结果将在本章末尾补入；完成前不视为已发布。
+- 本轮不验证所有书源实网与所有厂商 GPU；实体 ARM64 手机尚未连接。
+
+### 踩到的坑
+
+- 漫画回调必须把新增可选参数放到末尾，保留旧位置参数调用；旧配置缺少 touchZones 时必须为 null，不能静默写入一套新默认。
+- Android drawBitmapMesh 不使用 Paint 的 antialias 标志；必须用带 alpha 的纹理和软件超采样平滑网格边缘。布局层可能全屏但卡片只是底部区域，先裁透明边再形变，不能把隐形全屏容器当纸面。
+- UI 中关闭后动作可能已手动使用 LocalOverlayClose；公共关闭器处理完成回调中的嵌套 close，重复点击关闭过程中则仍忽略，避免动作丢失或重复执行。
+- 纹理 ready 不应放进 Transition 的同状态 target 映射，否则 Android 实测可能一直停在 p=0。纸面现在使用保留位移 / 速度的解析弹簧；Transition 只保留关闭生命周期，纹理完成后才启动真实物理进度。分区标签与校准轨迹留出空间。
+- 沿用 Windows JDK Unix domain socket 临时目录绕过参数，发布密钥与 GitHub token 不写源码 / 日志。
+
+第 78 章补充：同工作区另有书源修复任务并行编译。1.4.11 的最终验证与打包改在独立 managed worktree `reader-interactions-1-4-11/novel-reader` 执行，避免 APK / JVM 测试输出互相覆盖；用户随后明确确认合入已完成的书源修复；最终冻结快照包含该任务源码、测试与文档，原有未提交资源删除保持在主工作区。
+
+第 78 章最终修复：纸面转换位图后清空记录层；漫画面板改为 Backdrop 直接绘制当前页像素，取消跨树的 LayerBackdrop 引用，避免纸面与玻璃组合的 RenderNode 循环。应用内更新历史同步补齐至 1.4.11。用户要求修复后不再重复整套检验，后续仅做故障路径确认、编译和发布必要的包身份 / 签名校验。
+
+第 78 章发布前定稿：纸面纹理转成独立位图后立即清空 GraphicsLayer 记录，避免保留已回收子 RenderNode；按钮按下才捕获并序列化位图读取。修复后的漫画设置 → 手势 → 原尺寸分区编辑定向设备确认通过。按用户要求不重复完整套件；保留先前 130 项选定 JVM 通过记录。正式 ARM64 包 29149452 B，SHA-256 8e9da6791f274119ec4762e30a753d0fc0066a2b91060ed901acbac377b7d401；签名、递增版本码、ZIP CRC 和 16 KiB 对齐通过。未连接实体手机。发布链接：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.11 （公开状态以 publication.json 为准）。
+
+第 78 章发布回执（2026-10-21）：提交 `b3904d92410b17c89fe120083374ed57c0df3413` 已推送 origin/main，标签 v1.4.11；GitHub Release 已公开：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.11。APK 29149452 B，远端资产摘要与本地签名包一致；本地正式包位于 novel-reader/releases/Ciallo-Reader-v1.4.11.apk。发布回执保存在 artifacts/touch-zones-1.4.11/publication.json。
+
+## 79. 第八十五轮执行（2026-10-21：1.4.12 动效性能与自由卷页热修）
+
+### 已落地
+
+- 用户批准发布 1.4.12 / 235，允许简化算法但保留抽纸主要观感。硬件 Canvas 直接提交 26×150 网格；移除每帧软件全屏位图、超采样缓冲和模糊，昂贵形变按行复用，普通按钮点击不截图。纹理限制 100 万像素 / 1600 边长，后台裁边和一次性轮廓阴影，持续慢帧先减阴影再轻量过渡。
+- 物理进度同时拥有绘制、遮罩、可交互状态、内容保留和关闭完成；中途反向保留速度，关闭捕获当前内容。触发来源屏幕坐标、一次认领、900ms 过期、父入口回退和隐藏所有权统一管理。旧窗口真正销毁后执行后续动作，避免新弹层被旧回调清空或复用关闭状态。
+- 小说 PageCurl / 其他翻页模式、漫画 harism 原生卷页继续接收二维坐标。PAGE 分区不再吞掉原生跟手过程；仅快速释放且已配置距离时按二维实际位移覆写完成判定。慢速拖角、部分卷起和回退由原引擎处理，未校准仍保留旧策略，多指 / 放大图片优先。
+- 校准按二维位移记 dp；前后虚线方向相反，RTL 同步反转，双向分区交替演示，不限制真实运动轨迹。编辑仍覆盖实际原尺寸阅读区域。README / CHANGELOG / 应用内历史与发布说明同步。
+
+### 未做
+
+- 不重复全套回归；只运行故障路径与新增手势定向检查及必要打包校验。未连接实体 ARM64 手机，模拟器不能代表全部 GPU 帧率。最终包身份、验证结果与发布回执完成后补在本章末尾。
+
+### 踩到的坑
+
+- AnimatedVisibility 的原生 isIdle 与自定义物理进度不是同一时钟；真实窗口退出必须等待自有 closed 状态。对同调用点弹层执行 null→新值可能被 Compose 合并，后续动作须等窗口 onDispose。
+- drawBitmapMesh 的 Paint AA 标志无效；改用透明纹理边缘 / 双线性硬件过滤，不能为此每帧创建巨大软件缓冲。HWUI 正在引用的位图交给引用退役，禁止立即 recycle。
+- 校准距离不是禁止原生慢速卷页的门槛。二维速度区分快速完成，原坐标进入卷页几何；净位移计算避免往返累积误触。
+
+第 79 章构建与验证：最终触控回归 18 项、弹层生命周期 3 项通过；此前网格 / 滑条定向 17 项通过；UI gate 通过，覆盖检查 721 文件遗漏 0，3 个旧文件明确标注已删除。正式 ARM64 包 29157680 B，SHA-256 e384a05c583d8e10b577d96a21979c6f637d72371a5efa8befc0398e168f1414，1.4.12 / 235，包名 / ZIP CRC / 16 KiB 对齐及与 1.4.11 同证书递增版本检查通过。本轮专用模拟器两次未完成启动，设备用例已编译但未执行，无新 GPU 帧率采样，未做实际安装；不重跑全量套件。发布状态以 artifacts/paper-1.4.12/publication.json 为准。
+
+第 79 章发布回执（2026-10-21）：提交 1fb85e0ac24f1263bdeaa25b864855eb5c58884a 已推送 origin/main，标签 v1.4.12；GitHub Release 已公开：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.12。APK 29157680 B，远端 SHA-256 与本地 e384a05c583d8e10b577d96a21979c6f637d72371a5efa8befc0398e168f1414 一致，正式包在 novel-reader/releases/Ciallo-Reader-v1.4.12.apk。最终触控 18 项通过；通过独立 init 脚本仅向单测编译加入现有 Debug 宿主，未写入 APK；本轮设备启动失败，未完成新设备验收或帧率采样。回执位于 artifacts/paper-1.4.12/publication.json。
+
+
+## 80. 第八十六轮执行（2026-10-21：1.4.13 抽纸性能与交互打磨）
+
+### 已落地
+
+- 滑条触控固定指针，延迟到明确横向意图 / 有效轻触再寻址，保持滚动和相对偏移；原透镜、液体和轨道曲线缓存复用。
+- 移除慢帧永久降级，玻璃消费者与来源解耦，窗口来源隔离；按钮按需捕获、互斥读回、已有软件纹理复用、按边裁图、列基函数和混色复用。
+- 连续弹簧跟随面板目标，手动拖动先冻结当前内容；嵌套初始内容合入父快照，后续交互仍走独立纸面，行内触发器在展开落定后恢复。
+- 补齐发现选择 / 长按、书架与源组动作入口；目录、书签、来源、分类等先关闭再执行，去重同一 dismiss 回调。
+- 手册和缓存管理仅保留现有头栏和一个关闭按钮，头栏仍可拖动回弹 / 收回。
+- tools/audit-shelf.py 保留 68 条结构检查：四项旧识别分别校准为当前消费仲裁、PullOutVisibility 浮层和已经移除的呼吸状态；没有修改未涉足的 ShelfMultiSelect 手势实现。
+
+
+- API 29+ HardwareRenderer / ImageReader 异步接收，后台像素打包、裁边与阴影；UI 显式负责 RenderNode 记录 / 提交 / 清理，离屏目标空闲释放。混色限定实际纸面覆盖范围，省略零贡献纹理提交，顶点直接写浮点数组。
+- 通用 clickableWithFeedback 把来源锚点放到按压 graphicsLayer 外层；按压缩放与透明度一起进入来源纹理，避免接管时亮度突跳；普通按压外观不变。
+
+### 验证与发布
+
+- 24 项有保存 XML 的相关 JVM 用例分批通过；最后仅复验几何、像素打包与关闭器 3 项。没有重跑全量套件。
+- 5 项原生故障用例分批通过，末轮仅复验变化的密集玻璃与实际手册 / 缓存两项：八次开合 32 次读取均异步、337 帧网格、正文绘制 32 次；手册 / 缓存 10 次读取、发现 4 次读取均异步，旧后端回退 / 捕获失败 / 动效降级均为 0。手册与缓存只有一个头栏与关闭按钮，短拖回弹、持续 MOVE、开场中断、选择后退出及滑条纵横手势均通过。
+- 浅 / 深滑条静态图逐像素相同；UI gate 保持旧基线并通过；书架审计 68 项通过。共 723 个源码文件，遗漏 0，3 项旧文件明确标注已删除。716 项生产输入冻结并在正式构建后逐项匹配。
+
+### 未做
+
+- 不改变小说 / 漫画原生自由卷页、既有默认分区、书源或用户数据；没有执行无关全量回归。
+
+### 踩到的坑
+
+- 旧书架审计的四项告警在本次基线亦存在：它只识别 AnimatedVisibility、已移除的呼吸变量，并禁止当前为避免背景误触而必需的消费取消。新审计保留原约束目的、检查当前对应结构，不能删除消费仲裁来迁就旧字符串。
+- 软件窗口应从真实 draw Canvas 判定，不能在 Dialog 尚未 attach 时提前禁用硬件纸面。
+
+- LaunchedEffect / 自定义续体拦截器在 worker / semaphore 恢复后不能假定当前是 UI 线程；原生显示列表操作必须显式 withContext(Dispatchers.Main.immediate)，清理也一样。后台仅处理独立像素，不能跨线程碰 RenderNode。
+- Robolectric Dialog 不提供真实 HWUI 帧：关闭器单测显式供给开场、收回的纹理就绪信号，只测物理退出 / 动作去重；真实捕获由设备测试覆盖。桌面 Skia N32 色序不同，行距打包校验原始字节，不拿主机 getPixel 解释代替 Android RGBA。
+- 原生截帧先开启 HardwareRenderer 绘制并等待真实帧；手动冻结测试时钟时，等待条件必须继续推进帧，不能等待一个被自己冻结的捕获协程。来源窗口销毁后的回调须等待 visibility 与 action 都完成。
+
+第 80 章正式包验收：Release 构建成功，1.4.13 / 236，ARM64 单架构，29168760 B；SHA-256 172f74884c2abc16c7c4eec84c5e3e7ad0a0ddedf0fbbb9131e86771a56daf3d。与 1.4.12 同证书且版本码递增，包名、ZIP CRC、16 KiB 对齐检查通过；证书指纹 d2115e3cc5880b210a120558aaab03eb30ee5de2952a80f3376dda7e45501146。未连接实体 ARM64 手机，不能用 Debug 模拟器时序冒充所有 GPU 帧率。README / CHANGELOG / 应用内历史 / 发布说明已同步，发布回执见本章末尾。
+
+第 80 章发布回执：提交 0db0915d76938e99baf379514a1ce0f0e67833d7 已推送 origin/main，标签 v1.4.13；GitHub Release 公开且为 latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.13。APK 29168760 B，远端摘要与本地 172f74884c2abc16c7c4eec84c5e3e7ad0a0ddedf0fbbb9131e86771a56daf3d 一致。正式包在 novel-reader/releases/Ciallo-Reader-v1.4.13.apk；工作区已同步本轮 41 项文件并保留无关草稿，记录位于 artifacts/paper-1.4.13/publication.json。
+
+
+## 81. 第八十七轮执行（2026-10-21：1.4.14 快速输入稳定性回退）
+
+### 已落地
+
+- 根据用户反馈，明确放弃当前复杂抽纸的柔性网格 / 纹理融合，全部调用统一使用 `StablePaperSurface` 常规图层过渡；保留淡入、短距离趋近与开关独立弹簧。
+- 删除 `PaperSnapshotCapture.kt`。弹层不再把实时 Compose GraphicsLayer 交给另一个 HardwareRenderer，不再回读截图、录制来源、隐藏来源卡片或回收借用层；原毛玻璃组件和主题绘制保留。
+- 同一个生命周期协程处理连续目标变化，不因每次开关或 MOVE 重新启动；静止后等待 Flow，帧间隔仅积分到 33ms，不卡帧后大量追算。
+- 玻璃卡观察手势在越过 slop 或滚动消费移动时立即结束，减少快速滑动下按压视差追踪。
+- 旧的网格 / 隐藏来源断言随架构移除，改为快速输入、窗口顺序、内容像素及真实手册 / 缓存回归。保留相关滑条用例。
+
+### 验证与发布
+
+- 22 项相关 JVM 用例通过：OverlayPolishTest 4 项，PaperAndSliderTest 18 项。无需人为供给纹理 ready 信号，旧捕获算法断言已随删除后端移除。
+- 3 项设备专项通过：12 次快速甩动、72 次连点后卡片像素变化率 0；6 次弹窗开合、6 次动作；24 次目标反转后可正常停稳和关闭。实际手册开场取消 / 重开及缓存单头栏通过。
+- 原 UI gate 基线通过；文档覆盖 722 文件 / 0 遗漏，4 条不存在文件均明确标注已删除。715 生产输入冻结用于正式 Release 构建。
+- 已检查真实窗口截图；筛选设备日志未见 AndroidRuntime / HWUI / OpenGLRenderer 错误。Host-GPU 模拟器，未实测实体 ARM64 手机帧率。不执行无关全量重验。
+- 正式 Release 构建成功，1.4.14 / 237，ARM64 单架构，29152412 B。SHA-256 6b43715607810e918c9689ec1725c300ffe000cbffeef1dd7afa1f427a16f359。与 1.4.13 的签名 / 包名一致且版本码递增，ZIP CRC、16 KiB 对齐检查通过；715 项生产输入与冻结清单一致。发布回执见本章末尾。
+
+### 未做
+
+- 没有改动读书手势、默认分区、校准、滑条样式、书源或用户数据。
+- 这版是明确的动效降级，不再声称达到柔性纸面网格效果；不以截图正常代替快速滚动 / 连点验收。
+
+### 踩到的坑
+
+- 第 80 章的五项设备用例集中于弹层开合，并未覆盖普通列表快速甩动、连续连点。其通过不能证明 1.4.13 在真实快速操作中稳定；用户反馈已说明这一覆盖缺口。
+- 对实时 Compose 子渲染层进行额外离屏提交、暂时隐藏和资源回收会扩大图层生命周期风险。此次直接移除这条链路；不能再用更复杂的捕获重试解决普通 UI 的稳定性问题。
+
+第 81 章发布回执：提交 cf21a766ec16d1cf565b5ec781b177cc2528d26c 已推送 origin/main，标签 v1.4.14；GitHub Release 公开且为 latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.14。APK 29152412 B，远端摘要与本地 6b43715607810e918c9689ec1725c300ffe000cbffeef1dd7afa1f427a16f359 一致。正式包在 novel-reader/releases/Ciallo-Reader-v1.4.14.apk；工作区已同步本轮变更并保留无关草稿，记录位于 artifacts/paper-1.4.14/publication.json。
+
+
+## 82. 第八十八轮执行（2026-10-21：1.4.15 轻量柔性抽纸、Tab 跳动与角落白光）
+
+### 已落地
+
+- 在 1.4.14 稳定图层上添加 API 33+ AGSL 逆向变形。CPU 只更新 128 个前向行点与复用的 64 行 float4 表，shader 最多六层固定索引分支选中行段，三次曲线插值后只采样一次实时内容；保留渐进释放、收口、弯曲、轻飘、压缩明暗和独立开关弹簧。
+- 不恢复按钮 / 卡片截图、HardwareRenderer / ImageReader、来源隐藏、借用层释放；不做双纹理按钮颜色 / 文字融合。停稳时 renderEffect=null、矩阵 / 透明度精确恒等。旧系统、shader 不支持、全屏容器与小内容仍使用稳定过渡。
+- 底栏标签不再使用 PullOutVisibility 退出后移除节点。labelFraction 同时决定栏高和文字空间；同一时钟连续收缩，标签行高按主题与字体比例预留。
+- 公共 acrylicPanel 移除角落镜面光束、聚光带及倒角高光；书源 / 登录面板停用 Highlight 并移除额外亮边；GlassKit 弹层停止触点光斑。正常主界面玻璃保持现有装饰。
+- 白光根因追加确认：LiquidGlassProvider 误用了底层 GraphicsLayer.record(density, layoutDirection, ...) 重载，this@draw.drawContent() 仍写向窗口，visible=false 也会画出整屏渐变。改用 DrawScope.record(size, block) 正确切换 / 恢复当前 canvas 和 layer owner。修复前代码 的隐藏源像素用例明确失败：深色背景被画成纯白；修后以同例验收。
+- 书源选择改用 PullOutBottomSheet，面板与遮罩分别绘制，原 280ms 销毁计时删除；聚合 / 单源选择和管理跳转在旧窗口真正关闭后执行。
+
+### 验证与发布
+
+- 26 项相关 JVM 已通过：TabBarMotionTest 2、PaperAndSliderTest 20、OverlayPolishTest 4；其中逐帧检查五 Tab 收缩 / 展开与逆向行表端点、单调性和收口。最后的 shader 常量索引与 Provider 上下文修复由后续设备用例覆盖，没有重跑无关全量套件。
+- 最终 5 项原生检查通过：12 次快速甩动、72 次连点、6 次窗口循环后像素变化率 0；160 次变形更新 / 0 失败，开场 / 吸回实拍及实际书源选择退出顺序通过；隐藏采样层的修复前代码 明确画白、修后隐藏 / 显示两种像素断言通过。
+- Debug 行表更新最大墙钟计时 2.199485ms，不是总 GPU 或帧耗时。未连接实体 ARM64 手机，不能声称与普通矩阵过渡算力完全一致。
+- 原 UI gate 基线通过；722 源码 / 0 遗漏 / 4 个明确标注已删除文件；715 个生产输入冻结用于正式构建。正式 Release 构建成功，1.4.15 / 238，ARM64，29155592 B；SHA-256 83cfbb8ca767170a11d3d68ba154c0d290ab9847cb44f5e6e0a8c336b5b3f690。与 1.4.14 同证书、同包名、版本码递增，ZIP CRC / 16 KiB 对齐通过。715 项生产输入冻结匹配。发布回执见本章末尾。
+
+### 未做
+
+- GPU 变形仍比矩阵缩放多坐标插值计算，不能声称算力完全相同；没有承诺所有实体设备帧率。
+- 保留书源、阅读原生手势、触控分区和液体滑条设置。不恢复双纹理融合，也不让全屏遮罩跟随小窗口一同抽出。
+
+### 踩到的坑
+
+- 底栏高度动画与标签移除不是同一时钟：退出最后一帧重新居中即可让全部图标跳动，即使横向槽位固定也无效。不能只加另一条位移缓动掩盖这个布局问题。
+- 弹层应仅对实际面板变形；全屏包装器的透明区域与遮罩不能当纸面。固定延迟销毁与弹簧退出必然不同步，来源选择必须走统一关闭器。
+- RuntimeShader 成功构造不等于实际画出了纸面；设备用例冻结在展开 / 收回的中途并截真实窗口，检查失败计数和画面。
+
+
+第 82 章兼容性补充：AGSL 不支持按片元动态索引 uniform 数组，也没有 int 的 min/max 重载。逆向表查找生成六层以内的平衡条件树，各叶子只用常量下标；不使用 64 次循环扫描。先通过 Android app_process 直接编译与绑定，再由真实窗口截图验证实际绘制。DrawScope 的 record 成员扩展会临时重定向当前绘图上下文，而显式传 density/layoutDirection 会选中原始 GraphicsLayer 方法；两者不能混用来调用外层 drawContent。
+
+第 82 章发布回执：提交 ff69fcae32c04ed56dc90c555c7cb7dd9b141c79 已推送 origin/main，标签 v1.4.15；GitHub Release 公开且为 latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.15。APK 29155592 B，远端摘要与本地 83cfbb8ca767170a11d3d68ba154c0d290ab9847cb44f5e6e0a8c336b5b3f690 一致。正式包在 novel-reader/releases/Ciallo-Reader-v1.4.15.apk；工作区已同步本轮变更并保留无关草稿，记录位于 artifacts/paper-1.4.15/publication.json。
+
+## 83. 第八十九轮执行（2026-10-21：1.4.16 动效衔接与平稳落定）
+
+### 已落地
+
+- 新增统一 paperOpen 向前交接 API；与关闭 / 确认分离。旧窗口直接结束保留，原生窗口销毁后只执行一次下一操作；兼容普通弹窗、底部面板、菜单与页面内弹层。
+- 来源使用短生命周期的冻结屏幕矩形，旧按钮移除仍可正确展开；返回时解析仍存在的上级按钮。显式前进动作可跳过确认按钮槽自动关闭拦截，不影响普通确认。
+- pullOutPage 以导航浮动窗口保留原页面，源管理从实际按钮展开，原页面和 Tab 不参与退出；仅完整目标表面显式允许全屏柔性变形。目标背景继承主题 / 壁纸但在自己的窗口内采样，消费者仍为采样层的兄弟节点。
+- 展开 spring 保留刚度 140，阻尼调整为 24；关闭仍 260 / 34。消除超调后 shader 重入，形变轻飘仍在展开过程中渐消；静止后卸载效果与帧循环。
+- 缓存明细删除独立 180ms scale / alpha；源管理删除第二层页面入场，避免多个动画叠加。版本、README 中英文、CHANGELOG、应用更新记录同步。
+
+### 验证与发布
+
+- 27 项相关 JVM 通过（PaperAndSliderTest 21、原 OverlayPolishTest 4、新增前进 / 菜单各 1）；后续窗口边界与按钮最小高度修改由设备用例覆盖，不声称对最终源码重跑了全量 JVM。
+- 5 项相关设备用例通过：选择器前进 / 底栏位置、真实源管理与导航去重、缓存两层纸面、小说详情物理安全边界、2 倍字体的普通 / 极简公共按钮。最后显式 fillWindow 修正后，仅对受影响的 3 项重跑并通过。
+- 小说按钮由物理底边 1514px（超过安全边界 1478px）修正为 1430px；文字行完整 39px，原生窗口的屏幕偏移 42px→0。缓存链路变形更新 200 次 / shader 失败 0，不能等同帧率或总 GPU 耗时。
+- 原 UI gate 基线通过；722 源码 / 0 遗漏 / 4 条明确已删除记录。715 个生产输入与最终构建匹配；Release 1.4.16 / 239，ARM64，29155684 B，SHA-256 4347e5c95bb7ab1bba47bb978801a246bd3e11cfd89ae5c729ab2d7c1fb94ff7；同正式证书、同包名、版本码递增，ZIP CRC 与 16 KiB 对齐通过。发布回执见本章末尾。
+
+- 共用原生窗口统一物理边界：全高浮动窗口 setFitInsetsTypes(0)，不再按整屏高度测量却从状态栏下开始绘制。实际内容消费系统栏 / IME 安全区；菜单按可用高度限位，整页自行绘制状态栏下背景并跟随主题切换系统图标。小说详情与更新按钮、AppActionButton 改用最小高度。
+
+### 未做
+
+- 没有恢复截图捕获、额外渲染器、隐藏来源卡片或双纹理融合；不承诺所有实体设备的帧率。
+- 本轮集中处理共用生命周期、源管理和缓存链路，未给所有独立业务路由一律更换转场。已有正常的阅读与手势行为保持原样。
+
+### 踩到的坑
+
+- 简单夹住 spring p 到 [0,1] 仍会在下一次回落时重新启用形变；要处理到达终点的运动本身。
+- 将前进动作包装成普通确认 lambda 会被公共按钮槽再次拦截。显式动作标记必须穿过按钮代理。
+- 受控菜单的 expanded=false 不代表窗口已销毁；前进时需同时结束保留，再等待原生窗口退出后打开下一层。
+
+第 83 章裁切诊断补充：修复前真实小说详情截图中下载按钮被手势导航区覆盖；语义局部坐标仍报告完整 39px 文本行，所以原局部断言不能识别此问题。补充物理窗口偏移、屏幕与系统导航安全边界断言，避免仅通过局部测量误判。另增加 2 倍字体、普通 / 极简两条公共按钮路径的真实文本布局检查。
+
+第 83 章窗口类型补充：窗口首次组合时 LayoutParams.width 可能仍为 WRAP_CONTENT，即使随后会铺满屏幕；不能靠这个临时值决定是否修正全屏 frame。公共宿主显式传入 fillWindow，完整页面单独 fullPage=true。设备物理坐标断言识别了“整页已修好但底部面板条件分支漏修”的情况。
+
+第 83 章发布回执：提交 05683f0d533e28b6f2be1aab427e16fd37eb5bd2 已推送 origin/main，标签 v1.4.16；GitHub Release 公开且为 latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.16。APK 29155684 B，远端摘要与本地 4347e5c95bb7ab1bba47bb978801a246bd3e11cfd89ae5c729ab2d7c1fb94ff7 一致。正式包在 novel-reader/releases/Ciallo-Reader-v1.4.16.apk；工作区已同步本轮变更并保留无关草稿，记录位于 artifacts/paper-1.4.16/publication.json。
+
+## 84. 第九十轮执行（2026-10-21：小说发现与全页面纸面转场）
+
+### 已落地
+
+- 发现复用原 UI 和 LiquidSegmentedSelector；漫画 / 小说各有书源、筛选、布局、屏蔽、缓存、视口和会话。默认漫画沿用旧 SharedPreferences 文件，保留既有偏好；小说使用独立后缀。
+- BookSource 共用发现与封面头部。全本、话本、SF、番茄、爱下和书阁复用原站列表，Wenku8 目录与 Novelia 最新接口接入；原生 / 静态 Legado explore 复用原规则引擎。未提供的维度如实提示，禁止搜索冒充与伪造热度。
+- 发现小说复用详情、整本下载与本地阅读；自定义章节小说保持原目录 / 在线阅读路由。需要 Referer 的封面保留原请求头。
+- 设备互传与备份、图书、章节页、阅读器、设置等 Activity 页面统一 paperComposable；保留原窗口、参数和阅读进度流程。已出现的页面返回时不重播；替换页面原子执行，不把异步关闭与 navigate 并排调用。
+- 阅读设置的工具栏在遮罩后保持位置；关闭到物理结束才释放漫画背景采样。形变挂在实际面板，冻结来源切回上级只改几何，不重建内容。嵌在静止父页面里的新面板独立启动动效。
+- 原生漫画 SurfaceView 在页级转场中绘制相同处理后的页面像素参与 Compose 形变，铺平后继续原引擎；没有截图回读、额外离屏渲染器或隐藏来源按钮。
+- 版本、应用更新记录、README 中英文、CHANGELOG 和发行说明同步 1.4.17 / 240。
+
+### 验证与发布
+
+- 68 项不同 JVM 定点回归通过：首轮 67 项，补充章节小说路由 / 封面头部后仅检查小说协议 6 项；最终模态保留和起点注册由真实漫画阅读器设备用例覆盖，记录见 artifacts/paper-1.4.17。
+- 5 项 HWUI 设备用例通过：完整页面参数 / 返回与导航去重、菜单到阅读设置的内容保持、静止父页面的新内联面板、水滴小说 / 漫画切换，以及真实漫画设置开关时自动阅读和音量键的暂停 / 恢复。截图已目视确认，日志未见 PaperWarp / AndroidRuntime 渲染异常。
+- 原 UI gate 基线通过，不重置基线。未执行全量测试，没有将几何更新次数宣称为实际帧率。
+- 正式构建、签名与 GitHub 发布回执在本章完成后追加。
+
+### 未做
+
+- 没有给未提供榜单的书源虚构排名、时间范围或推荐，也没有执行 Legado 动态脚本规则。
+- 神回编辑本身为独立弹层，保留其已有统一动效，避免再套一个空白全页纸面。启动 / 引导不当作点击弹层。
+- 未修改慢速卷页、缩放、亮度或正文排版；没有承诺所有实体设备的 FPS。
+
+### 踩到的坑
+
+- 整页纸面是 Activity 原窗口内的宿主，不能一律改 Dialog，否则亮度、沉浸模式和 SurfaceView 的窗口所有权会变。
+- 原来的“只要有父纸面就不做初始动画”判断，会把已静止页面上新开的漫画面板也跳过。应区分父纸面是否正在运动。
+- 新增小说发现时，BookSource 不一定实现 ComicSource；只替换 UI 过滤会漏掉纯电子书源，且封面 Referer 也必须随公共接口迁移。
+
+第 84 章读者面板补充：漫画设置按钮原来使用原始 pointerInput，没有登记纸面来源。改用共用 pullOutCombinedClickable，保留长按预设并补齐起点与点击语义；面板的实际保留期同时暂停自动翻页、音量键和翻译状态层，避免尚在吸回时正文先动。
+
+第 84 章页面返回补充：paperComposable 按 NavBackStackEntry 保存原始起点（及可保存的矩形），返回已有页面时不能重新认领“退出阅读”按钮。恢复为已展开状态的根页面继续保留吸回能力；在 p=1 时不重播打开动画。
+
+第 84 章正式包：1.4.17 / 240，ARM64，29176268 B，SHA-256 b1c9bff50095b50948393a5380798170f891564cc11990e5d76aab2c79697996；同包名 / 固定证书 / 递增版本码、ZIP CRC 和 16 KiB 对齐均通过，718 个生产输入匹配冻结清单。发布回执随后追加。
+
+第 84 章发布回执：提交 781848cfc3227ba288157a7c3e27fffd1641fb4a 已推送 origin/main，标签 v1.4.17；GitHub Release 公开且为 latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.17。APK 29176268 B，远端摘要与本地 b1c9bff50095b50948393a5380798170f891564cc11990e5d76aab2c79697996 一致。正式包在 novel-reader/releases/Ciallo-Reader-v1.4.17.apk；工作区已同步本轮变更并保留无关草稿，记录位于 artifacts/paper-1.4.17/publication.json。
+
+第 85 章 1.4.18 小说多源发现补全（2026-10-21）
+
+1.4.17 的小说发现只扫描首页上的文字锚点，因此漏掉了一批真实栏目：番茄的榜单来自脚本与 JSON，SF 的分类是图标链接，话本的排序入口在二级分类页，书阁用查询参数区分分类。本章为每个源单独核对原站公开栏目，再接入真实数据；未提供公开数据的栏目一律明确提示，不用搜索结果或改名列表冒充。
+
+新增适配层（app/src/main/java/com/example/source/impl/）：
+
+- `NovelDiscoverySites.kt`：SF / 话本 / 爱下 / 书阁 / 全本的公开导航契约。feed 路径与分类入口逐站点写死为已核对的真实路径，不再靠关键词匹配。爱下过滤掉「玄幻完结」这类推荐栏目与「分类」导航按钮；书阁分类取 `cat` / `tag` 参数原值，锚点文字里的计数与描述不进入分类名。
+- `FanqieDiscovery.kt`：番茄三接口。推荐 `/api/rank/recommend/list`、更新 `/api/rank/recent/update/list`（真实 `updateTime`）、作品榜 `/api/author/misc/top_book_list/v1/`（返回普通 Unicode，网页榜的 PUA 字形编码不进卡片）。分类来自 `/rank/1_1` 的 `window.__INITIAL_STATE__.rank.rankCategoryTypeList`，保留男女频与原 ID。书籍 ID 必须是 18–20 位数字，标题含私用区字符直接拒绝。不做逐卡详情请求。
+- `AutoNovelDiscovery.kt`：Novelia 日榜与流派参数（`type=流派` / `genre` / `range=每日` / `status`）。Kakuyomu 榜单接口不支持分页，翻页时不再重复请求第一页。
+- `Wenku8Discovery.kt`：文库接口会忽略未知 `sort` / `tag` 参数，所以先取完整目录元数据（70 页 / 4181 本 / 每批 4 个请求），再按公开热度等级或 `updatedAt` 排序；完整性校验通过后写 1 小时磁盘缓存。只读元数据，不下载 EPUB、封面、正文，也不逐本查详情。
+- `HtmlNovelDiscovery.kt` / `PublicNovelSource.kt` / `AutoNovelSource.kt` / `Wenku8LibrarySource.kt`：把上述适配接入既有 `discoverCatalog` / `discover` 通道；SF 允许 `book.sfacg.com` 作为宿主，并兼容 `/Novel/{id}/` 与 `/b/{id}/` 两种身份写法。
+
+`DiscoverTaxonomy.kt` 补充原站小说分类别名（如「科幻末世」同时是科幻与末世、「玄幻言情」同时是奇幻与恋爱），并在 `classify` 中先按完整标签精确匹配，再退回按分隔符切分——否则「恋爱：异世界」会因为去掉冒号前缀而丢掉「恋爱」这一维度。
+
+第 85 章 Novelia 降级：`/api/novel` 现在对游客返回 `401 游客没有权限执行此操作`，推荐与更新已不可用，只有 `/api/novel/rank/*` 仍返回数据。该源按实际能力只保留公开日榜，选择推荐或更新时直接返回 `supported=false` 并说明原因，不再发出必然失败的请求，也不拿日榜冒充推荐。判断依据写进 `docs/novel-discovery-1.4.18.md`，并与全本「未公开即提示」的处理保持一致。
+
+第 85 章 IPv6 空转：文库与轻小说都在 Cloudflare 后面，DNS 把 AAAA 排在 A 之前。在没有 IPv6 出口的网络里，每个请求都会先在一个不可达地址上白等一个连接超时：70 页的文库目录在模拟器上超过 100 秒，最终整源超时失败。`SourceDns` 现在把解析结果里的 IPv4 排到前面，IPv6 保留为回退（同族内相对顺序不变，纯 v6 / 纯 v4 域名原样返回）。同一台模拟器上，七源三栏核验从 162 秒降到 15.9 秒，文库冷启动 11.6 秒。这类「解析顺序导致的白等」不能靠加大超时掩盖。
+
+第 85 章卡片参数排版：`CardTweakSlider` 原来把标签行抬到滑条容器内部的气泡预留区，长名称或大字号会压住数值气泡。改为名称与当前值独占一行、滑条在下方，气泡拥有自己的空间；同时删掉只在拖动时淡出标签的那套逻辑。设备用例在大字号（fontScale 1.8）下断言标签与数值的下边界都在滑条上边界之上，并在拖动过程中保持不变。
+
+第 85 章验证：106 项 JVM 检查通过（发现适配、聚合引擎、状态作用域、界面、ViewModel、漫画发现、小说源覆盖），0 失败；`NovelDiscoveryCoverageTest` 逐源断言三类入口、原站分类、分页与去重，并断言 Novelia 的推荐 / 更新不发请求、提示里带 401。2 项设备用例通过：七个源在模拟器上逐源真实请求，推荐 / 更新 / 榜单全部返回真实作品（全本按实际能力提示未公开，Novelia 只提供日榜）；卡片参数大字号与拖动过程中名称、数值始终在滑条上方。设备侧记录在 `artifacts/paper-1.4.18/device-verified/`（live-novel-discovery.json、card-parameters-large-font-drag.png），该目录已在 .gitignore 中，不随仓库发布。
+
+第 85 章正式包：1.4.18 / 241，ARM64，29196124 B，SHA-256 96ce715a2c9d17b4688e19192a7e73a0c332c1ada737d6bb6e11f5297173ac0f；同包名、固定证书（d2115e3c…1146）、递增版本码与 16 KiB 对齐均通过。发布回执随后追加。
+
+第 85 章发布回执：提交 7bd97437d28e9ed5416754204aa20cb957f7ab0b 已推送 origin/main，标签 v1.4.18；GitHub Release 公开且为 latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.4.18。APK 29196124 B，远端资产摘要与本地 96ce715a2c9d17b4688e19192a7e73a0c332c1ada737d6bb6e11f5297173ac0f 一致，回查下载 HTTP 200 且大小 / 摘要均匹配。正式包在 novel-reader/releases/Ciallo-Reader-v1.4.18.apk；工程说明已同步校准基准、当前版本与本章。
+
+第 86 章 1.5.0 移除内置指南与多选去抽纸（2026-10-21）
+
+第 86 章工程结构收口：此前的 Android 仓库在磁盘上有两份检出——主检出 `Downloads/novel-reader (1)/novel-reader` 的 `main` 指针停在 45c93c4b（1.4.10），而 Codex 的 linked worktree `~/.codex/worktrees/reader-interactions-1-4-11/novel-reader` 才持有 1.4.11–1.4.18 的提交。Codex 每轮都用 `git push origin HEAD:main` 直接推远端，从不更新主检出的本地 main，于是主检出看起来「落后 8 个提交」。现在已把主检出 `git reset --hard origin/main` 对齐到主线、移除 linked worktree，仓库恢复为单一检出；`git worktree list` 只剩主检出。主检出里那批未提交手改属于 1.4.11 时代已被主线覆盖的内容，备份在 `.workbuddy/memory/discarded-old-checkout-edits.patch`；其中唯一没进版本的「在线阅读」按钮（`NovelBookUi.onOnlineRead` + `LibraryScreen` 接线）另存在 `.workbuddy/memory/pending-online-read-1.4.19.patch`，仍待决定是否并入主线。
+
+第 86 章移除内置指南：`BookRepository.checkAndSeedDefaultBooks` 不再创建 `filePath = ciallo_guide_novel` 的《Ciallo Reader使用指南》。老安装下次启动时按与历史占位书相同的顺序清理：`deleteChaptersForBook` → `nullifyBookIdInReadingRecords` → `deleteBook`，避免留下孤儿章节与悬空阅读记录。注意历史版本的标题曾写作《Ciallo阅读使用指南》（无空格），因此识别只能靠 filePath，不能匹配标题。
+
+第 86 章多选去抽纸：长按书籍进入多选属于「选中态切换」而不是「打开内容」，原来顶部多选栏与底部悬浮操作栏都套在 `PullOutVisibility` 里，一次长按会把整张纸面从按钮缝口拉出来，既慢又盖住选中反馈。两处改为独立的 `AnimatedVisibility`：进入用刚度 `Spring.StiffnessMediumLow`、阻尼 0.86 的 `slideInVertically` 加 140ms 淡入，退出用 180ms 滑出加 120ms 淡出。抽纸封装本身未改，其余 `PullOut*` 调用点（含书籍卡片反馈、操作栏按钮、其他弹层）行为不变。
+
+第 86 章验证：`:app:compileDebugKotlin` 通过；69 项相关 JVM 检查通过（`BuiltInGuideRemovalTest` 2 项、书库首启 / 导航 / Z-Library 元数据），0 失败。新增用例覆盖「新装不预置」与「老安装连章节一起清掉」两条路径。
+
+第 86 章正式包：1.5.0 / 242，ARM64，29192708 B，SHA-256 96ce5624a3fbfe8267e65ba57af5d377856bfd9eed7c2eec3b1058a1829caab8；同包名、固定证书（d2115e3c…1146）、递增版本码与 16 KiB 对齐均通过。发布回执随后追加。
+
+第 86 章发布回执：提交 84830a75（随后 76a15e5c 追加发行说明）已推送 origin/main，标签 v1.5.0；GitHub Release 公开且为 latest：https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.5.0。APK 29192708 B，远端资产摘要与本地 96ce5624a3fbfe8267e65ba57af5d377856bfd9eed7c2eec3b1058a1829caab8 一致，回查下载 HTTP 200 且大小 / 摘要匹配。正式包在 novel-reader/releases/Ciallo-Reader-v1.5.0.apk；仓库已收敛为单一检出。
+
+
+## 87. 第九十三轮执行（2026-10-23：平板性能优化，保持 UI）
+
+### 已落地
+
+- 阅读器连续滚动在组合外观察，保留 1.5 秒防抖；回顶按钮仍用原 20% 阈值，只在布尔值变化时重组。退出进度读取最新闭包，正文不重复格式化。
+- 本地小说三章窗口复用正文；顺序切章只查新进入的一章，拼接和逻辑元数据映射在 Default 线程。保留选择代 / 取消保护、空章语义和缺片报错。
+- 收藏下载计数改数据库分组投影；完整历史仅由统计页订阅，发现页使用独立去重标题查询。Room 相同结果去重，统计本周 21 次全历史过滤合并为一次索引。启动超长章筛选合并成一次 EXISTS 查询，后续修复事务不变。
+- 分页 LRU 保留 8 项限制并加 8 MiB 保守文本载荷预算；插图预解码串行，内存压力 / 页面隐藏清理缓存所有权，不回收当前页位图。图片采样精度和图形效果不改。
+- Debug 编译与最终 13 套件 / 59 项 JVM、Robolectric 检查通过，失败 / 错误 / 跳过均为 0。两组 1280×800 原生渲染对照旧 HEAD ReaderScreen，极简滚动 / 高画质分页各 1024000 像素，变化均为 0。60 次滚动父组合增量 0，跨回顶阈值增量 1。
+- UI gate 沿用基线通过，截图、日志、临时基线与统计在 novel-reader/artifacts/tablet-performance/；源码覆盖 741 项、遗漏 0，反查四项均已明确标记删除；Release 构建与签名校验通过，包身份见本章末。版本保持 1.5.0 / 242，未发布到 GitHub。
+
+### 未做
+
+- 未修改任何布局、字体、颜色、分辨率、玻璃质量、特效、动效参数、数据库 schema、书源协议或设置格式。
+- 没有 Android 实体设备连接，不给出平板 FPS / PSS 提升百分比。逐像素验证仅覆盖指定阅读场景。
+- 首次过滤配置未生效而扩大执行的 215 项测试未完成，出现 4 失败 / 1 跳过：两项更新 READY 状态断言、一项缺少真实 EPUB 文件、一个旧关键词过滤断言；本轮未修复这些项目，不宣称全量通过。
+
+### 踩到的坑
+
+- 本机 JBR 21 Unix-domain 唤醒管道出现 Invalid argument: connect。仅在构建命令环境设置不可用的 jdk.net.unixdomain.tmpdir，触发 JDK 原有 TCP 回退；工程 gradle.properties 与 JDK 路径保持原样。
+- Kotlin 编译任务的 setSource 不足以限制实际测试发现，最终必须使用 Test.filter 明确限定套件。Robolectric 连续帧测试在推进时钟前要先 waitForIdle，让 Android 快照通知调度到测试时钟；截图用 Roborazzi record 模式，不使用需要真实窗口重绘的 captureToImage。
+
+第 87 章本地包回执：Release 构建通过（2m39s）。本地性能包 novel-reader/artifacts/tablet-performance/Ciallo-Reader-v1.5.0-performance.apk，版本仍 1.5.0 / 242，29193028 B，SHA-256 ae5bdb49aad30432112442405e3762e0643454638faf19eaf27b1c346969c162。与已发布 1.5.0 同固定签名（d2115e3c…1146）和包名，属于同版本覆盖包；ZIP CRC、ARM64 单 ABI、16 KiB 对齐均通过，1496 个生产输入与冻结清单匹配。未上传 GitHub。
+
+
+## 88. 第九十四轮执行（2026-10-23：进一步性能收敛并发布 1.5.1）
+
+### 已落地
+
+- 承接第 87 章全部优化，追加条漫 / 无缝滚动页高几何缓存和等价二分定位；连续进度观察只发生在底栏，不重组整个阅读器。
+- 修复原始版本也可复现的长图进度停在 0%：实际图片已滚动 348px，layoutInfo 对象复用使 snapshotFlow 不发新值；改为同时观察首项与像素偏移。
+- 更新管理器测试目标版本由固定 205 校准为当前版本加一；长图定位测试按标准 SetProgress 设置精确值，保留真实前后手势检查，消除轨道端部留白造成的测试坐标偏差。
+- 版本指定为 1.5.1 / 243，README 中英文、CHANGELOG、应用更新目录及发行说明同步。最终测试与签名发布回执在本章末追加。
+
+### 未做
+
+- 不改变现有布局、画质、字体、颜色、图片精度和动效参数，不改数据库 schema / 书源协议 / 设置格式。动态百分比按原有语义修复。
+- 无实体平板，不报告帧率或 PSS 百分比，不宣称全量测试或理论性能极限；剩余实时渲染需设备剖析再决策。
+- 当前账号额度为共享周额度，工作收敛时已用 94%；预留至少 2%，不为消耗额度继续改动。
+
+### 踩到的坑
+
+- snapshotFlow 内置相等去重，不能假定 LazyList 的 layoutInfo 实例每次项内滚动都变化。几何表复用与位置观察必须分开。
+- 精确滑条值不等于整块触摸区域的同一百分比，液体轨道有端部留白；标准无障碍 SetProgress 更适合验证精确定位，触控意图由已有手势测试覆盖。
+
+第 88 章验证回执：21 个相关套件 / 119 项检查通过，失败 / 错误 / 跳过均为 0；其中四组 1280×800 原生截图前后变化像素均为 0。原始长图手势测试未忽略，修复像素观察后通过；精确值定位通过标准 SetProgress 检查，触控手势仍由原测试执行。UI gate 保持原基线，源码覆盖 742 项且遗漏 0。
+
+第 88 章正式包：1.5.1 / 243，ARM64，29192964 B，SHA-256 58f0c24712dad6056e90ae9c5eee8372c341241ff79db681dae9757cb666eae6。固定证书、与 1.5.0 覆盖升级、ZIP CRC 与 16 KiB 对齐通过；1496 个生产输入匹配冻结清单。正式包 novel-reader/releases/Ciallo-Reader-v1.5.1.apk，发布回执随后追加。
+
+第 88 章发布回执：main / v1.5.1 指向 4307f0b6fd1edd1276f52e58c1c50dc64b8be54e；GitHub Release https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.5.1 已公开且为 latest。APK 29192964 B，公开下载 HTTP 200，摘要 58f0c24712dad6056e90ae9c5eee8372c341241ff79db681dae9757cb666eae6 与本地及服务端 digest 一致。首次 schannel 推送 TLS 失败，恢复 Git 默认 TLS 后原子推送成功，未修改全局网络设置。
+
+
+## 89. 第九十五轮执行（2026-11-05：统一下载中心与持久队列，1.5.12）
+
+### 已落地
+
+- 基于远端 1.5.11 / 253，保留安全与新签名、网络恢复、批量导入及贡献者信息。原主目录的已有草稿保留，本轮位于同级 novel-reader-unified 工作树，分支 codex/unified-downloads。
+- 书库、发现和独立搜索页面打开 MainActivity 持有的单一 DownloadCenter。删除旧 DownloadGlassCard.kt 与嵌套漫画下载卡片；LazyColumn 列出全部任务，不再截断漫画前四项。小说/漫画共用紧凑记录行和逐次删除确认。
+- 漫画旧 AtomicFile JSON 首次读取后提交同一 Room download_tasks 表，成功提交才移除旧 JSON；读取失败保留原数据。专用 worker 只负责各自传输协议，共用任务库和唯一 WorkManager 工作，不将会话页面作为任务所有者。
+- 数据库 13→14 增加 progress REAL NOT NULL DEFAULT 0；按旧字节比例迁移。未知总字节的逐章进度同样落库。数据库状态为生命周期依据，广播只覆盖活动传输进度；已完成记录不随书架删除或恢复流程清除。删除下载记录不删已入架书籍。
+- EOF 后显示校验/入库阶段；短流及可恢复 HTTP/IO 故障最多五次指数退避续传。现有文件版本校验与范围校验继续生效，校验失败不伪装成功。
+- EPUB 正文拆分后以 32 章批次写入，不同时保留整本正文及全量拆分副本。包内图片用边界解码并保留 epzip 引用；取消导入也 finally 清理临时解压目录。SQLite WAL 保留上限 4 MiB，活动事务可临时超限。压缩正文展开与数据库索引仍有正常空间开销。
+- 漫画初始化转入 IO；孤儿文件清理必须 awaitInitialized，不能在恢复任务前误删仍在下载的目录。Room 持久化仅写发生变化的漫画行。
+
+- 移除书库下方重复任务横条及发现浮动按钮，统一到顶部右侧图标。活动任务有数量徽标与进度环，未知进度旋转；暂停、错误、完成切换图标，减少动态效果时保持静态。
+- 下载记录复用书源管理 GlassKitCard；外层复用阅读设置的窗口模糊与统一压暗，避免重复包裹玻璃。文案缩短，删除每次确认。
+- 小说任务流提前共享为 Eager StateFlow，避免冷流延迟插入到漫画行前方，触发 LazyColumn 保留漫画锚点而把小说记录藏到上方。
+- Hitomi 页图 Referer 为常量，无需每页重复执行脚本。爱漫画现代阅读器使用完整 DOM 图片列表，兼容 src/data-src；限定 webimg.iqtao.cn 与 f2.kkmh.com 还原公开 XOR/SHIFT 图片封装，检查图片签名与解码边界，不重编码原压缩图片。旧目录完整性保护不降低。
+- Android 前台服务启动受限时保留进度并退避重试，超过上限转暂停；持久旧错误同样显示精简提示，避免把 Java 服务异常整段暴露到列表。
+
+### 验证与发布
+
+- 首轮原工作树 13 套件 / 64 项 JVM 检查通过（0 失败、0 错误）。真实模拟器紧凑列表截图已目视核查，1 项界面检查通过。最终合并工作树 16 套件 / 82 项 JVM 检查通过，失败/错误/跳过均为 0；跨页统一入口与玻璃面板设备检查通过，进程重启保留记录/章节进度、删除记录保留书架文件的两阶段设备检查通过。联网源审计见 docs/release-1.5.12-2026-11-05.md，最终发布回执在本章末追加。
+
+### 未做
+
+- 需要账号或在线验证的源依用户要求不处理；其他源按实际联网结果记录，不以审计程序结束代替源通过。
+- 不保证压缩书籍的解码正文占用与压缩包大小相同，不宣称全设备性能改善或全量测试通过。
+
+### 踩到的坑
+
+- 本地检出仍为 1.5.5，远端已到 1.5.11 且更新签名。不能直接发布旧检出或覆盖远端修复；本轮采用独立最新工作树三方合并。
+- 初始化改为异步后，清理逻辑若立即读取空任务集合会误判目录为孤儿，必须等待初始化完成。
+- 一次模拟器测试因主机仅剩约 280 MiB 内存而首启超时；释放已结束的 Gradle daemon 后重跑通过，未将首次失败隐藏。
+
+第 89 章正式包校验：1.5.12 / 254，ARM64，29306412 B，SHA-256 cb20c2e65b35c5e118114be5744d012dc4e64c62dba659a1025adf3fab50af34。使用 1.5.6 起的新签名，与官方 1.5.11 覆盖升级条件、ZIP CRC、16 KiB 对齐通过；734 个生产构建输入与冻结清单一致。私钥与密码文件未进入仓库。
+
+第 89 章联网回归：20 个免登录漫画源共 2176 页，7 个免登录小说源共 1451 章 / 19 张插图完成代表样本在线、完整下载与离线通路。番茄原 382 章任务在强制停止、主机模拟器中断后，从旧断点接续入库（1739876 B），未从头重下。旧漫画 JSON 迁移、损坏旧文件保留、删除记录不删书架文件的真实 Room 设备检查通过。登录/验证源排除，Novelia 特定上游末章 HTTP 500 与 Hitomi 高级查询预算限制单列，详见 docs/qa-1.5.12.json，不宣称每本书或每个查询均可用。源码 789 项，覆盖遗漏 0；反查五项均已明确删除。
+
+第 89 章最终界面回执：SwiftShader 模拟器宿主 QEMU 再次访问异常退出，Windows Application Error 1000 / 0xc0000005 已核对；未计为应用成功。保留数据冷启动并改用本机 NVIDIA host 渲染，跨书库/发现的同一入口与毛玻璃面板检查 6.755 秒通过，两张最终截图已核查背景压暗、模糊、简短行文及持久完成记录。
+
+第 89 章发布回执：发布代码提交 65d27be136f08e209c36b95e9116722a7db88b77 已推送 origin/main，标签 v1.5.12；GitHub Release https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.5.12 已公开并核对为 latest。APK 29306412 B，服务端 digest 与本地 SHA-256 cb20c2e65b35c5e118114be5744d012dc4e64c62dba659a1025adf3fab50af34 一致；公开下载 HTTP 200，重新下载的字节数与摘要同样匹配。README、CHANGELOG、数据库 schema、逐源审计摘要与指导文件随源码提交。最终工作树为同级 novel-reader-unified，原目录已有草稿保留。
+
+## 90. 第九十六轮执行（2026-11-05：保持抽纸外观，优化计时、背景过渡与资源，1.5.13）
+
+### 已落地
+
+- 保留前端布局、主题、画质档位、抽纸收颈/弯曲、64 行逆表、128 前向分段、单内容采样 shader 和弹簧参数。解析弹簧使用真实帧间隔，一次求值，不截断时间、不循环追帧，反向仍保留位置和速度。
+- 新 WindowBackdrop.kt 隔离原生窗口职责；窗口级 LocalPaperBackdropOwner 驱动模糊、原生压暗和 Compose 遮罩的同一端点平滑曲线，关闭前自然退净。多个窗口取最大有效半径，子窗口退出不清父窗口。
+- 模糊按半物理像素去重，整数缓存至多 128 个 RenderEffect；owner 复用原生字段，减少逐帧 Float 装箱更新。窗口布局/动画/dim 初始化不再随每次重组重复写入。固定 flutter/shade 三角项和行分数复用，循环不变量外提。
+- 版本 1.5.13 / 255；README 中英文、CHANGELOG、组件 README 和发行说明同步。最终测试与签名发布回执在本章末补录。
+
+### 未做
+
+- 未改 GPU shader、网格精度、弹簧参数或自动调低画质，未用普通缩放替换已有抽纸。后台新驱动仅属 debug，不进入正式 APK。
+- 无低端实体手机连接。模拟器人为主线程阻塞仅验证失帧条件下的计时，不能宣称所有手机达到苹果、60 FPS 或 120 FPS；CPU 微基准不等同整机性能收益。
+
+### 踩到的坑
+
+- 原 dt 在调用点与解析求值器内各截断一次，必须同时移除；只修一处仍会丢弃经过时间。
+- 父窗口全模糊时，子窗口渐变半径不能简单覆盖为零；最大有效 owner 半径保持父窗口。观察 progress 用 snapshotFlow，不能把每帧进度读到内容组合中。
+- 三项初始设备失败来自测试假设：窗口尚未就绪即推进虚拟时钟、触点落进系统状态栏、缓存大时样本不在首屏。改为等待实际状态、点击安全边角、滚动到目标样本；未修改产品逻辑来迎合用例，后续整套通过。
+
+第 90 章验证：3 套件 / 32 项 JVM 检查、16 项真实窗口回归均通过，失败/错误/跳过为 0，UI gate 沿用基线通过。原版 GPU shader 与弹簧配置逐字一致；84 个形变参考状态误差小于 0.01px。60ms 主线程受控阻塞下，关闭中位数 1873→1002ms，最后 5% 进度中位数 915→142ms；正常关闭 799→819ms，维持原节奏。单次 CPU 形变微基准 7619→5559ns，不是整机性能百分比。约 2KiB 固定行表与 128 项有界模糊缓存避免无限增长；完整条件和保留范围见 docs/release-1.5.13-2026-11-05.md。
+
+第 90 章正式包校验：1.5.13 / 255，ARM64，29306016 B，SHA-256 7571f9d87188775f2380ec69bab8b0a0fa5b6f54a135462fcfa211074b243717。沿用现有新签名，与官方 1.5.12 覆盖升级条件、ZIP CRC、16 KiB 对齐通过；735 个生产输入与冻结清单一致。发布回执随后追加。
+
+第 90 章发布回执：发布代码 ed77644b0581dc14765f660e3f97bc24ee397ea9 已推送 origin/main，标签 v1.5.13；GitHub Release https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.5.13 已公开并核对 latest。APK 29306016 B，远端 digest 与本地 SHA-256 7571f9d87188775f2380ec69bab8b0a0fa5b6f54a135462fcfa211074b243717 一致；公开下载 HTTP 200，重新下载大小与摘要匹配。README、CHANGELOG、QA 摘要与指导文件随源码提交。工作树为同级 novel-reader-unified，分支 codex/paper-motion-smooth，原目录草稿保留。
+
+## 91. 第九十七轮执行（2026-11-05：统一状态反馈与下载入口，1.5.14）
+
+### 已落地
+
+- 下载入口常态箭头，真实完成短确认约 950ms 后恢复。取消、切页、删除、加载旧历史不重播勾号；暂停/错误为小标记，始终导航同一下载中心。
+- 修复徽标被 Material IconButton 圆形裁剪层截断；移到独立层，稳定槽容纳 1/12/99+，包括出场中间帧。按压只缩放内部图形，不改变纸面来源矩形。
+- 共用状态图标、展开旋转、章节选中、播放/暂停、按压和圆角进度环，覆盖书库、发现、小说/漫画阅读器、书源管理及底栏。保留原尺寸、材质、毛玻璃、抽纸和质量档位。
+- 复杂六点加载路径收敛为单绘制时钟，删除不用的 ChasingDotsTransition.kt；路径/描边复用，动态值尽量在绘制阶段读取。图标过渡只暴露当前无障碍标签，减少动画时停止循环/过渡。开关跟随当前主题；恢复喜欢记录不再触发新反应。
+- 独立 Compose 实现参考 Telegram 官方与 Canvas 示例的交互思路，无新增 UI 运行依赖；既有播放形变的 Apache-2.0 来源署名保留。
+
+### 未做
+
+- 没有重排主页面、替换毛玻璃/抽纸主视觉、改变下载后端/书源协议/schema，未修改文件归属；没有实体手机 FPS 结论。
+- 不是逐像素复刻 Telegram；统一的是交互语言和共用组件，保留本项目视觉主题。
+
+### 踩到的坑
+
+- 把“存在已完成记录”当作当前状态会让导航永远变勾。完成反馈必须来自身份稳定的活动任务变化；进度更新不能重启/取消确认计时。
+- 徽标在 48dp 点击范围内不代表不会被裁切：Material 内部还有圆形状态层。应作为按钮的兄弟绘制层，并固定出场布局槽。
+- 固定槽内的 AnimatedContent 会把最小尺寸传给徽标，需用 wrapContentSize 解除最小约束，避免数字底色被撑成大胶囊；布局槽保持稳定，数字底色按内容收紧。
+- 图标交叉过渡不能把旧标签和新标签同时读给无障碍服务；父级只保留当前标签。喜欢状态初次恢复只同步状态，不播放新用户事件。
+- 首轮一个控件时序测试未等待快照通知，修正等待后通过。发现徽标真实裁切后修复了层级，并对数量边界和实际像素复查，未以仅语义通过代替视觉验收。
+
+第 91 章验证：6 套件 / 46 项 JVM 检查通过，0 失败/错误/跳过；18 项设备回归通过，固定槽后 3 项针对复查通过。原 UI gate 基线通过。覆盖冷启动历史、真正完成及恢复、取消/删除不重播、暂停/错误、1/12/99+、深浅主题、减少动画、控件动作及原抽纸行为。源码 800 项、覆盖遗漏 0；六项已删除历史名字单列保留。
+
+第 91 章正式包：1.5.14 / 256，ARM64，29312108 B，SHA-256 912baf6fce761df7c19336597c848a454f34e910527c1659bb3b15235feac684。沿用现有新签名，与官方 1.5.13 的覆盖升级条件、ZIP CRC、16 KiB 对齐均通过；738 个生产输入与冻结清单一致。
+
+第 91 章发布回执（北京时间 2026-11-06）：发布代码 bf678f5ae363e948e9dc4c7e47d7a94c7fff79b0 已推送 origin/main，标签 v1.5.14；GitHub Release https://github.com/roxycon-dev/Ciallo-Reader/releases/tag/v1.5.14 已公开并核对 latest。APK 29312108 B，服务端 digest 与本地 SHA-256 912baf6fce761df7c19336597c848a454f34e910527c1659bb3b15235feac684 一致；公开下载 HTTP 200，重新下载大小与摘要匹配。README、CHANGELOG、QA 摘要与指导文件已同步。工作树为同级 novel-reader-unified，分支 codex/download-indicator-motion；原目录草稿保留。首次创建与发布阶段的 GitHub 502/500 经重试恢复，没有重复创建或改写旧版。
+
+## 92. 第九十八轮执行（2026-11-06：本地清理项集中待删除）
+
+### 已落地
+
+- 按用户要求，把 novel-reader、novel-reader-unified、ciallo-issue5 三个工作树的构建缓存、历史 APK、测试产物、原始审计样本及一次性日志移动到同级 Downloads/novel-reader-待删除-20261106，按原相对路径保留结构，供用户手动删除。
+- 已移出 82295 个文件，约 11.56 GiB；项目父目录约剩 2.44 GiB。移动仍占用原磁盘，用户删除待删除目录后才释放空间。
+- 7854 个保留文件的 SHA-256 与移动前一致；源码、资源、正式回归测试、未提交草稿、Git 数据、签名配置和 releases/Ciallo-Reader-v1.5.14.apk 保留。正式测试代码仅数 MiB，继续承担后续回归验证。
+- 旧 artifacts 和 docs/render-audit 已集中移走；历史验收内容仍可从对应 Git 提交与发布文档查阅。原工作树的 .workbuddy 保留 memory、fontsrc、扫描/覆盖检查及字体维护脚本。
+
+### 未做
+
+- 没有永久删除待清理文件，没有更改版本或重新构建 APK；本次为本地工作区整理。
+- 此前两份模拟器占用日志暂留。用户随后明确要求关闭模拟器，已通过 adb 正常关闭 codex_paper_1413，确认设备断开后将两份日志补移到待删除目录；候选文件全部移出。
+
+### 踩到的坑
+
+- 自动安全审核拒绝了永久删除，用户随后明确改为集中移动，由用户手动删除。移动使用原生 PowerShell Move-Item，源和目标绝对路径先核对边界。
+- Windows 移动含占用文件的目录可能部分成功，不能只看目录级报错判断是否完全未动。继续逐文件处理后，按原候选清单与保留文件摘要复查，避免覆盖或重复移动。
+
+***
+
+## 93. 第九十九轮执行（2026-11-11：3D 书架实体化、打开动效重做、中英切换）
+
+### 已落地
+
+**1. 3D 书架的书从"贴图盒子"变成实体书**（`app/src/main/java/com/example/ui/wenku/ArchiveShelf.kt`、新增 `ShelfCoverArt.kt`）
+
+- 新增 `ShelfScenePainter.drawVolume` 的分层绘制：顶部切面（纸页块）→ 书脊 → 封面，替换原来"封面/顶盖/书脊三块纯色多边形"的画法。
+- **圆弧书脊**：书脊路径改为圆角矩形，横向 6 段渐变（暗 → 高光 → 收进装订槽）当柱面光照；上下各一条**堵头布**。
+- **装订凹槽**：书脊与封面之间一条压暗缝 + 封面侧一条折痕高光，封面左缘再加一道 2.4dp 凹槽渐变。
+- **包边**：纸页块沿厚度方向两侧各让出板厚、沿深度方向让出前口，封面板由此露出一圈；封面四边加倒角线（上/左提亮、下/右压暗）。
+- **纸张纹理**：纸页块 6 条沿深度方向的细线 + 靠书脊压影 + 前口提亮，纸色随主题（暗色主题压成暖灰，绝不纯白）。
+- **材质**：按书 id 稳定分配 `CLOTH / MATTE / GLOSS`；布面用一次性生成的 48×48 织纹 BitmapShader，亮面用斜向柔和渐变反光，哑光只用上下收影。
+- **封面沿书脊连续包裹**：把封面贴图最左 24% 竖带压到书脊上，再叠柱面明暗，书脊与封面同一张图。
+- **页数 → 厚度映射**：`pages = totalChapters × 9`（无章节信息按 id 稳定兜底），`thickness = clamp(6 + sqrt(pages) × .40, 7.5, 25)dp`；另加 ±3.5% 高度差，整排不再一样高、一样厚。
+- **封面满版**：`ShelfCoverArt.rasterizeShelfCover` 按封面面比例（cover : body）中心裁切后光栅化，消灭旧版四周一圈米白纸边——这正是"贴了封面图片的多面体盒子"的根源。
+- 无封面书改由 `generateShelfCover` 生成印刷风封面（渐变底 + 内框 + 书名 + 作者 + TXT/COMIC 标签），3D 书、飞行动画、阅读器落点共用同一张；**不再出现打开时掉到 #202020 黑块**。
+
+**2. 打开动画：先"把书拿起来转正"，再飞**（`ArchiveShelf.kt` + `WenkuFlightBridge.kt`）
+
+- 3D 书架点击不再立刻跳转：`openingIndex` + `openClock`（380ms）把这本书的投影基向量从 `depthX .66 / depthY -.30 / skew .10` 插值到正对读者，同时抬起 14dp、放大到 1.62 倍并推到行中上方。
+- 立正后的封面矩形与贴图同比例，交给 `WenkuFlightBridge.begin(bounds = openRect, returnBounds = restingCoverRect)`：去程不再把斜切四边形硬拉成矩形（旧版"扭曲的书"），回程落回书架位置。
+- `WenkuFlightRequest` 新增 `returnBounds`；`WenkuFlightOverlay` 归位时优先用它。
+
+**3. 打开再返回不再跳回第一本**
+
+- 新增 `ArchiveShelfMemory`（按 `scopeKey` 记最后停下的书 id）；`ArchiveShelf` 的 `starting` 依次取 `initialIndex` → 内存 → 最近阅读时间。
+- 书架与「我喜欢的」分别用 `shelf:<分类>` / `favorites` 作用域，互不干扰。
+
+**4. 3D 模式恢复「正在阅读」**
+
+- `HomeScreen` 的 hero 条件去掉 `&& !use3dShelf`；同时给书架网格补 `contentPadding(bottom = LocalAppBottomInset + 8dp)`，3D 书架标题条不再被悬浮 Tab 栏压住。
+
+**5. 中英文切换（issue 10）**
+
+- 新增 `app/src/main/java/com/example/i18n/Strings.kt`：`AppLanguage{ZH,EN}`、`AppLocale`（可观察全局语言）、`StringTable`（**以中文原文为 key**，缺翻译回退中文，界面永远不会出现半成品 key）、`LocalStrings`。
+- `PreferencesManager.appLanguage` 持久化；`MainActivity` 在 `setContent` 前恢复语言并提供 `LocalStrings`；设置页新增 `02 / LANGUAGE` 分区，用既有 `SegmentedPillSelector`（`LiquidSegmentedSelector`）切换，未另造控件。
+- 已迁移文案：底部五个 Tab、书架页（标题/搜索提示/正在阅读/继续阅读/书架区块/排序与导入/分类胶囊/多选与拖拽反馈/空态/我喜欢的/3D 标题条）、设置页全部分区标题与行文案（含画质、方向、计时、隐私、存储、关于）、3D 书架标题条（上一本/下一本/章进度）。
+- 带数字的短句走 `StringTable.books/chapters/readPercent/byAuthor/streak/version`，避免英文单复数与"$n 本"硬拼。
+
+### 未做
+
+- 文案迁移是渐进的：阅读器正文控件、发现页、漫画阅读器、书源管理等深层页面仍为中文（`StringTable` 缺条目时按设计回退中文）。数据键（分类名、书源 id、`DEFAULT_CATEGORY`）刻意不翻译。
+- 没有改 3D 书架的摆位/间距/滚动模型（用户明确要求只改书的观感）；`depthX/depthY/pitch/footprint` 全部保持原值。
+- 没有升版本号、没有出正式发布包。
+
+### 踩到的坑
+
+- `drawVolume` 里画布已经 `translate(ox, top)`，书脊/封面矩阵又写了绝对坐标 → 整本书被平移两次，表现为"一条斜线和一张跑到屏幕外的封面"。矩阵必须只表达"书脊坐标系 → 本地"的斜切。
+- 封面兜底图一旦写入缓存就再也不会被真封面替换；`ShelfCoverStore` 增加 `placeholders` 集合，解码完成后顶掉兜底图。
+- `ShelfViewControl`、`CategoryNameSheet` 等私有 Composable 里直接写 `str.t(...)` 会编译不过（`str` 只在主 Composable 作用域）；默认参数里更不能读 CompositionLocal——改成在函数体内取 `LocalStrings.current`。
+- Compose 里 `remember { listOf(AppTabItem(...)) }` 会把旧语言文案锁死，必须 `remember(language)`。
+- 本次模拟器多次在渲染 3D 书架时被宿主 OOM 杀掉；停掉 Gradle daemon（-Xmx4096m）后才稳定。AVD 的 `disk.dataPartition.path = <temp>`，**每次重启数据都是干净的**，夹具书要重新推。
+
+### 追加修复（同一轮，用户回归反馈）
+
+1. **书下方的不明黑色线条**：重写 `ShelfScenePainter` 时漏了地面墨影的 `LinearGradient` shader，
+   `floorFill` 退化成不透明纯黑，每本书脚下那几条斜线就是地面多边形。已在 `buildFloor()`
+   里按 `archive_wave.dart L1492` 重建（右上 10% 墨 → 左下全透明），并新增 `floorBounds`。
+2. **无限循环、到不了两端**：原参考实现是无限轮播（`floorMod(slot - edgeSlots, count)`），
+   第 1 本左边接第 12 本、最后一本右边接第 1 本。`ShelfMetrics.bookIndexOf` 改为**有头有尾**：
+   越界返回 -1，`draw`/`slotAt`/语义盒都跳过空槽位。
+3. **惯性方向反了**：拖拽里 `next = focus - amount/pitch`（手指往左 → 往后翻），但松手后
+   `ShelfScrollSimulation` 直接吃了 `tracker.calculateVelocity().x`（同一次往左划是负速度），
+   于是每划一次都被惯性往回甩 —— 这正是"怎么划都碰不到末尾、还在循环"的真正原因。
+   改成 `-tracker...x`。
+4. **首尾不再一边倒**：新增 `ShelfMetrics.endShiftPx()`。整排放得下（书少）时把整排的几何中心
+   搬到视口中心，只让"被拿出来的那本"移动；放不下（书多）时位移恒为 0，焦点书居中、
+   两端自然留白，滚动过程也不会横向漂移。`draw` / `slotAt` / `shelfSemanticBox` /
+   归位矩形都走同一个位移。
+
+### 追加修复 2（同轮，用户第 3 次回归）
+
+用户要的不是"有头有尾"，而是**和初版一致的无限轮播**：12 后面接 1、2、3…每个槽位都有书、
+被选中的书永远在中央；只需修掉"最后一本往后划不动"的 bug。同时打开动画要"先移中、再放大"，
+且第一帧不能突变。
+
+1. `ShelfMetrics.bookIndexOf` 恢复 `floorMod(slot - edgeSlots, count)`；`logicalFocus` 不再夹在
+   `0..lastIndex`：拖拽/惯性都允许无限增大，手势结束后用 `wrapFocus()` 折回 `0..count`
+   （渲染对 ±count 平移不变，折回无感）。`centre()` 取"离当前焦点最近的那一个同号槽位"，
+   于是"下一本"从最后一本跨到第一本只动一格。
+2. `draw()` 的可见窗口去掉了 `poolCount` 上界；打开动画在**同号的多份**里挑离焦点最近的那一份。
+3. 打开动画重做时间线：`0–55%` 位置插值移到行中上方（`moveT`），`22–100%` 转身
+   （`turnT`，投影基向量插值），`55–100%` 放大（`zoomT`）。旧版的平移是**常量**，
+   点击瞬间书就"瞬移"到行中央（第一帧突变）；现在位移乘以 `moveT`，`moveT=0` 时与原位完全重合。
+   `OPEN_TURN_MS` 380→460、`OPEN_SCALE` 1.62→1.75。
+4. 封面飞行（列表书架同款）两处根因修复：
+   - `cropCoverToAspect()`：起飞前把贴图裁成书架封面的比例。飞行层只做等比缩放，
+     而列表卡片是 `ContentScale.Crop`（铺满裁切），比例不一致时起飞第一帧就会"小一圈、错位"。
+   - `WenkuCoverFlight` 画网格前按 `cornerRadiusPx × (1 - smooth(traveled))` 裁圆角：
+     `drawBitmapMesh` 本身不带圆角，之前一开飞卡片就从圆角变尖角；现在圆角随行程过渡到 0。
+   - `HomeScreen` 把真实卡片圆角（`LocalCardTweaks.cornerRadiusDp`）传给 `begin(radius=…)`，
+     不再写死 14dp。
+
+### 追加修复 3（同轮，用户第 4 次回归：动画连续 / 层级 / 重复书 / 英文覆盖）
+
+1. **两段动画接不起来**：
+   - 打开动画的位移改为乘 `moveT`（旧版是常量 → 点击瞬间瞬移到行中）；
+   - 时间线拆成移动 / 转身 / 放大三段，**转身结束时书脊厚度收到 0**，最后一帧画出来就是一张封面；
+   - 飞行层 `arrive()` 改成**立即起飞**（不再等阅读器挂载），去掉"转身结束 → 空白 → 封面出现"的空档；
+   - 封面不透明度改为**铺满整屏后才淡出**（旧版 42% 就开始透明，放大过程发灰）；
+   - 新增纸色 scrim：前 12% 淡入盖住页面切换、30%~64% 淡出，阅读器随封面放大"渐变出现"。
+2. **层级**：被拿起来的书按槽位夹在中间 —— 左侧的书先画（在后），右侧的书最后画（在前）。
+3. **同一本书的两个投影**：以前 `bookIndex == openIndex` 的槽位全部跳过，导致左右两份一起消失；
+   现在只跳过**离焦点最近的那一份**，另一份留在原地。
+4. **收藏没有封面**：`rememberShelfPainter` 以前要求 `Book.isCoverValid`，而收藏是运行时拼的
+   Book（该字段恒 false），且 `localThumbPath` 是裸路径 → 永远走空。现在裸路径直接交给 Coil。
+5. **书脊看着比纸页矮**：把 `METRICS_DEPTH_Y` 从 -.30 收到 -.16，顶部书口变薄、书脊接近满高；
+   生成封面的左缘压暗条去掉、书脊包裹取样从 6% 开始，白封面的书不再出现"黑书脊"。
+6. **英文覆盖**：新增约 160 条词条，覆盖书库页、发现页（含顶部 推荐/最新/连载/完结 分类条）、
+   统计页（本周/本月/今年…）、阅读器主控制栏；这些页面统一用 `AppLocale.t()`（普通函数，
+   读同一个可观察状态），避免在非 Composable 上下文里拿不到 CompositionLocal。
+
+### 追加修复 4（同轮，用户第 5 次回归：动画必须是一段 + 英文全覆盖）
+
+**动画**
+1. `WenkuCoverFlight` 增加 `seamless` 时间轴：默认时间轴在起步 12% 处有一段"抓住封面"的停顿，
+   从 3D 书架接手时不能有，改为把 p 线性重映射到 `travel()` 的 [.12,.58] 区间，
+   等效于"无停顿、同缓动走完全程"。
+2. `WenkuFlightOverlay` 不再等 `arrive()`：视口本身就是落点，`begin()` 之后下一帧就能画。
+3. 打开流程拆成 `beginFlight()` + 等一帧 + `onBookClick()`：先让飞行层画出与刚才**完全相同**的一帧，
+   再切路由，消除"书消失一帧 → 阅读器 → 封面才出现"的闪断。
+4. 封面工艺（覆膜高光/布纹/装订槽/倒角/编号）按 `zoomT` 收到 0：最后一帧只剩原始贴图，
+   与飞行层第一帧逐像素一致；圆角统一 2dp。
+
+**英文**
+5. 阅读器全控制栏（目录/书签/听书/排版/查找/自动滚屏/主题/字体…）、漫画阅读器 chrome、
+   「我喜欢的」面板、缓存管理、存储详情、更新弹窗：约 143 条新词条，统一走 `AppLocale.t()`。
+   包裹只针对 UI 文案位置（`Text(...)` / `text=` / `title=` / `label=` / `contentDescription=` …），
+   不碰 `when`/`equals` 里的比较键，避免把逻辑改坏。
+
+### 追加修复 5（R100，2026-11-11：两段动画的根因被移掉 + 黑封面）
+
+**为什么之前"怎么调都还是两段"**
+不是缓动的问题，是**渲染器交接**的问题。旧链路：书架画布把书从斜角转正 → 交给
+`WenkuCoverFlight` 把一张平面贴图放大。第一段只有旋转、缩放几乎为 0；第二段缩放从 0 速度
+重新起步。这个速度断点与几何/贴图/圆角/透明度对不对齐**无关**，所以"再调一版曲线"永远删不掉它。
+
+**这一轮的做法：同一渲染器 + 同一条路径**
+1. 新增 `ui/wenku/ShelfVolumeRender.kt`：
+   - `ShelfVolumeArt`（一本书的全部绘制素材，px 已定）、`ShelfVolumePose`（一帧姿态）、
+     `ShelfVolumeArtist`（把 art+pose 画到任意 `android.graphics.Canvas`，不依赖 Compose 组合）；
+   - `ShelfOpenTimeline.poseAt(p, …)` 是**唯一**的时间轴：位置与缩放共用一条钟形曲线
+     （两端导数为 0），转正（depthX .66→1 / depthY -.16→0 / skew .10→0 / 书脊收薄）与放大
+     重叠推进，几何在 `GEOMETRY_END = .78` 走到"封面铺满整屏"，之后只做淡出。
+   - `p = 0` 的返回值与书架静止姿态 `RESTING_VOLUME_POSE` **逐参数相同**。
+2. `ArchiveShelf` 点书时把 `art + 静止位置` 交给根覆盖层 `WenkuVolumeFlightOverlay`
+   （新增 `ui/wenku/WenkuVolumeFlight.kt`）。覆盖层用同一个 `ShelfVolumeArtist`、同一个
+   `poseAt(p)` 从 `p=0` 画到 `p=1`；书架在 `WenkuVolumeFlightBridge.HANDOFF_P = 0`（即
+   `progress > 0`）之后不再画这本书 —— `p=0` 那一帧两层画的是同一张图，所以"让位"看不见。
+3. 飞行期间 `WenkuVolumeFlightBridge.suppressRouteMotion = true`，NavHost 的四个转场都返回
+   `None`：封面已经盖住整屏，横向滑动只会在边缘露馅。
+4. 归位是打开的反向：`reverse()` 复用 `last`（同一份 art + 同一个静止位置），`p` 从 1 走回 0；
+   前 120ms 用 `alphaOverride = smooth(q / CLOSE_COVER_IN_MS/CLOSE_MS)` 让封面从阅读器这一侧
+   淡入，`MainActivity.closeReader` 在这 120ms 之后才 `dismissPaperPage()`，所以退出时看到的是
+   "书被放回书架"，而不是"阅读器消失 → 书架闪一下 → 封面出现"。
+5. 层级：被拿起的书由覆盖层画在**所有**邻书之上（它已经被拿出手了），书架不再夹着画它。
+
+**黑封面（用户这一轮报的 bug）**
+`ShelfCoverStore` 的预光栅化窗口是死板的 `active ± 5`，而 `ShelfScenePainter.draw` 真正画的
+是 `focus ± (edgeSlots + 2)` 个槽位：411dp 屏上 `edgeSlots = 16`，屏幕上同时能看到 18 本，
+12 本书会**全部**出现。落在窗口外的那本永远拿不到贴图，`drawVolume` 只能填 `fallbackTint`，
+其中 1/3 的 id 是 `#3F4A56` 深蓝灰 —— 就是用户说的"中间书右边某本变成黑封面"。
+退出阅读器再回来时最明显：那时以刚读完的那本为中心，±5 的窗口刚好把某一本挤出去。
+
+1. `shelfWarmWindow(active, count, metrics)` 改为按**实际绘制的槽位**推导（含左右两侧的重复
+   副本、按离焦点由近到远、按 `cull` 剔除屏幕外），保证每一本会被画出来的书都有贴图。
+2. 兜底色 `fallbackTint` 全部改为纸色系（不再有深蓝灰）；`drawVolume` 在没有贴图时封面面填
+   `palette.paper` —— 宁可像一本空白纸书，也不要像一块黑砖。
+3. 光栅化分批：每轮组合最多 6 本（`COVER_RASTER_BUDGET`），补到东西就把 `coverGeneration` +1
+   让绘制块重新构建（`drawWithCache` 里读它），既不掉帧也不会停在"有书没封面"的中间态。
+
+**证据（都不依赖模拟器）**
+- `ShelfSeamTest`（`:app:testDebugUnitTest --tests "com.example.ui.wenku.ShelfSeamTest"`）：
+  - `flightFirstFrameIsPixelIdenticalToShelfRestingFrame`：mean = 0.0，max = 0（逐像素相同）；
+  - `noFrameJumpsAcrossTheWholeOpenTimeline`：60 帧扫描，相邻帧色差最坏局部尖峰 1.74×
+    （阈值 1.9×），无"整块画面瞬移"；
+  - `geometryIsMonotoneAndArrivesFullScreen`：单帧位移 ≤ 5.83px（视口对角线 4% 以内），
+    `p=.78` 时封面 727×1170 完整覆盖 540×1170 视口；
+  - `handoffPointKeepsTheBookPinnedToTheShelf`：60fps 第一帧交接位移 0.10 / 0.30px；
+  - `closeEndsExactlyOnTheShelfPose`：归位末帧与静止姿态完全相等。
+- `ShelfRenderProbeTest`：离屏把书架画成 PNG（`build/tmp/probe/*.png`），用于肉眼核对
+  "每本书都有封面"；R100 之前的 `rest-first.png` 里 08 号书是一块深蓝灰，修复后消失。
+- `:app:assembleDebug` 通过，APK 55 MB；模拟器上 `MainActivity` 能启动并成为
+  `topResumedActivity`（随后 AVD 在软件渲染下被 OOM 杀掉，逐帧录屏仍要靠真机）。
+
+**英文（这一轮新增的部分）**
+- 新增 `com.example.i18n.tr(source)`：普通函数，读同一个可观察状态，不必在 Composable 里先取
+  `str`；词表是白名单，没有条目原样返回，所以可以安全地包住"可能是数据"的位置。
+- 在**共享控件层**统一翻译选项文案：`LiquidSegmentedSelector`（含原生绘制分支）与
+  `OrdinarySegmentedSelector`，一次覆盖阅读设置、排序、筛选的所有分段控件。
+- 批量包裹 213 处 UI 文案位置（`Text("…")` / `text=` / `title=` / `label=` / `placeholder=` /
+  `contentDescription=` / `Toast.makeText(…, "…")`），补 162 条词条：帮助手册、下载管理、
+  互传/迁移、漫画翻译、外观数值、通用按钮与空态。
+- **仍然会是中文**（属于下一轮的量）：带 `${}` 插值的模板句（`第 3/140 章`、`已加载 12 条`）、
+  书源管理/备份向导这类深层页、终端提示型 Toast、以及 `DiscoverTaxonomy` 里的题材名
+  （属于数据键，翻译会改掉用户的分类）。
+
+### 追加修复 6（R100 第二轮：英文再覆盖 + 模板句参数化 + 注释清理）
+
+**英文（第二轮）**
+1. 包裹范围扩到 324 处：新增命名参数 `desc=` / `description=` / `state=` / `summary=` /
+   `caption=` / `action=` / `note=` / `tip=`，`PanelSectionCard(...)` / `PanelRow(...)` /
+   `ActionChip(...)` / `PanelTextField(...)` / `EngineCard(...)` 的标题位置，以及
+   `if (…) "A" else "B"`、`if (…) "A"` 里的分支文案。补 259 条词条：阅读器与漫画设置全表、
+   收藏/书架动作、下载与更新、登录与账号、互传校验码、Z-Library、神回排行、翻译与模型、
+   状态与 Toast。
+2. 带 `${}` 的界面短句不能再进字典（运行时字符串永远匹配不到 key），改成**参数化函数**：
+   `StringTable` 里各加一份中文/英文两种语序，另加同名顶层入口（内部按当前语言取表）：
+   `chapterCounter` / `chapterLabel` / `pageLabel` / `pageCounter` / `stepCounter` / `dayReadLog` /
+   `weekMinutes` / `restReminder` / `expandAll` / `clearSearchHistory` / `totalOf` /
+   `itemsOfTotal` / `remainingOfTotal` / `pagesTotal`。
+   已改写 12 处调用点：阅读器休息提醒、周阅读图表标题与合计、统计页合计、引导步骤描述、
+   存储详情占用、缓存管理（译文页数/设备剩余）、下载卡片剩余/总计。
+
+**注释清理**
+3. `WenkuCoverFlight.kt` 里在历史批量改写中被 UTF-8↔GBK 弄坏的中文注释不可逆（字节已变成 `?`），
+   逐行恢复失败。处理方式：按"每段损坏注释"替换成一行说明 `（历史注释在批量改写中损坏，已按实现删除）`，
+   并保证 `/*` 与 `*/` 重新配平（50/50）、文件照常编译。
+
+### 追加修复 7（R100 第三轮：枚举/数据行延迟翻译 + 漫画设置全表）
+
+**问题类别：构造期翻译会冻住语言**
+枚举和 `data class` 的字段在**类加载期**就求值。如果在那里调 `tr(...)`，取到的是当时
+（默认中文）的表项，之后切语言也不会变。所以这三处统一改成"存中文原文 + 读取时翻译"：
+
+1. `ui/comic/ComicReaderConfig.kt`：`ComicMode` / `ComicDirection` / `ComicFit` /
+   `ComicDoubleAlign` / `ComicCropMode` / `ComicEnhanceMode` / `ComicBgType` / `ComicScene` /
+   `ComicPageAnim` / `ComicGestureAction` 的构造参数改名 `raw`（`ComicEnhanceMode` 另有 `rawDesc`），
+   `label` / `desc` 改成 `get() = com.example.i18n.tr(raw)`。所有渲染点（`mode.label`、
+   `fit.label`、`enhance.desc`…）**一行都不用改**，切语言即时生效。
+2. `ui/CacheManagementScreen.kt`：`StorageRow(name/desc/confirmTip)` 同样改成延迟翻译，
+   一次覆盖缓存清单的整张表（含 `\n\n注意：检测到有下载正在进行…` 这种长提示）。
+3. `transfer/TransferManager.kt`：互传状态不是 Composable 渲染的，所以在**写入状态**这一层
+   统一翻译 —— `change(phase, message)` 内部 `val shown = tr(message)`，失败路径的
+   `message = tr(e.message ?: "传输未完成，请重试")`。调用方继续写中文原文当 key。
+
+**词条与校验**
+4. 漫画阅读设置面板 163 条文案、阅读器排版/主题、缓存管理、互传、存储详情全部入表；
+   词表从 873 条增到约 **1373 条**。
+5. 新增静态口径（`.tmp_probe/missing_keys.py` 的做法）：扫描所有 `tr("中文")` 调用点，
+   检查 key 是否在表里。当前结果：**非插值的 key 100% 命中**，剩下 24 条全部是带 `$`
+   的插值模板句 —— 它们无法作为字典 key（运行时字符串永远匹配不到），属于下一轮要
+   参数化的对象（例如 `已加入我喜欢的 $ok 本`、`当前筛选 $count 本`、`分类 $name`）。
+
+**验证**
+- `:app:testDebugUnitTest`：599 项、5 项失败，与既有失败集合一致
+  （`AppDatabaseMigrationTest`×2 / `RealEpubPipelineTest` / `Round7DataTest` / `DiscoverUiTest`）。
+- `:app:assembleDebug` 通过，APK 55 MB（23:52）。
+
+
+**英文（第二轮）**
+1. 包裹范围扩到 324 处：新增命名参数 `desc=` / `description=` / `state=` / `summary=` /
+   `caption=` / `action=` / `note=` / `tip=`，`PanelSectionCard(...)` / `PanelRow(...)` /
+   `ActionChip(...)` / `PanelTextField(...)` / `EngineCard(...)` 的标题位置，以及
+   `if (…) "A" else "B"`、`if (…) "A"` 里的分支文案。补 259 条词条：阅读器与漫画设置全表、
+   收藏/书架动作、下载与更新、登录与账号、互传校验码、Z-Library、神回排行、翻译与模型、
+   状态与 Toast。
+2. 带 `${}` 的界面短句不能再进字典（运行时字符串永远匹配不到 key），改成**参数化函数**：
+   `StringTable` 里各加一份中文/英文两种语序，另加同名顶层入口（内部按当前语言取表）：
+   `chapterCounter` / `chapterLabel` / `pageLabel` / `pageCounter` / `stepCounter` / `dayReadLog` /
+   `weekMinutes` / `restReminder` / `expandAll` / `clearSearchHistory` / `totalOf` /
+   `itemsOfTotal` / `remainingOfTotal` / `pagesTotal`。
+   已改写 12 处调用点：阅读器休息提醒、周阅读图表标题与合计、统计页合计、引导步骤描述、
+   存储详情占用、缓存管理（译文页数/设备剩余）、下载卡片剩余/总计。
+3. 仍然是中文的部分（属数据键或纯日志，**不翻**）：`DiscoverTaxonomy` 的题材名、书源 id 与
+   书源名称、`第 N 章` 这类由解析器生成的**章节标题**、下载器/解析器的内部错误日志。
+
+**注释清理**
+4. `WenkuCoverFlight.kt` 里在历史批量改写中被 UTF-8↔GBK 弄坏的中文注释不可逆（字节已变成 `?`），
+   逐行恢复失败。处理方式：按"每段损坏注释"替换成一行说明 `（历史注释在批量改写中损坏，已按实现删除）`，
+   并保证 `/*` 与 `*/` 重新配平（50/50）、文件照常编译。
+
+**验证**
+- `:app:testDebugUnitTest` 全量重跑：599 项、5 项失败，与既有失败集合一致
+  （`AppDatabaseMigrationTest`×2 / `RealEpubPipelineTest` / `Round7DataTest` / `DiscoverUiTest`），
+  本次改动没有引入回归。
+- `ShelfSeamTest`（6 项）与 `ShelfRenderProbeTest`（3 项）全绿。
+- `:app:assembleDebug` 通过，APK 55 MB。
+
+### 追加修复 8（R100 第四轮：补上被脚本漏掉的 Text() 文案 + 单测 JVM 崩溃）
+
+**一个系统性漏包（值得记住）**
+前三轮的批量包裹脚本用 `if 'tr(' in prefix or 't(' in prefix: skip` 判断"这个位置是否已经
+包过翻译"。`Text(` 里天然含有子串 `t(` —— 于是**所有 `Text("…")` 内联文案从第一轮起就被
+当成"已包裹"跳过了**。这就是"包了 800 多处，界面上还是一堆中文"的真正原因。
+
+修正判断（改成 `re.search(r'(?:^|[^\w])t\(\s*$', prefix)`，并额外跳过包含 `$` 的字面量），
+然后：
+
+1. 补包 296 处 `Text("…")` / `text = "…"`；
+2. 再补 280 处：`PanelTabData(` / `PanelHint(` / `SwitchRow(` / `LabeledSlider(` 这类
+   **位置参数就是标题**的小控件、`paneTitle =` / `stateDescription =` 语义标题、
+   `aiTestResult =` / `onlineTestResult =` 结果文案，以及 `when { … -> "文案" }` 的箭头分支；
+3. 23 处插值模板句参数化（`sourcesReadable` / `filterCount` / `categoryLocked` /
+   `categoryEmpty` / `favouritesAddedPartial` / `downloadChapters` / `dailyAverage` /
+   `migrateIntro` / `expandRest` / `switchedTo` / `homeHttpCode` …），中文按原语序、英文按英文语序；
+4. `第 $chunkNo 部分`、`"'默认'"`、`"'未知作者'"` 保持中文原文：前两个是**解析器生成的章节
+   标题**与 **SQL 默认值比较**，属于数据，翻了会改坏导入/迁移判断。
+
+当前口径：`tr()` 调用点 **1065** 处、词表 **约 1743** 条、`tr()` key 缺失 **0**。
+
+**又一类延迟翻译（第四轮后半 / 第五轮）**
+`mangatranslate/TranslationFailure` 是 data class，15 个常量在类加载期构造 → 构造参数里翻译
+会把语言冻住。改为 `rawCode/rawDescription` + `description get() = tr(rawDescription)`，
+`TextTranslator` 里 `copy(description = …)` 同步改成 `copy(rawDescription = …)`。
+同样处理的还有：缓存清单 `StorageRow`、引导页 `OnboardingPage`、发现页
+`DiscoverDimension` / `DiscoverLayout`、`LibraryViewModel` 的章节/图片加载错误。
+
+**"数据键"与"显示文案"必须拆开（第五轮）**
+- `DiscoverDimension.ranges`（`最新/今日/近 3 天/本周`…）是 `DiscoverEngine.rangeStart` 的
+  **数据键**，翻译会把日期窗口算错。显示层改走 `discoverRangeLabel(range)`，chip 的点击仍然回传原 key。
+- `serialLabel()` 里以前把 `AppLocale.t("连载")` 直接写进 `when` 条件：英文模式下它是
+  "Ongoing"，而书源返回的是中文「连载」→ 所有状态都会掉进 `else` 变成「状态未知」。
+  现在条件里**同时列出中文原文与英文**，这是本轮修掉的一个只在英文模式出现的真 bug。
+- 大数字：`%.1f亿` 这种带格式符的串不能进字典，改成 `compactCount()`（中文 亿/万，英文 M/k）。
+
+**仍未覆盖（415 处，已排除日志/数据/发布记录）**
+`ReleaseHistoryDialog` 50（发布记录正文，属内容，**有意不翻**）、`MangaJaNai(Full)` + `MangaJaNai`
+30（引擎模型下载/校验的 `IOException` 文案，多为插值，需要逐个参数化）、其余是 73 个文件里的
+长尾（每条 1～3 处，多为冷门弹层与诊断 Toast）。
+
+**单测 JVM 偶发崩溃（与代码无关）**
+"只跑了 183 个用例"：JBR 21.0.10 的 C2 在编译 `SQLiteStatement.executeInsert` 时
+`EXCEPTION_ACCESS_VIOLATION`，整个 Gradle Test Executor 被杀（`app/hs_err_pid*.log`）。
+最终改法：`-XX:CompileCommand=exclude,…SQLiteStatement::executeInsert` + `-XX:+UseSerialGC`
+（`app/build.gradle.kts` 的 `testOptions.unitTests.all`）。比"整体降到 C1"更好 ——
+既不崩，也不会让 Compose 测试因为解释执行变慢而 `waitUntil` 超时。
+
+**验证**
+- `:app:testDebugUnitTest`：607 项、5 项既有失败（`AppDatabaseMigrationTest`×2 /
+  `RealEpubPipelineTest` / `Round7DataTest` / `DiscoverUiTest`），无 JVM 崩溃、无 Compose 计时 flake。
+- `:app:assembleDebug` 通过，APK 55 MB。

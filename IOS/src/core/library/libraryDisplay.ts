@@ -1,3 +1,4 @@
+import { tr } from '@core/i18n';
 /**
  * Pure display logic lifted out of Android `com.example.library.LibraryScreen.kt`,
  * `NovelBookUi.kt`, `DownloadGlassCard.kt`, `KeywordSearchPreview.kt` and
@@ -356,17 +357,17 @@ export function novelDownloadLabel(
 ): string {
   switch (state.kind) {
     case 'Success':
-      return '已在书架 · 离线阅读';
+      return tr('已在书架 · 离线阅读');
     case 'Downloading':
       return `整本下载 ${String(Math.trunc(state.progress * 100))}%`;
     case 'Pending':
-      return '正在准备整本下载';
+      return tr('正在准备整本下载');
     case 'Paused':
-      return '整本下载已暂停';
+      return tr('整本下载已暂停');
     case 'Error':
-      return downloaded ? '可读离线版本 · 更新下载失败' : '下载失败 · 点开重试';
+      return downloaded ? tr('可读离线版本 · 更新下载失败') : tr('下载失败 · 点开重试');
     default:
-      return downloaded ? '已在书架 · 离线阅读' : '查看详情 · 整本下载';
+      return downloaded ? tr('已在书架 · 离线阅读') : tr('查看详情 · 整本下载');
   }
 }
 
@@ -377,16 +378,16 @@ export function novelDetailFacts(
 ): Array<[string, string]> {
   const facts: Array<[string, string]> = [];
   if (info !== null) {
-    if (info.wordCount != null) facts.push(['字数', info.wordCount]);
-    if (info.chapterCount != null) facts.push(['源站目录', `${String(info.chapterCount)} 章`]);
-    if (info.volumeCount != null) facts.push(['收录卷数', `${String(info.volumeCount)} 卷`]);
+    if (info.wordCount != null) facts.push([tr('字数'), info.wordCount]);
+    if (info.chapterCount != null) facts.push([tr('源站目录'), `${String(info.chapterCount)} ${tr('章')}`]);
+    if (info.volumeCount != null) facts.push([tr('收录卷数'), `${String(info.volumeCount)} ${tr('卷')}`]);
   }
   if (book.size != null) {
-    facts.push(['下载大小', `${(book.size / 1024 / 1024).toFixed(1)} MB`]);
+    facts.push([tr('下载大小'), `${(book.size / 1024 / 1024).toFixed(1)} MB`]);
   }
   if (info !== null) {
-    if (info.publisher != null) facts.push(['出版社', info.publisher]);
-    if (info.translation != null) facts.push(['阅读版本', info.translation]);
+    if (info.publisher != null) facts.push([tr('出版社'), info.publisher]);
+    if (info.translation != null) facts.push([tr('阅读版本'), info.translation]);
   }
   return facts;
 }

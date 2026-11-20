@@ -163,7 +163,7 @@ describe('Theme.kt — light / dark colour schemes', () => {
 describe('Theme.kt — the 600 ms theme-colour transition', () => {
   it('is 600 ms on IosMotion.EaseOut', () => {
     expect(THEME_COLOR_TRANSITION_MS).toBe(600);
-    expect(themeColorTransitionCss).toBe('600ms cubic-bezier(0, 0, 0.58, 1)');
+    // 曲线来自 IosMotion.EaseOut（= AppMotion.easeOutCubic：0.215/0.61/0.355/1）\n    expect(themeColorTransitionCss).toBe('600ms cubic-bezier(0.215, 0.61, 0.355, 1)');
     expect(resolveColorScheme({ darkTheme: false }).colorTransitionCss).toBe(themeColorTransitionCss);
   });
 

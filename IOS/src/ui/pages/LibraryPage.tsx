@@ -148,6 +148,8 @@ import {
 import type { LibraryAggregateGroup } from '@core/library/libraryTypes';
 import type { LibraryRuntime } from '@core/library/libraryRuntime';
 import { getLibraryRuntime } from '@core/library/libraryRuntime';
+import { nodeDomain } from '@core/library/zLibraryNodeConfig';
+import { SourceCredentialFields } from '@ui/components/source/SourceCredentialFields';
 import { requestFavoriteAdd, subscribeFavoriteCommitted } from '@core/library/favoriteAddController';
 import type { LibrarySearchRequest } from '@ui/state/appStore';
 import {
@@ -170,13 +172,13 @@ import { scrollElementIntoView } from '@ui/lib/scroll';
 import '../../styles/library.css';
 
 /**
- * LibraryLoginDialog.kt:243 `val url = "https://${ZLibraryNodeConfig.domain}/registration"`.
- * `ZLibraryNodeConfig` belongs to the Z-Library module (another agent), so the node
- * host is a module constant here and `ZLibraryNodeConfig.domain` can be wired in by
- * the Z-Library module through `setLibraryRuntime().viewModel`'s `zlibraryNodeDomain`
- * hook (see `LibraryViewModelDeps`).
+ * LibraryLoginDialog.kt L60 `val url = "https://${ZLibraryNodeConfig.domain}/registration"`
+ * —— `ZLibraryNodeConfig` 已落在 `@core/library/zLibraryNodeConfig`，这里直接读实时域名：
+ * 换节点后注册页跟着走，不再写死 `z-library.sk`。
  */
-const Z_LIBRARY_REGISTRATION_URL = 'https://z-library.sk/registration';
+function zLibraryRegistrationUrl(): string {
+  return `https://${nodeDomain()}/registration`;
+}
 
 /**
  * NovelBookUi.kt:284
@@ -1963,6 +1965,7 @@ function LibraryLoginDialog(props: {
 }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   return (
     <div className="lib-dialog-backdrop" onClick={() => { if (!props.loading) props.onDismiss(); }}>
       <div
@@ -1991,22 +1994,19 @@ function LibraryLoginDialog(props: {
             <IconClose />
           </button>
         </div>
-        <input
-          className="lib-login__field"
-          value={email}
-          placeholder={tr('邮箱 / 账号')}
-          aria-label={tr('邮箱 / 账号')}
-          autoComplete="username"
-          onChange={(event) => { setEmail(event.target.value); }}
-        />
-        <input
-          className="lib-login__field lib-login__field--password"
-          type="password"
-          value={password}
-          placeholder={tr('密码')}
-          aria-label={tr('密码')}
-          autoComplete="current-password"
-          onChange={(event) => { setPassword(event.target.value); }}
+        {/* LibraryLoginDialog.kt L44 `SourceCredentialFields(email, { email = it }, password,
+            { password = it }, !loading, submit)` —— 与 Z-Library 登录面板共用同一个组件
+            （`ZLibraryLoginDialog.kt` L202-245），标签 / 可见性开关 / Enter 提交都只有一份实现。 */}
+        <SourceCredentialFields
+          username={email}
+          onUsernameChange={setEmail}
+          password={password}
+          onPasswordChange={setPassword}
+          enabled={!props.loading}
+          onSubmit={() => {
+            if (props.loading || email.trim() === '' || password.trim() === '') return;
+            props.onLogin(email, password);
+          }}
         />
         {props.message.trim() !== '' ? (
           <p
@@ -2035,6 +2035,7 @@ function LibraryLoginDialog(props: {
         <button
           type="button"
           className="lib-login__register"
+          disabled={props.loading}
           onClick={() => {
             // Android `LibraryLoginDialog.kt:246`
             // `context.startActivity(Intent(ACTION_VIEW, Uri.parse(url)))`
@@ -3236,7 +3237,7 @@ export function LibraryPage(props: LibraryPageProps = {}) {
         <LibraryLoginDialog
           message={loginMessage}
           loading={loginLoading}
-          registerUrl={Z_LIBRARY_REGISTRATION_URL}
+          registerUrl={zLibraryRegistrationUrl()}
           onLogin={(email, password) => {
             const src = currentSource;
             if (src === null) {

@@ -114,6 +114,14 @@
   color: var(--color-on-light, #18191c);
 }
 
+.theme-palette__preview-part {
+  /* Kotlin L58-62 `Column(verticalArrangement = Arrangement.spacedBy(8.dp))`：
+     标题区与预览面板之间是 8dp，不是 header 自带的 5dp。 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .theme-palette__part-body {
   min-width: 0;
 }
@@ -248,8 +256,10 @@
 
 .theme-palette__check {
   position: absolute;
-  top: 2px; /* Kotlin L215 `.padding(2.dp)` in the TopEnd slot */
-  right: 2px;
+  /* Kotlin：`WenkuGlassSurface(contentPadding = 4.dp)` 让内容区内缩 4dp，
+     徽标再 `.padding(2.dp)` 且 `align(TopEnd)` → 距色块外沿 4 + 2 = 6px。 */
+  top: 6px;
+  right: 6px;
   width: 18px; /* Kotlin L215 `size(18.dp)` */
   height: 18px;
   display: inline-flex;

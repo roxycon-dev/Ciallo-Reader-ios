@@ -40,6 +40,86 @@ export const SharedHttpTransport = {
   },
 };
 
+/* ── Kotlin L43-60 的两个拦截器（`SharedHttpTransport.builder()` 的语义部分）── */
+
+/**
+ * L48 `listOf("Cookie", "Authorization", "Proxy-Authorization")`。
+ *
+ * 存小写：OkHttp 的 `request.header(name)` 本身不区分大小写，所以比较也按小写走。
+ * 写成原始大小写再 `toLowerCase` 也行，但那样每次调用都要分配字符串。
+ */
+export const CREDENTIAL_HEADER_NAMES = ['cookie', 'authorization', 'proxy-authorization'] as const;
+
+/** L50 `IOException("非 HTTPS 图片或书源地址不能携带登录凭据")`。 */
+export const INSECURE_CREDENTIAL_MESSAGE = '非 HTTPS 图片或书源地址不能携带登录凭据';
+
+/**
+ * Kotlin L46-53：
+ * ```kotlin
+ * .addNetworkInterceptor { chain ->
+ *     val request = chain.request()
+ *     if (!request.url.isHttps && listOf("Cookie", "Authorization", "Proxy-Authorization")
+ *             .any { !request.header(it).isNullOrBlank() }) {
+ *         throw java.io.IOException("非 HTTPS 图片或书源地址不能携带登录凭据")
+ *     }
+ *     chain.proceed(request)
+ * }
+ * ```
+ *
+ * 三个只有读原文才会发现的语义：
+ *
+ * 1. **挂在 `addNetworkInterceptor` 上，不是应用拦截器**。原文 L45 的注释写明
+ *    「Runs after cookie/application interceptors and on every redirect hop.」——
+ *    放在应用拦截器里的话，`https → http` 那条重定向的**最后一跳**就绕过了检查，
+ *    登录凭据会被明文发出去。这是整条 SSRF/降级防线里最容易被实现错的一处。
+ * 2. **三个头名各自独立判**（`any`），不是「有 Cookie 才算」。
+ * 3. **判据是 `isNullOrBlank()`**：空串与纯空白都**不算**携带凭据 ——
+ *    写成 `!= null` 会让 `Cookie: ` 这种占位头也被拦下。
+ *
+ * @returns 该抛的中文文案（`null` = 放行）。
+ */
+export function insecureCredentialViolation(
+  url: string,
+  headerOf: (name: string) => string | null | undefined,
+): string | null {
+  let https: boolean;
+  try {
+    https = new URL(url).protocol === 'https:';
+  } catch {
+    // 解析不了的 URL 由上游 `checkSourceUrl` 报「仅支持 HTTP/HTTPS 书源」。
+    return null;
+  }
+  if (https) return null;
+  for (const name of CREDENTIAL_HEADER_NAMES) {
+    const value = headerOf(name);
+    if (value != null && value.trim() !== '') return INSECURE_CREDENTIAL_MESSAGE;
+  }
+  return null;
+}
+
+/**
+ * Kotlin L54-60：
+ * ```kotlin
+ * .addInterceptor { chain ->
+ *     val request = chain.request()
+ *     chain.proceed(if (request.header("Accept-Encoding").equals("identity", true)) request
+ *         else request.newBuilder().removeHeader("Accept-Encoding").build())
+ * }
+ * ```
+ *
+ * 原文注释：「Let OkHttp negotiate/decode gzip. Script-supplied br/zstd prevented its
+ * transparent decoding and exposed compressed bytes to text/JSON parsers.」
+ *
+ * 两处关键：
+ * 1. **只有值恰好是 `identity`（大小写不敏感）才保留**。`gzip, identity`、`identity `
+ *    这类都落到 `remove` —— 因为 OkHttp 会自己补 `gzip` 并透明解压，脚本声明的
+ *    `br` / `zstd` 会让它**不解压**，于是正文解析器拿到的是压缩字节。
+ * 2. **头缺失也算 `remove`**（Kotlin 的 `String?.equals(other, ignoreCase)` 对 null 返回 false）。
+ */
+export function acceptEncodingAction(value: string | null | undefined): 'keep' | 'remove' {
+  return value != null && value.toLowerCase() === 'identity' ? 'keep' : 'remove';
+}
+
 /**
  * Parent cancellation closes blocked socket reads; response close removes the hook.
  * Kotlin `Call.executeCancellable()`.

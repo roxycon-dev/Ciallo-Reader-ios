@@ -1,385 +1,364 @@
 /**
- * Port of Android `ui/source/ZLibraryLoginDialog.kt` (351 lines total / 333 non-blank / 332 code).
+ * ZLibraryLoginDialog.tsx  ←  `ui/source/ZLibraryLoginDialog.kt`（245 行 / 203 非空）
  *
- * Full-line map (Kotlin line → TS):
- *   1–57   package + imports → file header. The file has a long run of duplicated
- *          `import com.example.ui.components.AppIconButton` (9×, L40/41/44/45/48/49/51/53)
- *          — duplicated imports are not reproduced (they carry no behaviour).
- *   58–67  `@Composable fun ZLibraryLoginDialog(source, onDismiss, onSuccess, hazeState,
- *          onRegister)` → same props; `hazeState` is dropped (Android-only blur source).
- *   68–71  `LocalContext`, `LocalContext as Activity`, `blurPx = 18.dp.toPx()`,
- *          `rememberCoroutineScope()` → the injected `hazeState` / no-ops.
- *   72–74  `produceState<String?>(null, source) { value = withTimeoutOrNull(5_000) {
- *          source.getRegistrationUrl() } }` → `useEffect` + a 5 s race, storing the URL.
- *   75–76  `isJsSource = source.id.startsWith("js_")`;
- *          `supportsCookieLogin = !isJsSource || source.id == "js_mycomic"`
- *   77–82  `loginModeTab` (0: 账号密码, 1: Cookie; defaults to 1 for `js_mycomic`),
- *          `username`, `password`, `cookieString`, `isLoading` → same five `useState`s.
- *   83–88  `Dialog(onDismissRequest, properties = DialogProperties(
- *          usePlatformDefaultWidth = false, decorFitsSystemWindows = false))`
- *          → `.fav-dialog-scrim` + a full-bleed `.zlib-login-panel`.
- *   90–92  `DialogLiquidGlass { GlassDialogWindowEffect(activity, blurRadiusPx) }` → CSS
- *          `backdrop-filter` + a `.zlib-login-panel` glass surface.
- *   92–107 the appear spring (`0.85 → 1`, `spring(MediumBouncy, StiffnessLow)`) + fade
- *          (`tween(220)`) → `.zlib-login-panel` keyframes.
- *  109–118 the outer full-size click-to-dismiss `Box` → the scrim `onClick`.
- *  119–149 the panel modifier chain — `fillMaxWidth(0.9f)`, `widthIn(max = AdaptiveSpec.dialogMaxWidth)`,
- *          `graphicsLayer { scaleX/Y = panelScale, alpha = panelAlpha }`,
- *          `liquidGlass(blurRadius = 22.dp, refraction = false)`, `clip(cardShape)`,
- *          `filmGrain(alpha = 0.04f)`, `iridescentBorder(width = 2.dp, alpha = 0.22f)`
- *          → CSS (grain + iridescent border approximated; documented on the class).
- *  151–180 the header `Row`: the 40×12-radius `secondary@0.15` lock tile, the title
- *          `if (isJsSource) "登录 ${source.name}" else "登录 Z-Library"` at 20.sp Bold,
- *          a `Spacer(weight 1f)`, and the `AppIconButton(Close, "关闭")`.
- *  182     `Spacer(24.dp)`.
- *  184–201 the `TabRow` — shown when `supportsCookieLogin && source.id != "js_mycomic"`;
- *          tab 0 = 账号密码, tab 1 = `if (source.id == "js_mycomic") "cf_clearance" else "粘贴 Cookie"`,
- *          14.sp, Bold when selected. → a CSS two-tab row.
- *  203     `Spacer(20.dp)`.
- *  205–211 the `OutlinedTextFieldDefaults.colors(secondary, outline@0.3, …)`
- *          → `.zlib-login-field` CSS.
- *  213–235 mode 0: the 账号 field (label "邮箱 / 账号", leading `AccountCircle`, singleLine,
- *          `RoundedCornerShape(16.dp)`) + the 密码 field (label "密码", leading `Key`,
- *          `PasswordVisualTransformation`, singleLine).
- *  236–248 mode 1: the cookie `OutlinedTextField` (label
- *          `if (source.id == "js_mycomic") "cf_clearance 的值" else "Cookie (包含 remix_userkey)"`,
- *          placeholder `if (source.id == "js_mycomic") "从浏览器复制 cf_clearance 的值"
- *          else "remix_userid=...; remix_userkey=..."`, `height(130.dp)`).
- *  250–257 `if (isLoading)` → a 4.dp `LinearProgressIndicator` r2, secondary on secondary@0.2.
- *  259     `Spacer(24.dp)`.
- *  261–291 `AppLiquidButton(text = if (isLoading) "登录中" else "确认登录", enabled = !isLoading)`;
- *          on click builds a `LoginCredential(username, password)` **or**
- *          `LoginCredential(cookie = cookieString)`, calls `source.login(credential)` and
- *          on `Success` → toast "登录成功" + `onSuccess()` + `onDismiss()`;
- *          on `Error` → toast `result.exception.message ?: "登录失败"`.
- *  293     `Spacer(10.dp)`.
- *  295–321 the register `TextButton` (when `onRegister != null`): text
- *          "没有账号？注册新账号", runs `onRegister()`, success → toast
- *          "注册成功，已自动登录" + onSuccess + onDismiss, failure → toast
- *          `it.message ?: "注册失败"`.
- *  323–344 the `registrationUrl?.let` `TextButton`: text "没有账号？去注册", opens the URL
- *          through `Intent(ACTION_VIEW)`; failure → toast "无法打开注册页面".
- *  345–350 closing braces.
+ * ⚠️ 本文件此前是按 **351 行的旧版** Kotlin 写的（旧版有 `hazeState` / `TabRow` /
+ * `AppLiquidButton` / `supportsCookieLogin`）。当前 Kotlin 早已改成 `WenkuActionSheet` +
+ * `SegmentedPillSelector` + `SourceCredentialFields`，并新增了「站点验证」形态
+ * （`js_mycomic`）。本轮按原文整体重写（E193）。
  *
- * ADAPTATIONS (all documented at their call site):
- *   - `WebView`/`Intent` → `externalBrowser` 端口（iOS `SFSafariViewController`、
- *     浏览器 `window.open`）for the registration link. The **source
- *     login WebView** (`CfWebViewSolver`) is NOT implemented here: it lives in
- *     `com.example.source.zlibrary.network`, outside Module D. `source.login` is
- *     therefore an injected capability (`LoginCapableSource`), declared not implemented.
- *   - `produceState` + `withTimeoutOrNull` → `Promise.race` with a 5 s timer.
+ * 逐段对照：
+ *   L44-50    形参 `source / onDismiss / onSuccess / onRegister: (suspend () -> Unit)? = null`
+ *   L51-52    `LocalContext` / `rememberCoroutineScope()` → 宿主注入
+ *   L53-55    `rememberAsyncState<String?>(null, source) { value = withTimeoutOrNull(5_000) { source.getRegistrationUrl() } }`
+ *             → `useEffect` + 5 s 计时器（`REGISTRATION_URL_TIMEOUT_MS`）
+ *   L56       `val isJsSource = source.id.startsWith("js_")`
+ *   L57       `val siteVerification = source.id == "js_mycomic"`
+ *   L58-63    `loginMode` / `username` / `password` / `cookie` / `loading` / `error`
+ *   L64       `title = if (siteVerification) "验证 ${source.name}" else "登录 ${source.name}"`
+ *   L66       `WenkuActionSheet(title, onDismiss, fitKeyboard = !siteVerification)`
+ *   L69-70    `canSubmit = !loading && (siteVerification || if (loginMode == 0) username.isNotBlank() && password.isNotBlank() else cookie.isNotBlank())`
+ *   L71-101   `submit`：收键盘 → loading → 按 mode 造 `LoginCredential` → `source.login`
+ *             → Success 弹「登录成功 / 验证成功」并 `closeAfterSuccess()`
+ *             → Error 落 `error = result.exception.message ?: "登录失败"`（loading 复位）
+ *             → `CancellationException` 原样抛，其余 `Exception` 同样落 `error`
+ *   L103-110  `if (!isJsSource) SegmentedPillSelector(0 账号密码 / 1 粘贴 Cookie, fontSp = 14f)`
+ *             —— 切模式时 `error = null`，loading 中不可切
+ *   L111-116  `siteVerification` → 提示文案「在应用内完成站点验证后会自动返回，浏览凭据由应用保存。」
+ *   L117-147  否则 `AnimatedContent(loginMode)`：0 → `SourceCredentialFields`；
+ *             1 → Cookie 多行框（label「Cookie」、placeholder
+ *             `remix_userid=…; remix_userkey=…`、`heightIn(min = 112.dp)`、`enabled = !loading`）
+ *   L148-150  `error` 内联红字（`bodySmall`），**不是** toast
+ *   L151      `if (loading) LinearProgressIndicator(fillMaxWidth)`
+ *   L152-162  四态动作文案 + `WenkuTextButton(selected = true, enabled = canSubmit,
+ *             wenkuSymbol = if (siteVerification) Shield else Check)`
+ *   L164-186  `onRegister != null` → 「没有账号？注册新账号」（`enabled = !loading`、compact、PersonAdd）
+ *   L187-198  `registrationUrl != null` → 「没有账号？去注册」（`enabled = !loading`、compact、External）
+ *   L202-245  `SourceCredentialFields` → 独立文件 `./SourceCredentialFields.tsx`
+ *
+ * 逐字保留的**裸字面量**（Kotlin 这几处没包 `tr()`，英文界面也显示中文，照抄）：
+ *   `"没有账号？注册新账号"`（L166）、`"没有账号？去注册"`（L189）、`"Cookie"` /
+ *   `"remix_userid=…; remix_userkey=…"`（L139-140）、`"登录失败"`（L90/L97）、
+ *   `"注册失败"`（L179）、`title`（L64）。
+ * 包了 `tr()` 的：`账号密码` / `粘贴 Cookie` / `等待站点验证` / `打开站点验证` / `登录中` /
+ *   `确认登录` / `登录成功` / `验证成功` / `注册成功，已自动登录` / `无法打开注册页面`。
+ *
+ * ADAPTATION：
+ *   - `Intent(ACTION_VIEW, Uri.parse(url))` → `openExternalUrl` 端口（iOS
+ *     `SFSafariViewController`；WKWebView 里 `_blank` 会被静默拦截）。
+ *   - `AnimatedContent` 的横向滑入 + 淡入（`WenkuMotion.ENTER_MS` / `EXIT_MS`，`/8` 位移）
+ *     → `.zlib-login-mode--next/--prev` 两个 CSS 关键帧；`LocalReduceMotion` →
+ *     `prefers-reduced-motion` 关掉动画。
+ *   - `LocalSoftwareKeyboardController.hide()` 在 Web 无对应（点按钮时浏览器自然收键盘）。
  */
 
 import { useEffect, useState } from 'react';
-import { AppButton } from '@ui/components/AppButton';
+
+import { tr } from '@core/i18n';
+import { createLoginCredential } from '@core/source/loginCredential';
+import type { LoginCredential } from '@core/source/loginCredential';
 import { showToast } from '@ui/toast';
 import { openExternalUrl } from '@ui/lib/openExternalUrl';
-import { createLoginCredential, type LoginCredential } from '@core/source/loginCredential';
-import { tr } from '@core/i18n';
-import type { SourceResultLike } from './sourceCapabilities';
-import '../../../styles/sources.css';
-import '../../../styles/favorite.css';
+import { SegmentedPillSelector } from '@ui/components/SegmentedPillSelector';
+import { WenkuActionSheet } from '@ui/components/wenku/WenkuActionSheet';
+import { WenkuTextButton } from '@ui/components/wenku/WenkuGlass';
 
-/** `com.example.source.BookSource` subset this dialog needs (Android `source.login`). */
+import { SourceCredentialFields } from './SourceCredentialFields';
+import type { SourceResultLike } from './sourceCapabilities';
+
+import '../../../styles/sources.css';
+
+/** `com.example.source.BookSource` 子集：本对话框只用到这三个成员。 */
 export interface LoginCapableSource {
   id: string;
   name: string;
-  /** `SourceResult.Success` | `SourceResult.Error`. */
+  /** `SourceResult.Success` | `SourceResult.Error`。 */
   login(credential: LoginCredential): Promise<SourceResultLike<null>>;
-  /** `source.getRegistrationUrl()` — may resolve slowly; raced against 5 s. */
+  /** `source.getRegistrationUrl()` —— 可能很慢，Kotlin 用 5 s 超时包住。 */
   getRegistrationUrl(): Promise<string | null>;
 }
 
-const SECONDARY = '#10B981';
-const ON_SURFACE = '#18191C';
-const ON_SURFACE_VARIANT = '#61666D';
+/** L54 `withTimeoutOrNull(5_000)`。 */
+export const REGISTRATION_URL_TIMEOUT_MS = 5000;
 
-/** Kotlin L72–74 — `withTimeoutOrNull(5_000)`. */
-const REGISTRATION_URL_TIMEOUT_MS = 5000;
+/** L58 `mutableIntStateOf(0)`。 */
+export const LOGIN_MODE_PASSWORD = 0;
+export const LOGIN_MODE_COOKIE = 1;
 
-function IconLock() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z" />
-    </svg>
-  );
+/** L113 站点验证提示（裸字面量，Kotlin 未包 `tr()`）。 */
+export const SITE_VERIFICATION_HINT = '在应用内完成站点验证后会自动返回，浏览凭据由应用保存。';
+/** L139 `label = { Text("Cookie") }`。 */
+export const COOKIE_FIELD_LABEL = 'Cookie';
+/** L140 `placeholder = { Text("remix_userid=…; remix_userkey=…") }`。 */
+export const COOKIE_FIELD_PLACEHOLDER = 'remix_userid=…; remix_userkey=…';
+/** L141 `heightIn(min = 112.dp)`。 */
+export const COOKIE_FIELD_MIN_HEIGHT_DP = 112;
+/** L119-131 `AnimatedContent` 的位移是宽度的 1/8。 */
+export const LOGIN_MODE_SLIDE_FRACTION = 0.125;
+
+/** L56 `source.id.startsWith("js_")`。 */
+export function isJsSourceId(id: string): boolean {
+  return id.startsWith('js_');
 }
 
-function IconClose() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-    </svg>
-  );
+/**
+ * L57 `val siteVerification = source.id in setOf("js_mycomic", "js_bilimanga", "xbookcn")`。
+ *
+ * 三者都是「没有账号体系、只需要过一次站点挑战」的源：mycomic 与 bilimanga 是站点验证页，
+ * xbookcn 是 CF managed challenge（Kotlin L116-150 为它单开「内置验证 / 粘贴 Cookie」两段）。
+ */
+export function isSiteVerificationSource(id: string): boolean {
+  return id === 'js_mycomic' || id === 'js_bilimanga' || id === 'xbookcn';
 }
 
-function IconAccount() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-    </svg>
-  );
+/** L64 `if (siteVerification) "验证 ${source.name}" else "登录 ${source.name}"`（裸字面量）。 */
+export function loginDialogTitle(siteVerification: boolean, sourceName: string): string {
+  return siteVerification ? `验证 ${sourceName}` : `登录 ${sourceName}`;
 }
 
-function IconKey() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <path d="M12.65 10A6 6 0 0012 4a6 6 0 00-5.93 7.51L2 15.58V22h6.42l1.09-1.09V19H13a6 6 0 00-.35-9zm2.2 4.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
-    </svg>
-  );
+/** L105 `options = listOf(0 to tr("账号密码"), 1 to tr("粘贴 Cookie"))`。 */
+export function loginModeOptions(): ReadonlyArray<{ readonly value: number; readonly label: string }> {
+  return [
+    { value: LOGIN_MODE_PASSWORD, label: tr('账号密码') },
+    { value: LOGIN_MODE_COOKIE, label: tr('粘贴 Cookie') },
+  ];
 }
+
+export interface LoginFormState {
+  readonly loading: boolean;
+  readonly siteVerification: boolean;
+  readonly loginMode: number;
+  readonly username: string;
+  readonly password: string;
+  readonly cookie: string;
+  /** L69 `val xbookcnCookieMode = source.id == "xbookcn" && loginMode == 1`。 */
+  readonly xbookcnCookieMode?: boolean;
+}
+
+/** L69-70 `canSubmit`。`isNotBlank` = 至少一个非空白字符。 */
+export function canSubmitLogin(state: LoginFormState): boolean {
+  if (state.loading) return false;
+  // L70-75 的顺序：xbookcn 的「粘贴 Cookie」形态必须先要求 cookie 非空，
+  // 否则它会同时命中下面的 siteVerification 分支，变成「空 cookie 也能提交」。
+  if (state.xbookcnCookieMode === true) return state.cookie.trim() !== '';
+  if (state.siteVerification) return true;
+  if (state.loginMode === LOGIN_MODE_PASSWORD) {
+    return state.username.trim() !== '' && state.password.trim() !== '';
+  }
+  return state.cookie.trim() !== '';
+}
+
+/**
+ * L77-81 —— `siteVerification || loginMode == 1` 时只带 `cookie`，否则带账号密码。
+ * 站点验证形态没有任何输入框，cookie 也可能是空串（服务端会话才是凭据）。
+ */
+export function loginCredentialFor(state: LoginFormState): LoginCredential {
+  return state.siteVerification || state.loginMode === LOGIN_MODE_COOKIE
+    ? createLoginCredential({ cookie: state.cookie })
+    : createLoginCredential({ username: state.username, password: state.password });
+}
+
+/** L152-157 `val action = when { … }` 的四态。 */
+export function loginActionLabel(siteVerification: boolean, loading: boolean): string {
+  if (siteVerification) return loading ? tr('等待站点验证') : tr('打开站点验证');
+  return loading ? tr('登录中') : tr('确认登录');
+}
+
+/** L85 `if (siteVerification) tr("验证成功") else tr("登录成功")`。 */
+export function loginSuccessMessage(siteVerification: boolean): string {
+  return siteVerification ? '验证成功' : '登录成功';
+}
+
+/** L90 / L97 的兜底文案（裸字面量）。 */
+export const LOGIN_FAILED_FALLBACK = '登录失败';
+/** L179 的兜底文案（裸字面量）。 */
+export const REGISTER_FAILED_FALLBACK = '注册失败';
 
 export function ZLibraryLoginDialog(props: {
   source: LoginCapableSource;
   onDismiss: () => void;
   onSuccess: () => void;
-  /** 源支持站内注册时提供（如 vomic）：登录窗口下方出现「注册新账号」入口 */
+  /** 源支持站内注册时提供：登录窗口下方出现「没有账号？注册新账号」（L164-186）。 */
   onRegister?: (() => Promise<void>) | null;
 }) {
   const { source } = props;
-  // L72–74: `produceState<String?>(null, source) { … withTimeoutOrNull(5_000) … }`
+
+  // L53-55 `rememberAsyncState<String?>(null, source) { withTimeoutOrNull(5_000) { … } }`
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
       if (!cancelled) setRegistrationUrl(null);
     }, REGISTRATION_URL_TIMEOUT_MS);
-    void source
-      .getRegistrationUrl()
-      .then((url) => {
+    void source.getRegistrationUrl().then(
+      (url) => {
         window.clearTimeout(timer);
         if (!cancelled) setRegistrationUrl(url);
-      })
-      .catch(() => {
+      },
+      () => {
         window.clearTimeout(timer);
         if (!cancelled) setRegistrationUrl(null);
-      });
+      },
+    );
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
   }, [source]);
 
-  // L75–76
-  const isJsSource = source.id.startsWith('js_');
-  const supportsCookieLogin = !isJsSource || source.id === 'js_mycomic';
-  // L77 — `remember(source.id) { mutableStateOf(if (source.id == "js_mycomic") 1 else 0) }`
-  const [loginModeTab, setLoginModeTab] = useState(source.id === 'js_mycomic' ? 1 : 0);
+  // L56-57
+  const isJsSource = isJsSourceId(source.id);
+  const siteVerification = isSiteVerificationSource(source.id);
+  // L58-63
+  const [loginMode, setLoginMode] = useState(LOGIN_MODE_PASSWORD);
+  const [modeDirection, setModeDirection] = useState(1);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [cookieString, setCookieString] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [cookie, setCookie] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const state: LoginFormState = { loading, siteVerification, loginMode, username, password, cookie };
+  const canSubmit = canSubmitLogin(state);
+  const title = loginDialogTitle(siteVerification, source.name); // L64
+
+  // L71-101
   const submit = (): void => {
-    if (isLoading) return;
-    setIsLoading(true);
-    // Kotlin `LoginCredential`'s four fields all carry defaults (username = "", password = "",
-    // cookie = null, extraData = emptyMap()), so each tab supplies only its own pair.
-    const credential: LoginCredential =
-      loginModeTab === 0
-        ? createLoginCredential({ username, password })
-        : createLoginCredential({ cookie: cookieString });
-    void source
-      .login(credential)
-      .then((result) => {
-        setIsLoading(false);
+    if (!canSubmit) return;
+    setLoading(true);
+    setError(null);
+    void source.login(loginCredentialFor(state)).then(
+      (result) => {
         if (result.kind === 'success') {
-          showToast(tr('登录成功'));
+          showToast(tr(loginSuccessMessage(siteVerification)));
           props.onSuccess();
           props.onDismiss();
-        } else {
-          showToast(result.exception.message || '登录失败');
+          return;
         }
-      })
-      .catch(() => {
-        setIsLoading(false);
-        showToast('登录失败');
-      });
+        setLoading(false);
+        setError(result.exception.message !== '' ? result.exception.message : LOGIN_FAILED_FALLBACK);
+      },
+      (reason: unknown) => {
+        setLoading(false);
+        setError(reason instanceof Error && reason.message !== '' ? reason.message : LOGIN_FAILED_FALLBACK);
+      },
+    );
   };
 
-  const cookieLabel = source.id === 'js_mycomic' ? 'cf_clearance 的值' : 'Cookie (包含 remix_userkey)';
-  const cookiePlaceholder =
-    source.id === 'js_mycomic'
-      ? '从浏览器复制 cf_clearance 的值'
-      : 'remix_userid=...; remix_userkey=...';
+  // L164-186
+  const register = (): void => {
+    if (props.onRegister == null) return;
+    setLoading(true);
+    setError(null);
+    void props.onRegister().then(
+      () => {
+        showToast(tr('注册成功，已自动登录'));
+        props.onSuccess();
+        props.onDismiss();
+      },
+      (reason: unknown) => {
+        setLoading(false);
+        setError(reason instanceof Error && reason.message !== '' ? reason.message : REGISTER_FAILED_FALLBACK);
+      },
+    );
+  };
+
+  // L187-198
+  const openRegistration = (): void => {
+    if (registrationUrl === null) return;
+    void openExternalUrl(registrationUrl).then(
+      () => {},
+      () => showToast(tr('无法打开注册页面')),
+    );
+  };
 
   return (
-    <div
-      className="fav-dialog-scrim zlib-login-scrim"
-      role="presentation"
-      onClick={props.onDismiss}
-    >
-      <div
-        className="zlib-login-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label={isJsSource ? `登录 ${source.name}` : tr('登录 Z-Library')}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="zlib-login-panel__head">
-          <span className="zlib-login-panel__tile" style={{ color: SECONDARY }}>
-            <IconLock />
-          </span>
-          <h3 className="zlib-login-panel__title">
-            {isJsSource ? `登录 ${source.name}` : tr('登录 Z-Library')}
-          </h3>
-          <button
-            type="button"
-            className="zlib-login-panel__close"
-            aria-label={tr('关闭')}
-            onClick={props.onDismiss}
-          >
-            <IconClose />
-          </button>
+        <WenkuActionSheet title={title} onDismiss={props.onDismiss} fitKeyboard={!siteVerification || source.id === 'xbookcn'}>
+      {/* L103-110 */}
+        {isJsSource || siteVerification ? null : (
+        <SegmentedPillSelector
+          options={loginModeOptions()}
+          value={loginMode}
+          onChange={(mode) => {
+            if (loading) return;
+            setModeDirection(mode > loginMode ? 1 : -1);
+            setLoginMode(mode);
+            setError(null);
+          }}
+        />
+      )}
+
+      {/* L111-147 */}
+      {siteVerification ? (
+        <p className="zlib-login-hint">{SITE_VERIFICATION_HINT}</p>
+      ) : (
+        <div
+          key={loginMode}
+          className={`zlib-login-mode ${modeDirection > 0 ? 'zlib-login-mode--next' : 'zlib-login-mode--prev'}`}
+        >
+          {loginMode === LOGIN_MODE_PASSWORD ? (
+            <SourceCredentialFields
+              username={username}
+              onUsernameChange={setUsername}
+              password={password}
+              onPasswordChange={setPassword}
+              enabled={!loading}
+              onSubmit={submit}
+            />
+          ) : (
+            <textarea
+              className="zlib-login-cookie"
+              aria-label={COOKIE_FIELD_LABEL}
+              placeholder={COOKIE_FIELD_PLACEHOLDER}
+              value={cookie}
+              disabled={loading}
+              style={{ minHeight: COOKIE_FIELD_MIN_HEIGHT_DP }}
+              onChange={(event) => setCookie(event.currentTarget.value)}
+            />
+          )}
         </div>
+      )}
 
-        <div style={{ height: 24 }} />
+      {/* L148-150 */}
+      {error === null ? null : <p className="zlib-login-error">{error}</p>}
 
-        {/* L184–201: the 账号密码 / Cookie tab row */}
-        {supportsCookieLogin && source.id !== 'js_mycomic' ? (
-          <div className="zlib-login-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={loginModeTab === 0}
-              className={
-                loginModeTab === 0
-                  ? 'zlib-login-tabs__tab zlib-login-tabs__tab--on'
-                  : 'zlib-login-tabs__tab'
-              }
-              onClick={() => setLoginModeTab(0)}
-            >
-              {tr('账号密码')}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={loginModeTab === 1}
-              className={
-                loginModeTab === 1
-                  ? 'zlib-login-tabs__tab zlib-login-tabs__tab--on'
-                  : 'zlib-login-tabs__tab'
-              }
-              onClick={() => setLoginModeTab(1)}
-            >
-              {source.id === 'js_mycomic' ? 'cf_clearance' : tr('粘贴 Cookie')}
-            </button>
-          </div>
-        ) : null}
+      {/* L151 */}
+      {loading ? (
+        <div className="zlib-login-progress">
+          <span />
+        </div>
+      ) : null}
 
-        <div style={{ height: 20 }} />
-
-        {loginModeTab === 0 ? (
-          <>
-            <label className="zlib-login-field">
-              <span className="zlib-login-field__icon" style={{ color: SECONDARY }}>
-                <IconAccount />
-              </span>
-              <input
-                className="zlib-login-field__input"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder={tr('邮箱 / 账号')}
-                aria-label={tr('邮箱 / 账号')}
-                autoComplete="username"
-              />
-            </label>
-            <div style={{ height: 16 }} />
-            <label className="zlib-login-field">
-              <span className="zlib-login-field__icon" style={{ color: SECONDARY }}>
-                <IconKey />
-              </span>
-              <input
-                className="zlib-login-field__input"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder={tr('密码')}
-                aria-label={tr('密码')}
-                autoComplete="current-password"
-              />
-            </label>
-          </>
-        ) : (
-          <textarea
-            className="zlib-login-field zlib-login-field--area"
-            value={cookieString}
-            onChange={(event) => setCookieString(event.target.value)}
-            placeholder={cookiePlaceholder}
-            aria-label={cookieLabel}
-            style={{ color: ON_SURFACE, height: 130 }}
+      {/* L158-162 + L164-186 + L187-198 */}
+      <div className="zlib-login-actions">
+        <WenkuTextButton
+          text={loginActionLabel(siteVerification, loading)}
+          onClick={submit}
+          selected
+          enabled={canSubmit}
+          symbol={siteVerification ? 'Shield' : 'Check'}
+        />
+        {props.onRegister == null ? null : (
+          <WenkuTextButton
+            text="没有账号？注册新账号"
+            onClick={register}
+            enabled={!loading}
+            compact
+            symbol="PersonAdd"
           />
         )}
-
-        {isLoading ? (
-          <>
-            <div style={{ height: 20 }} />
-            <div className="zlib-login-progress" style={{ background: `${SECONDARY}33` }}>
-              <span style={{ background: SECONDARY }} />
-            </div>
-          </>
-        ) : null}
-
-        <div style={{ height: 24 }} />
-
-        <AppButton
-          fullWidth
-          variant="primary"
-          disabled={isLoading}
-          onClick={submit}
-        >
-          {isLoading ? tr('登录中') : tr('确认登录')}
-        </AppButton>
-
-        <div style={{ height: 10 }} />
-
-        {props.onRegister != null ? (
-          <button
-            type="button"
-            className="zlib-login-link"
-            disabled={isLoading}
-            onClick={() => {
-              setIsLoading(true);
-              void props
-                .onRegister?.()
-                .then(() => {
-                  showToast(tr('注册成功，已自动登录'));
-                  props.onSuccess();
-                  props.onDismiss();
-                })
-                .catch((e: unknown) => {
-                  showToast(e instanceof Error && e.message !== '' ? e.message : tr('注册失败'));
-                })
-                .finally(() => setIsLoading(false));
-            }}
-          >
-            没有账号？注册新账号
-          </button>
-        ) : null}
-
-        {registrationUrl != null ? (
-          <button
-            type="button"
-            className="zlib-login-link"
-            disabled={isLoading}
-            onClick={() => {
-              // Kotlin L328 `context.startActivity(Intent(ACTION_VIEW, Uri.parse(url)))`
-              // + toast「无法打开注册页面」（L323-344 的失败分支）。
-              // ⚠️ 原先是裸 `window.open(...)`，在 WKWebView 里被`_blank`
-              // 导航拦截后**既不报错也不打开**（用户点了没反应）。改走
-              // `externalBrowser` 端口：iOS = `SFSafariViewController`。
-              void openExternalUrl(registrationUrl).then(
-                () => {},
-                () => showToast(tr('无法打开注册页面')),
-              );
-            }}
-          >
-            {tr('没有账号？去注册')}
-          </button>
-        ) : null}
+        {registrationUrl === null ? null : (
+          <WenkuTextButton
+            text="没有账号？去注册"
+            onClick={openRegistration}
+            enabled={!loading}
+            compact
+            symbol="External"
+          />
+        )}
       </div>
-    </div>
+    </WenkuActionSheet>
   );
 }
 
-export { ON_SURFACE_VARIANT };
+/** 旧导出保留（深色主题令牌文案与它同值）。 */
+export const ON_SURFACE_VARIANT = '#61666D';

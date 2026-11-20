@@ -295,6 +295,26 @@ export class ZLibraryEndpointProvider {
   }
 
   /**
+   * Kotlin `ZLibraryEndpointProvider.kt` L114-117 `suspend fun nextEndpoint(excluded: Set<String>)`：
+   *
+   * ```kotlin
+   * excluded.forEach { failedUntil[it] = System.currentTimeMillis() + 5 * 60_000 }
+   * scanForLiveNode(excluded)?.also { adoptLiveNode(it) }
+   * ```
+   *
+   * 「换下一个」必须**固化**结果（`adoptLiveNode` → `saveCache` + `setNodeDomain` + `lastProbe`），
+   * 否则冷启动会回到那个已经失效的镜像 —— 这正是 Kotlin `adoptLiveNode` 的 KDoc 所预防的。
+   *
+   * ⚠️ `failedUntil`（5 分钟冷却表）本端口没有建模：排除集合由调用方每次传入，
+   * 语义等价于「本次跳过这些」，但不跨调用记忆。已在 E172 登记。
+   */
+  async nextEndpoint(excluded: ReadonlySet<string>): Promise<string | null> {
+    const winner = await this.scanForLiveNode(undefined, excluded);
+    if (winner !== null) this.adoptLiveNode(winner);
+    return winner;
+  }
+
+  /**
    * 选中/自定义节点体检失败后的自动容灾：扫描换活节点并固化。
    *  返回 null = 全池不可达（保持原节点，交给 WebView Chromium 指纹/系统代理兜底）。
    */

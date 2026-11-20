@@ -1133,85 +1133,66 @@
   animation: rd-sheet-up 280ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* ── 阅读排版面板 = ReadingGlass 光学层 ──────────────────────────────────────
- * Kotlin `ui/reader/ReadingGlass.kt` L33-45 `Modifier.readingGlass(shape, tint, strong)`。
- * 数值唯一来源是 `src/core/glass/glassKit.ts` L260-282 的导出常量；CSS 不能 import TS，
- * 所以同值内联并在本块注释里逐条标注行号，`tests/unit/diagnosticsGlassWindowWiring.test.tsx`
- * ④ 从 glassKit.ts 读出常量、再断言这些字面量出现在本块里（改常量不改 CSS 会红）。
+/* ── 阅读排版面板容器：`ReadingSettingsPanel.kt` L41-92 ────────────────────────
  *
- *   L260 READING_GLASS_DEFAULT_TINT       = '#232329'
- *   L263 READING_GLASS_STRONG_ALPHA       = 0.72   （strong = true 档）
- *   L264 READING_GLASS_ALPHA              = 0.60   （tint 默认 alpha）
- *   L267 READING_GLASS_NO_BACKDROP_ALPHA  = 0.84   （没有 backdrop 可采样时）
- *   L270 READING_GLASS_SATURATION         = 1.10
- *   L273-275 READING_GLASS_BLUR_*         = 10 / 16 / 22
- *   L278 READING_GLASS_SHEEN_ALPHAS       = 0.13 / 0.025 / 0.045
- *   L281-282 READING_GLASS_BORDER_WIDTH   = 0.7 / READING_GLASS_BORDER_ALPHA = 0.13
+ * ⚠️ 这个面板**不是** `ReadingGlass`。2026-11 之前这里挂的是 `ReadingGlass.kt` L33-45
+ * 的通用玻璃规格（`saturate(1.1) blur(16px)`、三段高光 `.13/.025/.045`、
+ * `0.7px @ .13` 描边），理由是「Kotlin L86 给内部提供了 `LocalReadingGlass`」——
+ * 但 L86 提供的是**给面板内部内容**（卡片 / 行）用的 CompositionLocal；容器本身用的是
+ * 自己那五行：
  *
- * L36 `surface = tint ?: style.tint.copy(alpha = …)`：tint 由阅读层注入
- *   （`ReadingSettingsPanel.kt` L86 `LocalReadingGlass provides ReadingGlassStyle(backdrop,
- *   themeColor, contentColor)`），只有「没有阅读层」时才回落到 CompositionLocal 默认值
- *   `#232329` —— 对应下面 `var(--rd-surface, #232329)` 的兜底分支。
- * L37 `radius = if (quality <= RenderQuality.LOW) 10f else if (strong) 22f else 16f`：
- *   本面板走非 strong 档 16px，LOW 档的 10px 见下方 `[data-render-quality='LOW']`。
- * L35 极简档 `if (quality.minimal) return clip(shape).background(tint ?: style.tint)`：
- *   退化为不透明底 + 不采样背景 + 无高光 + 无描边（见下方 MINIMAL 规则）。
+ *   L72 `.shadow(SpaceTight = 10.dp, ambientColor = Black@.08f, spotColor = Black@.10f)`
+ *   L74  `drawPlainBackdrop(backdrop, shape) { blur(SpaceSm.toPx()) }`   ← 只有模糊
+ *   L78  `.background(themeColor.copy(alpha = 0.56f))`
+ *   L79  `.background(verticalGradient(white@.10f, Transparent))`
+ *   L80  `.border(1.dp, contentColor.copy(alpha = 0.12f), shape)`
+ *
+ * 数值唯一来源是 `src/core/reader/readingSettingsPanel.ts`（逐行读 Kotlin + `DesignTokens`
+ * + `PullOutConfig`）。CSS 不能 import TS，所以同值内联；测试
+ * `tests/parity/readingSettingsPanelParity.test.ts` 从 core 读常量、再断言这些字面量
+ * 出现在本块里 —— 改常量不改 CSS 会红。
+ *
+ * 两条仍然需要的 `--rd-reading-glass-*`：L86 `LocalReadingGlass provides
+ * ReadingGlassStyle(backdrop, themeColor, contentColor)`，面板**内部**的 ReadingGlass
+ * 卡片读这两个值，所以 `tint` / `ink` 保留；`strong` 档与三段高光只属于容器，已删。
  */
 .rd-sheet--settings {
-  /* L23 `ReadingGlassStyle(backdrop, tint = 0xFF232329, ink = White)` 的两个注入值。
-     阅读层在 ReadingSettingsPanel.kt L86 用 themeColor / contentColor 覆盖，
-     所以这里优先取阅读页已有的 --rd-surface / --rd-on-surface。 */
+  /* L86 `ReadingGlassStyle(backdrop, themeColor, contentColor)` 注入的两个值。 */
   --rd-reading-glass-tint: var(--rd-surface, #232329);
   --rd-reading-glass-ink: var(--rd-on-surface, #ffffff);
-  /* L264（strong 档 L263 的 .72 本面板不用） */
-  --rd-reading-glass-tint-alpha: 0.60;
-  /* L278 `READING_GLASS_SHEEN_ALPHAS` */
-  --rd-reading-glass-sheen-1: 0.13;
-  --rd-reading-glass-sheen-2: 0.025;
-  --rd-reading-glass-sheen-3: 0.045;
-  /* L281 `READING_GLASS_BORDER_WIDTH` / L282 `READING_GLASS_BORDER_ALPHA` */
-  --rd-reading-glass-border: 0.7px;
-  --rd-reading-glass-border-alpha: 0.13;
+
+  /* L78 `themeColor.copy(alpha = 0.56f)` —— 这一层画在模糊后的背景之上。 */
+  --rd-settings-tint-alpha: 0.56;
+  /* L79 `Color.White.copy(alpha = 0.10f)`，第二段 `Color.Transparent`（alpha 0）。 */
+  --rd-settings-sheen: 0.1;
+  /* L80 `border(1.dp, contentColor.copy(alpha = 0.12f), shape)` */
+  --rd-settings-border-width: 1px;
+  --rd-settings-border-alpha: 0.12;
 
   padding: 0 20px calc(32px + var(--safe-bottom));
-  /* L43 `background(if (backdrop == null) surface.copy(alpha = .84f) else surface)`
-     —— 本面板恒有阅读层可采样，所以保留既有 .93 底（`--rd-surface-93`）当 ink 层。 */
-  background-color: var(--rd-surface-93);
-  background-image:
-    /* L44 `Brush.linearGradient(white@.13f, white@.025f, ink@.045f)` —— 双段高光 */
-    linear-gradient(
-      180deg,
-      rgb(255 255 255 / var(--rd-reading-glass-sheen-1)) 0%,
-      rgb(255 255 255 / var(--rd-reading-glass-sheen-2)) 52%,
-      rgb(from var(--rd-reading-glass-ink) r g b / var(--rd-reading-glass-sheen-3)) 100%
-    ),
-    /* L36 tint 叠加（alpha 见上，无 backdrop 时改 .84 = L267） */
-    linear-gradient(
-      color-mix(in srgb, var(--rd-reading-glass-tint) calc(var(--rd-reading-glass-tint-alpha) * 100%), transparent),
-      color-mix(in srgb, var(--rd-reading-glass-tint) calc(var(--rd-reading-glass-tint-alpha) * 100%), transparent)
-    );
-  /* L38-41 `drawPlainBackdrop { colorControls(saturation = 1.10f); blur(radius.dp.toPx()) }` */
-  -webkit-backdrop-filter: saturate(1.1) blur(16px);
-  backdrop-filter: saturate(1.1) blur(16px);
-  /* L45 `.border(.7.dp, ink.copy(alpha = .13f), shape)` */
-  border: var(--rd-reading-glass-border) solid
-    color-mix(in srgb, var(--rd-reading-glass-ink) calc(var(--rd-reading-glass-border-alpha) * 100%), transparent);
-}
-
-/* L37 `quality <= RenderQuality.LOW → 10f` —— 流畅档只留更浅的一层模糊。 */
-.rd-sheet--settings[data-render-quality='LOW'] {
-  -webkit-backdrop-filter: saturate(1.1) blur(10px);
-  backdrop-filter: saturate(1.1) blur(10px);
-}
-
-/* L35 `if (quality.minimal) return clip(shape).background(tint ?: style.tint)`
-   —— 极简画质：不采样背景、不叠高光、不画描边，只留不透明 tint。 */
-.rd-sheet--settings[data-render-quality='MINIMAL'] {
-  background-color: var(--rd-reading-glass-tint);
-  background-image: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  border-color: transparent;
+  background-color: color-mix(
+    in srgb,
+    var(--rd-reading-glass-tint) calc(var(--rd-settings-tint-alpha) * 100%),
+    transparent
+  );
+  /* L79 两段竖直渐变：白 @ .10 → 全透明。没有第三段 ink。 */
+  background-image: linear-gradient(
+    180deg,
+    rgb(255 255 255 / var(--rd-settings-sheen)) 0%,
+    transparent 100%
+  );
+  /* L74-77 `drawPlainBackdrop { blur(SpaceSm.toPx()) }` —— 8px，**不含** saturate。 */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  /* L80 1px 描边，contentColor @ .12。 */
+  border: var(--rd-settings-border-width) solid
+    color-mix(in srgb, var(--rd-reading-glass-ink) calc(var(--rd-settings-border-alpha) * 100%), transparent);
+  /* L72 `.shadow(elevation = 10.dp, ambient 0.08, spot 0.10)` —— Android RenderNode 的
+     双层阴影没有 CSS 同构物，这里用「贴地一层取 ambient + 抬高 10px 一层取 spot」近似。
+     两个 alpha 与 elevation 都是 `READING_SETTINGS_SHADOW` 的可判定值。 */
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.08),
+    0 10px 24px -6px rgb(0 0 0 / 0.1);
 }
 
 @keyframes rd-sheet-up {

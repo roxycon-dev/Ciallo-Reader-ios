@@ -182,6 +182,8 @@ export function readMangaJaNaiTile(
 
   // Kotlin L60-62 — 底部缺失的行整行复制自最后有效行
   for (let row = dy + height; row < side; row += 1) {
-    target.copyWithin(row * side, (dy + height - 1) * side, dy + height * side);
+    // Kotlin L60-62 `target.copyInto(target, row*side, (dy+height-1)*side, (dy+height)*side)`
+    // —— 区间是**一行**：`(dy+height)*side`，不是 `dy + height*side`（后者差一个 `dy*side` 偏移）。
+    target.copyWithin(row * side, (dy + height - 1) * side, (dy + height) * side);
   }
 }

@@ -61,7 +61,12 @@ beforeEach(() => {
   __resetMascotEventIds();
 });
 
-const ALL_EVENTS = ['DeleteBook', 'AddBookmark', 'MoveBook', 'BookComplete', 'CleanComplete'] as const;
+/**
+ * Kotlin L14-20 的 `sealed class MascotEvent` 只有**四个** object。
+ * `MascotOverlay` 的 `when`（L89-95）在 Kotlin 里是穷尽的：四支 + `null -> {}`，没有 `else`。
+ * 第五个 `CleanComplete` 是端口自造的（来源是 L19 那行悬空的 KDoc，见 E211）。
+ */
+const ALL_EVENTS = ['DeleteBook', 'AddBookmark', 'MoveBook', 'BookComplete'] as const;
 
 describe('MascotOverlay — MascotEventInstance dispatch', () => {
   it.each(ALL_EVENTS)('renders the right popup for %s and clears on completion', (event) => {
@@ -73,7 +78,7 @@ describe('MascotOverlay — MascotEventInstance dispatch', () => {
     });
     const popup = m.host.querySelector('.mascot-popup');
     expect(popup).not.toBeNull();
-    // Kotlin L91-95: DeleteBook/AddBookmark/MoveBook/BookComplete/CleanComplete
+    // Kotlin L89-94: DeleteBook/AddBookmark/MoveBook/BookComplete（四支，穷尽）
     expect(popup?.className).toContain(
       event === 'DeleteBook'
         ? 'mascot-popup--delete'
@@ -84,7 +89,7 @@ describe('MascotOverlay — MascotEventInstance dispatch', () => {
             : 'mascot-popup--complete',
     );
 
-    // onComplete → currentInstance = null (Kotlin L91-95 `onComplete = { currentInstance = null }`)
+    // onComplete → currentInstance = null (Kotlin L89-94 `onComplete = { currentInstance = null }`)
     const img = m.host.querySelector('.mascot-popup__figure img');
     act(() => {
       img?.dispatchEvent(new Event('error'));

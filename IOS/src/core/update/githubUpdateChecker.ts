@@ -341,6 +341,14 @@ export function releaseUrlFrom(webUrl: string, tag: string): string {
  *   with no userinfo, query or fragment, and the name must hold no path separator and
  *   no `..`. Any URL parse failure is `runCatching { … }.getOrDefault(false)`.
  */
+/**
+ * Kotlin `GithubUpdateChecker.kt:33 private val checksumLine = Regex(…)`。
+ *
+ * SHA256SUMS 的一行：`<64 位十六进制><空白>[*]<文件名>`。`*` 是 GNU coreutils 的
+ * 二进制模式标记，必须允许（有些发布用 `sha256sum -b` 生成）。
+ */
+export const checksumLine = /([a-fA-F0-9]{64})[ \t]+\*?([^\r\n]+)/;
+
 export function officialUpdateAsset(tag: string, name: string, url: string): boolean {
   if (
     !STABLE_TAG_PATTERN.test(tag) ||

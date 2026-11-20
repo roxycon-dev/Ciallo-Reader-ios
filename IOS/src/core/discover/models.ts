@@ -1,5 +1,6 @@
 import type { SearchBook } from '@core/source/searchBook';
 import { isKnownComicAuthor } from '@core/source/comicInfo';
+import { compactCount } from '@core/i18n/strings';
 
 export const DISCOVER_DIMENSIONS = {
   UPDATES: { label: '更新', ranges: ['最新', '今日', '近 3 天', '本周'] },
@@ -9,7 +10,27 @@ export const DISCOVER_DIMENSIONS = {
 } as const;
 export type DiscoverDimension = keyof typeof DISCOVER_DIMENSIONS;
 export type DiscoverPartition = 'COMIC' | 'NOVEL';
+/** `DiscoverPartition.kt` `enum class DiscoverPartition(rawLabel, preferenceSuffix)` —— 项名、顺序、文案与偏好键后缀。 */
+export const DISCOVER_PARTITIONS: readonly DiscoverPartition[] = ['COMIC', 'NOVEL'];
+export const DISCOVER_PARTITION_LABELS: Readonly<Record<DiscoverPartition, string>> = {
+  COMIC: '漫画',
+  NOVEL: '小说',
+};
+/** `preferenceSuffix`：漫画用空串、小说用 `_novel`（`store.ts` 拼键时依赖它）。 */
+export const DISCOVER_PARTITION_SUFFIX: Readonly<Record<DiscoverPartition, string>> = {
+  COMIC: '',
+  NOVEL: '_novel',
+};
+
 export type DiscoverLayout = 'LIST' | 'GRID' | 'LARGE';
+/** `DiscoverModels.kt` L… `enum class DiscoverLayout(rawLabel)` —— 项名、顺序与文案。 */
+export const DISCOVER_LAYOUTS: readonly DiscoverLayout[] = ['LIST', 'GRID', 'LARGE'];
+export const DISCOVER_LAYOUT_LABELS: Readonly<Record<DiscoverLayout, string>> = {
+  LIST: '列表',
+  GRID: '双列网格',
+  LARGE: '大图',
+};
+
 export interface DiscoverQuery {
   dimension: DiscoverDimension; range: string; page: number; cursor: string | null; offset: number;
   feedId: string | null; categoryId: string | null; includeAdult: boolean;
@@ -159,6 +180,11 @@ export function parseDiscoverDate(value: string | null): number | null {
   }
   const timestamp = Date.parse(text); return Number.isFinite(timestamp) ? timestamp : null;
 }
+/**
+ * `DiscoverModels.kt` L199 `fun compact(value: Long?): String = com.example.i18n.compactCount(value)`
+ * —— **委托**给 i18n 那份实现（`Strings.kt` L3063-3078）。档位表（中文 亿/万、英文 M/k、
+ * `null → t("未提供")`）只在 `compactCount` 里写一遍，这里复写会丢掉英文分支。
+ */
 export function compactMetric(value: number | null): string {
-  return value === null ? '未提供' : value >= 100_000_000 ? `${(value / 100_000_000).toFixed(1)}亿` : value >= 10_000 ? `${(value / 10_000).toFixed(1)}万` : String(value);
+  return compactCount(value);
 }

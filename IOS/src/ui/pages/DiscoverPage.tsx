@@ -1,4 +1,4 @@
-import { openDownloadCenter } from '@ui/components/library/DownloadCenter';
+﻿import { openDownloadCenter } from '@ui/components/library/DownloadCenter';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AppLanguage, getAppLanguage, tr } from '@core/i18n';
@@ -8,6 +8,7 @@ import type { DiscoverController } from '@core/discover/controller';
 import { acceptsDiscoverSource } from '@core/discover/controller';
 import { DISCOVER_DIMENSIONS, catalogRanges, compactMetric, discoverIdentity, discoverTags, mergeDiscoverEntries, normalizeIdentity,
   personalizeWorks, type DiscoverDimension, type DiscoverPartition, type DiscoverWork } from '@core/discover/models';
+import { trendLabel } from '@core/discover/cards';
 import { DISCOVER_CATEGORIES, DISCOVER_ALL_CATEGORIES, categoryLabels, matchesCategories } from '@core/discover/taxonomy';
 import { discoverStatusScope, filterWorkStatus, serialLabel } from '@core/discover/status';
 import type { FavoriteEntity } from '@core/library/favoriteTypes';
@@ -247,7 +248,7 @@ function DiscoverPartitionPage({ runtime, model, partition, onPartition, refresh
         <SourceCover url={book.cover} title={book.title} source={manager.getSource(book.sourceId)} /><div className="discover-work-copy"><h2>{book.title}</h2><p>{isKnownComicAuthor(book.author) ? book.author : '作者未提供'}</p><p className="discover-muted">{manager.getSource(book.sourceId)?.name ?? book.sourceId}{work.variants.length > 1 ? ` · ${work.variants.length} 个来源` : ''} · {label}</p>
         {tags.length > 0 && <div className="discover-tags">{tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
         {feed || category ? <p>{first.origin ?? first.subtitle ?? first.latestChapter ?? tr('原站推荐')}</p> : dimension === 'UPDATES' ? <p>{time === null ? '更新时间未提供' : new Date(time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}{first.latestChapter ? ` · ${first.latestChapter}` : ''}</p> : <p>{first.rank === null ? '名次未提供' : `原站第 ${first.rank} 名`}</p>}
-        {(first.newEntry || first.rankChange !== null || first.growth !== null) && <p className={`discover-trend ${first.newEntry ? 'discover-trend-new' : (dimension === 'RANKING' ? first.rankChange ?? 0 : first.growth ?? 0) === 0 ? '' : ((dimension === 'RANKING' ? first.rankChange ?? 0 : first.growth ?? 0) > 0) !== store.flag('green_rise', false) ? 'discover-trend-rise' : 'discover-trend-fall'}`}>{first.newEntry && dimension === 'RANKING' ? 'NEW' : dimension === 'RANKING' ? first.rankChange === null || first.rankChange === 0 ? '—' : `${first.rankChange > 0 ? '↑' : '↓'}${Math.abs(first.rankChange)}` : first.growth === null || first.growth === 0 ? '—' : `${first.growth > 0 ? '▲' : '▼'}${Math.abs(first.growth).toFixed(1)}%`}</p>}
+        {(first.newEntry || first.rankChange !== null || first.growth !== null) && <p className={`discover-trend ${first.newEntry ? 'discover-trend-new' : (dimension === 'RANKING' ? first.rankChange ?? 0 : first.growth ?? 0) === 0 ? '' : ((dimension === 'RANKING' ? first.rankChange ?? 0 : first.growth ?? 0) > 0) !== store.flag('green_rise', false) ? 'discover-trend-rise' : 'discover-trend-fall'}`}>{trendLabel({ value: dimension === 'RANKING' ? first.rankChange : first.growth, dimension, newEntry: first.newEntry })}</p>}
         {first.statistic && <p>{first.statistic}</p>}{dimension === 'DISCUSSION' && <p>讨论 {compactMetric(first.discussions)}</p>}{dimension === 'CLICKS' && <p>{tr('阅读')} {compactMetric(first.clicks)}</p>}</div></button>
         <div className="discover-card-actions"><button aria-label={`${followed ? tr('取消喜欢') : tr('喜欢')} ${book.title}`} aria-pressed={followed} onClick={() => follow(work)}>{followed ? '♥ 已喜欢' : '♡ 喜欢'}</button><button onClick={() => store.block(work)}>屏蔽</button><button onClick={() => { void shareFavorites([{ sourceId: book.sourceId, comicId: book.id, title: book.title }]).catch((error: unknown) => showToast(error instanceof Error ? error.message : '分享失败，请重试')); }}>{tr('分享')}</button></div></GlassCard>;
     })}</section>

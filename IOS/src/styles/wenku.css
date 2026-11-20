@@ -1279,3 +1279,214 @@
   transform: none;
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   WenkuGlass.kt 的按钮/输入原语（Kotlin L236-648）
+   ── 全部数值来自 Kotlin 字面量，不新增设计值 ──
+     L251/L600 按下缩放 0.97 / 0.975
+     L252/L601 animationSpec = contactSpec()（120ms + ease）/ settleSpec()（420ms + settle）
+     L269/L609 WenkuTokens.IconButtonSize 46dp / PillHeight 54dp
+     L271/L612 IconButtonRadius 24dp / PillRadius 22dp
+     L272 静止底 ink@(dark .06 / light .04)
+     L289 禁用 glyph alpha .35
+     L354 圆角 22dp；L367 水平内边距 10(compact)/14
+     L370 heightIn(min = 48.dp)
+     L405 14sp；L641 15sp；L642 FontWeight.Bold
+     L613 禁用底 alpha .42；L614 描边 0.7dp @ ink(.08 主 / .12 次)
+     L521 搜索行 min-height 46dp；L517 圆角 24dp；L535-536 14sp/18sp
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wenku-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  /* 释放：settleSpec() = ENTER_MS 420 + settle 曲线（WenkuTokens.kt L194-197） */
+  transition: transform 420ms cubic-bezier(0.2, 1.08, 0.34, 1);
+}
+
+/* 按下：contactSpec() = CONTACT_MS 120 + ease 曲线（WenkuTokens.kt L179-182） */
+.wenku-icon-button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.wenku-icon-button:disabled {
+  cursor: default;
+}
+
+.wenku-icon-button--static,
+.wenku-icon-button--static:active:not(:disabled) {
+  transition: none;
+  transform: none;
+}
+
+.wenku-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-style: solid;
+  border-radius: 22px;
+  cursor: pointer;
+  color: inherit;
+  font-family: var(--font-sans);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 4px 14px rgba(0, 0, 0, 0.1);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 420ms cubic-bezier(0.2, 1.08, 0.34, 1);
+}
+
+.wenku-text-button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.wenku-text-button:disabled {
+  cursor: default;
+}
+
+.wenku-text-button__row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 48px;
+  gap: 0;
+}
+
+.wenku-text-button__label {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 18px;
+  font-family: var(--font-sans);
+}
+
+.wenku-search-field .wenku-search-field__row {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  width: 100%;
+}
+
+.wenku-search-field__leading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.wenku-search-field__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.wenku-search-field__hint {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: var(--font-sans);
+}
+
+.wenku-search-field__input {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-sans);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.wenku-search-field__input::-webkit-search-cancel-button,
+.wenku-search-field__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.wenku-search-field__spacer {
+  flex: 0 0 auto;
+}
+
+.wenku-pill-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin: 0;
+  border-style: solid;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 420ms cubic-bezier(0.2, 1.08, 0.34, 1);
+}
+
+.wenku-pill-button:active:not(:disabled) {
+  transform: scale(0.975);
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.wenku-pill-button:disabled {
+  cursor: default;
+}
+
+.wenku-pill-button__label {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 20px;
+}
+
+.wenku-jelly-tap {
+  display: block;
+  transition: transform 420ms cubic-bezier(0.2, 1.08, 0.34, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wenku-jelly-tap--interactive {
+  cursor: pointer;
+}
+
+.wenku-jelly-tap--interactive:active {
+  transform: scale(0.985);
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.wenku-menu-panel {
+  display: flex;
+  flex-direction: column;
+  border-style: solid;
+  box-sizing: border-box;
+}

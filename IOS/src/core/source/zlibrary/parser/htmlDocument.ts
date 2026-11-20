@@ -199,6 +199,26 @@ export class HtmlElement {
     return child;
   }
 
+  /**
+   * jsoup `Element.remove()` —— 从父节点的 `childNodes` 摘掉自己，并把 `parentNode` 置空。
+   *
+   * `ZLibraryParserManager.kt` L37-41 用它剔除镜像站插入的隐藏 decoy 卡片：
+   * 「Remove hidden subtrees before layout selection so the generic fallback cannot
+   * reintroduce the same decoy via its /book/ link.」
+   *
+   * 只摘自己、**不**清空 `childNodes`（子树仍完整挂在被摘下来的元素上），
+   * 与 jsoup 一致 —— 否则「移除后又取回」的调用方会看到空元素。
+   */
+  remove(): this {
+    const parent = this.parentNode;
+    if (parent !== null) {
+      const index = parent.childNodes.indexOf(this);
+      if (index >= 0) parent.childNodes.splice(index, 1);
+    }
+    this.parentNode = null;
+    return this;
+  }
+
   /** Kotlin `Element.tagName()`. */
   tag(): string {
     return this.tagName;

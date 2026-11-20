@@ -11,7 +11,15 @@ describe('favorite public detail sharing', () => {
   it('shares deduplicated public URLs in selection order and reuses their cache', async () => {
     const get = vi.fn(async (id: string) => `https://example.org/title/${id}`), prefs = preferences();
     const shared = await favoriteShareText([work('a'), work('b'), work('a')], () => source(get), prefs);
-    expect(shared).toEqual({ title: '作品 a、作品 b', text: '《作品 a》\nhttps://example.org/title/a\n\n《作品 b》\nhttps://example.org/title/b' });
+    /*
+     * `FavoriteShareHelper.kt` L77 `putExtra(Intent.EXTRA_SUBJECT, favorites.joinToString("、") { it.title })`
+     * —— 主题行用的是**原始列表**（含重复），去重（L49 `distinctBy`）只作用于**正文**。
+     * 旧断言把主题行也当成去重后的，会把「选了两本《作品 a》」显示成只选了一本。
+     */
+    expect(shared).toEqual({
+      title: '作品 a、作品 b、作品 a',
+      text: '《作品 a》\nhttps://example.org/title/a\n\n《作品 b》\nhttps://example.org/title/b',
+    });
     await favoriteShareText([work('a')], () => source(get), prefs);
     expect(get).toHaveBeenCalledTimes(2);
   });

@@ -1539,3 +1539,48 @@
 .settings-entry-row:active {
   transform: scale(.99);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SettingsNavigationCard —— `ui/SettingsTabScreen.kt` L1232-1256
+     L1245 RoundedCornerShape(16.dp) + fillMaxWidth  → 由组件内联 radius 给
+     L1246 Row(fillMaxWidth, padding 16, Center)     → flex + align-items: center
+     L1248 Spacer(width 12.dp)                       → 组件内联宽度
+     L1250 Text(SemiBold, 15.sp)                     → 15px/600
+     L1251 bodySmall + onSurfaceVariant              → 12px/16px + --color-medium-gray
+     L1253 Forward 18.dp + onSurfaceVariant@.6       → 右箭头（颜色由组件内联给）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.settings-navigation-card {
+  width: 100%;
+}
+
+.settings-navigation-card__row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.settings-navigation-card__gap {
+  flex: 0 0 auto;
+}
+
+.settings-navigation-card__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-navigation-card__title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--color-on-light);
+  overflow-wrap: anywhere;
+}
+
+.settings-navigation-card__subtitle {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  color: var(--color-medium-gray);
+  overflow-wrap: anywhere;
+}

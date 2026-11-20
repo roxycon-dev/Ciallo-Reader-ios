@@ -54,3 +54,44 @@ export function categoryRoutes(catalog: DiscoverCatalog, selected: Set<string>):
     return picks.length ? [...new Set(catalog.categories.filter((category) => !['全部', 'All'].includes(category.label) && picks.some((id) => classifyNativeCategory(category.label, category.group).has(id))).map((category) => category.id))] : [];
   }).filter((routes) => routes.length).sort((a, b) => a.length - b.length)[0] ?? [];
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * Kotlin 名字出口 —— `discover/DiscoverTaxonomy.kt` L10-138 的 `object DiscoverTaxonomy`
+ * 与 L3-4 的 `isAdultDiscoverSource`。
+ *
+ * 数据表在 `taxonomyData.json`（逐条从 Kotlin `roots` / `extraAliases` /
+ * `metadataNamespaces` 转录），本对象只做同名转发，保证调用点按 Kotlin 名书写时
+ * 语义与实现完全一致（OR within facet / AND between facets）。
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+/** L10-138 `object DiscoverTaxonomy`。 */
+export const DiscoverTaxonomy = {
+  /** L18 `roots`。 */
+  roots: DISCOVER_CATEGORIES,
+  /** L51 `all`。 */
+  all: DISCOVER_ALL_CATEGORIES,
+  /** L101 `isStoryTag(raw)`。 */
+  isStoryTag,
+  /** L103 `classify(tags)`。 */
+  classify: classifyTags,
+  /** L115 `matches(tags, selected)`。 */
+  matches: matchesCategories,
+  /** L120 `isAdult(tags)`。 */
+  isAdult: isAdultTags,
+  /** L122 `classifyNative(label, group)`。 */
+  classifyNative: classifyNativeCategory,
+  /** L133 `labels(tags)`。 */
+  labels: categoryLabels,
+} as const;
+
+/**
+ * L3-4 `isAdultDiscoverSource(source)`：
+ * `source.id.removePrefix("js_") in JsSourceRepo.ADULT_KEYS`。
+ */
+export function isAdultDiscoverSource(
+  source: { readonly id: string },
+  adultKeys: ReadonlySet<string>,
+): boolean {
+  const id = source.id.startsWith('js_') ? source.id.slice(3) : source.id;
+  return adultKeys.has(id);
+}

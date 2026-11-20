@@ -526,6 +526,72 @@ export const FAV_PARTICLE_MS = 600;
 /** FavoriteHeart.kt L244 — `val count = 7` in HeartBurst. */
 export const FAV_BURST_COUNT = 7;
 
+/** Kotlin `HeartBurst` L258 `val distance = (14f + 26f * progress)`。 */
+export const FAV_BURST_DISTANCE_BASE = 14;
+
+/** Kotlin `HeartBurst` L258 的距离增量。 */
+export const FAV_BURST_DISTANCE_GROWTH = 26;
+
+/** Kotlin `HeartBurst` L260 `val size = (7f - 3f * progress).dp`。 */
+export const FAV_BURST_SIZE_START = 7;
+
+/** Kotlin `HeartBurst` L260 的尺寸收缩量。 */
+export const FAV_BURST_SIZE_SHRINK = 3;
+
+/** Kotlin `HeartBurst` L268-269 `scale = 1f - 0.3f * progress`。 */
+export const FAV_BURST_SCALE_DECAY = 0.3;
+
+/** 一颗粒子的某一帧。 */
+export interface HeartBurstParticle {
+  /** 0..count-1，偶数画心、奇数画圆（Kotlin L261 `val isHeart = i % 2 == 0`）。 */
+  readonly index: number;
+  /** Kotlin L257 `angle = (2π·i / count) - π/2` —— 第一个粒子在正上方。 */
+  readonly angle: number;
+  /** Kotlin L258 `distance = 14 + 26·p`（dp）。 */
+  readonly distance: number;
+  /** Kotlin L259 `alpha = (1 - p).coerceIn(0,1)`。 */
+  readonly alpha: number;
+  /** Kotlin L260 `size = (7 - 3·p).dp`。 */
+  readonly sizeDp: number;
+  /** Kotlin L268-269 `scale = 1 - 0.3·p`。 */
+  readonly scale: number;
+  /** Kotlin L261：`i % 2 == 0` 用渐变心，否则用实心圆。 */
+  readonly isHeart: boolean;
+  /** 实际位移（dp）：`cos(angle)·distance` / `sin(angle)·distance`。 */
+  readonly offsetX: number;
+  readonly offsetY: number;
+}
+
+/**
+ * Kotlin `FavoriteHeart.kt:251-285` `HeartBurst(progress, color)` 的一帧几何。
+ *
+ * `progress` 会先钳到 `[0,1]`（Compose 的 `Animatable` 只会给这个区间）。
+ */
+export function heartBurstParticles(progress: number): readonly HeartBurstParticle[] {
+  const p = Math.min(Math.max(progress, 0), 1);
+  const count = FAV_BURST_COUNT;
+  const distance = FAV_BURST_DISTANCE_BASE + FAV_BURST_DISTANCE_GROWTH * p;
+  const alpha = Math.min(Math.max(1 - p, 0), 1);
+  const sizeDp = FAV_BURST_SIZE_START - FAV_BURST_SIZE_SHRINK * p;
+  const scale = 1 - FAV_BURST_SCALE_DECAY * p;
+  const out: HeartBurstParticle[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
+    out.push({
+      index: i,
+      angle,
+      distance,
+      alpha,
+      sizeDp,
+      scale,
+      isHeart: i % 2 === 0,
+      offsetX: Math.cos(angle) * distance,
+      offsetY: Math.sin(angle) * distance,
+    });
+  }
+  return out;
+}
+
 /** FavoriteHeart.kt default strings (L73, L151–152). */
 export const FAV_DISABLED_HINT = '这本书没有来源信息，无法加入「我喜欢的」';
 export const FAV_ARIA_ON = '已喜欢，点击取消喜欢';

@@ -2,6 +2,7 @@
  * Comic favorite matching — port of Android `ComicFavoriteMatching.kt`.
  */
 
+import { tr } from '@core/i18n'
 import { compact } from '@core/data/titleNormalizer'
 import { isKnownComicAuthor, type ComicChapter } from './comicSourceTypes'
 import type { DuplicateComicCandidate, FavoriteEntity } from './favoriteTypes'
@@ -30,11 +31,13 @@ export function candidates(
       if (sim > maxSim) maxSim = sim
     }
     if (titles.has(title)) {
+      // Kotlin 原文此处**没有** tr()
       out.push({ favorite, reason: '书名或已知别名相同', score: 1.0 })
     } else if (title.length >= 4 && maxSim >= 0.82) {
       out.push({
         favorite,
-        reason: sameAuthor ? '书名相似，作者相同' : '书名相似，请核对作品',
+        // Kotlin 只给这两条包了 tr()；`书名或已知别名相同` 在原文里是裸字面量。
+        reason: sameAuthor ? tr('书名相似，作者相同') : tr('书名相似，请核对作品'),
         score: maxSim,
       })
     }

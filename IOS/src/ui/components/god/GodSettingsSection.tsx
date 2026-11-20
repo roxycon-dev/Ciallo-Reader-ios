@@ -1,5 +1,5 @@
 /**
- * 设置页「神回」分组 — 逐行移植 Android `god/GodSettingsSection.kt`（265 行）。
+ * 设置页「神回」分组 — 逐行移植 Android `god/GodSettingsSection.kt`（269 行）。
  *
  * Android 结构：
  *   Column(fillMaxWidth) {
@@ -19,8 +19,12 @@
  *
  * GodStyleCard：上半部分是风格小型示意（Compose Canvas 现画 → 这里用 SVG 等价绘制），
  * 选中弹簧缩放 1.04 + 金渐变描边 1.6dp，未选 1dp onSurface 0.12 描边。
+ *
+ * 几何与文案全部来自 `@core/god/godSettingsSection`（比例式），此处只负责画 ——
+ * 示意图的 11 个元素不再手算成小数散在 JSX 里。
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { AppSwitch } from '@ui/components/AppSwitch';
 import { GlassCard } from '@ui/components/GlassCard';
 import { useAppStore } from '@ui/state/appStore';
 import {
@@ -32,31 +36,22 @@ import {
   takeGodStyleSettingsJumpPending,
   type GodRankingStyleCode,
 } from '@core/god/godRankingSettings';
+import {
+  GOD_SETTINGS_CTA,
+  GOD_SETTINGS_STRINGS,
+  GOD_STYLE_CARD,
+  godSettingsCtaColor,
+  godStyleCardLabelWeight,
+  godStyleCardScale,
+  godStylePreview,
+  type GodStylePreviewOp,
+} from '@core/god/godSettingsSection';
 import { tr } from '@core/i18n';
 import { godGoldGradient, godIsDark, hasGodRotationSensor } from './GodRankingShared';
 import { scrollElementIntoView } from '@ui/lib/scroll';
 import '../../../styles/god.css';
 
-/** AppSwitch（与 SettingsPage 内嵌版一致：60×32 / circle 24 / pad 4 / MintPrimary）。 */
-function AppSwitch(props: {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  ariaLabel?: string;
-}) {
-  return (
-    <button
-      type="button"
-      className={props.checked ? 'app-switch app-switch--on' : 'app-switch'}
-      onClick={() => props.onCheckedChange(!props.checked)}
-      aria-pressed={props.checked}
-      aria-label={props.ariaLabel ?? 'switch'}
-    >
-      <span className="app-switch__thumb" />
-    </button>
-  );
-}
-
-/** GodSettingSwitchRow（GodSettingsSection.kt L136-162）。 */
+/** GodSettingSwitchRow（GodSettingsSection.kt L147-165）。 */
 function GodSettingSwitchRow(props: {
   title: string;
   desc: string;
@@ -75,62 +70,63 @@ function GodSettingSwitchRow(props: {
         ) : null}
       </div>
       <div className="god-switch-row__gap10" />
-      <AppSwitch checked={props.checked} onCheckedChange={props.onCheckedChange} ariaLabel={props.title} />
+      {/* Kotlin L164 直接调共享的 `AppSwitch`（不是这里的私有实现）。 */}
+      <AppSwitch
+        checked={props.checked}
+        onCheckedChange={props.onCheckedChange}
+        aria-label={props.title}
+      />
     </div>
   );
 }
 
-/** 风格小型示意（GodSettingsSection.kt L208-245 的 Canvas → SVG 等价）。 */
-function GodStyleMiniArt(props: { style: GodRankingStyleCode }) {
-  const gold = godGoldGradient(godIsDark());
-  // Canvas 62×46，坐标按 GodSettingsSection.kt L210-243 换算
+/** 把一个示意图元素画成 SVG 节点（坐标来自 `godStylePreview` 的比例换算）。 */
+function previewNode(op: GodStylePreviewOp, index: number) {
+  if (op.kind === 'circle') {
+    return <circle key={index} cx={op.x} cy={op.y} r={op.radius} fill={op.fill} />;
+  }
+  if (op.kind === 'path' && op.path !== undefined) {
+    const { controlX, controlY, endX, endY, strokeWidth } = op.path;
+    return (
+      <path
+        key={index}
+        d={`M${op.x} ${op.y} Q${controlX} ${controlY} ${endX} ${endY}`}
+        fill="none"
+        stroke={op.fill}
+        strokeWidth={strokeWidth}
+      />
+    );
+  }
+  return (
+    <rect
+      key={index}
+      x={op.x}
+      y={op.y}
+      width={op.width}
+      height={op.height}
+      rx={op.kind === 'roundRect' ? op.radius : 0}
+      fill={op.fill}
+    />
+  );
+}
+
+/** 风格小型示意（GodSettingsSection.kt L212-249 的 Canvas → SVG 等价）。 */
+function GodStyleMiniArt(props: { style: GodRankingStyleCode; gold: readonly [string, string, string] }) {
+  const ops = godStylePreview(props.style, props.gold);
   return (
     <svg
       className="god-style-card__art"
-      width="62"
-      height="46"
-      viewBox="0 0 62 46"
+      width={String(GOD_STYLE_CARD.artWidthDp)}
+      height={String(GOD_STYLE_CARD.artHeightDp)}
+      viewBox={`0 0 ${String(GOD_STYLE_CARD.artWidthDp)} ${String(GOD_STYLE_CARD.artHeightDp)}`}
       aria-hidden="true"
     >
-      {props.style === 'podium' ? (
-        <>
-          {/* 三个台阶 + 中间最高 */}
-          <rect x="7.4" y="28.5" width="13.6" height="17.5" rx="4" fill={gold[1]} />
-          <rect x="24.2" y="19.3" width="13.6" height="26.7" rx="4" fill={gold[0]} />
-          <rect x="40.9" y="32.2" width="13.6" height="13.8" rx="4" fill={gold[2]} />
-        </>
-      ) : null}
-      {props.style === 'vinyl' ? (
-        <>
-          {/* 三张唱片套 + 一张抽出的黑胶 */}
-          <rect x="3.7" y="11" width="9.9" height="28.5" rx="4" fill="#5A5F6B" />
-          <rect x="18.6" y="8.3" width="11.2" height="31.3" rx="4" fill={gold[0]} />
-          <rect x="36" y="11" width="9.9" height="28.5" rx="4" fill="#5A5F6B" />
-          <circle cx="52.1" cy="23.9" r="11" fill="#121316" />
-          <circle cx="52.1" cy="23.9" r="3.7" fill={gold[0]} />
-          {/* 搁板 */}
-          <rect x="0" y="40.5" width="62" height="3.7" fill="#33666666" />
-        </>
-      ) : null}
-      {props.style === 'polaroid' ? (
-        <>
-          {/* 麻绳 */}
-          <path
-            d="M0 7.4 Q31 15.6 62 7.4"
-            fill="none"
-            stroke="#B79B72"
-            strokeWidth="2"
-          />
-          {/* 两张拍立得 */}
-          <rect x="6.2" y="13.8" width="19.8" height="23.9" rx="4" fill="#FFFFFF" />
-          <rect x="32.2" y="15.6" width="19.8" height="23.9" rx="4" fill="#FFFFFF" />
-        </>
-      ) : null}
+      {ops.map((op, index) => previewNode(op, index))}
     </svg>
   );
 }
 
-/** 风格单选卡片（GodSettingsSection.kt L168-254）。 */
+/** 风格单选卡片（GodSettingsSection.kt L172-257）。 */
 function GodStyleCard(props: {
   styleCode: GodRankingStyleCode;
   label: string;
@@ -139,7 +135,7 @@ function GodStyleCard(props: {
   onClick: () => void;
 }) {
   const { selected } = props;
-  // E55 深色补漏：未选中标签 = Kotlin L249 的 `onSurfaceVariant`（随主题翻转，
+  // E55 深色补漏：未选中标签 = Kotlin L255 的 `onSurfaceVariant`（随主题翻转，
   // Theme.kt 未覆写该 M3 角色 → 基线 浅 #49454F 系文字灰 / 深 #CAC4D0）；
   // 此前写死浅色 #61666D，深色卡上对比度不足。CSS 够不着内联 style，
   // 按任务书「一行级补丁」在此修。
@@ -147,10 +143,10 @@ function GodStyleCard(props: {
   // animateFloatAsState(springMain) → CSS 过渡等效
   const cardStyle: CSSProperties = selected
     ? ({
-        transform: 'scale(1.04)',
+        transform: `scale(${String(godStyleCardScale(true))})`,
         '--god-gold-gradient': `linear-gradient(90deg, ${props.gold[0]}, ${props.gold[1]}, ${props.gold[2]})`,
       } as CSSProperties)
-    : { transform: 'scale(1)' };
+    : { transform: `scale(${String(godStyleCardScale(false))})` };
   return (
     <button
       type="button"
@@ -159,11 +155,16 @@ function GodStyleCard(props: {
       aria-pressed={selected}
       onClick={props.onClick}
     >
-      <GodStyleMiniArt style={props.styleCode} />
+      <GodStyleMiniArt style={props.styleCode} gold={props.gold} />
       <div className="god-style-card__gap6" />
       <span
         className="god-style-card__label"
-        style={{ color: selected ? props.gold[0] : dark ? '#CAC4D0' : '#61666D' }}
+        style={{
+          color: selected ? props.gold[0] : dark ? '#CAC4D0' : '#61666D',
+          // Kotlin L254 `if (selected) FontWeight.Bold else FontWeight.Medium` ——
+          // 此前只写了 500，选中态标签没有加粗。
+          fontWeight: godStyleCardLabelWeight(selected),
+        }}
       >
         {props.label}
       </span>
@@ -171,9 +172,17 @@ function GodStyleCard(props: {
   );
 }
 
-export function GodSettingsSection() {
+export function GodSettingsSection(props: {
+  /**
+   * Kotlin L59 `onOpenRanking: (() -> Unit)? = null` —— 传 `null` 时整块入口不渲染
+   * （Kotlin L117 `if (onOpenRanking != null)`）。设置页的默认行为是切到排行榜 route。
+   */
+  onOpenRanking?: (() => void) | null;
+} = {}) {
   // 设置页已在 MainShell 的 settings tab 内 → 只需切到排行榜 route
   const setRoute = useAppStore((s) => s.setRoute);
+  const onOpenRanking =
+    props.onOpenRanking === undefined ? (): void => setRoute('godRanking') : props.onOpenRanking;
   const sectionRef = useRef<HTMLDivElement | null>(null);
 
   const dark = godIsDark();
@@ -191,11 +200,11 @@ export function GodSettingsSection() {
 
   return (
     <div ref={sectionRef} className="god-settings" id="god_settings">
-      <span className="god-settings__title">{tr('神回')}</span>
+      <span className="god-settings__title">{tr(GOD_SETTINGS_STRINGS.sectionTitle)}</span>
       <div className="god-settings__gap8" />
       <GlassCard radius={16} padding={16}>
         <div className="god-settings__card">
-          <span className="god-settings__card-title">{tr('神回排行榜展示风格')}</span>
+          <span className="god-settings__card-title">{tr(GOD_SETTINGS_STRINGS.styleTitle)}</span>
           <div className="god-settings__styles">
             {GOD_RANKING_STYLES.map((entry) => (
               <GodStyleCard
@@ -214,8 +223,8 @@ export function GodSettingsSection() {
 
           {hasGyro ? (
             <GodSettingSwitchRow
-              title={tr('排行榜陀螺仪视差')}
-              desc={tr('倾斜手机时封面与光环反向位移，形成景深')}
+              title={tr(GOD_SETTINGS_STRINGS.gyroTitle)}
+              desc={tr(GOD_SETTINGS_STRINGS.gyroDesc)}
               checked={gyro}
               onCheckedChange={(next) => {
                 setGyro(next);
@@ -224,14 +233,18 @@ export function GodSettingsSection() {
             />
           ) : null}
 
-          <button
-            type="button"
-            className="god-settings__open-ranking"
-            style={{ background: 'rgba(16, 185, 129, 0.10)' }}
-            onClick={() => setRoute('godRanking')}
-          >
-            <span style={{ color: dark ? '#C79A3E' : '#D98E1F' }}>{tr('查看神回排行榜 ✦')}</span>
-          </button>
+          {onOpenRanking !== null ? (
+            <button
+              type="button"
+              className="god-settings__open-ranking"
+              style={{ background: `rgba(16, 185, 129, ${String(GOD_SETTINGS_CTA.backgroundAlpha)})` }}
+              onClick={() => onOpenRanking()}
+            >
+              <span style={{ color: godSettingsCtaColor(dark) }}>
+                {tr(GOD_SETTINGS_STRINGS.openRanking)}
+              </span>
+            </button>
+          ) : null}
         </div>
       </GlassCard>
     </div>

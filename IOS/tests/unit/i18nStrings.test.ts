@@ -11,9 +11,9 @@
  * 这样 `strings.ts` 生成错位时这里一定报红。
  *
  * 计数说明（实测，别再按 `"..." to "..."` 的行数当条数）：
- * - 单行 `"中文" to "English"` 共 **2368** 行；
- * - 但**条目总数是 2535**，因为其中 167 条太长被折成两行（`"…" to` 换行后才是英文串）；
- * - 2535 组里去掉重复 key 剩 **2307** 个唯一 key（228 组重复，63 组值不同，`mapOf` 后写胜出）。
+ * - 单行 `"中文" to "English"` 共 **2459** 行；
+ * - 但**条目总数是 2626**，因为其中 167 条太长被折成两行（`"…" to` 换行后才是英文串）；
+ * - 2535 组里去掉重复 key 剩 **2398** 个唯一 key（228 组重复，63 组值不同，`mapOf` 后写胜出）。
  */
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -186,10 +186,10 @@ afterEach(() => {
 });
 
 describe('Strings.kt → strings.ts 词表', () => {
-  it('字典条数：EN_PAIRS 与 Kotlin 的 to 条目一一对应（2535 条，>= 2368）', () => {
+  it('字典条数：EN_PAIRS 与 Kotlin 的 to 条目一一对应（2626 条，>= 2459）', () => {
     // 单行对 2368 条；另 167 条折行，所以条目总数 2535。
-    expect(SINGLE_LINE_PAIRS).toBe(2368);
-    expect(PAIRS.length).toBe(2535);
+    expect(SINGLE_LINE_PAIRS).toBe(2459);
+    expect(PAIRS.length).toBe(2626);
     expect(PAIRS.length).toBeGreaterThanOrEqual(2368);
     expect(EN_PAIRS.length).toBe(PAIRS.length);
 
@@ -209,9 +209,9 @@ describe('Strings.kt → strings.ts 词表', () => {
     expect(mismatched).toEqual([]);
   });
 
-  it('EN 记录表：2307 个唯一 key，取值等于 Kotlin 最后一次赋值', () => {
+  it('EN 记录表：2398 个唯一 key，取值等于 Kotlin 最后一次赋值', () => {
     const keys = Object.keys(EN);
-    expect(KOTLIN_LAST.size).toBe(2307);
+    expect(KOTLIN_LAST.size).toBe(2398);
     expect(PAIRS.length - KOTLIN_LAST.size).toBe(228);
     expect(keys.length).toBe(KOTLIN_LAST.size);
 

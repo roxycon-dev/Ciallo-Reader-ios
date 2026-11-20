@@ -100,3 +100,29 @@ export function createNodeConfigPort(): ZLibraryNodeConfigPort {
  * platform layer needs.
  */
 export const NODE_PREFS_PRIVATE = true;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Kotlin L16-20 —— 「直连路线」记忆集
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 补齐说明：本文件此前只移植了 `domain`（对应 Kotlin 15 行那一版），而当前 Kotlin 还多了
+ * 一个并发集合与两个方法 —— 用来记住「哪些 host 走直连能通」，下次请求据此决定是否
+ * 先试直连（`@Volatile` 只保护 `domain`，这个集合本身是线程安全的）。
+ */
+
+/** Kotlin L16 `private val directNodes = ConcurrentHashMap.newKeySet<String>()`。 */
+const directNodes = new Set<string>();
+
+/** Kotlin L17 `fun prefersDirect(host: String): Boolean = host in directNodes`。 */
+export function prefersDirect(host: string): boolean {
+  return directNodes.has(host);
+}
+
+/**
+ * Kotlin L18-20：
+ * `if (direct) directNodes.add(host) else directNodes.remove(host)`
+ * —— 直连成功就记住，失败（或需要走代理）就摘掉。
+ */
+export function rememberRoute(host: string, direct: boolean): void {
+  if (direct) directNodes.add(host);
+  else directNodes.delete(host);
+}

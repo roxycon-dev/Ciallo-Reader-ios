@@ -9,12 +9,16 @@ import { MoveBookAnimation } from './MoveBookAnimation';
 /**
  * Kotlin → TS map
  * ──────────────
- * - `ui/mascot/MascotAnimationController.kt` (85 non-blank lines) — FULL PORT
- *   lines 14-21  `sealed class MascotEvent`   → core MascotEvent union
- *   lines 26-33  `data class MascotEventInstance` → core, `AtomicLong` id preserved
- *   lines 38-43  `data class MotionTransform` → core
- *   lines 56-63  `object MascotAnimationController` → core subscriber set
- *   lines 70-100 `@Composable MascotOverlay(modifier)` → MascotOverlay
+ * - `ui/mascot/MascotAnimationController.kt` (99 lines, 85 non-blank) — FULL PORT
+ *   lines 14-20  `sealed class MascotEvent`（**4 个 object**） → core MascotEvent union
+ *   lines 25-32  `data class MascotEventInstance` → core, `AtomicLong` id preserved
+ *   lines 37-42  `data class MotionTransform` → core
+ *   lines 55-62  `object MascotAnimationController` → core subscriber set
+ *   lines 68-99  `@Composable MascotOverlay(modifier)` → MascotOverlay
+ *
+ * ⚠️ 这里此前有第五支（`CleanComplete`）—— 原文没有这个事件（见
+ * `@core/mascot/mascotEvents` 的头注释与 E211）。`when` 在 Kotlin 里是**穷尽**的
+ * （四支 + `null -> {}`，没有 `else`），端口多一支就等于宣称「Android 有五个事件」。
  *
  * Interruption Strategy A, verbatim:
  *   当用户快速连续触发操作（例如 3 秒内连续添加 5 次书签或连续点击移动）时，如果使用队列策略
@@ -91,9 +95,6 @@ export function MascotOverlay(props: { className?: string }) {
         <MoveBookAnimation key={current.id} onComplete={clear} />
       ) : null}
       {current.event === 'BookComplete' ? (
-        <BookCompleteAnimation key={current.id} onComplete={clear} />
-      ) : null}
-      {current.event === 'CleanComplete' ? (
         <BookCompleteAnimation key={current.id} onComplete={clear} />
       ) : null}
     </div>

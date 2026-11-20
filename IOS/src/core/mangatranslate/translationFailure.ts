@@ -33,18 +33,34 @@
  *   but on ours the narrower network test must win.
  */
 
+import { tr } from '@core/i18n';
+
 export interface TranslationFailure {
   readonly code: string;
   readonly description: string;
   readonly retryable: boolean;
 }
 
+/**
+ * Kotlin `data class TranslationFailure(private val rawCode, private val rawDescription, val retryable)`
+ * —— `description` 是 `val … get() = tr(rawDescription)`，**读取时**才翻译。
+ *
+ * 端口此前把 `description` 存成普通字符串，正好踩中 Kotlin KDoc 点名的坑：
+ * 「常量在类加载期就构造好了，在构造参数里调 tr() 会把语言永久冻住（切到英文后仍是中文）」。
+ * 这里用 getter 保留懒求值语义（形状仍是 `readonly description: string`）。
+ */
 export function createTranslationFailure(
   code: string,
-  description: string,
+  rawDescription: string,
   retryable = false,
 ): TranslationFailure {
-  return { code, description, retryable };
+  return {
+    code,
+    get description(): string {
+      return tr(rawDescription);
+    },
+    retryable,
+  };
 }
 
 /** Kotlin L6 `fun exception() = TranslationException(this)`. */

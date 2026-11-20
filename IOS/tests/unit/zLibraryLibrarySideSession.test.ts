@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 /**
  * Unit tests for `src/core/library/zLibraryNativeSession.ts`
  * (the port of `com.example.library.ZLibraryNativeSession.kt`).
@@ -13,6 +14,7 @@
  *  - `Uri.encode` vs `URLEncoder` spacing, `JSONObject.quote` escaping and credential redaction.
  */
 
+import { androidReference } from '../helpers/androidReference';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   androidUriEncode,
@@ -323,7 +325,14 @@ describe('ZLibraryNativeSession', () => {
   it('falls back to the default node while the user selection is still empty', () => {
     setNodeDomain('   ');
     const h = createHarness();
-    expect(h.session.domain).toBe('1lib.sk');
+    // Kotlin `ZLibraryNodeManager.kt:15` `const val DEFAULT_NODE = "z-lib.sk"` —— 期望值直接读原文。
+    const nodeManagerKt = readFileSync(
+      androidReference('app/src/main/java/com/example/library/ZLibraryNodeManager.kt'),
+      'utf8',
+    );
+    const defaultNode = /const\s+val\s+DEFAULT_NODE\s*=\s*"([^"]+)"/.exec(nodeManagerKt)?.[1];
+    expect(defaultNode).toBe('z-lib.sk');
+    expect(h.session.domain).toBe(defaultNode);
   });
 
   it('replays a query issued before the WebView existed (Kotlin pendingQuery)', async () => {

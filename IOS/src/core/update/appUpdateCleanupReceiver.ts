@@ -42,10 +42,10 @@
  *
  * ── 2026-10-06 逐行审查 pass (agent: update module) ────────────────────────────────
  *  All 17 Kotlin lines, in order: L10 the action guard (`!== ACTION_MY_PACKAGE_REPLACED`
- *  returns early, and the Kotlin `return` also skips `finish()` — the port calls
- *  `finish()` unconditionally instead, which is strictly safer because `goAsync()` was
- *  never taken on that branch); L13 `runCatching { AppUpdateStore(context.applicationContext)
- *  .cleanupInstalled() }` ✔; L14 `finally { result.finish() }` ✔.
+ *  returns early, and that `return` also skips `finish()` — because `goAsync()`
+ *  (L11) is never taken on that branch, `result.finish()` does not exist there either;
+ *  the port now returns before touching `finish` (E168); L13 `runCatching {
+ *  AppUpdateStore(context.applicationContext).cleanupInstalled() }` ✔; L14 `finally { result.finish() }` ✔.
  *  `handlePackageReplaced` (the 3-line helper at the bottom) is NOT in Kotlin. Kept
  *  deliberately, not left as dead code: it is the documented iOS entry point for the
  *  one call this receiver makes, and `AppUpdateManager.initialize()` performs it
@@ -90,8 +90,11 @@ export function createAppUpdateCleanupReceiver(
   return {
     onReceive(action: string | null, finish: () => void): Promise<void> {
       // Kotlin L10 `if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return`
+      // Kotlin L10 的 `return` 发生在 L11 `val result = goAsync()` **之前**，所以
+      // `result.finish()` 在这条分支上根本不存在。端口早先无条件调 `finish()`，
+      // 等于替 Android 调了一次「没 goAsync 就 finish」（Android 会抛
+      // IllegalStateException）；现在按原文直接返回（见 E168）。
       if (action !== ACTION_MY_PACKAGE_REPLACED) {
-        finish();
         return Promise.resolve();
       }
       const cleanup = (async (): Promise<void> => {

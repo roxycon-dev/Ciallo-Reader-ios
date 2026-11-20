@@ -268,8 +268,6 @@ import { showToast } from '@ui/toast';
 import { playMascotEvent } from '@ui/components/mascot/MascotAnimationController';
 import { scrollElementIntoView, scrollElementTo } from '@ui/lib/scroll';
 import { getBookRepository, useAppStore } from '@ui/state/appStore';
-// `LocalRenderQuality.current` —— 排版面板的极简档退化（ReadingGlass.kt L35）。
-import { useRenderQuality } from '@ui/components/GlassQuality';
 import { PageTurnContainer } from '@ui/components/pageturn/PageTurnContainer';
 import { PageCurlReaderContainer } from '@ui/components/pageturn/PageCurlReaderContainer';
 import { PageScrubberOverlay } from '@ui/components/pageturn/PageScrubber';
@@ -2319,18 +2317,10 @@ function TypographySheet(props: {
 }): ReactNode {
   const [fontPanelOpen, setFontPanelOpen] = useState(false);
   const fontName = readingFontName(props.prefs.fontFamilyIndex, props.customFontLoaded);
-  /**
-   * `ReadingGlass.kt` L35 `LocalRenderQuality.current.minimal` —— 画质档位落到 DOM 上，
-   * `reader.css` 用 `.rd-sheet--settings[data-render-quality='MINIMAL']` 退化成不透明底，
-   * `[data-render-quality='LOW']` 用 10px 模糊（L37）。
-   */
-  const renderQuality = useRenderQuality();
-
   return (
     <div className="rd-sheet-backdrop" onClick={props.onClose}>
       <div
         className="rd-sheet rd-sheet--settings"
-        data-render-quality={renderQuality}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="rd-sheet-head">

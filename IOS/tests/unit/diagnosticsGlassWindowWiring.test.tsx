@@ -4,9 +4,9 @@
  * ① 设置页挂上 `StartupDiagnosticsExportButton`（Kotlin `SettingsTabScreen.kt` L1038）
  * ② 点按钮 → 走导出端口：文件名 L46 模板 + 报告写进目标
  * ③ 写盘失败 → Kotlin L38「无法保存诊断日志，请重新选择保存位置」+ `record("diagnostic-export")`
- * ④ `reader.css` 的 `.rd-sheet--settings` 真的接上了 `ReadingGlass` 光学数值
- *    （数值源：`src/core/glass/glassKit.ts` L260-282 的导出常量）
- * ⑤ 极简画质选择器退化为不透明底（`ReadingGlass.kt` L35）
+ * ④ `reader.css` 的 `.rd-sheet--settings` 接的是 **`ReadingSettingsPanel.kt` L72-80** 的
+ *    容器参数（数值源：`src/core/reader/readingSettingsPanel.ts`）—— 不是 `ReadingGlass`
+ * ⑤ 这个面板在 Kotlin 里**没有**画质档分支，端口不得自造 `[data-render-quality]` 规则
  * ⑥ `ReaderChapterWindow` 只装当前章 ±1（`ReaderChapterWindow.kt` L21-25）
  * ⑦ 越过窗口边界只拉新分片，合并章按物理顺序拼接（L26-38）
  *
@@ -23,15 +23,15 @@ import { createRoot, type Root } from 'react-dom/client';
 vi.mock('@ui/toast', () => ({ showToast: vi.fn(), hideToast: vi.fn(), Toast: () => null }));
 
 import {
-  READING_GLASS_ALPHA,
-  READING_GLASS_BLUR,
-  READING_GLASS_BLUR_LOW,
-  READING_GLASS_BORDER_ALPHA,
-  READING_GLASS_BORDER_WIDTH,
-  READING_GLASS_DEFAULT_TINT,
-  READING_GLASS_SATURATION,
-  READING_GLASS_SHEEN_ALPHAS,
-} from '@core/glass/glassKit';
+  READING_SETTINGS_BLUR_PX,
+  READING_SETTINGS_BORDER_ALPHA,
+  READING_SETTINGS_BORDER_WIDTH_PX,
+  READING_SETTINGS_RADIUS_PX,
+  READING_SETTINGS_SCRIM_ALPHA,
+  READING_SETTINGS_SHEEN_ALPHA,
+  READING_SETTINGS_SHADOW,
+  READING_SETTINGS_TINT_ALPHA,
+} from '@core/reader/readingSettingsPanel';
 import type { ChapterRow } from '@core/library/bookTypes';
 import {
   loadChapterWindowAround,
@@ -223,7 +223,7 @@ describe('StartupDiagnosticsExportButton 接线（SettingsTabScreen.kt L1038）'
 });
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   ④ ⑤ ReadingGlass 光学层（glassKit.ts L260-282 → reader.css）
+   ④ ⑤ 阅读排版面板容器（ReadingSettingsPanel.kt L72-80 → reader.css）
    ══════════════════════════════════════════════════════════════════════════════ */
 
 const repoRoot = process.cwd();
@@ -241,54 +241,57 @@ function cssBlock(css: string, selector: string): string {
   return css.slice(start, end);
 }
 
-describe('.rd-sheet--settings 的 ReadingGlass 光学（ReadingGlass.kt L33-45）', () => {
+describe('.rd-sheet--settings 的容器参数（ReadingSettingsPanel.kt L72-80）', () => {
   const css = sourceText('src/styles/reader.css');
 
-  it('④ 模糊 / 饱和 / tint / 双段高光 / 0.7px 描边的数值全部来自 glassKit 常量', () => {
+  it('④ blur / tint / 双段高光 / 1px 描边 / 两层阴影全部来自 READING_SETTINGS_*', () => {
     const block = cssBlock(css, '.rd-sheet--settings');
 
-    // L38-41 `colorControls(saturation = 1.10f); blur(radius.dp.toPx())`
-    expect(block).toContain(`saturate(${String(READING_GLASS_SATURATION)})`);
-    expect(block).toContain(`blur(${String(READING_GLASS_BLUR)}px)`);
+    // L76 `effects = { blur(DesignTokens.SpaceSm.toPx()) }` —— 只有模糊
+    expect(block).toContain(`blur(${String(READING_SETTINGS_BLUR_PX)}px)`);
     expect(block).toContain('-webkit-backdrop-filter:');
-    // L260 / L264：CompositionLocal 默认 tint 与 tint alpha（.60）
-    expect(block).toContain(READING_GLASS_DEFAULT_TINT);
-    expect(block).toContain(`--rd-reading-glass-tint-alpha: ${READING_GLASS_ALPHA.toFixed(2)};`);
-    // L278 双段高光的三个 alpha
-    expect(block).toContain(`--rd-reading-glass-sheen-1: ${String(READING_GLASS_SHEEN_ALPHAS[0])};`);
-    expect(block).toContain(`--rd-reading-glass-sheen-2: ${String(READING_GLASS_SHEEN_ALPHAS[1])};`);
-    expect(block).toContain(`--rd-reading-glass-sheen-3: ${String(READING_GLASS_SHEEN_ALPHAS[2])};`);
-    // L281-282 描边
-    expect(block).toContain(`--rd-reading-glass-border: ${String(READING_GLASS_BORDER_WIDTH)}px;`);
-    expect(block).toContain(`--rd-reading-glass-border-alpha: ${String(READING_GLASS_BORDER_ALPHA)};`);
-    // 两段 background-image：高光 + tint 叠加
-    expect(block).toContain('background-image:');
-    expect(block.match(/linear-gradient\(/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    // L78 `themeColor.copy(alpha = 0.56f)`
+    expect(block).toContain(`--rd-settings-tint-alpha: ${String(READING_SETTINGS_TINT_ALPHA)};`);
+    // L79 `verticalGradient(white@.10f, Transparent)` —— 单段高光
+    expect(block).toContain(`--rd-settings-sheen: ${String(READING_SETTINGS_SHEEN_ALPHA)};`);
+    // L80 `border(1.dp, contentColor.copy(alpha = 0.12f), shape)`
+    expect(block).toContain(
+      `--rd-settings-border-width: ${String(READING_SETTINGS_BORDER_WIDTH_PX)}px;`,
+    );
+    expect(block).toContain(`--rd-settings-border-alpha: ${String(READING_SETTINGS_BORDER_ALPHA)};`);
+    // L72 双层阴影的两个 alpha（elevation 见 `READING_SETTINGS_SHADOW.elevationPx`）
+    expect(block).toContain(`rgb(0 0 0 / ${String(READING_SETTINGS_SHADOW.ambientAlpha)})`);
+    expect(block).toContain(`rgb(0 0 0 / ${String(READING_SETTINGS_SHADOW.spotAlpha)})`);
+    // L79 只有一层渐变：白 → 透明（ReadingGlass 的三段高光在这里没有对应物）
+    expect(block.match(/linear-gradient\(/g)?.length ?? 0).toBe(1);
+    // L86 仍要向面板**内部**提供 ReadingGlassStyle 的 tint / ink
+    expect(block).toContain('--rd-reading-glass-tint:');
+    expect(block).toContain('--rd-reading-glass-ink:');
   });
 
-  it('④b 几何块（560/80dvh、宽屏 440/94dvh、圆角 28、遮罩 .35）保持不动', () => {
+  it('④b 这个面板不是 ReadingGlass：不得出现 saturation 与三段高光/0.7px 描边', () => {
+    const block = cssBlock(css, '.rd-sheet--settings');
+    expect(block).not.toContain('saturate(');
+    expect(block).not.toContain('--rd-reading-glass-sheen');
+    expect(block).not.toContain('--rd-reading-glass-border');
+  });
+
+  it('④c 几何块（560/80dvh、宽屏 440/94dvh、圆角 28、遮罩 .35）保持不动', () => {
     expect(css).toContain('.rd-sheet-backdrop:has(.rd-sheet--settings) {');
-    expect(css).toContain('background: rgba(0, 0, 0, 0.35);');
+    expect(css).toContain(`background: rgba(0, 0, 0, ${String(READING_SETTINGS_SCRIM_ALPHA)});`);
     expect(css).toContain('max-height: 80dvh;');
     expect(css).toContain('max-width: 440px;');
+    expect(css).toContain(`border-radius: ${String(READING_SETTINGS_RADIUS_PX)}px;`);
   });
 
-  it('⑤ 极简画质选择器退化为不透明底（L35 `quality.minimal`）', () => {
-    const minimal = cssBlock(css, ".rd-sheet--settings[data-render-quality='MINIMAL']");
-    expect(minimal).toContain('background-color: var(--rd-reading-glass-tint);');
-    expect(minimal).toContain('background-image: none;');
-    expect(minimal).toContain('backdrop-filter: none;');
-    // 极简档必须真的不采样背景（含 -webkit- 前缀那一份）
-    expect(minimal).toContain('-webkit-backdrop-filter: none;');
-
-    // L37 `quality <= LOW → 10f`
-    const low = cssBlock(css, ".rd-sheet--settings[data-render-quality='LOW']");
-    expect(low).toContain(`blur(${String(READING_GLASS_BLUR_LOW)}px)`);
-
-    // 档位必须由 ReaderPage 真的写到 DOM 上，否则上面的选择器永远不命中。
+  it('⑤ Kotlin 没有画质档分支 —— 端口不得自造 [data-render-quality] 规则', () => {
+    // `ReadingSettingsPanel.kt` 全文没有 `LocalRenderQuality`：它无条件
+    // `drawPlainBackdrop { blur(8.dp) }`。`[data-render-quality='LOW'|'MINIMAL']`
+    // 是照搬 `ReadingGlass.kt` L35/L37 的产物 —— 把另一个组件的降级规则套到这个面板上。
+    expect(css).not.toContain('.rd-sheet--settings[data-render-quality=');
     const page = sourceText('src/ui/pages/ReaderPage.tsx');
-    expect(page).toContain('data-render-quality={renderQuality}');
-    expect(page).toContain('const renderQuality = useRenderQuality();');
+    expect(page).not.toContain('data-render-quality={renderQuality}');
+    expect(page).not.toContain('const renderQuality = useRenderQuality();');
   });
 });
 

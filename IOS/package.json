@@ -25,6 +25,8 @@
     "test:ci": "vitest run",
     "build:web": "vite build",
     "preview:ci": "vite preview --port 4173 --strictPort",
+    "serve:web": "node scripts/serve-web.mjs --open",
+    "serve:web:ci": "node scripts/serve-web.mjs --port 4180",
     "ios:sync": "vite build && cap sync ios && cap copy ios",
     "parity:jvm": "cd parity/android-export && gradlew.bat run",
     "parity:fixtures": "node parity/android-export/run-export.mjs",

@@ -2,7 +2,7 @@
 class Pufei extends ComicSource {
     name = "扑飞漫画";
     key = "pufei";
-    version = "1.0.5";
+    version = "1.0.6";
     minAppVersion = "1.6.0";
     url = "https://www.pufeimh.com";
     baseUrl = "https://www.pufeimh.com";
@@ -74,6 +74,34 @@ class Pufei extends ComicSource {
         // Its keyword endpoint currently rejects requests; use its public initial filter.
         return this.baseUrl + "/index.php/api/data/comic?callback=pufei&size=300&page=" + page +
             "&type%5Border%5D=hits" + (mark ? "&type%5Bmark%5D=" + encodeURIComponent(mark) : "");
+    }
+
+    category = {title:"扑飞分类",parts:[{name:"全部分类",type:"dynamic",loader:async()=>{
+        const doc=new HtmlDocument(await this.html(this.baseUrl+'/category'));
+        try{return doc.querySelectorAll('a[href]').map(a=>({label:a.text.trim(),href:a.attributes.href||''}))
+            .filter(a=>/^\/category\/(tags|list)\/\d+$/.test(a.href))
+            .map(a=>({label:a.label,target:{page:'category',attributes:{category:a.label,param:a.href}}}));
+        }finally{doc.dispose()}
+    }}]};
+    categoryComics={load:async(category,param,options,page)=>{
+        const route=String(param||'').match(/^\/category\/(tags|list)\/(\d+)$/);
+        if(!route)throw Error('分类入口已更新，请重新选择');
+        return this.discoverRows(page,route[1]==='tags'?'tags':'cid',route[2]);
+    }};
+    explore = [
+        {title:"热门目录",type:"multiPageComicList",load:async page=>this.discoverRows(page)},
+        {title:"点击总榜",type:"multiPageComicList",load:async page=>this.discoverRows(page)}
+    ];
+    async discoverRows(page,field,value) {
+        const url=this.catalogueUrl("",page).replace("size=300","size=40")+(field?'&type%5B'+field+'%5D='+encodeURIComponent(value):'');
+        const raw = await this.json(url);
+        const items = this.compact(raw);
+        this.rememberSearchLinks(items);
+        const comics = raw.filter(b=>b.name&&b.url).map(b=>({id:this.abs(b.url),title:this.titleText(b.name),
+            cover:b.pic_local?this.abs(b.pic_local):this.abs(b.pic||''),author:b.author||'',
+            tags:Array.isArray(b.tags)?b.tags:[],status:b.serialize||null,latestChapter:b.chapter_name||null,
+            clicks:/^\d+$/.test(String(b.hits))?Number(b.hits):null}));
+        return { comics, maxPage: raw.length === 40 ? null : page };
     }
 
     compact(items) {

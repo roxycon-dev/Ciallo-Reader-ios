@@ -64,7 +64,9 @@ export class ZLibraryDomainResolver {
   }
 
   async resolveNextDomain(excluded: ReadonlySet<string>): Promise<string | null> {
-    return this.endpointProvider.scanForLiveNode(undefined, excluded);
+    // Kotlin L18-20 `resolveNextDomain` 只转调 `endpointProvider.nextEndpoint(excluded)`，
+    // 而 nextEndpoint 会 adoptLiveNode 固化结果（E172）。
+    return this.endpointProvider.nextEndpoint(excluded);
   }
 
   async saveToCache(domain: string): Promise<void> {

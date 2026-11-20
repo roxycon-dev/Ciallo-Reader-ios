@@ -559,6 +559,8 @@ describe('SourceConfig.kt — every default is part of the persisted book-source
     expect(cfg.isCustom).toBe(true);
     expect(cfg.insecureTls).toBe(false);
     expect(cfg.type).toBeNull();
+    // `SourceConfig.kt` L87 `val explore: List<HtmlExploreRule> = emptyList()`
+    expect(cfg.explore).toEqual([]);
   });
 
   it('SourceConfig field names are exactly the Kotlin ones (JSON round-trip)', () => {
@@ -570,11 +572,20 @@ describe('SourceConfig.kt — every default is part of the persisted book-source
       type: 'comic',
       insecureTls: true,
     });
+    /*
+     * 15 个字段，逐个对应 `SourceConfig.kt` L73-88：
+     *   id / name / baseUrl / search / detail / download / htmlSearch / htmlChapters /
+     *   htmlContent / enabled / priority / isCustom / insecureTls / explore / type
+     *
+     * `explore` 此前不在这张表里 —— 不是「Kotlin 没有」，而是端口根本没这一项（E196）。
+     * 这里按 Kotlin 补齐；任何一侧多一个或少一个都必须红。
+     */
     expect(Object.keys(JSON.parse(JSON.stringify(cfg))).sort()).toEqual([
       'baseUrl',
       'detail',
       'download',
       'enabled',
+      'explore',
       'htmlChapters',
       'htmlContent',
       'htmlSearch',
@@ -586,6 +597,7 @@ describe('SourceConfig.kt — every default is part of the persisted book-source
       'search',
       'type',
     ]);
+    expect(Object.keys(JSON.parse(JSON.stringify(cfg)))).toHaveLength(15);
     expect(cfg.priority).toBe(7);
     expect(cfg.type).toBe('comic');
   });

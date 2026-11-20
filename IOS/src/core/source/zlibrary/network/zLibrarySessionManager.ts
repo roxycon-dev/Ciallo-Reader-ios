@@ -63,10 +63,17 @@ export class ZLibrarySessionManager {
     forceRefresh = false,
     signal?: AbortSignal | null,
   ): Promise<boolean> {
-    this.activeDomain = domain;
-    if (this.isSessionInitialized && !forceRefresh) {
+    // Kotlin L16-18：三个条件全成立才是「已就绪」的**空操作** ——
+    // `activeDomain == domain` 这一条不能漏，否则换节点时会把上一个节点的
+    // 会话标志当成新节点的（`getActiveDomain()` 也会谎报）。
+    if (this.isSessionInitialized && this.activeDomain === domain && !forceRefresh) {
       return true;
     }
+
+    // Kotlin L20-21：过了守卫才写入 + **先清零**。少了这一步，一次失败的重新初始化
+    // 会把上一次的 `true` 留在原地，后续所有请求都以为会话已就绪。
+    this.activeDomain = domain;
+    this.isSessionInitialized = false;
 
     try {
       const homepageUrl = `https://${domain}/`;

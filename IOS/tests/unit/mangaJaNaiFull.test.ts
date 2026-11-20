@@ -735,8 +735,10 @@ describe('切片尺寸与重叠（TILE=128 / HALO=24）', () => {
     expect(target[3 * side + 1]).toBe((src.data[10] as number) | 0)
     // 上边界外整行复制自第 0 行
     expect(target[0 * side + 5]).toBe(target[2 * side + 5])
-    // 右/下边界外复制自最后有效列/行
-    expect(target[11 * side + 11]).toBe(target[9 * side + 9])
+    // 下边界外整行复制自**最后有效行**（dy+height-1 = 7），逐列对齐：
+    // Kotlin L60-62 `copyInto(target, row*side, (dy+height-1)*side, (dy+height)*side)`
+    expect(target[8 * side + 0]).toBe(target[7 * side + 0])
+    expect(target[11 * side + 11]).toBe(target[7 * side + 11])
   })
 
   it('相邻切片在 halo 区重合 48 列（300×200 → 6 片，行优先）', () => {
@@ -836,7 +838,10 @@ describe('像素格式与缩放倍率', () => {
 
   it('mobile 输入尺寸：1400 / 900k / 0.93 收缩直到切片数 ≤ 预算', () => {
     expect(mangaMobileInputSize(800, 1000, 1000)).toEqual([800, 1000])
-    expect(mangaMobileInputSize(2800, 2000, 1000)).toEqual([1122, 801])
+    // Kotlin MangaJaNaiMobile.kt L14-15 是 `(width * scale).roundToInt()`：
+    // 2800×2000 → scale = sqrt(900_000 / 5_600_000) = 0.4008913…，两条边分别四舍五入
+    // 得 1122 与 802（截断才会得到 1122/801 —— 那是本轮修掉的漂移，不是期望值）。
+    expect(mangaMobileInputSize(2800, 2000, 1000)).toEqual([1122, 802])
     const [w, h] = mangaMobileInputSize(2800, 2000, 8)
     const tiles =
       Math.trunc((w + MANGA_JANAI_TILE - 1) / MANGA_JANAI_TILE) *

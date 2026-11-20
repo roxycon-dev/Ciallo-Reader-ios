@@ -66,6 +66,18 @@ export class DiscoverStore {
     this.put('blocked_groups', groups);
     this.put('blocked_labels', Object.fromEntries(this.blockedWorks().filter((row) => row.key !== key).map((row) => [row.key, row.title])));
   }
+  /**
+   * Kotlin `DiscoverStore.clearBlocked()` —— 「屏蔽管理」的「全部解除」。
+   *
+   * 三个键要一起清：`blocked`（身份集合）、`blocked_groups`（key → 变体身份）、
+   * `blocked_labels`（key → 书名）。少清任何一个都会留下「已解除但仍被过滤」的幽灵。
+   */
+  clearBlocked(): void {
+    this.put('blocked', new Set<string>());
+    this.put('blocked_groups', {});
+    this.put('blocked_labels', {});
+  }
+
   private async cachePath(key: string): Promise<string> {
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)));
     return `${this.directory}/${[...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('')}.json`;

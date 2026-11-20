@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { GlassCard } from './GlassCard';
 import {
   formatShortDuration,
   type ReadingRecord,
 } from '../lib/readingStats';
 import { scrollElementTo } from '../lib/scroll';
-import { tr } from '@core/i18n';
+import { dayReadLog, dayRecordSummary, minutesShort, minutesTotal, tr, weekMinutes } from '@core/i18n';
+import { WENKU_MOTION } from '@core/wenku/tokens';
 
 /**
  * Port of Android WeeklyReadingChart.kt — bar chart + selected-day cover carousel.
@@ -373,10 +374,9 @@ export function WeeklyReadingChart(props: WeeklyReadingChartProps) {
   const selMins = minutesPerDay[selectedDayIndex] ?? 0;
   const selDayName = DAY_NAMES[selectedDayIndex] ?? '';
 
+  // Kotlin L352-358：`dayRecordSummary(n)` / `tr("自选阅读")` / `tr("无阅读记录")`。
   const detailText = (() => {
-    if (selMins > 0 && selRecords.length > 0) {
-      return `共 ${selRecords.length} 本 · 详情见下方封面`;
-    }
+    if (selMins > 0 && selRecords.length > 0) return dayRecordSummary(selRecords.length);
     if (selMins > 0) return tr('自选阅读');
     return tr('无阅读记录');
   })();
@@ -393,7 +393,7 @@ export function WeeklyReadingChart(props: WeeklyReadingChartProps) {
           <p className="stats-card-subtitle">{tr('周一 至 周日')}</p>
         </div>
         <div className="stats-card-header-spacer" />
-        <span className="stats-weekly-badge">本周共 {totalMinutes} 分钟</span>
+        <span className="stats-weekly-badge">{weekMinutes(totalMinutes)}</span>
       </div>
 
       {/* Chart Bars Row */}
@@ -402,11 +402,11 @@ export function WeeklyReadingChart(props: WeeklyReadingChartProps) {
           const mins = minutesPerDay[index] ?? 0;
           const isToday = index === todayIndex;
           const isSelected = index === selectedDayIndex;
+          // Kotlin L183：`rawFraction = mins / maxMinutes` —— **没有**最小高度。
+          // （`0.04` 是 PeakHoursBars 那边的下限，不属于本周柱状图。）
           const rawFraction =
-            maxMinutes <= 0 || mins <= 0
-              ? 0
-              : Math.min(1, Math.max(0.04, mins / maxMinutes));
-          const barHeightPct = Math.round(rawFraction * 100);
+            maxMinutes <= 0 || mins <= 0 ? 0 : Math.min(1, mins / maxMinutes);
+          const barHeightPct = rawFraction * 100;
 
           const minsClass = [
             'stats-weekly-mins',
@@ -445,8 +445,9 @@ export function WeeklyReadingChart(props: WeeklyReadingChartProps) {
             .filter(Boolean)
             .join(' ');
 
-          // Stagger entrance: delay(index * 40ms) after 320ms page-switch delay
-          const growDelay = `${320 + index * 40}ms`;
+          // Kotlin 由 `WenkuMotion.listStart(index) / listEnd(index)` 的窗口驱动
+          // （`listDelayStep = .055`、`ENTER_MS = 420`）→ 每档 23.1ms，没有 320ms 前摇。
+          const growDelay = `${Math.round(index * WENKU_MOTION.listDelayStep * WENKU_MOTION.enterMs)}ms`;
 
           return (
             <button
@@ -457,17 +458,17 @@ export function WeeklyReadingChart(props: WeeklyReadingChartProps) {
             >
               {/* 1. Top duration label box aligned at 20.dp height */}
               <div className="stats-weekly-mins-box">
-                <p className={minsClass}>{mins > 0 ? `${mins}分` : '-'}</p>
+                <p className={minsClass}>{mins > 0 ? minutesShort(mins) : '-'}</p>
               </div>
 
               {/* 2. Bar Container strictly 100.dp height */}
               <div className="stats-weekly-bar-track">
                 <div className="stats-weekly-baseline" />
-                {mins > 0 && rawFraction > 0.01 ? (
+                {mins > 0 && rawFraction > 0 ? (
                   <div
                     className={barClass}
                     style={{
-                      height: `${Math.max(4, barHeightPct)}%`,
+                      height: `${barHeightPct.toFixed(2)}%`,
                       animationDelay: growDelay,
                     }}
                   />
@@ -485,7 +486,7 @@ export function WeeklyReadingChart(props: WeeklyReadingChartProps) {
       <div className="stats-weekly-detail">
         <div className="stats-weekly-detail-left">
           <MenuBookIcon className="stats-weekly-detail-icon" />
-          <p className="stats-weekly-detail-label">{selDayName}阅读记录：</p>
+          <p className="stats-weekly-detail-label">{dayReadLog(selDayName)}</p>
           <p
             className={
               selMins > 0
@@ -497,7 +498,7 @@ export function WeeklyReadingChart(props: WeeklyReadingChartProps) {
           </p>
         </div>
         <p className="stats-weekly-detail-total">
-          {selMins > 0 ? `共 ${selMins} 分钟` : tr('0 分钟')}
+          {selMins > 0 ? minutesTotal(selMins) : tr('0 分钟')}
         </p>
       </div>
 

@@ -161,7 +161,8 @@ test('the library and discover share the unified download center', async ({ page
   await expect(center).toBeHidden();
   await page.getByRole('button', { name: '发现', exact: true }).click();
   await page.locator('.discover-download-entry').click();
-  await expect(center).toContainText('后台继续下载，完成记录保留。');
+  // Kotlin `NovelDownloadPanel.kt` L126 原文 —— 此前这条断言锁的是旧端口自造的文案。
+  await expect(center).toContainText('任务在后台继续，完成后可在书架阅读。');
   await center.getByRole('button', { name: '收起' }).click();
   await expect(center).toBeHidden();
 });

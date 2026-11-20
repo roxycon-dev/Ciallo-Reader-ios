@@ -34,6 +34,11 @@ native-build/
 **/xcuserdata/
 *.xcuserstate
 scripts/.tmp-*
+# 一次性改写脚本用的是下划线（`.tmp_fix48.mjs`），连字符那条只覆盖了另一种命名。
+# 两种都忽略：它们依赖本机锚点，换机器必然失效，进了仓库只会误导下一个人。
+scripts/.tmp_*
+# `tests/parity/kotlinLiterals.test.ts` 失败时写出的 offender 清单（测试产物）。
+kotlin-literal-offenders.txt
 tsc-baseline.txt
 tsc-out.txt
 vitest-baseline.txt

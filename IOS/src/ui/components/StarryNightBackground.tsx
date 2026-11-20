@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useSyncExternalStore } from 'react';
 
 /**
  * Kotlin → TS map
@@ -18,9 +18,12 @@ import { type ReactNode } from 'react';
  *   WarmLampYellow    = 0xFFFFD166
  *
  * `showLamp` values verbatim:
- *   isDark  → listOf(primary@0.12f, Transparent),  center (0.5w, 0.3h), radius = w
- *   !isDark → listOf(primary@0.05f, White@0.0f),   center (0.5w, 0.3h), radius = w
+ *   isDark  → listOf(primary@0.12f, Color.Transparent),  center (0.5w, 0.3h), radius = w
+ *   !isDark → listOf(primary@0.05f, Color.White@0.0f),   center (0.5w, 0.3h), radius = w
  *   "Draw a subtle radial gradient (max 8% opacity)"
+ *
+ * `Color.Transparent` 是 **透明黑**（`#00000000`），不是透明白 —— 深色分支的第二档必须
+ * 写 `rgba(0, 0, 0, 0)`；浅色分支 Kotlin 明写 `Color.White.copy(alpha = 0f)`，写 `#FFFFFF`。
  *
  * ADAPTATION — Compose Canvas → CSS radial-gradient on a pseudo-layer.
  * `LocalAppBackgroundActive` (a CompositionLocal telling the page whether a
@@ -51,17 +54,43 @@ export interface StarryNightBackgroundProps {
   children?: ReactNode;
 }
 
+function readDocumentDark(): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.getAttribute('data-theme') === 'dark';
+}
+
+function subscribeDocumentDark(onChange: () => void): () => void {
+  if (typeof document === 'undefined' || typeof MutationObserver !== 'function') return () => {};
+  const observer = new MutationObserver(() => onChange());
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => observer.disconnect();
+}
+
+/** Kotlin `com.example.ui.theme.LocalAppDarkTheme.current` —— `<html data-theme>` 是 Web 侧的同源信号。 */
+function useDocumentDark(): boolean {
+  return useSyncExternalStore(subscribeDocumentDark, readDocumentDark, () => false);
+}
+
+/**
+ * Kotlin L45-68 `drawCircle(brush = Brush.radialGradient(colors, center, radius), radius = w)`：
+ * 圆心 `(0.5w, 0.3h)`、半径 `w`，两档颜色按深浅主题切换。
+ * 深色第二档是 `Color.Transparent`（**透明黑** `#00000000`），浅色是 `Color.White.copy(alpha = 0f)`。
+ */
+export function starryLampGradient(isDark: boolean, primary: string): string {
+  return isDark
+    ? `radial-gradient(circle at 50% 30%, ${rgba(primary, 0.12)} 0%, ${rgba('#000000', 0)} 100%)`
+    : `radial-gradient(circle at 50% 30%, ${rgba(primary, 0.05)} 0%, ${rgba('#FFFFFF', 0)} 100%)`;
+}
+
 export function StarryNightBackground(props: StarryNightBackgroundProps) {
   const showLamp = props.showLamp !== false;
   const background = props.background ?? '#FFFFFF';
-  const isDark = props.isDark === true;
+  const documentDark = useDocumentDark();
+  const isDark = props.isDark ?? documentDark;
   const primary = props.primary ?? '#059669';
   const backgroundActive = props.backgroundActive === true;
 
-  // center = Offset(size.width * 0.5f, size.height * 0.3f), radius = size.width
-  const lamp = isDark
-    ? `radial-gradient(circle at 50% 30%, ${rgba(primary, 0.12)} 0%, rgba(255,255,255,0) 100%)`
-    : `radial-gradient(circle at 50% 30%, ${rgba(primary, 0.05)} 0%, ${rgba('#FFFFFF', 0)} 100%)`;
+  const lamp = starryLampGradient(isDark, primary);
 
   return (
     <div

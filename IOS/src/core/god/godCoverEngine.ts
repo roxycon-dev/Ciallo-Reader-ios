@@ -83,6 +83,20 @@ export const GOD_SHADOW_ALPHA = 0.34;
 /** `thumbnail(…, maxEdge = 240)`（GodCoverEngine.kt L466）。 */
 export const GOD_THUMBNAIL_MAX_EDGE = 240;
 
+/** Kotlin GodCoverEngine.kt L79 `const val DECODE_MAX_EDGE = 1600`：loadPage / loadCover 的默认解码长边。 */
+export const GOD_DECODE_MAX_EDGE = 1600;
+
+/**
+ * Kotlin GodCoverEngine.kt L214 `internal const val THUMB_MAX_EDGE = 320`。
+ *
+ * 与上面的 GOD_THUMBNAIL_MAX_EDGE = 240 **不是同一个东西**：
+ * - 240 是 `thumbnail(..., maxEdge = 240)` 的调用默认参数（L466）；
+ * - 320 是 L193 `val gate = if (maxEdge <= THUMB_MAX_EDGE) thumbnailGate else coverGate`
+ *   的门槛，同时用于 L226-229 的缩略图缩放比例。
+ * 两者混用会让「页面选择器请求 240」被误判成封面请求，抢走只有 1 个名额的 coverGate。
+ */
+export const GOD_THUMB_EDGE_THRESHOLD = 320;
+
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }

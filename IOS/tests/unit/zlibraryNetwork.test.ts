@@ -149,15 +149,16 @@ function memoryStorage(
 // ---------------------------------------------------------------------------
 
 describe('ZLibraryCredentialStorage', () => {
-  it('uses 1lib.sk as the default domain and stores the four keys', async () => {
+  it('defaults to ZLibraryNodeManager.DEFAULT_NODE and stores the four keys', async () => {
     const { store, storage } = memoryStorage();
-    expect(DEFAULT_DOMAIN).toBe('1lib.sk');
+    // Kotlin L58 `const val DEFAULT_DOMAIN = ZLibraryNodeManager.DEFAULT_NODE`（= "z-lib.sk"）
+    expect(DEFAULT_DOMAIN).toBe('z-lib.sk');
     await storage.saveCredentials({ userId: '42', userKey: 'key42', cookies: 'remix_userkey=key42' });
     expect(store.map.get('userId')).toBe('42');
     expect(store.map.get('userKey')).toBe('key42');
-    expect(store.map.get('domain')).toBe('1lib.sk');
+    expect(store.map.get('domain')).toBe('z-lib.sk');
     expect(store.map.get('cookies')).toBe('remix_userkey=key42');
-    expect(await storage.getDomain()).toBe('1lib.sk');
+    expect(await storage.getDomain()).toBe('z-lib.sk');
   });
 
   it('falls back to the default domain for a blank value', async () => {

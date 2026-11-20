@@ -1670,3 +1670,178 @@
 [data-theme='dark'] .source-row__id {
   color: rgba(212, 212, 212, 0.7);
 }
+
+
+/* ── ZLibraryLoginDialog.kt L103-198：站点验证提示 / Cookie 框 / 错误行 / 动作列 ────
+ * 登录面板本体已改用 `WenkuActionSheet`（Kotlin L66），旧的 `.zlib-login-panel` 系列
+ * 规则保留给仍在引用它们的宿主样式，新结构只用下面这几条。 */
+.zlib-login-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #61666D; /* onSurfaceVariant */
+}
+
+.zlib-login-cookie {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid rgba(24, 25, 28, 0.3);
+  border-radius: 16px;
+  background: #ffffff;
+  color: #18191C;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  outline: 0;
+}
+
+.zlib-login-cookie:focus {
+  border-color: #10B981;
+}
+
+.zlib-login-cookie:disabled {
+  opacity: 0.55;
+}
+
+.zlib-login-error {
+  margin: 0;
+  font-size: 13px;
+  color: #DC2626; /* colorScheme.error */
+}
+
+.zlib-login-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* L119-131 AnimatedContent：targetState > initialState 从左进、否则从右进；
+   位移 = 宽度的 1/8（`it / 8`），时长取 WenkuMotion.ENTER_MS / EXIT_MS。 */
+.zlib-login-mode--next {
+  animation: zlib-login-mode-next 420ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.zlib-login-mode--prev {
+  animation: zlib-login-mode-prev 420ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+@keyframes zlib-login-mode-next {
+  from {
+    opacity: 0;
+    transform: translateX(12.5%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes zlib-login-mode-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-12.5%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zlib-login-mode--next,
+  .zlib-login-mode--prev {
+    animation: none;
+  }
+}
+
+[data-theme='dark'] .zlib-login-hint {
+  color: #A8ADB6;
+}
+
+[data-theme='dark'] .zlib-login-cookie {
+  background: #1E1F23;
+  color: #F4F4F4;
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* ── ZLibraryLoginDialog.kt L202-245 SourceCredentialFields ────────────────────
+ * OutlinedTextField 的两只框：16dp 圆角、12dp 间距、label 在上（浮动 label 的 Web 等价）。
+ * 密码框右侧 32px 圆钮 = `trailingIcon` 的 Visibility / VisibilityOff。 */
+.source-credential-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.source-credential-field {
+  display: block;
+}
+
+.source-credential-field__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #10B981;
+}
+
+.source-credential-field__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.source-credential-field__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid rgba(24, 25, 28, 0.3);
+  border-radius: 16px;
+  background: #ffffff;
+  color: #18191C;
+  font-size: 15px;
+  font-family: inherit;
+  outline: 0;
+}
+
+.source-credential-field__row .source-credential-field__input {
+  padding-right: 44px;
+}
+
+.source-credential-field__input:focus {
+  border-color: #10B981;
+}
+
+.source-credential-field__input:disabled {
+  opacity: 0.55;
+}
+
+.source-credential-field__reveal {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: #10B981;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.source-credential-field__reveal:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+[data-theme='dark'] .source-credential-field__input {
+  background: #1E1F23;
+  color: #F4F4F4;
+  border-color: rgba(255, 255, 255, 0.24);
+}

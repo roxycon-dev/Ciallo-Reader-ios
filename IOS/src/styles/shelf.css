@@ -639,3 +639,155 @@
    粉雾 0.5 在深色底上够亮，不动；飞行中的心本体是 SVG 内联渐变
    （HeartArt.tsx 的 stop 是 TS 常量，CSS 改不了），
    提亮放在 favorite.css 的 `.fav-heart__body` 上，两处共用同一颗心。 */
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   书架搜索面板 —— `ui/shelf/ShelfSearch.kt` L126-356（E107）
+     L238 testTag shelf_search_plane / L250 shelf_search_results
+     L246 分段控件 padding(horizontal 20, vertical 4)
+     L252 列表 contentPadding(horizontal 20, vertical 12) + spacedBy(10)
+     L290-293 分组标题行：标题 weight(1f) + 右侧 "N 项"
+     L327-332 封面 42×56 / 圆角 6 / surfaceVariant 底
+     L348-352 标题 2 行、作者 1 行（次级色）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.shelf-search {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.shelf-search__shelf-plane {
+  position: absolute;
+  inset: 0;
+  will-change: opacity;
+}
+
+.shelf-search__results-plane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-light-bg);
+  overflow: hidden;
+}
+
+[data-theme='dark'] .shelf-search__results-plane {
+  background: var(--color-light-bg);
+}
+
+.shelf-search__body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.shelf-search__fields {
+  padding: 4px 20px;
+  flex: 0 0 auto;
+}
+
+.shelf-search__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shelf-search__empty {
+  margin: 20px 0 0;
+  color: var(--color-medium-gray);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+.shelf-search__section {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.shelf-search__section-title {
+  flex: 1 1 auto;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-light);
+}
+
+.shelf-search__section-count {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-medium-gray);
+}
+
+.shelf-search__row-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.shelf-search__cover {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--color-divider-gray);
+}
+
+.shelf-search__cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shelf-search__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.shelf-search__title {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-on-light);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.shelf-search__author {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-medium-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 书架碎裂覆盖层（`ShelfMotion.kt` L144-167）────────────────────────────── */
+
+.shelf-shatter {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 70;
+}

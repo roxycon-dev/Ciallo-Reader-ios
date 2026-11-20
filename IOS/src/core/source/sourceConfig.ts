@@ -85,6 +85,14 @@ export interface DownloadRule {
   readonly headers: Record<string, string>;
 }
 
+/**
+ * `DownloadRule.kt` L30-35 的默认值构造。
+ *
+ * ⚠️ `urlField` 的默认值是 `"downloadUrl"` 但类型是 `String?` —— Kotlin 里
+ * 「不传」得 `"downloadUrl"`、「显式传 `null`」得 `null`，两者是**不同状态**。
+ * 用 `?? 'downloadUrl'` 会把显式 `null` 当成缺省，于是「不按字段取 url」的书源
+ * 被静默改回按字段取。这里用 `in` 区分「键存在」与「值为 null」。
+ */
 export function createDownloadRule(
   params: {
     url?: string | null;
@@ -95,7 +103,7 @@ export function createDownloadRule(
 ): DownloadRule {
   return {
     url: params.url ?? null,
-    urlField: params.urlField ?? 'downloadUrl',
+    urlField: 'urlField' in params ? (params.urlField ?? null) : 'downloadUrl',
     defaultFormat: params.defaultFormat ?? 'epub',
     headers: params.headers ?? {},
   };
@@ -187,6 +195,40 @@ export function createHtmlContentRule(params: {
   };
 }
 
+/**
+ * `SourceConfig.kt` L69-70 `data class HtmlExploreRule(val label, val rule, val kind = null)`。
+ *
+ * 「A source-declared list: the search keyword is never used to fake a discovery feed.」
+ * —— 这一条 KDoc 就是它存在的理由：发现页的每个列表必须由书源**自己声明**，不许拿搜索
+ * 关键词去伪造一个 feed。
+ *
+ * ⚠️ 2026-11-17 之前这个名字被 `sourceText.ts` 的 DOM 节点快照占着（`tag`/`attributes`/
+ * `children`），真身从来没实现过，`SourceConfig.explore` 也跟着缺 —— 于是
+ * `JsonBookSource.kt` L108-120 那整段「把 explore 映射成 DiscoverFeed / 处理 updates /
+ * ranking 维度 / 按下标取 feed」在端口里没有输入（见 E196）。
+ */
+export interface HtmlExploreRule {
+  /** 列表标题（`JsonBookSource.kt` L108 `DiscoverFeed(id, e.label, e.kind)`）。 */
+  readonly label: string;
+  /** 该列表用的搜索规则（复用 `HtmlSearchRule`）。 */
+  readonly rule: HtmlSearchRule;
+  /** 可选的内容类型标记：`"updates"` / `"ranking"` / 其它维度名（L111/L112/L118）。 */
+  readonly kind: string | null;
+}
+
+/** L70 的三个参数（`kind` 默认 `null`）。 */
+export function createHtmlExploreRule(params: {
+  label: string;
+  rule: HtmlSearchRule;
+  kind?: string | null;
+}): HtmlExploreRule {
+  return {
+    label: params.label,
+    rule: params.rule,
+    kind: params.kind ?? null,
+  };
+}
+
 export interface SourceConfig {
   readonly id: string;
   readonly name: string;
@@ -201,6 +243,14 @@ export interface SourceConfig {
   readonly priority: number;
   readonly isCustom: boolean;
   readonly insecureTls: boolean;
+  /**
+   * L87 `val explore: List<HtmlExploreRule> = emptyList()` —— 书源自己声明的发现页列表。
+   *
+   * `JsonBookSource.kt` L108 `feeds = config.explore.mapIndexed { index, e ->
+   * DiscoverFeed("explore:$index", e.label, e.kind) }`：**下标即 feed id 的一部分**，
+   * 所以顺序必须原样保留（不能当 Set 去重，也不能重排）。
+   */
+  readonly explore: readonly HtmlExploreRule[];
   /** 可选：显式声明内容类型 "comic"/"novel"/"text"，不声明时按规则自动判断。 */
   readonly type: string | null;
 }
@@ -219,6 +269,7 @@ export function createSourceConfig(params: {
   priority?: number;
   isCustom?: boolean;
   insecureTls?: boolean;
+  explore?: readonly HtmlExploreRule[];
   type?: string | null;
 }): SourceConfig {
   return {
@@ -235,6 +286,93 @@ export function createSourceConfig(params: {
     priority: params.priority ?? 0,
     isCustom: params.isCustom ?? true,
     insecureTls: params.insecureTls ?? false,
+    explore: params.explore ?? [],
     type: params.type ?? null,
   };
+}
+
+/* ── `impl/JsonBookSource.kt` L107-124 的纯函数部分 ──────────────────────── */
+
+/**
+ * `JsonBookSource.kt` L108 `DiscoverFeed("explore:$index", e.label, e.kind)`。
+ *
+ * feed id 是 `"explore:" + 下标` —— 下标来自**声明顺序**，所以 `explore` 数组既不能重排
+ * 也不能去重；`SourceImporter` 解析时的顺序就是这里拿到的顺序。
+ */
+export interface DeclaredDiscoverFeed {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: string | null;
+}
+
+/** L108 `feeds = config.explore.mapIndexed { index, e -> DiscoverFeed("explore:$index", e.label, e.kind) }`。 */
+export function declaredDiscoverFeeds(config: SourceConfig): readonly DeclaredDiscoverFeed[] {
+  return config.explore.map((entry, index) => ({
+    id: `explore:${String(index)}`,
+    label: entry.label,
+    kind: entry.kind,
+  }));
+}
+
+/** L109 `declared = true, explicit = true` —— 书源自己声明的目录不需要再探测。 */
+export const DECLARED_DISCOVER_CATALOG = { declared: true, explicit: true } as const;
+
+/**
+ * L110-113 `capabilities = buildMap { if (any { kind == "updates" }) put("updates", listOf("最新"))
+ * if (any { kind == "ranking" }) put("ranking", listOf("热门")) }`。
+ *
+ * 只在**存在**对应 kind 的列表时才声明该维度；两个都有就两个都声明，一个都没有就是空表。
+ */
+export const DECLARED_DISCOVER_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
+  updates: ['最新'],
+  ranking: ['热门'],
+};
+
+export function declaredDiscoverCapabilities(
+  config: SourceConfig,
+): Readonly<Record<string, readonly string[]>> {
+  const out: Record<string, readonly string[]> = {};
+  const kinds = new Set(config.explore.map((entry) => entry.kind));
+  if (kinds.has('updates')) out.updates = DECLARED_DISCOVER_CAPABILITIES.updates ?? [];
+  if (kinds.has('ranking')) out.ranking = DECLARED_DISCOVER_CAPABILITIES.ranking ?? [];
+  return out;
+}
+
+/**
+ * L115-121 `val index = when { … }` + `getOrNull(index)`：
+ *
+ * ```
+ * query.feedId == "native"  -> 0
+ * query.feedId != null      -> feedId.removePrefix("explore:").toIntOrNull() ?: -1
+ * else                      -> explore.indexOfFirst { it.kind == query.dimension.name.lowercase() }
+ * ```
+ *
+ * 返回 `-1` 表示「该书源未声明此发现列表」；调用方据此给出
+ * L121 的 `notice = "该书源未声明此发现列表"`。注意 `"native"` 这一档在没有声明任何列表时
+ * 仍返回 0，但 `getOrNull(0)` 会落空 → 同样是「未声明」。
+ */
+export const UNDECLARED_DISCOVER_FEED_NOTICE = '该书源未声明此发现列表';
+
+export function exploreFeedIndex(
+  config: SourceConfig,
+  feedId: string | null,
+  dimension: string,
+): number {
+  if (feedId === 'native') return 0;
+  if (feedId !== null) {
+    const raw = feedId.startsWith('explore:') ? feedId.slice('explore:'.length) : feedId;
+    if (!/^[+-]?[0-9]+$/.test(raw)) return -1;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) ? parsed : -1;
+  }
+  const wanted = dimension.toLowerCase();
+  return config.explore.findIndex((entry) => entry.kind === wanted);
+}
+
+/**
+ * L123-124 `val paged = feed.rule.url.contains("{page}") || feed.rule.body?.contains("{page}") == true`
+ * 与 `if (query.page > 1 && !paged) → DiscoverPage()`（空页）。
+ */
+export function exploreRuleIsPaged(rule: HtmlSearchRule): boolean {
+  return rule.url.includes('{page}') || (rule.body?.includes('{page}') ?? false);
 }

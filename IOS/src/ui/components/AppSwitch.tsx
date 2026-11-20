@@ -25,6 +25,22 @@ import { type CSSProperties } from 'react';
  * 任一项单独改动都会让滑块行程对不上轨道（滑出轨道或走不满）。This invariant is
  * preserved verbatim below.
  */
+/**
+ * `AppSwitch.kt` L28-29 的不变量（Kotlin 注释原文）：
+ *
+ * `位移量 = containerWidth − circleSize − padding×2`
+ *
+ * 三者必须成套修改：任一项单独改动都会让滑块行程对不上轨道（滑出轨道或走不满）。
+ * 抽成纯函数后，调用点与测试用同一个算式，不会出现「两处各写一遍、其中一处漏改」。
+ */
+export function switchTravelPx(input: {
+  readonly containerWidth: number;
+  readonly circleSize: number;
+  readonly padding: number;
+}): number {
+  return input.containerWidth - input.circleSize - input.padding * 2;
+}
+
 export interface AppSwitchProps {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;

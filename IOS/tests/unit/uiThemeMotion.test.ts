@@ -55,10 +55,11 @@ import type { HapticFeedbackType } from '../../src/core/ui-theme/modifierExtensi
 
 describe('IosMotion.kt — duration constants', () => {
   it('matches the Kotlin values', () => {
-    expect(IOS_MOTION.FAST).toBe(150);
-    expect(IOS_MOTION.NORMAL).toBe(250);
-    expect(IOS_MOTION.TRANSITION).toBe(350);
-    expect(IOS_MOTION.SHEET).toBe(400);
+    // Kotlin L26/28/30/32：四个值全部转发 `AppMotion`（PRESS/CONTENT/PAGE/PAGE）
+    expect(IOS_MOTION.FAST).toBe(110);
+    expect(IOS_MOTION.NORMAL).toBe(200);
+    expect(IOS_MOTION.TRANSITION).toBe(280);
+    expect(IOS_MOTION.SHEET).toBe(280);
   });
 
   it('agrees with src/ui/theme/tokens.ts MOTION on all four', async () => {
@@ -81,21 +82,22 @@ describe('IosMotion.kt — duration constants', () => {
 
 describe('IosMotion.kt — cubic-bezier control points', () => {
   it('keeps the four Kotlin numbers per curve', () => {
-    expect(IOS_EASINGS.EaseOut).toEqual({ x1: 0, y1: 0, x2: 0.58, y2: 1 }); // L35
+    // L36 `EaseOut = AppMotion.easeOutCubic` —— 不是 (0,0,0.58,1)
+    expect(IOS_EASINGS.EaseOut).toEqual({ x1: 0.215, y1: 0.61, x2: 0.355, y2: 1 });
     expect(IOS_EASINGS.EaseInOut).toEqual({ x1: 0.42, y1: 0, x2: 0.58, y2: 1 }); // L37
     expect(IOS_EASINGS.EaseOutQuart).toEqual({ x1: 0.25, y1: 1, x2: 0.5, y2: 1 }); // L39
   });
 
   it('renders the literal CSS strings', () => {
-    expect(IOS_EASING_CSS.easeOut).toBe('cubic-bezier(0, 0, 0.58, 1)');
+    expect(IOS_EASING_CSS.easeOut).toBe('cubic-bezier(0.215, 0.61, 0.355, 1)');
     expect(IOS_EASING_CSS.easeInOut).toBe('cubic-bezier(0.42, 0, 0.58, 1)');
     expect(IOS_EASING_CSS.easeOutQuart).toBe('cubic-bezier(0.25, 1, 0.5, 1)');
     expect(easingCss(IOS_EASINGS.EaseOutQuart)).toBe(IOS_EASING_CSS.easeOutQuart);
   });
 
   it('matches tokens.ts and theme.css on the same bezier (modulo their spacing difference)', async () => {
-    // tokens.ts L112-114 writes `cubic-bezier(0,0,0.58,1)` with NO spaces; theme.css L74-75
-    // writes `cubic-bezier(0, 0, 0.58, 1)` WITH spaces. Same curve, different spelling —
+    // tokens.ts L112-114 writes `cubic-bezier(0.215,0.61,0.355,1)` with NO spaces; theme.css L74-75
+    // writes `cubic-bezier(0.215, 0.61, 0.355, 1)` WITH spaces. Same curve, different spelling —
     // reported to the main agent as a cosmetic divergence.
     const squeeze = (value: string): string => value.replace(/,\s*/g, ',');
     const { MOTION } = await import('../../src/ui/theme/tokens');
@@ -119,24 +121,25 @@ describe('IosMotion.kt — cubic-bezier control points', () => {
 
 describe('IosMotion.kt — springs', () => {
   it('keeps the verbatim Kotlin dampingRatio / stiffness pairs', () => {
-    expect(SPRING.dampingRatio).toBe(0.85); // L46
-    expect(SPRING.stiffness).toBe(320); // L47
-    expect(SPRING_SNAPPY.dampingRatio).toBe(0.78); // L55
-    expect(SPRING_SNAPPY.stiffness).toBe(520); // L56
-    expect(SPRING_SOFT.dampingRatio).toBe(0.9); // L64
-    expect(SPRING_SOFT.stiffness).toBe(220); // L65
+    // Kotlin 不再内联 ζ/k：L46 / L52 / L58 分别转发 AppMotion.settle / press / reorder
+    expect(SPRING.dampingRatio).toBe(1); // settle：临界阻尼
+    expect(SPRING.stiffness).toBe(420);
+    expect(SPRING_SNAPPY.dampingRatio).toBe(0.85); // press
+    expect(SPRING_SNAPPY.stiffness).toBe(650);
+    expect(SPRING_SOFT.dampingRatio).toBe(0.88); // reorder
+    expect(SPRING_SOFT.stiffness).toBe(210);
   });
 
   it('is total and monotonically ordered: snappiest settles fastest', () => {
-    // springSnappy 259ms < spring 303ms < springSoft 345ms
+    // springSnappy 212ms < spring 225ms < springSoft 361ms
     expect(SPRING_SNAPPY.settleMs).toBeLessThan(SPRING.settleMs);
     expect(SPRING.settleMs).toBeLessThan(SPRING_SOFT.settleMs);
   });
 
   it('settleMs follows t ≈ 4.605 / (ζ·√k)', () => {
-    expect(springSettleMs(0.85, 320)).toBe(303);
-    expect(springSettleMs(0.78, 520)).toBe(259);
-    expect(springSettleMs(0.9, 220)).toBe(345);
+    expect(springSettleMs(1, 420)).toBe(225);
+    expect(springSettleMs(0.85, 650)).toBe(212);
+    expect(springSettleMs(0.88, 210)).toBe(361);
   });
 
   it('the three accessors return the hoisted constants', () => {
@@ -146,18 +149,20 @@ describe('IosMotion.kt — springs', () => {
   });
 
   it('builds a paste-able CSS timing string', () => {
-    expect(SPRING.css).toBe('303ms cubic-bezier(0.25, 1, 0.5, 1)');
-    expect(SPRING_SNAPPY.css).toBe('259ms cubic-bezier(0.16, 1, 0.3, 1)');
-    expect(SPRING_SOFT.css).toBe('345ms cubic-bezier(0.32, 0.72, 0, 1)');
+    expect(SPRING.css).toBe('225ms cubic-bezier(0.25, 0.1, 0.25, 1)');
+    expect(SPRING_SNAPPY.css).toBe('212ms cubic-bezier(0.16, 1, 0.3, 1)');
+    expect(SPRING_SOFT.css).toBe('361ms cubic-bezier(0.32, 0.72, 0, 1)');
   });
 
   it('reuses the bezier fits already documented in src/core/glass/motion.ts', async () => {
     const glass = await import('../../src/core/glass/motion');
     // glass/motion.ts L258-259 documents these two mappings.
-    expect(SPRING.bezier).toBe('cubic-bezier(0.25, 1, 0.5, 1)');
+    // ζ=1 的临界阻尼没有过冲，用标准 `ease` 形状代餐（Web 无弹簧求解器）
+    expect(SPRING.bezier).toBe('cubic-bezier(0.25, 0.1, 0.25, 1)');
     expect(SPRING_SOFT.bezier).toBe('cubic-bezier(0.32, 0.72, 0, 1)');
-    expect(glass.springSettleMs(0.85, 320)).toBe(SPRING.settleMs);
-    expect(glass.springSettleMs(0.78, 520)).toBe(SPRING_SNAPPY.settleMs);
+    // 同一个闭式（`glass/motion.ts` L43-45）算出的毫秒数必须一致
+    expect(glass.springSettleMs(1, 420)).toBe(SPRING.settleMs);
+    expect(glass.springSettleMs(0.85, 650)).toBe(SPRING_SNAPPY.settleMs);
   });
 
   it('DESIGN_TOKENS only carries spring(); snappy and soft are absent everywhere', async () => {
@@ -174,17 +179,17 @@ describe('IosMotion.kt — springs', () => {
 // ── IosMotion.kt L69-L78 — tweens ────────────────────────────────────────────
 
 describe('IosMotion.kt — tween helpers', () => {
-  it('defaults to NORMAL = 250 for easeOut / easeInOut', () => {
-    expect(easeOut()).toEqual({ durationMillis: 250, easing: IOS_EASINGS.EaseOut, css: '250ms cubic-bezier(0, 0, 0.58, 1)' });
-    expect(easeInOut()).toEqual({ durationMillis: 250, easing: IOS_EASINGS.EaseInOut, css: '250ms cubic-bezier(0.42, 0, 0.58, 1)' });
+  it('defaults to NORMAL = 200 for easeOut / easeInOut', () => {
+    expect(easeOut()).toEqual({ durationMillis: 200, easing: IOS_EASINGS.EaseOut, css: '200ms cubic-bezier(0.215, 0.61, 0.355, 1)' });
+    expect(easeInOut()).toEqual({ durationMillis: 200, easing: IOS_EASINGS.EaseInOut, css: '200ms cubic-bezier(0.42, 0, 0.58, 1)' });
   });
 
-  it('defaults easeOutQuart to SHEET = 400', () => {
-    expect(easeOutQuart()).toEqual({ durationMillis: 400, easing: IOS_EASINGS.EaseOutQuart, css: '400ms cubic-bezier(0.25, 1, 0.5, 1)' });
+  it('defaults easeOutQuart to SHEET = 280', () => {
+    expect(easeOutQuart()).toEqual({ durationMillis: 280, easing: IOS_EASINGS.EaseOutQuart, css: '280ms cubic-bezier(0.25, 1, 0.5, 1)' });
   });
 
   it('honours an explicit duration', () => {
-    expect(easeOut(220).css).toBe('220ms cubic-bezier(0, 0, 0.58, 1)');
+    expect(easeOut(220).css).toBe('220ms cubic-bezier(0.215, 0.61, 0.355, 1)');
     expect(easeInOut(180).css).toBe('180ms cubic-bezier(0.42, 0, 0.58, 1)');
     expect(easeOutQuart(160).css).toBe('160ms cubic-bezier(0.25, 1, 0.5, 1)');
   });
@@ -211,10 +216,10 @@ describe('clickableWithFeedback → pressFeedback()', () => {
     expect([DIM_DOWN_MS, DIM_UP_MS]).toEqual([100, 180]);
     const down = pressFeedback({ isPressed: true, haptics, onClick }).style.transition;
     const up = pressFeedback({ isPressed: false, haptics, onClick }).style.transition;
-    expect(down).toContain('transform 100ms cubic-bezier(0, 0, 0.58, 1)');
-    expect(down).toContain('opacity 100ms cubic-bezier(0, 0, 0.58, 1)');
-    expect(up).toContain('transform 150ms cubic-bezier(0, 0, 0.58, 1)');
-    expect(up).toContain('opacity 180ms cubic-bezier(0, 0, 0.58, 1)');
+    expect(down).toContain('transform 100ms cubic-bezier(0.215, 0.61, 0.355, 1)');
+    expect(down).toContain('opacity 100ms cubic-bezier(0.215, 0.61, 0.355, 1)');
+    expect(up).toContain('transform 150ms cubic-bezier(0.215, 0.61, 0.355, 1)');
+    expect(up).toContain('opacity 180ms cubic-bezier(0.215, 0.61, 0.355, 1)');
   });
 
   it('resting values are 1.0 scale and 1.0 opacity', () => {
@@ -269,10 +274,10 @@ describe('clickableRowFeedback → rowPressFeedback()', () => {
   it('keeps the 80 / 220 ms asymmetry that the KDoc calls the key to the feel', () => {
     expect([ROW_DOWN_MS, ROW_UP_MS]).toEqual([80, 220]);
     expect(rowPressFeedback({ isPressed: true, haptics, onClick }).transition).toBe(
-      'background-color 80ms cubic-bezier(0, 0, 0.58, 1)',
+      'background-color 80ms cubic-bezier(0.215, 0.61, 0.355, 1)',
     );
     expect(rowPressFeedback({ isPressed: false, haptics, onClick }).transition).toBe(
-      'background-color 220ms cubic-bezier(0, 0, 0.58, 1)',
+      'background-color 220ms cubic-bezier(0.215, 0.61, 0.355, 1)',
     );
   });
 

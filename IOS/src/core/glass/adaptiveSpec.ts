@@ -101,6 +101,9 @@ export const DESIGN_SPEC = {
 
 /** AdaptiveSpec.kt line 50 — `@Immutable enum class WindowWidthClass`. */
 export type WindowWidthClass = 'COMPACT' | 'MEDIUM' | 'EXPANDED';
+/** `AdaptiveSpec.kt` L50 `enum class WindowWidthClass { COMPACT, MEDIUM, EXPANDED }` —— 声明顺序。 */
+export const WINDOW_WIDTH_CLASSES: readonly WindowWidthClass[] = ['COMPACT', 'MEDIUM', 'EXPANDED'];
+
 
 /**
  * AdaptiveSpec.kt lines 54-63 `rememberWindowWidthClass()` —

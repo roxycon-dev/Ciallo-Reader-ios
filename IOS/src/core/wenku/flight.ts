@@ -224,6 +224,20 @@ export function columnInset(row: number, radiusX: number, radiusY: number): numb
   return radiusX * (1 - Math.sqrt(Math.max(0, 1 - (1 - corner) * (1 - corner))));
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * `WenkuCoverFlight.kt` L… 的 6 个顶层常量（Kotlin 原名 → WENKU_FLIGHT 字段）
+ * ══════════════════════════════════════════════════════════════════════════
+ * 这些值原先只以 `WENKU_FLIGHT.xxx` 的形式存在，Kotlin 侧是独立 `const val`；
+ * 补成顶层常量后，「名字 + 数值」双对齐的门禁与调用点都能直接引用。
+ */
+export const REFERENCE_FACE_WIDTH = WENKU_FLIGHT.referenceFaceWidth;
+export const REFERENCE_FACE_HEIGHT = WENKU_FLIGHT.referenceFaceHeight;
+export const CORNER_INSET = WENKU_FLIGHT.cornerInset;
+export const RECT_LIFT_LIMIT = WENKU_FLIGHT.rectLiftLimit;
+export const RECT_LIFT_BASE = WENKU_FLIGHT.rectLiftBase;
+export const BEND_FOCAL = WENKU_FLIGHT.bendFocal;
+
 /** `radiusX = clamp(8 / 120, 0, .5)`。 */
 export function radiusX(): number {
   return clamp(WENKU_FLIGHT.cornerInset / WENKU_FLIGHT.referenceFaceWidth, 0, 0.5);
@@ -286,6 +300,7 @@ export function rectAt(input: RectAtInput): FlightRect {
   const liftValue =
     Math.min(
       WENKU_FLIGHT.rectLiftLimit,
+
       WENKU_FLIGHT.rectLiftBase + distance * WENKU_FLIGHT.rectLiftPerPixel,
     ) * Math.sin(journey * PI_F);
   const width = rectWidth(input.begin) + (rectWidth(target) - rectWidth(input.begin)) * journey;

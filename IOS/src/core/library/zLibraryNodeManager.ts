@@ -114,8 +114,13 @@ import { nodeDomain, setNodeDomain } from './zLibraryNodeConfig';
 
 // 2026-09-04 实测校准：z-lib.li / z-lib.cc 等均为仿冒站（无下载功能或流程不符）；
 // 1lib.sk 为唯一正确官网（DiamWall 挑战可自动过，rpc.php/eapi/搜索全链路已验证）。
-/** Kotlin `const val DEFAULT_NODE = "1lib.sk"` (L25). */
-export const DEFAULT_NODE = '1lib.sk';
+/**
+ * Kotlin `ZLibraryNodeManager.kt` **L15** `const val DEFAULT_NODE = "z-lib.sk"`。
+ *
+ * 修正：此处原为 `'1lib.sk'`（候选列表的最后一项），且注释把 Kotlin 行号写成了 L25。
+ * 按原文改为 `z-lib.sk` —— 首次使用应当落到 Kotlin 指定的那个域。
+ */
+export const DEFAULT_NODE = 'z-lib.sk';
 /** Kotlin `const val SCRAPE_URL = "https://zlib.wwkejishe.top/"` (L26). */
 export const SCRAPE_URL = 'https://zlib.wwkejishe.top/';
 
@@ -127,6 +132,13 @@ export const KEY_SCRAPED_NODES = 'scraped_nodes';
 export const KEY_CUSTOM_NODES = 'custom_nodes';
 /** Kotlin `private const val KEY_SELECTED_NODE = "selected_node"` (L31). */
 export const KEY_SELECTED_NODE = 'selected_node';
+/**
+ * Kotlin L24 `private const val KEY_PINNED_NODE = "pinned_node"`。
+ *
+ * 与 `selected_node` 的区别：`selected_node` 会被**自动切换**改写，`pinned_node`
+ * 只在用户手动选择时写入。自动切换因此不覆盖用户的选择（Kotlin L101-115）。
+ */
+export const KEY_PINNED_NODE = 'pinned_node';
 
 /** Kotlin `.header("Accept", …)` at L191 — verbatim. */
 export const SCRAPE_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
@@ -150,19 +162,25 @@ export const SCRAPE_CONFIG = {
 } as const;
 
 /**
- * 2026-09-04 晚 Edge 登录态逐个实测的活节点（首页真实 + 搜索出书卡片），
- * 节点管理页显示"已验证可用"标签的依据。
+ * Kotlin `ZLibraryNodeManager.kt` **L24**：
+ *
+ * ```kotlin
+ * // Historical checks are not a live availability guarantee.
+ * val VERIFIED_LIVE_NODES = emptySet<String>()
+ * ```
+ *
+ * **修正**：此处原先是 6 个硬编码域名（`1lib.sk` / `z-lib.by` / …），
+ * 等于把 2026-09-04 的一次人工实测当成「永久已验证」，节点管理页会一直挂
+ * 「已验证可用」标签，而这与 Kotlin 的结论正好相反。
+ *
+ * 历史实测结果保留为注释（仅供排障参考，**不参与任何判定**）：
+ *   `1lib.sk`, `z-lib.by`, `z-library.sk`, `zh.z-lib.by`, `zh.z-library.sk`, `en.z-lib.by`
+ *
+ * 可用性一律由运行时探测（`zLibraryDomainResolver` 的并发 probe）得出。
  */
-export const VERIFIED_LIVE_NODES: readonly string[] = [
-  '1lib.sk',
-  'z-lib.by',
-  'z-library.sk',
-  'zh.z-lib.by',
-  'zh.z-library.sk',
-  'en.z-lib.by',
-];
+export const VERIFIED_LIVE_NODES: readonly string[] = [];
 
-/** `setOf(...)` membership test over `VERIFIED_LIVE_NODES` (same insertion order). */
+/** `setOf(...)` 的等价物：空集。 */
 const VERIFIED_LIVE_NODE_SET: ReadonlySet<string> = new Set(VERIFIED_LIVE_NODES);
 
 /**
@@ -176,20 +194,28 @@ const VERIFIED_LIVE_NODE_SET: ReadonlySet<string> = new Set(VERIFIED_LIVE_NODES)
  * （停放页，官方发布页证实钓鱼）、z-lib.li / z-lib.cc（仿冒站）、zlib.bz /
  * 101k 系 / zlib.ch / zlib.re / zh.z-lib.rest（死透或 301 归拢枢纽）。
  */
+/**
+ * Kotlin `ZLibraryNodeManager.kt:26-30` `INITIAL_SCRAPED_NODES` —— **12 项，顺序即优先级**。
+ *
+ * 修正：此处原先是另一批 13 个域名（`z-library.co` / `z-library.net` /
+ * `zlib-official.com` / `zlibrary-global.com` / `z-lib.my` / `z-lib.ad` …），
+ * 与 Kotlin 的候选集几乎不相交；同时 Kotlin 有而 iOS 缺的有
+ * `z-lib.fm` / `zh.z-lib.gd` / `z-library.website` / `z-library.qa` / `z-library.im`。
+ * 首次扒取失败时的回落顺序完全取决于这张表，所以按原文逐项对齐。
+ */
 export const INITIAL_SCRAPED_NODES: readonly string[] = [
-  '1lib.sk',
+  'z-lib.sk',
+  'z-lib.fm',
+  'zh.z-lib.gd',
+  'z-library.website',
+  'z-library.qa',
+  'z-library.im',
   'z-lib.by',
   'z-library.sk',
   'zh.z-lib.by',
   'zh.z-library.sk',
   'en.z-lib.by',
-  'z-lib.sk',
-  'z-library.co',
-  'z-library.net',
-  'zlib-official.com',
-  'zlibrary-global.com',
-  'z-lib.my',
-  'z-lib.ad',
+  '1lib.sk',
 ];
 
 /**
@@ -288,6 +314,18 @@ export function cleanNode(raw: string): string | null {
 }
 
 /** Kotlin L218 `filter { it !in RETIRED_NODES }`. */
+/**
+ * Kotlin `ZLibraryNodeManager.kt:48-49`
+ * `fun isAutomaticCandidate(node: String) = cleanNode(node)?.let { it !in RETIRED_NODES } ?: false`。
+ *
+ * 「能当自动候选」= 能清洗成合法 host **且**不在退役表里。空串 / 带空白 / 带 scheme
+ * 的输入经 `cleanNode` 后可能为 null，一律 false。
+ */
+export function isAutomaticCandidate(node: string): boolean {
+  const cleaned = cleanNode(node);
+  return cleaned === null ? false : !RETIRED_NODES.has(cleaned);
+}
+
 export function filterRetired(nodes: readonly string[]): string[] {
   return nodes.filter((it) => !RETIRED_NODES.has(it));
 }
@@ -524,12 +562,30 @@ export class ZLibraryNodeManager {
   }
 
   /** Kotlin L129-133 `selectNode(context, rawNode)`. */
-  async selectNode(rawNode: string): Promise<void> {
+  async selectNode(rawNode: string, byUser = false): Promise<void> {
     const clean = cleanNode(rawNode);
     if (clean === null) return;
-    this.rawSelected = clean;
-    await this.store.putString(KEY_SELECTED_NODE, clean);
+    if (byUser) {
+      // Kotlin L104-105：用户手动选 → 同时固化 pinned_node
+      this.rawSelected = clean;
+      await this.store.putString(KEY_SELECTED_NODE, clean);
+      await this.store.putString(KEY_PINNED_NODE, clean);
+    } else {
+      // Kotlin L106-112：自动切换只在没有固化选择时才改 selected_node
+      const pinned = await this.getPinnedNode();
+      if (pinned === null) {
+        this.rawSelected = clean;
+        await this.store.putString(KEY_SELECTED_NODE, clean);
+      }
+    }
     this.nodeConfig.setNodeDomain(clean);
+  }
+
+  /** Kotlin L117-119 `getPinnedNode(context)` —— 从未手动选择过时返回 null。 */
+  async getPinnedNode(): Promise<string | null> {
+    const raw = await this.store.getString(KEY_PINNED_NODE);
+    const trimmed = raw === null ? null : raw.trim();
+    return trimmed === null || trimmed === '' ? null : trimmed;
   }
 
   /**

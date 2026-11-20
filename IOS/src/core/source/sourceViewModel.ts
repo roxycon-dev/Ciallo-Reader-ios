@@ -107,6 +107,14 @@ const NOOP_LAUNCH = (task: () => Promise<void>): void => {
   void task();
 };
 
+/**
+ * Kotlin `SourceManagementScreen.kt:643` 的 `sourceAuthEpoch.intValue++`。
+ *
+ * 登录 / 验证成功后自增，作为「凭据已变」的版本号：列表里所有依赖登录态的派生值
+ * 都以它为 key 重算，而不是各自订阅登录状态。
+ */
+export const sourceAuthEpoch = { intValue: 0 };
+
 export class SourceViewModel {
   readonly sourceManager: SourceManager;
 

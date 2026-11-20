@@ -47,6 +47,11 @@ export interface ReadingTrendCardProps {
   dailyTotals: ReadonlyMap<string, number> | Readonly<Record<string, number>>;
   sessions: readonly ReadingSession[];
   className?: string;
+  /**
+   * Kotlin `com.example.ui.feedback.LocalReduceMotion.current`（L259）——
+   * 开启时折线图规格是 `reveal.snapTo(1f)`：**不跑** 700ms 描绘动画，直接定格终态。
+   */
+  reduceMotion?: boolean;
 }
 
 const MINT_PRIMARY = '#059669';
@@ -154,6 +159,7 @@ export function ReadingTrendCard(props: ReadingTrendCardProps) {
             series={series}
             selectedIndex={selectedPoint}
             onSelectIndex={setSelectedPoint}
+            reduceMotion={props.reduceMotion === true}
           />
           {/* 满刻度数值锚点：让"线有多高"可被量化 */}
           {maxSeconds > 0 ? (
@@ -206,6 +212,8 @@ function TrendLineChart(props: {
   series: ReadonlyArray<readonly [string, number]>;
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
+  /** Kotlin L259-267 `reduce` / `lowQuality`：直接定格终态，不跑描绘动画。 */
+  reduceMotion?: boolean;
 }) {
   const { series } = props;
   const [reveal, setReveal] = useState(1);
@@ -231,7 +239,11 @@ function TrendLineChart(props: {
   }, [props.selectedIndex]);
 
   // 先纸后墨：数据自左向右描绘进场 — cubic-bezier(0.3f, 0f, 0.2f, 1f), 700ms
+  // Kotlin L257-267：`lowQuality || reduce` 时 `reveal.snapTo(1f)`，不放动画。
   useEffect(() => {
+    // 初始 reveal 已是 1（`useState(1)`）——直接不跑动画即可，
+    // 不能在 effect 里同步 setState（react-hooks/set-state-in-effect）。
+    if (props.reduceMotion === true) return undefined;
     const start = typeof performance !== 'undefined' ? performance.now() : 0;
     let raf = 0;
     const step = (): void => {
@@ -242,12 +254,19 @@ function TrendLineChart(props: {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [series.length]);
+  }, [series.length, props.reduceMotion]);
 
   if (series.length < 2) return <div className="trend-card__chart-svg" />;
 
   const maxVal = Math.max(1, ...series.map(([, v]) => v));
-  const gridColor = 'rgba(97, 102, 109, 0.35)';
+  // Kotlin L253 `colorScheme.outlineVariant.copy(alpha = 0.35f)` ——
+  // 亮 #CAC4D0 / 深 #49454F，随主题翻转；此前写死 #61666D@.35（深一档且不翻）。
+  const gridColor =
+    'color-mix(in srgb, var(--trend-outline-variant, #CAC4D0) 35%, transparent)';
+  // Kotlin L293 `gridColor.copy(alpha = gridColor.alpha * 2.2f)` → .35 × 2.2 = .77。
+  // 注意不能对 `rgba(...)` 调 `withAlpha()`：它只认 hex，会掉进 fallback 变成近黑。
+  const baselineColor =
+    'color-mix(in srgb, var(--trend-outline-variant, #CAC4D0) 77%, transparent)';
   const peakIndex = (() => {
     let bi: number | null = null;
     series.forEach(([, v], i) => {
@@ -317,7 +336,7 @@ function TrendLineChart(props: {
         y1={H - bottomPad}
         x2={W}
         y2={H - bottomPad}
-        stroke={withAlpha(gridColor, 0.77)}
+        stroke={baselineColor}
         strokeWidth={1}
       />
 

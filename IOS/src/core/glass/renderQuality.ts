@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Kotlin → TS map
  * ──────────────
  * - `ui/components/GlassQuality.kt` (19 non-blank lines)
@@ -70,4 +70,18 @@ export function isMax(quality: RenderQualityName): boolean {
 
 export function isLow(quality: RenderQualityName): boolean {
   return quality === 'MINIMAL' || quality === 'LOW';
+}
+
+/**
+ * Kotlin `GlassQuality.kt` L28 `val enhancedMotion: Boolean get() = id >= HIGH.id`。
+ * 决定「要不要走液态渲染器」：`LiquidSegmentedSelector.kt` L62、`LiquidSlider.kt` L62、
+ * `AppButton.kt` L151、`AppSwitch.kt` L40、`LiquidGlassControls.kt` L43 都用它分流。
+ */
+export function enhancedMotion(quality: RenderQualityName): boolean {
+  return RenderQuality[quality].id >= RenderQuality.HIGH.id;
+}
+
+/** Kotlin `GlassQuality.kt` L31 `val decorativeEffects: Boolean get() = id > LOW.id`。 */
+export function decorativeEffects(quality: RenderQualityName): boolean {
+  return RenderQuality[quality].id > RenderQuality.LOW.id;
 }

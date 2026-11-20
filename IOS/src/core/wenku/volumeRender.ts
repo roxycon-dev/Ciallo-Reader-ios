@@ -78,6 +78,13 @@ export const OPEN_MS = WENKU_OPEN_TIMELINE.openMs;
 export const CLOSE_MS = WENKU_OPEN_TIMELINE.closeMs;
 /** `ShelfOpenTimeline.CLOSE_COVER_IN_MS`。 */
 export const CLOSE_COVER_IN_MS = WENKU_OPEN_TIMELINE.closeCoverInMs;
+
+/** `ShelfVolumeRender.kt` L543-545 的三种材质 id（`volumeMaterial` 的返回值域）。 */
+export const MATERIAL_CLOTH = WENKU_VOLUME.materialCloth;
+export const MATERIAL_MATTE = WENKU_VOLUME.materialMatte;
+export const MATERIAL_GLOSS = WENKU_VOLUME.materialGloss;
+/** `ShelfVolumeRender.kt` L549 `CLOTH_TILE_SEED = 11`。 */
+export const CLOTH_TILE_SEED = WENKU_VOLUME.clothTileSeed;
 /** `ShelfOpenTimeline.GEOMETRY_END`。 */
 export const GEOMETRY_END = WENKU_OPEN_TIMELINE.geometryEnd;
 

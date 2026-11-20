@@ -46,6 +46,7 @@
  *     availability check is done here so the two never blur.
  */
 
+import { DEFAULT_NODE } from '../../library/zLibraryNodeManager';
 import {
   EncryptedSecretStore,
   type LegacySharedPreferences,
@@ -163,9 +164,14 @@ export class ZLibraryCredentialStorage {
   }
 }
 
-/** Kotlin `const val DEFAULT_DOMAIN = "1lib.sk"` (L58, comment preserved). */
-export const DEFAULT_DOMAIN =
-  '1lib.sk'; // 2026-09-04 实测：唯一正确官网（rpc.php/eapi/搜索/下载全链路已验证）；z-lib.li 等为仿冒站
+/**
+ * Kotlin L58 `const val DEFAULT_DOMAIN = com.example.library.ZLibraryNodeManager.DEFAULT_NODE`。
+ *
+ * ⚠️ 这里必须**跟随** `ZLibraryNodeManager.DEFAULT_NODE`，不能写死字符串：
+ * 端口原先硬编码成 `1lib.sk`（旧默认节点），于是 `saveCredentials` 的空 domain 兜底、
+ * `getDomain()` 的缺省值全都指向一个已经不在默认列表首位的域名（E180）。
+ */
+export const DEFAULT_DOMAIN = DEFAULT_NODE;
 
 /** Kotlin `private const val KEY_USER_ID = "userId"`. */
 const KEY_USER_ID = 'userId';

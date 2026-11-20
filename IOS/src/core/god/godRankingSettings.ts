@@ -144,3 +144,48 @@ export function takeGodStyleSettingsJumpPending(): boolean {
   godStyleSettingsPending = false;
   return value;
 }
+
+/* ── GodMomentSettingsStore.kt L27-38 `exportPortable` / `importPortable` ────
+ *
+ * `exportPortable()` 组出一个**只含三项**的 JSON：
+ *   `ranking_style`  读 `rankingStyle.first().code`（不是原始字符串 —— 未知值已经被 `of()` 归一到 podium）
+ *   `last_page_hint` / `gyro_parallax` 读两个布尔流
+ *
+ * `importPortable(value)` 用 `getString` / `getBoolean` **严读**：任何一个键缺失都会抛
+ * （`JSONException`），也就是整份设置拒绝导入 —— 这比「缺了就取默认」安全：
+ * 备份文件损坏时不该静默把用户的神回设置改成默认值。
+ */
+
+/** `exportPortable()` 的三个键（顺序即 Kotlin 的 put 顺序）。 */
+export const GOD_PORTABLE_KEYS = ['ranking_style', 'last_page_hint', 'gyro_parallax'] as const;
+
+export interface GodPortableSettings {
+  readonly ranking_style: GodRankingStyleCode;
+  readonly last_page_hint: boolean;
+  readonly gyro_parallax: boolean;
+}
+
+/** L27-30 `suspend fun exportPortable(): JSONObject`。 */
+export function exportGodPortableSettings(): GodPortableSettings {
+  return {
+    ranking_style: getGodRankingStyle(),
+    last_page_hint: getGodHintCapsuleEnabled(),
+    gyro_parallax: getGodGyroParallaxEnabled(),
+  };
+}
+
+/**
+ * L32-38 `suspend fun importPortable(value: JSONObject)`：三个键**必须都在**且类型正确，
+ * `ranking_style` 过 `GodRankingStyle.of(...)`（未知值归一到 podium，与读取时同一条路径）。
+ */
+export function importGodPortableSettings(value: Record<string, unknown>): void {
+  const style = value['ranking_style'];
+  const hint = value['last_page_hint'];
+  const gyro = value['gyro_parallax'];
+  if (typeof style !== 'string') throw new Error('No value for ranking_style');
+  if (typeof hint !== 'boolean') throw new Error('No value for last_page_hint');
+  if (typeof gyro !== 'boolean') throw new Error('No value for gyro_parallax');
+  setGodRankingStyle(godRankingStyleOf(style));
+  setGodHintCapsuleEnabled(hint);
+  setGodGyroParallaxEnabled(gyro);
+}

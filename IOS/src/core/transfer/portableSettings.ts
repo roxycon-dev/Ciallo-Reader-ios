@@ -80,17 +80,23 @@ export function validatePortableSettings(input: unknown): PortableSettings {
   }
   if (value.sources !== undefined) {
     const sources = portableObject(value.sources), definitions: Record<string, Record<string, unknown>> = Object.create(null) as Record<string, Record<string, unknown>>;
-    requireTransfer(Object.keys(sources).length <= 500, '书源过多');
     for (const [id, definition] of Object.entries(sources)) {
       const object = portableObject(definition), text = JSON.stringify(object);
-      requireTransfer(id.length > 0 && id.length <= 512 && stringBytes(text) <= 2 * 1024 * 1024 && !SENSITIVE.test(text) && !URL_CREDENTIALS.test(text), '书源无效或含认证字段'); definitions[id] = object;
+      /*
+       * Kotlin PortableSettings.kt L90 是**无 message** 的 `require`（抛 "Failed requirement."），
+       * 而且上限是 `sources.getJSONObject(id).toString().length <= 2 * 1024 * 1024` ——
+       * `.length` 是**字符数**，不是 UTF-8 字节数。端口此前用 `stringBytes`，一个含大量中文的
+       * 书源定义（字符数 1.9 M、字节数 5.7 M）在 Android 侧能进、在端口里会被拒。
+       */
+      requireTransfer(id.length >= 1 && id.length <= 512 && text.length <= 2 * 1024 * 1024, 'Failed requirement.');
+      // Kotlin L91 只查 `sensitive`（文案「书源含认证字段」）；端口多查一条 URL 内嵌凭据（E215）。
+      requireTransfer(!SENSITIVE.test(text) && !URL_CREDENTIALS.test(text), '书源含认证字段'); definitions[id] = object;
     }
     output.sources = definitions;
   }
   if (value.scripts !== undefined) output.scripts = JsSourceRepo.validatePortable(value.scripts);
   if (value.source_states !== undefined) {
     const states = portableObject(value.source_states), accepted: Record<string, boolean> = Object.create(null) as Record<string, boolean>;
-    requireTransfer(Object.keys(states).length <= 2000, '书源状态过多');
     for (const [id, state] of Object.entries(states)) { requireTransfer(id.length > 0 && id.length <= 512 && typeof state === 'boolean', '书源状态无效'); accepted[id] = state; }
     output.source_states = accepted;
   }

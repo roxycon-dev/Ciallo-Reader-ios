@@ -157,8 +157,11 @@ export function comicDefaultHeaders(
   cookie: string,
 ): Record<string, string> {
   const out: Record<string, string> = { ...headers };
-  const has = (name: string): boolean =>
-    Object.keys(out).some((key) => key.toLowerCase() === name);
+  // 大小写不敏感：三个头名都要能和任意写法对上（否则自定义 UA / Accept 会被覆盖）
+  const has = (name: string): boolean => {
+    const wanted = name.toLowerCase();
+    return Object.keys(out).some((key) => key.toLowerCase() === wanted);
+  };
   if (!has('User-Agent')) out['User-Agent'] = COMIC_DEFAULT_USER_AGENT;
   if (!has('Cookie') && cookie.trim() !== '') out['Cookie'] = cookie;
   // 不声明 avif，避免部分图源 CDN 返回 BitmapFactory/Coil 解不了的 AVIF

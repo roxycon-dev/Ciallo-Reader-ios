@@ -22,6 +22,9 @@ import { tr } from '@core/i18n';
  */
 
 export type AppSnackKind = 'ERROR' | 'TOAST';
+/** `AppSnackbar.kt` L50 `enum class AppSnackKind { ERROR, TOAST }` —— 声明顺序。 */
+export const APP_SNACK_KINDS: readonly AppSnackKind[] = ['ERROR', 'TOAST'];
+
 
 /**
  * 带语义的 SnackbarVisuals：message 保持**纯净**（「复制日志」复制到的就是它，

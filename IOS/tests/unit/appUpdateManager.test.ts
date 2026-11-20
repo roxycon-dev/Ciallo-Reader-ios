@@ -816,7 +816,8 @@ describe('AppUpdateCleanupReceiver', () => {
       finished += 1;
     });
     expect(cleaned).toBe(0);
-    expect(finished).toBe(2);
+    // Kotlin L10 的 `return` 发生在 L11 `goAsync()` 之前 → 这条分支**不**调 finish()。
+    expect(finished).toBe(0);
   });
 
   it('runs the cleanup and always finishes the broadcast', async () => {

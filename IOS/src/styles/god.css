@@ -1,3 +1,13 @@
+/* `Theme.kt` L84/L104：surfaceVariant = 亮 #F0EDE5 / 深 WenkuTokens.RaisedDark #2D2D2D。
+   ⚠️ 不是 M3 基线（#E3E5E7 / #49454F）—— 本文件所有 surfaceVariant 底色都走这个变量。 */
+:root {
+  --god-surface-variant: #F0EDE5;
+}
+
+[data-theme='dark'] {
+  --god-surface-variant: #2D2D2D;
+}
+
 /* ══════════════════════════════════════════════════════════════
    神回（GodMoment）排行榜样式 — 逐行对照 Android:
      god/GodRankingShared.kt · GodRankingStyles.kt · GodRankingExhibits.kt
@@ -76,7 +86,7 @@
       rgba(245, 185, 66, 0.2) 0%,
       rgba(245, 185, 66, 0) 60%
     ),
-    linear-gradient(180deg, rgba(227, 229, 231, 0.85) 0%, #e3e5e7 100%);
+    linear-gradient(180deg, color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 85%, transparent) 0%, var(--god-surface-variant, #F0EDE5) 100%);
 }
 .god-cover__img {
   position: absolute;
@@ -184,7 +194,7 @@
   color: var(--color-danger, #dc2626);
 }
 .god-menu__item:active {
-  background: rgba(227, 229, 231, 0.5);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 50%, transparent);
 }
 
 /* ── 对话框（Material3 AlertDialog: r24 / scrim 0.32 / TextButton） ── */
@@ -419,7 +429,7 @@
 .god-leader-note {
   margin: 0;
   width: 100%;
-  background: rgba(227, 229, 231, 0.24);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 24%, transparent);
   padding: 7px 10px;
   font-size: 11px;
   line-height: 16px;
@@ -437,7 +447,7 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  background: rgba(227, 229, 231, 0.28);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 28%, transparent);
   border-radius: 12px;
   padding: 10px 12px;
   box-sizing: border-box;
@@ -544,7 +554,7 @@
   inset: 0;
   border-radius: 11px;
   overflow: hidden;
-  background: #e3e5e7; /* surfaceVariant */
+  background: var(--god-surface-variant, #F0EDE5); /* surfaceVariant */
 }
 .god-vinyl__sleeve-inner .god-cover {
   height: 100%;
@@ -789,7 +799,7 @@
   flex-shrink: 0;
 }
 .god-topbar__back:active {
-  background: rgba(227, 229, 231, 0.6);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 60%, transparent);
 }
 .god-topbar__title {
   margin: 0;
@@ -881,7 +891,7 @@
   align-items: center;
   border-radius: 14px;
   border: 1px solid rgba(24, 25, 28, 0.12);
-  background: rgba(227, 229, 231, 0.32);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 32%, transparent);
   padding: 8px;
   cursor: pointer;
   font-family: inherit;
@@ -895,7 +905,7 @@
 .god-style-card--selected {
   border: 1.6px solid transparent;
   background:
-    linear-gradient(rgba(227, 229, 231, 0.55), rgba(227, 229, 231, 0.55)) padding-box,
+    linear-gradient(color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 55%, transparent), color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 55%, transparent)) padding-box,
     var(--god-gold-gradient, linear-gradient(90deg, #ffe29a, #f5b942, #d98e1f)) border-box;
 }
 .god-style-card__art {
@@ -2072,7 +2082,8 @@
    深色取值约定（与 comicChapters.css 一致）：
      surface        #222428（Theme.kt L73）
      onSurface      #D4D4D4（Theme.kt L74-75 NightText）
-     surfaceVariant #49454F、error #FFB4AB —— Theme.kt L87-95 未覆写这两个
+     surfaceVariant #F0EDE5（亮）/ #2D2D2D（深，WenkuTokens.RaisedDark，Theme.kt L104）
+     error #FFB4AB —— Theme.kt L87-95 未覆写 error
      M3 角色，随方案取 **Material3 基线**值（浅 #E7E0EC / #B3261E）。
    本块只追加，既有规则一行未改、未删（浅色态零回归）。
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -2092,7 +2103,7 @@
 }
 
 /* GodMenuItem（Kotlin L243-255）是裸 clickable、**没有**按压底色 —— 本文件
-   L187 的 rgba(227,229,231,0.5) 是端口自加的触觉反馈，深色下会闪成一块亮灰，
+   L187 的 `surfaceVariant@0.5` 底是端口自加的触觉反馈，深色下会闪成一块亮灰，
    换成白色蒙版低档（components.css 涟漪同族）。 */
 [data-theme='dark'] .god-menu__item:active {
   background: rgba(255, 255, 255, 0.08);
@@ -2110,20 +2121,20 @@
    `background(colorScheme.surfaceVariant.copy(alpha = 0.28f))`。
    名次数字 GodGold.LightEnd（L83）、行内文字 token —— 均不翻。 */
 [data-theme='dark'] .god-pod-row {
-  background: rgba(73, 69, 79, 0.28);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 28%, transparent);
 }
 
 /* ── 榜首随笔条（GodRankingExhibits.kt L226）──
    `background(colorScheme.surfaceVariant.copy(alpha = 0.24f))`；文字
    onSurfaceVariant 由 --color-medium-gray token 翻。 */
 [data-theme='dark'] .god-leader-note {
-  background: rgba(73, 69, 79, 0.24);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 24%, transparent);
 }
 
 /* ── 黑胶唱片套内衬（GodRankingExhibits.kt L294）──
-   `background(colorScheme.surfaceVariant)` 实底 → M3 深色基线 #49454F。 */
+   `background(colorScheme.surfaceVariant)` 实底 → 深色 #2D2D2D。 */
 [data-theme='dark'] .god-vinyl__sleeve-inner {
-  background: #49454f;
+  background: var(--god-surface-variant, #F0EDE5);
 }
 
 /* ── 设置页「神回」分组标题（GodSettingsSection.kt L73）──
@@ -2134,11 +2145,11 @@
 
 /* ── 风格单选卡（GodSettingsSection.kt L185 / L196-204）──
    底：`surfaceVariant.copy(alpha = if (selected) 0.55f else 0.32f)` →
-   #49454F 同 α；未选中描边：`onSurface.copy(alpha = 0.12f)` → 深色
+   var(--god-surface-variant, #F0EDE5) 同 α；未选中描边：`onSurface.copy(alpha = 0.12f)` → 深色
    onSurface #D4D4D4@0.12 ≈ 白发丝。选中描边是 gold 渐变 border-box，
    由 TSX 内联的 --god-gold-gradient 随主题翻，不动。 */
 [data-theme='dark'] .god-style-card {
-  background: rgba(73, 69, 79, 0.32);
+  background: color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 32%, transparent);
   border-color: rgba(255, 255, 255, 0.12);
 }
 [data-theme='dark'] .god-style-card--selected {
@@ -2146,7 +2157,7 @@
      上面那条 `[data-theme='dark'] .god-style-card` 之后才生效，而
      border-box 金渐变描边依赖透明 border-color 才能透出来。 */
   border-color: transparent;
-  background: linear-gradient(rgba(73, 69, 79, 0.55), rgba(73, 69, 79, 0.55))
+  background: linear-gradient(color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 55%, transparent), color-mix(in srgb, var(--god-surface-variant, #F0EDE5) 55%, transparent))
       padding-box,
     var(--god-gold-gradient, linear-gradient(90deg, #ffe29a, #f5b942, #d98e1f))
       border-box;
@@ -2192,10 +2203,10 @@
      （GodChapterCard.kt L139-143 常量），评分 #ffe29a = GodGold.LightStart
      是常量（L218 没有 dark 分支）。
    · `.god-cover-placeholder`：Kotlin（GodRankingShared.kt L146-181）的底是
-     `colorScheme.surfaceVariant` 竖渐变（深色 #49454F），浅色档被
+     `colorScheme.surfaceVariant` 竖渐变（深色 var(--god-surface-variant, #F0EDE5)），浅色档被
      GodRankingShared.tsx L187-197 以**内联 style** 写死（含 α 的 dark 分支、
      无色的 dark 分支）—— CSS 够不着内联，已在 TSX 侧做一行级补丁
-     （base 色随 godIsDark() 取 #E7E0EC 系 / #49454F 系），见该文件。
+     （base 色随 godIsDark() 取 #E7E0EC 系 / var(--god-surface-variant, #F0EDE5) 系），见该文件。
    · `.god-empty__text` / `.god-menu__item` / `.god-dialog__*` /
      `.god-topbar*` / `.god-rank-card__*` / `.god-pod__name` 等文字槽：
      全部走 --color-* token，随 theme.css 基座翻转。

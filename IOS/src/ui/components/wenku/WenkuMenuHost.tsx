@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Wenku 长按菜单宿主 —— `ui/wenku/WenkuMenuHost.kt` + `ui/shelf/ShelfSelectionHost.kt` L442-560。
  *
  * Kotlin → TS 映射
@@ -32,6 +32,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useContext } from 'react';
+import { useMotion } from '../feedback/Motion';
+import { wenkuMenuTriggerStyle, wenkuStaggerPartWindow } from '@core/wenku/menuHost';
+import { wenkuRevealProgress } from '@core/wenku/motion';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 
 import { WenkuActionSheet } from './WenkuActionSheet';
@@ -339,3 +343,69 @@ export function wenkuEntriesToSheetRows(entries: readonly WenkuMenuEntry[]): Wen
 
 /** 供 `ArchiveShelf` 复用的节点类型（不引入额外依赖）。 */
 export type WenkuMenuChildren = ReactNode;
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * `LocalWenkuMenuPhase` —— `ui/wenku/WenkuMenuHost.kt` L169
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * L169 `val LocalWenkuMenuPhase = staticCompositionLocalOf<(() -> Float)?> { null }`。
+ *
+ * `null` 表示不在菜单内（`WenkuStaggerPart` 直接出内容，不做错峰擦除）。
+ * 类型与几何在 `@core/wenku/menuHost` 与 `@core/wenku/menuGeometry`。
+ */
+export const LocalWenkuMenuPhase = createContext<(() => number) | null>(null);
+
+/** 读取当前菜单相位（`LocalWenkuMenuPhase.current`）。 */
+export function useWenkuMenuPhase(): (() => number) | null {
+  return useContext(LocalWenkuMenuPhase);
+}
+
+/** 提供菜单相位（`CompositionLocalProvider(LocalWenkuMenuPhase provides phase)`）。 */
+export function WenkuMenuPhaseProvider(props: {
+  readonly phase: (() => number) | null;
+  readonly children: ReactNode;
+}) {
+  return <LocalWenkuMenuPhase.Provider value={props.phase}>{props.children}</LocalWenkuMenuPhase.Provider>;
+}
+
+/**
+ * L585-614 `WenkuStaggerPart(order, modifier, content)`：菜单项错峰揭示。
+ * `start = .06 + min(order, 8) * .025`、`end = .62 + min(order, 8) * .025`，
+ * 区间内 `easeOutCubic`，横向从左到右的矩形擦除，无位移。
+ */
+export function WenkuStaggerPart(props: {
+  readonly order: number;
+  readonly children: ReactNode;
+  readonly className?: string;
+}) {
+  const phase = useWenkuMenuPhase();
+  const { reduceMotion } = useMotion();
+  const window = wenkuStaggerPartWindow(props.order);
+  if (phase === null || reduceMotion) {
+    return <div className={props.className}>{props.children}</div>;
+  }
+  const p = wenkuRevealProgress(phase(), window.start, window.end);
+  return (
+    <div
+      className={['wenku-stagger-part', props.className].filter(Boolean).join(' ')}
+      style={{ clipPath: p >= 1 ? undefined : `inset(0 ${String(Number(((1 - p) * 100).toFixed(2)))}% 0 0)` }}
+    >
+      {props.children}
+    </div>
+  );
+}
+
+/** L616-… `WenkuMenuTrigger`：打开期间隐身但保留布局槽位。 */
+export function WenkuMenuTrigger(props: { readonly open: boolean; readonly children: ReactNode }) {
+  const style = wenkuMenuTriggerStyle(props.open);
+  return (
+    <div
+      className="wenku-menu-trigger"
+      style={{ opacity: style.opacity, pointerEvents: style.pointerEvents }}
+      aria-hidden={style['aria-hidden']}
+    >
+      {props.children}
+    </div>
+  );
+}

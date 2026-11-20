@@ -1,3 +1,13 @@
+﻿:root {
+  --stats-surface-variant: #F0EDE5;
+  --stats-primary-container: #A7F3D0;
+}
+
+[data-theme='dark'] {
+  --stats-surface-variant: #2D2D2D;
+  --stats-primary-container: #065F46;
+}
+
 /* statistics.css — port of Android StatisticsScreen.kt + supporting components
    Colors from Color.kt / theme.css:
    MintPrimary=#059669 MintSecondary=#10B981 MintGold=#E8C97A
@@ -88,7 +98,8 @@
 /* 24dp circle stepper surfaceVariant@0.5 */
 .stats-goal-step {
   width: 24px; height: 24px; border-radius: 50%; border: 0;
-  background: rgba(227, 229, 231, 0.5);
+  /* `surfaceVariant.copy(alpha = .5f)`（Theme.kt L84/L104：亮 #F0EDE5 / 深 #2D2D2D）。 */
+  background: color-mix(in srgb, var(--stats-surface-variant, #F0EDE5) 50%, transparent);
   color: var(--color-medium-gray, #61666d);
   font-size: 13px; font-weight: 700; line-height: 24px; padding: 0;
   cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
@@ -125,7 +136,8 @@
 }
 .stats-mini-icon {
   width: 34px; height: 34px; border-radius: 10px;
-  background: rgba(227, 229, 231, 0.5);
+  /* Kotlin `surfaceVariant.copy(alpha = .5f)`（亮 #F0EDE5 / 深 #2D2D2D）。 */
+  background: color-mix(in srgb, var(--stats-surface-variant, #F0EDE5) 50%, transparent);
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .stats-mini-icon svg { width: 18px; height: 18px; }
@@ -369,7 +381,8 @@
 .stats-weekly-card { border-radius: 20px; padding: 20px; }
 .stats-weekly-badge {
   display: inline-flex; align-items: center; border-radius: 20px;
-  background: rgba(5, 150, 105, 0.18);
+  /* Kotlin L156：`primaryContainer.copy(alpha = .5f)`。 */
+  background: color-mix(in srgb, var(--stats-primary-container, #A7F3D0) 50%, transparent);
   color: var(--color-primary, #059669);
   font-size: 12px; font-weight: 700; padding: 6px 12px;
   white-space: nowrap; flex-shrink: 0;
@@ -453,7 +466,9 @@
 .stats-weekly-detail {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   width: 100%; padding: 10px 14px; border-radius: 12px;
-  background: rgba(227, 229, 231, 0.5); margin-top: 16px;
+  /* Kotlin WeeklyReadingChart.kt L328：`surfaceVariant.copy(alpha = .5f)`。 */
+  background: color-mix(in srgb, var(--stats-surface-variant, #F0EDE5) 50%, transparent);
+  margin-top: 16px;
 }
 .stats-weekly-detail-left {
   display: flex; align-items: center; gap: 8px; min-width: 0;
@@ -795,11 +810,18 @@
   from { transform: scale(0.6); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+/* Kotlin `CleanSuccessBadge`：底色 `colorScheme.surface@.96`（深色是 #242424 系），
+   阴影走 `consistentShadow(12.dp, Black@.12, Black@.16)` —— 有效 alpha 还要 ×
+   `SHADOW_*_ALPHA_GAIN = .10`，σ = 12 × .22、spot 下移 12 × .28。 */
 .cache-badge {
   padding: 22px 30px; border-radius: 24px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.16);
+  background: color-mix(in srgb, var(--cache-surface, #FFFFFF) 96%, transparent);
+  box-shadow: 0px 0px 3.05px rgba(0, 0, 0, 0.012), 0px 3.36px 3.05px rgba(0, 0, 0, 0.016);
   display: flex; flex-direction: column; align-items: center;
+}
+
+[data-theme='dark'] .cache-badge {
+  --cache-surface: #242424;
 }
 .cache-badge__circle {
   width: 56px; height: 56px; border-radius: 50%;
@@ -1257,10 +1279,8 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.10);
 }
 
-/* MiniStatCard 34dp 图标底 */
-[data-theme='dark'] .stats-mini-icon {
-  background: rgba(255, 255, 255, 0.08);
-}
+/* MiniStatCard 34dp 图标底：深色跟随 `--stats-surface-variant`（#2D2D2D@.5），
+   不再单写白蒙版 —— Kotlin 那里读的是同一个 surfaceVariant 角色。 */
 
 /* 本周点亮圆点：#E3E5E7@0.45 在 #222428 上完全消失 */
 [data-theme='dark'] .stats-week-lit-dot--unlit {

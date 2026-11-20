@@ -531,3 +531,103 @@ export interface OffscreenBitmapPort {
   createDataUrl(size: number, fill: (set: (x: number, y: number, r: number, g: number, b: number, a: number) => void) => void): string | null;
 }
 
+/* ══════════════ 进程退出历史（Android API 30 `ApplicationExitInfo`） ══════════════ */
+
+/**
+ * 一条**由系统记录的**进程退出原因 —— Android
+ * `ActivityManager.getHistoricalProcessExitReasons(packageName, 0, 8)` 返回的
+ * `ApplicationExitInfo` 投影。
+ *
+ * 这是 `data/ProcessExitDiagnostics.kt:10-26` 唯一的数据来源。Kotlin 侧它由系统
+ * 直接给出，覆盖「被杀 / 崩溃 / 被系统回收」这些**应用自己看不到**的事件，
+ * 所以不能拿自家面包屑顶替。字段与 `ApplicationExitInfo` 逐一对齐，单位照 Kotlin
+ * 日志里的写法（`pssKiB` / `rssKiB` 都是 KiB，不是字节）。
+ *
+ * `trace` 是**已经读出的文本**而不是 `InputStream`：Android 侧
+ * `StartupDiagnostics.readLimited(input, 128 * 1024)` 负责截断，端口把「读流」
+ * 留在平台层，core 只做脱敏与拼接。
+ */
+export interface ProcessExitRecord {
+  /** `ApplicationExitInfo.getTimestamp()`（epoch 毫秒）。 */
+  readonly timestamp: number;
+  /** `getPid()`。 */
+  readonly pid: number;
+  /** `getProcessName()`。 */
+  readonly processName: string;
+  /** `getReason()` —— `REASON_*` 的整数值。 */
+  readonly reason: number;
+  /** `getStatus()`。 */
+  readonly status: number;
+  /** `getImportance()`。 */
+  readonly importance: number;
+  /** `getPss()` —— **KiB**。 */
+  readonly pssKiB: number;
+  /** `getRss()` —— **KiB**。 */
+  readonly rssKiB: number;
+  /** `getDescription()`；可空（Kotlin `?.orEmpty()`）。 */
+  readonly description: string | null;
+  /** `getTraceInputStream()` 的内容；可空。 */
+  readonly trace: string | null;
+}
+
+/**
+ * 系统进程退出历史（Android `ActivityManager` 那一段能力的端口）。
+ *
+ * Android 自 API 30 起才有这个 API；iOS 没有同名 API，但宿主**能**自己攒一份
+ * （`MXMetricPayload` 的 hang / crash 段、自建崩溃日志、上次启动的落盘记录都可以
+ * 映射成同一结构）。所以这是「必须有实现」的端口而不是「本平台没有」：
+ * 拿不到记录时返回**空数组**，core 走 Kotlin 自己的
+ * `"No process exit records available."` 分支 —— 那条分支本来就在 Kotlin 里。
+ */
+export interface ProcessExitHistoryPort {
+  /**
+   * 最近至多 `maxRecords` 条退出记录，**新的在前**（与
+   * `getHistoricalProcessExitReasons` 的顺序一致）。读不到时返回空数组，不抛错。
+   */
+  read(maxRecords: number): Promise<readonly ProcessExitRecord[]>;
+}
+
+
+
+/* ══════════════════ 互传通知（Android `TransferService` 的常驻通知） ══════════════════ */
+
+/**
+ * 一条互传通知的内容 —— 由 `@core/transfer/transferNotification` 的
+ * `transferNotificationContent(state)` 算好（标题/正文/进度/ongoing/取消按钮/**何时撤下**
+ * 全在那里判定），平台层只负责「塞进本平台的通知 API」。
+ */
+export interface TransferNotificationPayload {
+  readonly id: number;
+  readonly channelId: string;
+  readonly channelName: string;
+  readonly channelImportance: number;
+  readonly title: string;
+  readonly text: string;
+  readonly alertOnce: boolean;
+  readonly ongoing: boolean;
+  readonly progressMax: number;
+  readonly progressValue: number;
+  readonly indeterminate: boolean;
+  readonly showCancelAction: boolean;
+}
+
+/**
+ * Android `transfer/TransferService.kt`：进程内前台服务 + 常驻进度通知 + 「取消」动作。
+ *
+ * 三个平台各自的落地：
+ *   · Android 原生构建 —— `ServiceCompat.startForeground` + `NotificationCompat`；
+ *   · iOS 原生宿主 —— `UNUserNotificationCenter`（有时间限制，长传输可能被系统收走，
+ *     所以 `publish` 返回是否真的挂上了）；
+ *   · Web —— 浏览器没有常驻通知，落到应用内横幅（同一份 payload，同一套字段）。
+ *
+ * `publish` 返回 `false` 表示**没能挂上**（插件缺失 / 用户拒授权 / 平台不支持），
+ * 调用方据此决定是否退到应用内横幅 —— 不静默假装成功。
+ */
+export interface TransferNotificationPort {
+  /** Kotlin L38-40：`startForeground(...) + notify(notificationId, …)`。 */
+  publish(payload: TransferNotificationPayload): Promise<boolean>;
+  /** Kotlin L41：`stopForeground(STOP_FOREGROUND_REMOVE)`。 */
+  clear(id: number): Promise<void>;
+  /** Kotlin L45 的「取消」动作被点击时回调（宿主把点击接到 `TransferManager.cancel()`）。 */
+  onCancel(listener: () => void): () => void;
+}

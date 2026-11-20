@@ -82,6 +82,7 @@ import type { ComicSource } from '@core/source/comicSource';
 import { AsyncMutex } from './contentMutationGate';
 import { abortable, throwIfAborted } from '@core/download/abortable';
 import { importComicChapter, type ComicChapterImportDeps, type ComicImportedBook } from './libraryComicLocalImporter';
+import { failureMessage, foregroundStartRestricted } from '@core/download/downloadWorker';
 
 /** Android `enum class ComicDownloadStatus { DOWNLOADING, PAUSED, FAILED, SUCCESS }`. */
 export type ComicDownloadStatus = 'DOWNLOADING' | 'PAUSED' | 'FAILED' | 'SUCCESS';
@@ -621,14 +622,31 @@ export class ComicDownloadManager {
           await this.flush();
           throw e;
         }
-        const message = e instanceof Error ? (e.message ?? '章节下载失败') : '章节下载失败';
+        /*
+         * Kotlin ComicDownloadWorker.kt L58-61：
+         *   ComicDownloadManager.update(key) { it.copy(
+         *       status = if (DownloadWorker.foregroundStartRestricted(e)) ComicDownloadStatus.PAUSED
+         *                else ComicDownloadStatus.FAILED,
+         *       error = DownloadWorker.failureMessage(e)) }
+         *   ComicDownloadManager.message(DownloadWorker.failureMessage(e))
+         *   Result.failure()
+         *
+         * 两处此前不对：
+         *   ① `foregroundStartRestricted` 整个缺失 —— Android 12+ 的「后台启动受限」会被判成
+         *      FAILED 而不是 PAUSED，于是不会被重试；用户看到「下载失败」，其实只是被系统限流。
+         *   ② 文案既不是 `failureMessage(e)`（首行 / 120 字符 / ENOSPC / IOException 四支分类），
+         *      还多了 Kotlin 没有的「下载失败：」前缀。
+         */
+        const message = failureMessage(e);
+        const restricted = foregroundStartRestricted(e);
         this.updateNow(key, (it) => ({
           ...it,
-          status: ComicDownloadStatus.FAILED,
+          status: restricted ? ComicDownloadStatus.PAUSED : ComicDownloadStatus.FAILED,
           error: message,
         }));
         await this.flush();
-        this.setMessage(`下载失败：${message}`);
+        // Kotlin 直接把 failureMessage(e) 交给 message(...)，不加前缀。
+        this.setMessage(message);
         return 'failure';
       }
     });

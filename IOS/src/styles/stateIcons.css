@@ -1,0 +1,140 @@
+/* ── 状态图标：ui/components/StateIcons.kt L32-93 ────────────────────────────
+ *
+ * 数值唯一来源是 `src/core/ui/stateIcons.ts`（它逐行读 `StateIcons.kt` +
+ * `ui/feedback/Motion.kt`）。CSS 不能 import TS，所以同值内联，并在这里逐条标注
+ * Kotlin 行号；`tests/parity/stateIconsParity.test.ts` 从 core 读常量、再断言这些
+ * 字面量出现在本文件里 —— 改常量不改 CSS 会红。
+ *
+ *   L39          animateColorAsState(tint, AppMotion.icon())   → 240ms easeOutCubic
+ *   L43          fadeIn(tween(ICON_MS)) + scaleIn(initialScale = .82f)
+ *   L44          fadeOut(tween(PRESS_MS)) + scaleOut(targetScale = .92f)
+ *   L62-64       animateFloatAsState(rotation, AppMotion.icon()) + graphicsLayer.rotationZ
+ *   L75-76       animateFloatAsState(if (checked) 1f else 0f, AppMotion.icon())
+ *   L79          Stroke(1.5.dp.toPx())
+ *   L80          Canvas(size(22.dp))
+ *   L83-84       drawCircle(unchecked @ .35f * (1-p), (min - stroke)/2, style = Stroke)
+ *   L86          drawCircle(primary @ p, min/2 * (.8 + .2p))
+ *   L89-90       drawLine(ink @ p, 1.8 * unit, StrokeCap.Round) × 2
+ *
+ * `AppMotion.icon()` 是 tween(240, easeOutCubic)，不是弹簧；出场淡出只有 110ms。
+ * reduce motion 档（`LocalReduceMotion.current`）由 `.reduce-motion` 类把全部
+ * 时长压到 0 —— Kotlin 用 `snap()` 达到同一效果。
+ */
+
+.state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  /* L39 `animateColorAsState(tint, AppMotion.icon())` */
+  transition: color 240ms cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.state-icon__glyph,
+.state-icon__glyph--out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  will-change: opacity, transform;
+}
+
+/* L43 `fadeIn(tween(240)) + scaleIn(initialScale = .82f)` */
+.state-icon__glyph {
+  animation: state-icon-in 240ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+/* L44 `fadeOut(tween(110)) + scaleOut(targetScale = .92f)` —— 旧图标留在原位淡出。 */
+.state-icon__glyph--out {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: state-icon-out 110ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+@keyframes state-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes state-icon-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+/* L62-64 `graphicsLayer { rotationZ = rotation.value }` —— 只转自身，不吃布局。 */
+.state-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 50% 50%;
+  transition:
+    transform 240ms cubic-bezier(0.215, 0.61, 0.355, 1),
+    color 240ms cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+/* L75-76 勾的进度补间。`r` / `fill-opacity` / `stroke-dashoffset` 都是可过渡的
+ * SVG 呈现属性（Safari 16 起支持 `r` 作为 CSS 属性）。 */
+.state-selection-mark {
+  display: inline-block;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+.state-selection-mark__outer {
+  transition:
+    r 240ms cubic-bezier(0.215, 0.61, 0.355, 1),
+    stroke-opacity 240ms cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.state-selection-mark__inner {
+  transition:
+    transform 240ms cubic-bezier(0.215, 0.61, 0.355, 1),
+    fill-opacity 240ms cubic-bezier(0.215, 0.61, 0.355, 1);
+  transform-origin: 50% 50%;
+}
+
+.state-selection-mark__check {
+  transition:
+    stroke-opacity 240ms cubic-bezier(0.215, 0.61, 0.355, 1),
+    stroke-dashoffset 240ms cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+/* `LocalReduceMotion.current` → Kotlin 的 `snap()`：零时长、无缩放。 */
+.reduce-motion .state-icon,
+.reduce-motion .state-chevron,
+.reduce-motion .state-selection-mark__outer,
+.reduce-motion .state-selection-mark__inner,
+.reduce-motion .state-selection-mark__check {
+  transition-duration: 0ms;
+}
+
+.reduce-motion .state-icon__glyph,
+.reduce-motion .state-icon__glyph--out {
+  animation-duration: 0ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-icon,
+  .state-chevron,
+  .state-selection-mark__outer,
+  .state-selection-mark__inner,
+  .state-selection-mark__check {
+    transition-duration: 0ms;
+  }
+  .state-icon__glyph,
+  .state-icon__glyph--out {
+    animation-duration: 0ms;
+  }
+}

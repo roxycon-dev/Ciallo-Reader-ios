@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Kotlin → TS map
  * ──────────────
  * - `ui/glasskit/GlassKit.kt` (497 lines / 469 non-blank) — components + context
@@ -132,17 +132,21 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   GLASSKIT_FALLBACK_SHADOW,
+  GLASSKIT_HOST_SATURATION,
   GLASSKIT_PRESS_BEZIER,
-  GLASSKIT_PRESS_MIN_SCALE,
   GLASSKIT_PRESS_MS,
   GlassTokens,
+  glassCardBlurPx,
+  glassKitCardPressScale,
   glassKitTint,
+  glassTopBarTintAlpha,
   pageOverlayColor,
   pressHighlightCss,
   squirclePath,
   squircleRadiusFor,
   topGradientStops,
 } from '../../../core/glass/glassKit';
+import { DEFAULT_CARD_TWEAKS, rescaleCornerRadius } from '../../../core/glass/cardTweaks';
 import { withAlpha } from '../../../core/glass/color';
 import {
   liquidGlassStyle,
@@ -218,7 +222,7 @@ export function GlassKitHost(props: {
               ? (liquidGlassStyle({
                   surfaceColor: overlay,
                   blurRadius: GlassTokens.Blur,
-                  saturation: 1.15,
+                  saturation: GLASSKIT_HOST_SATURATION,
                 }) as React.CSSProperties)
               : { background: overlay }
           }
@@ -243,6 +247,19 @@ export interface GlassKitCardProps {
   style?: React.CSSProperties;
   /** Kotlin default `GlassCardShape` (24dp squircle). */
   radius?: number;
+  /**
+   * Kotlin `tweaks.cornerRadiusDp`（`CardTweaks.kt` L13，出厂 16）——
+   * `effectiveShape = shape.scaledCardCorners(tweaks.cornerRadiusDp)`（GlassKit.kt L337）。
+   * 圆角滑条动的时候卡片要跟着缩放。
+   */
+  cornerRadiusDp?: number;
+  /**
+   * Kotlin `tweaks.blurRadiusDp`（`CardTweaks.kt` L12，出厂 **22**）——
+   * 卡片消费的是这个值，不是 `GlassTokens.Blur`(16)；轻量档取它的一半（= 11）。
+   */
+  blurRadiusDp?: number;
+  /** Kotlin `LocalReduceMotion.current` —— 开启时按压不做形变。 */
+  reduceMotion?: boolean;
   onClick?: (() => void) | null;
   /**
    * 可点卡片可开启「高光跟随手指」。库的 Highlight 只支持固定方向，
@@ -267,7 +284,12 @@ export interface GlassKitCardProps {
  * 卡片内部一律**不再**有第二层玻璃、渐变或描边（玻璃套玻璃会让边缘出现两圈轮廓）。
  */
 export function GlassKitCard(props: GlassKitCardProps) {
-  const radius = props.radius ?? GLASS_CARD_RADIUS;
+  const cornerRadiusDp = props.cornerRadiusDp ?? DEFAULT_CARD_TWEAKS.cornerRadiusDp;
+  // Kotlin L337 `shape.scaledCardCorners(tweaks.cornerRadiusDp)` —— 显式 24dp 形状
+  // 按 `cornerRadiusDp / 16` 缩放，整页圆角滑条才联动。
+  const radius = rescaleCornerRadius(props.radius ?? GLASS_CARD_RADIUS, cornerRadiusDp);
+  const blurRadiusDp = props.blurRadiusDp ?? DEFAULT_CARD_TWEAKS.blurRadiusDp;
+  const reduceMotion = props.reduceMotion === true;
   const dark = props.dark === true;
   const surface = props.surface ?? '#FFFFFF';
   const reduce = prefersReducedTransparency();
@@ -281,14 +303,16 @@ export function GlassKitCard(props: GlassKitCardProps) {
   const [pressPoint, setPressPoint] = useState<{ x: number; y: number } | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
 
-  // Kotlin L373-386: `lightweight` drops vibrancy **and** lens, leaving `blur(8)` only.
+  // Kotlin L373-386: `lightweight` drops vibrancy **and** lens, leaving
+  // `blur(tweaks.blurRadiusDp * 0.5f)` only —— 是卡片模糊的一半（出厂 22 → 11），
+  // 不是 `GlassTokens.BlurLightweight` 那个 8（Kotlin 里卡片从不消费该 token）。
   // `vibrancy()` is `colorControlsColorFilter(saturation = 1.5f)` in the vendored
   // `effects/ColorFilter.kt` L50-54; the `lens(...)` below it has no CSS counterpart
   // (see KNOWN GAP in the header). `filter` order follows Kotlin's effect order.
   const lightweight = props.lightweight === true;
   const filter = lightweight
-    ? `blur(${GlassTokens.BlurLightweight}px)`
-    : `saturate(1.5) blur(${GlassTokens.Blur}px)`;
+    ? `blur(${glassCardBlurPx(blurRadiusDp, true)}px)`
+    : `saturate(1.5) blur(${glassCardBlurPx(blurRadiusDp, false)}px)`;
 
   // FIX ⑦ — Kotlin clips to `SquircleShape` (L371 `shape = { shape }` realtime, L422
   // `.clip(shape)` in the fallback); the path this returns is now actually applied.
@@ -311,7 +335,8 @@ export function GlassKitCard(props: GlassKitCardProps) {
     overflow: 'hidden',
     // Kotlin L390 `layerBlock = { scaleX = press; scaleY = press }` (and L424's
     // `graphicsLayer` in the fallback branch) — same scale, both branches.
-    transform: pressed ? `scale(${GLASSKIT_PRESS_MIN_SCALE})` : 'scale(1)',
+    // Kotlin L355 `1f - 0.02f * tweaks.pressStrength`，且 `pressStrength` 随外观设置变动。
+    transform: `scale(${glassKitCardPressScale(pressed, reduceMotion)})`,
     transition: `transform ${GLASSKIT_PRESS_MS}ms ${GLASSKIT_PRESS_BEZIER}`,
     ...(realtime
       ? {
@@ -467,7 +492,7 @@ export function GlassTopBarStrip(props: {
   const realtime = props.qualityRealtimeGlass !== false && supportsRealtimeBlur();
   // Kotlin L465-469 — `cs.background.copy(alpha = 0.92f)` when reduce-transparency is on,
   // otherwise `0.60f`. `Color.copy(alpha = …)` is exactly `core/glass/color#withAlpha`.
-  const tintAlpha = reduce ? 0.92 : 0.6;
+  const tintAlpha = glassTopBarTintAlpha(reduce);
   const f = props.collapsedFraction;
 
   return (

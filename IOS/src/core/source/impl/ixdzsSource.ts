@@ -88,6 +88,17 @@ interface IxdzsDetail {
 }
 
 /** Search and download links from the site's public guest-facing HTML. */
+/**
+ * Kotlin `IxdzsSource.kt:52 val ua = "EASYREADER/1.6 (+Android Reader)"`。
+ *
+ * 非浏览器 UA 是**功能前提**：2026-11-20 实测 ixdzs8.com 的 Tengine WAF 把
+ * Chrome / Mozilla UA 一律 403，只用非浏览器 UA 才返回 200。
+ */
+export const IXDZS_USER_AGENT = 'EASYREADER/1.6 (+Android Reader)';
+/** Kotlin `IxdzsSource.kt:53 val cnCookie = "__cn_v=ix26_k7m9p3w8"`（站点 JS 门固定写死）。 */
+export const IXDZS_CN_COOKIE = '__cn_v=ix26_k7m9p3w8';
+
+
 export class IxdzsSource extends BookSource {
   readonly id = 'ixdzs8';
   readonly name = '爱下电子书';
@@ -138,8 +149,8 @@ export class IxdzsSource extends BookSource {
     const response = await executeSourceRequest(this.http, url, {
       headers: {
         Referer: this.baseUrl,
-        'User-Agent':
-          'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/139.0.0.0 Mobile Safari/537.36',
+        Cookie: IXDZS_CN_COOKIE,
+        'User-Agent': IXDZS_USER_AGENT,
       },
       maxBytes: MAX_SOURCE_BODY_BYTES,
       ...(signal ? { signal } : {}),
@@ -151,6 +162,10 @@ export class IxdzsSource extends BookSource {
       throw new ParseError('网文源返回空页面');
     }
     const html = sourceResponseText(response.body, response.headers), problem = sourceResponseProblem(html);
+    // Kotlin L64-65 / L70：站点 JS 尚未跑完时给的是这个占位标题，按「未就绪」处理
+    if (/<title>Loading\.\.\.<\/title>/i.test(html)) {
+      throw new ParseError('爱下电子书页面未就绪（Cookie 门），请稍后重试');
+    }
     if (problem) throw new ParseError(problem);
     return { doc: parseHtmlDocument(html), baseUrl: url };
   }

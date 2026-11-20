@@ -43,12 +43,15 @@ describe('MascotAnimationController.kt play/subscribe', () => {
     const seen: Array<{ event: MascotEvent; id: number }> = [];
     const off = MascotAnimationController.subscribe((i) => seen.push({ event: i.event, id: i.id }));
     MascotAnimationController.play('BookComplete');
-    MascotAnimationController.play('CleanComplete');
+    // Kotlin `sealed class MascotEvent` 只有四个 object（L14-20）——
+    // L19 那行 KDoc 后面没有 `object`，它描述的是 `CacheManagementScreen.kt`
+    // 自己的 `CleanSuccessBadge`（见 E211）。
+    MascotAnimationController.play('DeleteBook');
     off();
     MascotAnimationController.play('MoveBook');
     expect(seen).toEqual([
       { event: 'BookComplete', id: 1 },
-      { event: 'CleanComplete', id: 2 },
+      { event: 'DeleteBook', id: 2 },
     ]);
   });
 

@@ -1,5 +1,7 @@
 import { abortable } from './abortable';
 import { shouldRetryZLibraryDownload } from '@core/source/zlibrary/zLibraryBookReference';
+import { PUBLIC_NOVEL_SOURCE_IDS, zLibraryDownloadPageError } from '@core/source/sourceText';
+import { DEFAULT_ACCEPT, DEFAULT_ACCEPT_LANG, DEFAULT_USER_AGENT } from '@core/source/zlibrary/network/zLibraryHttpClient';
 import type { DownloadInfo } from '@core/source/downloadInfo';
 import type { SourceResult } from '@core/source/sourceResult';
 import { clearGuestNovelCheckpoint } from './guestNovelCheckpoint';
@@ -48,10 +50,20 @@ import type { NovelDownloadStore } from './novelDownloadStore';
 import { prepareNovelTextArchive } from './novelTextArchive';
 import { validateDownloadFile, validateFileIntegrity } from '../data/downloadFileValidator';
 import { validateTail, validator as transferValidator } from '../data/downloadTransferPolicy';
-import { isWholeBookNovelSource, type SearchBook } from './downloadRequest';
+import { isWholeBookNovelSource, WHOLE_BOOK_NOVEL_SOURCE_IDS, type SearchBook } from './downloadRequest';
 import { originalBookId } from './downloadManager';
 
-export type DownloadWorkerResult = 'success' | 'failure' | 'skipped';
+/**
+ * Kotlin `DownloadWorker.doWork(): Result` 的三种终态 + `Result.retry()`。
+ *
+ * ⚠️ 端口的 retry 这一档此前不存在 —— 而 Kotlin L362 / L371 两处都返回 `Result.retry()`
+ * （前台受限且尝试 < 5；网络暂时中断且尝试 < 5）。少了它，任何网络抖动都会被写成
+ * `FAILED` 永久失败，而 Android 会由 WorkManager 按退避重排（见 E216）。
+ *
+ * `downloadManager.ts` 的 `runWorker(...)` 只 await 不消费返回值，所以扩这一档是安全的；
+ * 真正的重排由平台任务层按 retry 决定。
+ */
+export type DownloadWorkerResult = 'success' | 'failure' | 'skipped' | 'retry';
 
 /** Android downloads dir listing probe + bookshelf lookups. */
 export interface BookshelfApi {
@@ -108,6 +120,19 @@ export interface DownloadWorkerDeps {
   generateBook?: (task: DownloadTaskRecord, temp: string, progress: (done: number, total: number) => Promise<void>, signal?: AbortSignal) => Promise<boolean>;
   /** Pre-upgrade inputData referer/cookie fields still present on old jobs. */
   legacyHeaders?: { referer?: string; cookie?: string };
+  /**
+   * Kotlin `CoroutineWorker.runAttemptCount` —— L358 `val retry = runAttemptCount < 5`、
+   * L364-366 `runAttemptCount < 5` 与 `shouldRetryPublicNovel(..., runAttemptCount)`。
+   * 平台任务层在每次重排时递增；缺省 0（= 第一次尝试）。
+   */
+  runAttemptCount?: number;
+  /**
+   * Kotlin L191-192 `(client.cookieJar as? EncryptedCookieJar)?.syncFromRawCookieString(cookie, host)`
+   * —— 把原始 Cookie 串灌进加密 jar，后续 302 / 插图 / 恢复请求才会带上。
+   *
+   * 缺省 undefined（无 jar 的宿主）时跳过；Kotlin 的 `as?` 在 jar 不是加密实现时同样是 no-op。
+   */
+  cookieJar?: { syncFromRawCookieString(raw: string, domain: string): Promise<void> };
 }
 
 /* ------------------------------------------------------------------ */
@@ -227,6 +252,225 @@ export function javaStringHashCode(s: string): number {
 export async function withTaskLock<T>(taskId: string, block: () => Promise<T>): Promise<T> {
   const lock = taskLocks[(javaStringHashCode(taskId) & 0x7fffffff) % taskLocks.length] as Mutex;
   return lock.withLock(block);
+}
+
+/* ── DownloadWorker.kt L43-60 两个失败分类器（companion object 内） ──────────
+ *
+ * 这两个函数此前**一个都没有移植**，而 `ComicDownloadWorker.kt` L59-60 完全依赖它们：
+ *   `status = if (DownloadWorker.foregroundStartRestricted(e)) PAUSED else FAILED`
+ *   `error  = DownloadWorker.failureMessage(e)`；`message(DownloadWorker.failureMessage(e))`
+ * 端口当时退化成 `e.message ?? '章节下载失败'`，并外加了 Kotlin 没有的「下载失败：」前缀。
+ *
+ * 逐行映射：
+ *   L43-47 `foregroundStartRestricted(error)`   → `foregroundStartRestricted()`
+ *   L49-53 `failureMessage(message: String)`    → `failureMessage(string)`
+ *   L55-60 `failureMessage(error: Throwable)`   → `failureMessage(error)`
+ * 两个重载在 TS 里合成一个函数，靠 `typeof value === 'string'` 分派（Kotlin 的重载解析，
+ * 在这里等价于「传的是 String 还是 Throwable」）。
+ */
+
+/** L44 `generateSequence(error) { it.cause }.take(8)` —— 最多检查 8 层（含自身）。 */
+export const FOREGROUND_RESTRICTED_CAUSE_DEPTH = 8;
+/** L45 `it.javaClass.simpleName.contains("ForegroundServiceStartNotAllowed")` —— **区分大小写**。 */
+export const FOREGROUND_RESTRICTED_CLASS = 'ForegroundServiceStartNotAllowed';
+/** L46 `it.message.orEmpty().contains("startForegroundService() not allowed", true)` —— 忽略大小写。 */
+export const FOREGROUND_RESTRICTED_MESSAGE = 'startForegroundService() not allowed';
+/** L50 / L56 两条分支的文案。 */
+export const FOREGROUND_RESTRICTED_FAILURE = '后台启动受限，请重试';
+/** L51 / L57 `message.contains("ENOSPC", true)` 的文案。 */
+export const STORAGE_FULL_FAILURE = '存储空间不足';
+/** L58 `error is java.io.IOException` 的文案。 */
+export const IO_INTERRUPTED_FAILURE = '连接中断，请重试';
+/** L52 `?: "下载失败，请重试"` 的兜底。 */
+export const DOWNLOAD_FAILED_FALLBACK = '下载失败，请重试';
+/** L52 `.take(120)` —— 首行最多 120 个字符。 */
+export const FAILURE_MESSAGE_MAX_CHARS = 120;
+
+/** `javaClass.simpleName` 的替身：`error.name`，其次构造函数名。 */
+function simpleNameOf(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    const named = (value as { name?: unknown }).name;
+    if (typeof named === 'string' && named !== '') return named;
+    const ctor = (value as { constructor?: { name?: unknown } }).constructor;
+    if (ctor !== undefined && typeof ctor.name === 'string') return ctor.name;
+  }
+  return '';
+}
+
+/** `Throwable.message.orEmpty()` —— 非字符串 message 一律当空串（Kotlin 的 `orEmpty()` 同理）。 */
+function messageOf(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    const message = (value as { message?: unknown }).message;
+    if (typeof message === 'string') return message;
+  }
+  return '';
+}
+
+/** `Throwable.cause`（ES2022 `Error.cause`；非 Error 抛出物也接受 `cause` 字段）。 */
+function causeOf(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return null;
+  return (value as { cause?: unknown }).cause ?? null;
+}
+
+/**
+ * L43-47：
+ * ```
+ * generateSequence(error) { it.cause }.take(8).any {
+ *     it.javaClass.simpleName.contains("ForegroundServiceStartNotAllowed") ||
+ *         it.message.orEmpty().contains("startForegroundService() not allowed", true)
+ * }
+ * ```
+ *
+ * 为什么必须走 cause 链：Android 12+ 把「后台启动前台服务」的拒绝包成
+ * `ForegroundServiceStartNotAllowedException`，而它通常被 OkHttp / WorkManager 再包一两层，
+ * 顶层 message 是「包裹者的说法」。只看顶层会把它判成普通失败（FAILED，不重试），
+ * 用户看到「下载失败」而实际只是被系统限流，重试就好。
+ */
+export function foregroundStartRestricted(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < FOREGROUND_RESTRICTED_CAUSE_DEPTH; depth += 1) {
+    if (current === null || current === undefined) return false;
+    if (simpleNameOf(current).includes(FOREGROUND_RESTRICTED_CLASS)) return true;
+    if (messageOf(current).toLowerCase().includes(FOREGROUND_RESTRICTED_MESSAGE.toLowerCase())) return true;
+    current = causeOf(current);
+  }
+  return false;
+}
+
+/**
+ * L49-53 `failureMessage(message: String)`：
+ * ```
+ * message.contains("startForegroundService() not allowed",true) || message.contains("ForegroundServiceStartNotAllowed") -> "后台启动受限，请重试"
+ * message.contains("ENOSPC",true) -> "存储空间不足"
+ * else -> message.lineSequence().firstOrNull()?.take(120)?.ifBlank { null } ?: "下载失败，请重试"
+ * ```
+ *
+ * 三处细节：**只取首行**（不是整段）、**最多 120 字符**、首行为空白时回落兜底串。
+ */
+export function failureMessageForText(message: string): string {
+  if (
+    message.toLowerCase().includes(FOREGROUND_RESTRICTED_MESSAGE.toLowerCase()) ||
+    message.includes(FOREGROUND_RESTRICTED_CLASS)
+  ) {
+    return FOREGROUND_RESTRICTED_FAILURE;
+  }
+  if (message.toLowerCase().includes('enospc')) return STORAGE_FULL_FAILURE;
+  const firstLine = message.split(/\r\n|\r|\n/)[0] ?? '';
+  const capped = firstLine.slice(0, FAILURE_MESSAGE_MAX_CHARS);
+  return capped.trim() !== '' ? capped : DOWNLOAD_FAILED_FALLBACK;
+}
+
+/**
+ * `error is java.io.IOException` 的判据（平台差异，见 E214）。
+ *
+ * JS 没有 `IOException` 类型，所以退化成「错误自报 `name === 'IOException'`，或带
+ * `ioError: true` 标记」。所有**会**在链路上抛网络中断的端口都该给错误打这个标记；
+ * 不打标记的错误会落到 `failureMessage(error.message)` 那条分支（首行原文），
+ * 而不是「连接中断，请重试」。
+ */
+export function isIoFailure(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  if (simpleNameOf(error) === 'IOException') return true;
+  return (error as { ioError?: unknown }).ioError === true;
+}
+
+/**
+ * `java.io.IOException` 的构造替身（`name` + `ioError` 双标记，见 `isIoFailure`）。
+ *
+ * 为什么必须有类型替身：Kotlin 的 catch 用 `e is java.io.IOException` 分派「可重试」，
+ * 而 `DownloadWorker.kt` 里有两处**故意**抛 IOException 来触发重试 ——
+ * L204 抛 IOException（网络暂时不可用 HTTP n）与 L262 抛 EOFException（文件下载不完整，将尝试续传）。
+ * 端口若抛普通 `Error`，这两处都会被判成永久失败。
+ */
+export function ioError(message: string): Error {
+  const error = new Error(message);
+  error.name = 'IOException';
+  (error as { ioError?: boolean }).ioError = true;
+  return error;
+}
+
+/** L262 `java.io.EOFException(...)` —— `IOException` 的子类，name 保留以区分文案来源。 */
+export function eofError(message: string): Error {
+  const error = ioError(message);
+  error.name = 'EOFException';
+  return error;
+}
+
+/**
+ * L203 `setOf(408,429,500,502,503,504)` —— 这六码 Kotlin 抛 IOError（网络暂时不可用 HTTP n），
+ * 于是下游走「网络暂时中断，将从已保存章节继续下载」+ `Result.retry()`。
+ *
+ * 端口此前把它们并进「下载失败（HTTP n）」的普通 Error 分支 → 直接 FAILED，
+ * 一次 502 就让整本书永久失败。
+ */
+export const RETRYABLE_HTTP_STATUSES: ReadonlySet<number> = new Set([408, 429, 500, 502, 503, 504]);
+
+/** L193 `listOf("ncdn","cdn-zlib","s3proxy","dln")` —— 这四个 CDN 主机不吃会话 Cookie。 */
+export const CDN_HOST_MARKERS = ['ncdn', 'cdn-zlib', 's3proxy', 'dln'] as const;
+
+/** L358 / L365 的重试上限 5。 */
+export const PUBLIC_NOVEL_RETRY_LIMIT = 5;
+/** L65 `error is SourceException.NetworkError`。 */
+export const NETWORK_ERROR_CLASS = 'NetworkError';
+
+/**
+ * L61-67 `shouldRetryPublicNovel(sourceId, error, attempt)`：
+ *
+ * ```kotlin
+ * if (sourceId !in PublicNovelSources.ids || attempt >= 5) return false
+ * if (error.message?.contains("ENOSPC", true) == true) return false
+ * return error is java.io.IOException && error !is java.io.FileNotFoundException ||
+ *     error is SourceException.NetworkError &&
+ *     (error.cause is java.io.IOException || Regex("HTTP (?:408|429|5[0-9]{2})\\b").containsMatchIn(error.message.orEmpty()))
+ * ```
+ *
+ * 三处只有读原文才会注意到的细节：
+ * 1. 只对 `PublicNovelSources.ids`（quanben / ihuaben / sfacg / fanqie）生效，**不是** 9 个
+ *    `WholeBookNovelSources` —— 后者含 auto_novel / ixdzs8 等逐章源，它们各有自己的重试路径；
+ * 2. `error.message?.contains(...)` 用的是 `?.`：message 为 null 时**不**短路，继续往下判；
+ * 3. `&&` 优先于 `||`：即「IOException 且非 FileNotFound」与
+ *    「NetworkError 且有 IO cause 或 408/429/5xx」两条并列。
+ */
+export function shouldRetryPublicNovel(
+  sourceId: string,
+  error: unknown,
+  attempt: number,
+  isIo: (value: unknown) => boolean = isIoFailure,
+): boolean {
+  if (!PUBLIC_NOVEL_SOURCE_IDS.has(sourceId) || attempt >= PUBLIC_NOVEL_RETRY_LIMIT) return false;
+  const message = messageOf(error);
+  if (message.toLowerCase().includes('enospc')) return false;
+  if (isIo(error) && simpleNameOf(error) !== 'FileNotFoundException') return true;
+  if (simpleNameOf(error) !== NETWORK_ERROR_CLASS) return false;
+  return isIo(causeOf(error)) || /HTTP (?:408|429|5[0-9]{2})\b/.test(message);
+}
+
+/**
+ * L55-60 `failureMessage(error: Throwable)` —— 与 L49-53 的 `String` 重载同名的另一支：
+ * ```
+ * foregroundStartRestricted(error) -> "后台启动受限，请重试"
+ * error.message.orEmpty().contains("ENOSPC", true) -> "存储空间不足"
+ * error is java.io.IOException -> "连接中断，请重试"
+ * else -> failureMessage(error.message.orEmpty())
+ * ```
+ * 顺序即语义：`IOException` 那条**先于**兜底，所以一个 message 为空的 `IOException`
+ * 给的是「连接中断，请重试」而不是「下载失败，请重试」。
+ */
+export function failureMessageForError(error: unknown, isIo: (value: unknown) => boolean = isIoFailure): string {
+  if (foregroundStartRestricted(error)) return FOREGROUND_RESTRICTED_FAILURE;
+  if (messageOf(error).toLowerCase().includes('enospc')) return STORAGE_FULL_FAILURE;
+  if (isIo(error)) return IO_INTERRUPTED_FAILURE;
+  return failureMessageForText(messageOf(error));
+}
+
+/**
+ * Kotlin 的两个同名重载合成一个入口：`failureMessage("文本")` / `failureMessage(error)`。
+ * 传字符串走 L49-53，传其它走 L55-60。
+ */
+export function failureMessage(value: unknown, isIo: (value: unknown) => boolean = isIoFailure): string {
+  return typeof value === 'string' ? failureMessageForText(value) : failureMessageForError(value, isIo);
 }
 
 /** Run a worker task under the companion task lock + download slot semaphore. */
@@ -373,10 +617,47 @@ async function withDownloadResponse<T>(http: HttpClient, zlibraryHttp: HttpClien
   const client = sourceId === 'zlibrary' ? zlibraryHttp ?? http : http;
   const guarded = stripSensitiveHeadersOnCrossHost(request.url, request);
   const consume = async (response: HttpStreamResponse): Promise<T> => {
-    const iterator = response.chunks[Symbol.asyncIterator](), first = await iterator.next();
-    async function* chunks() { if (!first.done) yield first.value; while (true) { const next = await iterator.next(); if (next.done) break; yield next.value; } }
-    try { return await block({ status: response.status, headers: response.headers, url: response.url, size: response.size, body: first.done ? new Uint8Array() : first.value.subarray(0, 4096), chunks: chunks() }); }
-    finally { await iterator.return?.(); }
+    const iterator = response.chunks[Symbol.asyncIterator]();
+    /*
+     * Kotlin 的 `peekBody(n)` 只是「看一眼」，流仍能完整读；等价做法是**预读到 n 字节为止并保留**，
+     * 再把预读的块原样作为 chunks 的开头吐出去 —— 既不丢字节，也保证 body 覆盖前 n 字节
+     * （不足 n 就是全部）。Kotlin L214 传的是 `peekBody(32 * 1024)`，端口此前只留 4096，
+     * 而配额页的关键词可能落在 4 KiB 之后。
+     */
+    const buffered: Uint8Array[] = [];
+    let bufferedLength = 0,
+      exhausted = false;
+    while (bufferedLength < RESPONSE_PEEK_BYTES && !exhausted) {
+      const next = await iterator.next();
+      if (next.done) {
+        exhausted = true;
+        break;
+      }
+      buffered.push(next.value);
+      bufferedLength += next.value.length;
+    }
+    const peek = new Uint8Array(Math.min(bufferedLength, RESPONSE_PEEK_BYTES));
+    let cursor = 0;
+    for (const part of buffered) {
+      if (cursor >= peek.length) break;
+      const take = Math.min(part.length, peek.length - cursor);
+      peek.set(part.subarray(0, take), cursor);
+      cursor += take;
+    }
+    async function* chunks() {
+      for (const part of buffered) yield part;
+      if (exhausted) return;
+      while (true) {
+        const next = await iterator.next();
+        if (next.done) break;
+        yield next.value;
+      }
+    }
+    try {
+      return await block({ status: response.status, headers: response.headers, url: response.url, size: response.size, body: peek, chunks: chunks() });
+    } finally {
+      await iterator.return?.();
+    }
   };
   if (background) {
     const result = await background.port.consume(background.id, sourceId, guarded, background.progress, consume);
@@ -387,6 +668,14 @@ async function withDownloadResponse<T>(http: HttpClient, zlibraryHttp: HttpClien
   async function* chunks() { yield response.body; }
   return consume({ ...response, size: response.body.length, chunks: chunks() });
 }
+
+/**
+ * `withDownloadResponse` 的预读上限 —— Kotlin `response.peekBody(32 * 1024).string()`（L214）。
+ *
+ * `isHtmlError` 只需要前 4096（Kotlin `peekBody(4096)`），但配额页的关键词可能更靠后，
+ * 所以统一预读 32 KiB 再由两处各取所需。
+ */
+export const RESPONSE_PEEK_BYTES = 32 * 1024;
 
 /** Android DownloadWorker.isHtmlError — peekBody(4096) + Content-Type check. */
 export function isHtmlError(response: HttpResponse, format: string): boolean {
@@ -489,7 +778,17 @@ export async function performDownloadTask(
     return await slots.withPermit(async (): Promise<DownloadWorkerResult> => {
       ensureActive(deps.signal);
       const tempLen = await fileLength(fs, temp);
-      await dao.updateProgressAndStatus(taskId, 'DOWNLOADING', tempLen, total, null);
+      /*
+       * Kotlin L133-134：
+       *   if (task.sourceId in PublicNovelSources.ids) maxOf(temp.length(), task.downloadedBytes)
+       *   else temp.length()
+       * 公共小说源逐章抓取时 temp 是边写边拼的，重启后 temp 可能比数据库记录的少
+       * （最后一章还没落盘），取 maxOf 才不会让进度条倒退。
+       */
+      const reportedLen = PUBLIC_NOVEL_SOURCE_IDS.has(task.sourceId)
+        ? Math.max(tempLen, task.downloadedBytes)
+        : tempLen;
+      await dao.updateProgressAndStatus(taskId, 'DOWNLOADING', reportedLen, total, null);
 
       // Failed imports can be retried from the completed file without consuming another download.
       const metadata = await readResume(fs, resume);
@@ -512,10 +811,25 @@ export async function performDownloadTask(
           offset = 0;
         }
 
+        const zlibrary = task.sourceId === 'zlibrary';
+        /*
+         * Kotlin L177-183：
+         *   .header("User-Agent", if (task.sourceId == "zlibrary")
+         *       ZLibraryHttpClient.DEFAULT_USER_AGENT else "Mozilla/5.0 (Linux; Android) CialloReader/1.1")
+         *   if (task.sourceId == "zlibrary") .header("Accept", DEFAULT_ACCEPT)
+         *       .header("Accept-Language", DEFAULT_ACCEPT_LANG)
+         *
+         * 端口此前 UA 恒为 CialloReader、且没有 Accept / Accept-Language —— Z-Library 的下载网关
+         * 对这三个头比对浏览器身份，缺了会被判成脚本请求直接返回验证页（E216）。
+         */
         const baseHeaders: Record<string, string> = {
           'Accept-Encoding': 'identity',
-          'User-Agent': 'Mozilla/5.0 (Linux; Android) CialloReader/1.1',
+          'User-Agent': zlibrary ? DEFAULT_USER_AGENT : 'Mozilla/5.0 (Linux; Android) CialloReader/1.1',
         };
+        if (zlibrary) {
+          baseHeaders['Accept'] = DEFAULT_ACCEPT;
+          baseHeaders['Accept-Language'] = DEFAULT_ACCEPT_LANG;
+        }
         for (const [key, value] of Object.entries(requestHeaders)) {
           const lower = key.toLowerCase();
           if (
@@ -528,16 +842,36 @@ export async function performDownloadTask(
           }
         }
         const host = new URL(task.downloadUrl).host;
-        let cookieHost = host;
-        if (task.sourceId === 'zlibrary') {
-          const entry = headerValue(requestHeaders, 'Referer');
-          if (entry) { try { cookieHost = new URL(entry).host; } catch { cookieHost = ''; } }
-        }
         const cookie = headerValue(requestHeaders, 'Cookie');
+        /*
+         * Kotlin L187-193：
+         *   val sessionHost = requestHeaders["Referer"]?.let { it.toHttpUrl().host }
+         *   val allowSession = task.sourceId != "zlibrary" ||
+         *       (sessionHost != null && (host == sessionHost || host.endsWith(".$sessionHost")))
+         *   if (!cookie.isNullOrBlank() && allowSession && none { it in host }) builder.header("Cookie", cookie)
+         *
+         * 端口此前只有 `host === cookieHost` —— **没有子域放行**。Z-Library 的下载链常见
+         * `z-lib.sk` → `downloads.z-lib.sk`（会话 Cookie 必须跟着走子域），端口会把
+         * Cookie 丢掉，于是下载永远是未登录状态（E216）。
+         */
+        let sessionHost: string | null = null;
+        if (zlibrary) {
+          const entry = headerValue(requestHeaders, 'Referer');
+          if (entry !== undefined) {
+            try { sessionHost = new URL(entry).host; } catch { sessionHost = null; }
+          }
+        }
+        const allowSession =
+          !zlibrary || (sessionHost !== null && (host === sessionHost || host.endsWith(`.${sessionHost}`)));
+        // Kotlin L191-192：只对 zlibrary + allowSession + 非空 Cookie 同步（且不要求非 CDN）
+        if (zlibrary && allowSession && cookie != null && cookie.trim() !== '' && deps.cookieJar !== undefined) {
+          await deps.cookieJar.syncFromRawCookieString(cookie, host);
+        }
         if (
           cookie != null &&
-          cookie.trim() !== '' && host === cookieHost &&
-          !['ncdn', 'cdn-zlib', 's3proxy', 'dln'].some((h) => host.includes(h))
+          cookie.trim() !== '' &&
+          allowSession &&
+          !CDN_HOST_MARKERS.some((h) => host.includes(h))
         ) {
           baseHeaders['Cookie'] = cookie;
         }
@@ -558,17 +892,40 @@ export async function performDownloadTask(
             async (response) => {
               // A 416 is not proof of file completeness. Restart safely once.
               if (response.status === 416 && offset > 0 && !rangeRestarted) return true;
+              /*
+               * Kotlin L203-204：这六码抛 `java.io.IOException("网络暂时不可用（HTTP n）")`，
+               * 下游因此走「网络暂时中断，将从已保存章节继续下载」+ `Result.retry()`。
+               *
+               * 注意 429 在集合里 —— 所以下面那条 `请求过于频繁，请稍后重试（HTTP 429）`
+               * 在**原文里就是死代码**（L203 先于 L209 命中）。端口保持同一顺序，不为「修好」它而调换。
+               */
+              if (RETRYABLE_HTTP_STATUSES.has(response.status)) {
+                throw ioError(`网络暂时不可用（HTTP ${response.status}）`);
+              }
               if (!(response.status >= 200 && response.status < 300)) {
                 throw new Error(
                   response.status === 401 || response.status === 403
-                    ? `下载授权已失效，请重新登录或重新获取链接（HTTP ${response.status}）`
+                    ? WHOLE_BOOK_NOVEL_SOURCE_IDS.has(task.sourceId)
+                      ? `源站拒绝免登录下载，请稍后重试或换源（HTTP ${response.status}）`
+                      : `下载授权已失效，请重新登录或重新获取链接（HTTP ${response.status}）`
                     : response.status === 429
                       ? '请求过于频繁，请稍后重试（HTTP 429）'
                       : `下载失败（HTTP ${response.status}）`,
                 );
               }
               if (isHtmlError(response, format)) {
-                throw new Error('服务器返回了验证或错误页，下载链接可能已过期，请重新获取链接');
+                /*
+                 * Kotlin L212-216：
+                 *   val quota = if (task.sourceId == "zlibrary")
+                 *       zLibraryDownloadPageError(response.peekBody(32 * 1024).string()) else null
+                 *   error(quota ?: "服务器返回了验证或错误页，下载链接可能已过期，请重新获取链接")
+                 *
+                 * `peekBody(n).string()` 用 UTF-8；端口由 `withDownloadResponse` 的 32 KiB 预读提供同一样本。
+                 * 少了这一支，「今日下载额度已用尽」这类可行动的原因会被压成泛化的「链接可能已过期」。
+                 */
+                const quota =
+                  task.sourceId === 'zlibrary' ? zLibraryDownloadPageError(new TextDecoder().decode(response.body)) : null;
+                throw new Error(quota ?? '服务器返回了验证或错误页，下载链接可能已过期，请重新获取链接');
               }
               const bodyLength = response.size;
               const append = response.status === 206 && offset > 0;
@@ -649,8 +1006,17 @@ export async function performDownloadTask(
                   }
                 }
               }
-              if (downloaded !== total) {
-                throw new Error('文件下载不完整，请恢复下载');
+              /*
+               * Kotlin L262 `if(total>0 && downloaded!=total) throw java.io.EOFException("文件下载不完整，将尝试续传")`。
+               *
+               * 三处都必须照抄：
+               * 1. **`total > 0` 前置** —— 服务器不给 `Content-Length` 时 `body.contentLength()` 是 -1，
+               *    端口的 `downloaded !== total` 会**恒真**，于是任何分块响应都被判成「下载不完整」；
+               * 2. `EOFException` 是 `IOException` 的子类（`eofError`），下游才会走重试而不是 FAILED；
+               * 3. 文案是「将尝试续传」（对用户说明后续动作），不是「请恢复下载」。
+               */
+              if (total > 0 && downloaded !== total) {
+                throw eofError('文件下载不完整，将尝试续传');
               }
               if (!fs.appendFile) {
                 const merged = new Uint8Array(downloaded); let cursor = 0;
@@ -821,11 +1187,53 @@ export async function performDownloadTask(
       }
       throw e;
     }
-    const rawMessage = e instanceof Error ? e.message : undefined;
-    let message =
-      rawMessage != null && rawMessage.toUpperCase().includes('ENOSPC')
-        ? '存储空间不足，请清理后重试'
-        : (rawMessage ?? '下载或入库失败');
+    /*
+     * Kotlin L355 `val message = failureMessage(e)` —— 四条分类（前台受限 / ENOSPC /
+     * IOException / 首行截 120）。端口此前自造「存储空间不足，请清理后重试」，
+     * 与 Android 的「存储空间不足」不一致（E214 遗留，本轮闭环）。
+     */
+    let message = failureMessage(e);
+    const attempt = deps.runAttemptCount ?? 0;
+
+    /*
+     * Kotlin L356-363：前台受限 → 尝试 < 5 时 PENDING + retry，否则 PAUSED + failure。
+     * `maxOf(temp.length(), latest.downloadedBytes)` 与 L360 逐字一致。
+     */
+    if (foregroundStartRestricted(e)) {
+      const latestRow = await dao.getTask(taskId);
+      if (latestRow == null) return 'skipped';
+      const retry = attempt < PUBLIC_NOVEL_RETRY_LIMIT;
+      const len = Math.max(await fileLength(fs, temp), latestRow.downloadedBytes);
+      await dao.updateProgressAndStatus(taskId, retry ? 'PENDING' : 'PAUSED', len, total, message);
+      broadcaster.updateState(taskId, retry ? DownloadStatePending : pausedState(latestRow.downloadedBytes, total));
+      return retry ? 'retry' : 'failure';
+    }
+
+    /*
+     * Kotlin L364-372：
+     *   shouldRetryPublicNovel(...) ||
+     *   (sourceId != "zlibrary" && runAttemptCount < 5 && e is IOException &&
+     *       e !is FileNotFoundException && e.message?.contains("ENOSPC") != true)
+     *   → PENDING + 「网络暂时中断，将从已保存章节继续下载」+ Result.retry()
+     *
+     * 端口此前**完全没有这一支**：任何 socket reset / 超时都直接 FAILED，
+     * 而 Android 会重试 5 次（E216）。
+     */
+    if (
+      shouldRetryPublicNovel(task.sourceId, e, attempt) ||
+      (task.sourceId !== 'zlibrary' &&
+        attempt < PUBLIC_NOVEL_RETRY_LIMIT &&
+        isIoFailure(e) &&
+        simpleNameOf(e) !== 'FileNotFoundException' &&
+        !messageOf(e).toLowerCase().includes('enospc'))
+    ) {
+      const latestRow = await dao.getTask(taskId);
+      if (latestRow == null) return 'skipped';
+      const len = Math.max(await fileLength(fs, temp), latestRow.downloadedBytes);
+      await dao.updateProgressAndStatus(taskId, 'PENDING', len, total, '网络暂时中断，将从已保存章节继续下载');
+      broadcaster.updateState(taskId, DownloadStatePending);
+      return 'retry';
+    }
     if (validatingRemote && deps.networkConnected && !await deps.networkConnected().catch(() => true)) {
       const latest = await dao.getTask(taskId);
       if (latest && latest.status !== 'PAUSED' && latest.status !== 'CANCELLED') {

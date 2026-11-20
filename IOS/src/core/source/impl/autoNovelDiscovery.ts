@@ -1,3 +1,4 @@
+import { tr } from '@core/i18n';
 import { catalogRanges, discoverCatalog, discoverEntry, discoverPage, type DiscoverQuery } from '@core/discover/models';
 import type { SearchBook } from '../searchBook';
 import { createNovelInfo } from '../novelInfo';
@@ -21,9 +22,14 @@ export class AutoNovelDiscovery {
     const results: Array<{ entries: ReturnType<typeof discoverEntry>[]; more: boolean }> = new Array(routes.length); let next = 0;
     await Promise.all(Array.from({ length: Math.min(3, routes.length) }, async () => { while (next < routes.length) {
       const slot = next++, route = routes[slot]!, [provider, genre = ''] = route.split('|'), url = new URL(`/api/novel/rank/${provider}`, this.home);
-      if (provider === 'syosetu') { url.searchParams.set('type', genre ? '流派' : '综合'); url.searchParams.set('page', String(q.page)); }
+      /*
+       * L52 / L57：`type` 与 `status` 两个**请求参数**是 `tr(...)` 包着的 ——
+       * 界面语言切到英文后 Kotlin 发的是 "Genre" / "Completed" / "All"。
+       * 拿中文写死会让英文用户拿到一份被服务端按中文值筛过的榜单。
+       */
+      if (provider === 'syosetu') { url.searchParams.set('type', genre ? tr('流派') : '综合'); url.searchParams.set('page', String(q.page)); }
       if (genre) url.searchParams.set('genre', genre); else if (provider === 'kakuyomu') url.searchParams.set('genre', '综合');
-      url.searchParams.set('range', '每日'); url.searchParams.set('status', q.range === '完结' && provider === 'syosetu' ? '完结' : '全部');
+      url.searchParams.set('range', '每日'); url.searchParams.set('status', q.range === '完结' && provider === 'syosetu' ? tr('完结') : tr('全部'));
       const data = await this.json(url.toString()), items = optJsonArray(data, 'items'); if (!items) throw new ParseError('未返回轻小说日榜');
       const entries = items.filter(isJsonObject).flatMap((row) => {
         const provider = optString(row, 'providerId') ?? '', id = optString(row, 'novelId') ?? '';
@@ -32,7 +38,16 @@ export class AutoNovelDiscovery {
         const completed = q.range === '完结' && provider === 'syosetu';
         const book = { ...base, novelInfo: createNovelInfo({ ...base.novelInfo, tags: [...new Set([...(base.novelInfo?.tags ?? []), ...(genre ? [genre] : [])])], status: completed ? '已完结' : base.novelInfo?.status ?? null }) };
         const updated = optLong(row, 'updateAt');
-        return [discoverEntry(book, { updatedAt: updated > 0 ? updated * 1000 : null, native: true, origin: `${provider === 'syosetu' ? '成为小说家' : 'Kakuyomu'}·${genre || '综合'}日榜`, statistic: optString(row, 'extra') || null })];
+        /*
+         * L73 的 origin：前半段 `tr("成为小说家")`，但 `"Kakuyomu"` 是**裸字面量**；
+         * 其余 provider（novelup / hameln / alphapolis）Kotlin 也一律写成 Kakuyomu ——
+         * 这是原文的行为，照抄不改。
+         * L74 的 statistic：`takeIf(String::isNotBlank)`，纯空白串要落 null。
+         */
+        const extra = optString(row, 'extra');
+        return [discoverEntry(book, { updatedAt: updated > 0 ? updated * 1000 : null, native: true,
+          origin: `${provider === 'syosetu' ? tr('成为小说家') : 'Kakuyomu'}·${genre || '综合'}日榜`,
+          statistic: extra === null || extra.trim() === '' ? null : extra })];
       });
       results[slot] = { entries, more: !route.startsWith('kakuyomu') && q.page < optInt(data, 'pageNumber', items.length === 24 ? q.page + 1 : q.page) };
     } }));

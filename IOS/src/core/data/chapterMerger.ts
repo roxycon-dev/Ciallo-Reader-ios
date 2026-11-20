@@ -14,6 +14,15 @@ export interface Chapter {
   title: string;
   content: string;
   startCharIndex: number;
+  /**
+   * `FormattedBookText.kt:37` 的 formatting —— span 编码串「start,end,style;…」。
+   * 导入时由 encodeBookSpans 写入，阅读器用 decodeBookSpans 还原。
+   */
+  readonly formatting?: string | null;
+  /**
+   * `FormattedBookText.kt:37` 的 writingMode（vertical-rl / horizontal-tb / null）。
+   */
+  readonly writingMode?: string | null;
   endCharIndex: number;
 }
 
@@ -35,9 +44,16 @@ export function cleanSplitTitle(title: string): string {
   return m?.[1] ?? title;
 }
 
-/** Kotlin `physical.maxOfOrNull { it.chapterOrder } ?: -1` — 含负 order。 */
+/**
+ * Kotlin `physical.maxOfOrNull { it.chapterOrder } ?: -1` —— 空表才是 -1。
+ *
+ * ⚠️ 旧实现用 `let max = -1; if (ch > max) …`，于是**全负 order** 的表会返回 -1
+ * （`maxOfOrNull` 应返回真实最大值 -2）。正常数据里 order 从 0 起，但「复制 Kotlin 的
+ * 表达式」与「复制它的常见输入」是两件事。
+ */
 export function maxChapterOrder(physical: readonly Chapter[]): number {
-  let max = -1;
+  if (physical.length === 0) return -1;
+  let max = Number.NEGATIVE_INFINITY;
   for (const ch of physical) {
     if (ch.chapterOrder > max) max = ch.chapterOrder;
   }
@@ -51,9 +67,16 @@ export function buildLogicalChapters(physical: Chapter[]): LogicalChapterBook {
   }
   const maxOrder = maxChapterOrder(physical);
 
+  /*
+   * Kotlin L40-41 `IntArray(maxOrder + 1) { it }` —— `maxOrder == -1` 时长度 0。
+   * 全负 order 的表在 Kotlin 里会 `IntArray(-2)` 抛 `NegativeArraySizeException`；
+   * 这里夹到 0 并让下面的 `order <= maxOrder` 守卫跳过所有写入，避免把「畸形数据」
+   * 变成一个无人接住的崩溃。
+   */
+  const slotCount = Math.max(0, maxOrder + 1);
   const physToLog: number[] = [];
   const physOffset: number[] = [];
-  for (let i = 0; i <= maxOrder; i += 1) {
+  for (let i = 0; i < slotCount; i += 1) {
     physToLog.push(i);
     physOffset.push(0);
   }
@@ -71,14 +94,27 @@ export function buildLogicalChapters(physical: Chapter[]): LogicalChapterBook {
     const lastOrder = parts[parts.length - 1] as number;
     const first = byOrder.get(firstOrder);
     const last = byOrder.get(lastOrder);
+    /*
+     * Kotlin L51-52 用的是 `byOrder.getValue(...)` —— 缺行时抛 `NoSuchElementException`。
+     * 这条分支在 `parts` 只由 `physical` 自身推入时不可达（`byOrder` 与 `physical` 同源），
+     * 但**不能**像旧端口那样静默 `return`：静默会让「少了一章」表现成「少了一个逻辑章」，
+     * 而不是一个能定位的错误。
+     */
     if (!first || !last) {
-      parts = [];
-      buffer = '';
-      baseTitle = null;
-      return;
+      const missing = !first ? firstOrder : lastOrder;
+      throw new Error(`NoSuchElementException: LinkeHashMap 中没有 chapterOrder=${String(missing)} 的章节`);
     }
     logical.push({
-      id: first.id,
+      /*
+       * ⚠️ Kotlin L53-61 **不给 `id` 传参** —— `Chapter.id` 是
+       * `@PrimaryKey(autoGenerate = true) val id: Int = 0`（`Book.kt` L53），
+       * 所以合并出来的逻辑章 `id == 0`，是一个**合成行**、不对应数据库里的任何一行。
+       *
+       * 旧端口写 `id: first.id`（复制第一个物理分片的主键），后果是：一个逻辑章顶着
+       * 别人的 DB id，任何「按 id 反查章节」的路径（书签/高亮/进度映射）都可能命中
+       * 错的章，而且两个逻辑章可以同时声称同一个 id。
+       */
+      id: 0,
       bookId: first.bookId,
       chapterOrder: logical.length,
       title: baseTitle ?? first.title,

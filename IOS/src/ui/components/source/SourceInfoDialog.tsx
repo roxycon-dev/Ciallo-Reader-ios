@@ -14,7 +14,7 @@
  *   19–20  `text = { Column(Modifier.verticalScroll(rememberScrollState()),
  *          verticalArrangement = Arrangement.spacedBy(8.dp)) { … } }`
  *          → `.fav-dialog__row` inside the scrollable dialog body.
- *   21     `Text("来源 ID：${source.id}")` → verbatim.
+ *   21     `Text(source.id, …, fontFamily = FontFamily.Monospace)` → 只渲染 id 本身 + 等宽字体。
  *   22     `Text("启用状态：${if (enabled) "已启用" else "已停用"}")` → verbatim.
  *   23–25  `if (source is JsComicSource) { Text("适配方式：Venera / JS 漫画源");
  *          Text("脚本版本：${source.version}") } else Text("适配方式：应用内漫画源")`
@@ -62,7 +62,8 @@ export function SourceInfoDialog(props: {
       >
         <h3 className="fav-dialog__title">{props.source.name}</h3>
         <div className="fav-dialog__row">
-          <p style={{ margin: 0 }}>{`来源 ID：${props.source.id}`}</p>
+          {/* Kotlin L23：`Text(source.id, …, fontFamily = FontFamily.Monospace)` —— 无前缀、等宽。 */}
+          <p style={{ margin: 0, fontFamily: 'monospace' }}>{props.source.id}</p>
           <p style={{ margin: 0 }}>{`启用状态：${props.enabled ? tr('已启用') : tr('已停用')}`}</p>
           {props.isJsComicSource === true ? (
             <>
@@ -82,7 +83,8 @@ export function SourceInfoDialog(props: {
             {`阅读 / 下载登录：${caps.downloadRequiresLogin ? tr('需要登录') : tr('适配器未要求登录')}`}
           </p>
           <p className="fav-dialog__note">
-            作品资料以源站实际返回为准，缺失字段会留空。启用状态表示是否参与搜索；站点可用性以本次请求为准。
+            {/* Kotlin L35：`Text("作品资料以源站实际返回为准。启用状态表示是否参与搜索。")` —— 逐字。 */}
+            作品资料以源站实际返回为准。启用状态表示是否参与搜索。
           </p>
         </div>
         <div className="fav-dialog__actions">

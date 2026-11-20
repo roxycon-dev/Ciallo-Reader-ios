@@ -906,9 +906,16 @@ export interface ComicScrollTarget {
   readonly offset: number;
 }
 
-/** ComicScrollMetrics.kt（不在本次范围）的消费侧契约 */
+/**
+ * 阅读器对滚动指标的**消费侧**契约（真身：`@core/comic/comicScrollMetrics`，
+ * 逐行移植 `ui/comic/ComicScrollMetrics.kt` 的 90 行）。
+ *
+ * `pageFraction` 是 Kotlin L36-40 的「一屏 0.9」翻页步进 ——
+ * 垂直滚动漫画的自定义 swipe 靠它推进，缺了就只能落回浏览器原生滚动。
+ */
 export interface ComicScrollMetricsLike {
   readonly fraction: number;
+  pageFraction(next: boolean): number;
   target(fraction: number): ComicScrollTarget;
 }
 

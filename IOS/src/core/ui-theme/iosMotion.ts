@@ -1,6 +1,6 @@
 /**
  * Kotlin → TS: `app/src/main/java/com/example/ui/theme/IosMotion.kt`
- *             (80 lines incl. trailing newline, 69 non-blank)
+ *             (71 lines, 60 non-blank)
  *          → `src/core/ui-theme/iosMotion.ts`
  *
  * Line mapping (every Kotlin line accounted for):
@@ -21,17 +21,17 @@
  *   L22       (blank)                                          → SKIPPED
  *   L23       `// ── 时长（毫秒），对齐 iOS 常见档位 ──`          → kept verbatim
  *   L24       KDoc  即时反馈：按压、高亮、小图标切换            → kept verbatim on `FAST`
- *   L25       `const val FAST = 150`                           → `IOS_MOTION.FAST`
+ *   L26       `const val FAST = AppMotion.PRESS_MS`（= 110）    → `IOS_MOTION.FAST`
  *   L26       KDoc  常规：内容淡入淡出、行内展开收起            → kept verbatim on `NORMAL`
- *   L27       `const val NORMAL = 250`                         → `IOS_MOTION.NORMAL`
+ *   L28       `const val NORMAL = AppMotion.CONTENT_MS`（= 200） → `IOS_MOTION.NORMAL`
  *   L28       KDoc  页面/视图转场                             → kept verbatim on `TRANSITION`
- *   L29       `const val TRANSITION = 350`                     → `IOS_MOTION.TRANSITION`
+ *   L30       `const val TRANSITION = AppMotion.PAGE_MS`（= 280） → `IOS_MOTION.TRANSITION`
  *   L30       KDoc  Sheet / 弹窗进出场                         → kept verbatim on `SHEET`
- *   L31       `const val SHEET = 400`                          → `IOS_MOTION.SHEET`
+ *   L32       `const val SHEET = AppMotion.PAGE_MS`（= 280）     → `IOS_MOTION.SHEET`
  *   L32       (blank)                                          → SKIPPED
  *   L33       `// ── 缓动曲线（与 iOS CAMediaTimingFunction 对应）──` → kept verbatim
  *   L34       KDoc  easeOut：起步快、尾部缓 —— iOS 默认出场曲线  → kept verbatim on `EaseOut`
- *   L35       `val EaseOut: Easing = CubicBezierEasing(0f, 0f, 0.58f, 1f)` → `IOS_EASINGS.EaseOut`
+ *   L36       `val EaseOut: Easing = AppMotion.easeOutCubic`（= 0.215/0.61/0.355/1） → `IOS_EASINGS.EaseOut`
  *   L36       KDoc  easeInOut：对称缓动，用于同一元素的位置迁移  → kept verbatim
  *   L37       `val EaseInOut = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)` → `IOS_EASINGS.EaseInOut`
  *   L38       KDoc  easeOutQuart：更陡的尾部衰减，Sheet 上推、大位移用  → kept verbatim
@@ -40,20 +40,20 @@
  *   L41-44    the `spring()` KDoc (`.spring(response: 0.35,     → kept verbatim
  *             dampingFraction: 0.85)`)                        → the two numbers are on the spec
  *   L45       `fun <T> spring(): SpringSpec<T>`                → `spring()`
- *   L46       `dampingRatio = 0.85f`                           → `SPRING.dampingRatio`
- *   L47       `stiffness = 320f`                               → `SPRING.stiffness`
+ *   L46       `fun <T> spring() = AppMotion.settle()`（ζ=1, k=420） → `SPRING`
+ *   （Kotlin 不再内联 ζ/k，全部转发给 `AppMotion`：settle / press / reorder）
  *   L48       `}`                                              → n/a
  *   L49       (blank)                                          → SKIPPED
  *   L50-53    the `springSnappy()` KDoc (response ≈ 0.25)      → kept verbatim
  *   L54       `fun <T> springSnappy(): SpringSpec<T>`          → `springSnappy()`
- *   L55       `dampingRatio = 0.78f`                           → `SPRING_SNAPPY.dampingRatio`
- *   L56       `stiffness = 520f`                               → `SPRING_SNAPPY.stiffness`
+ *   L52       `fun <T> springSnappy() = AppMotion.press()`（ζ=0.85, k=650） → `SPRING_SNAPPY`
+ *   （同上：数值来自 `Motion.kt` L33-34，不再由 IosMotion 自带）
  *   L57       `}`                                              → n/a
  *   L58       (blank)                                          → SKIPPED
  *   L59-62    the `springSoft()` KDoc (response ≈ 0.5)         → kept verbatim
  *   L63       `fun <T> springSoft(): SpringSpec<T>`             → `springSoft()`
- *   L64       `dampingRatio = 0.90f`                           → `SPRING_SOFT.dampingRatio`
- *   L65       `stiffness = 220f`                               → `SPRING_SOFT.stiffness`
+ *   L58       `fun <T> springSoft() = AppMotion.reorder()`（ζ=0.88, k=210） → `SPRING_SOFT`
+ *   （同上）
  *   L66       `}`                                              → n/a
  *   L67       (blank)                                          → SKIPPED
  *   L68       KDoc  easeOut 补间，[duration] 默认 250ms        → kept verbatim on `easeOut`
@@ -70,7 +70,28 @@
  *   L78       `tween(durationMillis = duration, easing = EaseOutQuart)` → `TweenSpec`
  *   L79       `}`                                              → n/a
  *
- * ── ADAPTATION — Compose `SpringSpec` / `FiniteAnimationSpec` → plain descriptors ──
+ * ── 2026-11-17 逐行复核：整块数值已过期（E184） ────────────────────────────────
+ * 端口此前基于 **80 行**版本，四个时长与 `EaseOut`、三个弹簧全部是旧值：
+ *
+ * | 成员 | 旧端口 | 当前 Kotlin |
+ * |---|---|---|
+ * | `FAST` | 150 | `AppMotion.PRESS_MS` = **110** |
+ * | `NORMAL` | 250 | `AppMotion.CONTENT_MS` = **200** |
+ * | `TRANSITION` | 350 | `AppMotion.PAGE_MS` = **280** |
+ * | `SHEET` | 400 | `AppMotion.PAGE_MS` = **280**（与 TRANSITION 同值） |
+ * | `EaseOut` | `(0, 0, 0.58, 1)` | `AppMotion.easeOutCubic` = **(0.215, 0.61, 0.355, 1)** |
+ * | `spring()` | 0.85 / 320 | `AppMotion.settle()` = **(1, 420)** |
+ * | `springSnappy()` | 0.78 / 520 | `AppMotion.press()` = **(0.85, 650)** |
+ * | `springSoft()` | 0.90 / 220 | `AppMotion.reorder()` = **(0.88, 210)** |
+ *
+ * 影响面不是「文档不同步」而是**全站动效**：`theme.css` 的 `--motion-fast/normal/transition`、
+ * `--ease-out` 与 69 处 `MOTION.*` 调用都读这四个值与这条曲线。
+ * 本轮已同步 `theme.css`、`src/ui/theme/tokens.ts` 与 `src/ui/tokens.ts`。
+ *
+ * 注意 `spring()` 现在是**临界阻尼**（ζ=1，无过冲），`settleMs` 由同一闭式算出：
+ * `4.605 / (1 · √420)` = **225 ms**；`press` = 212 ms；`reorder` = 361 ms。
+ * `bezier` 仍是 CSS 代餐（Web 侧没有弹簧求解器时的降级），不冒充 Kotlin 数值。
+ * * ── ADAPTATION — Compose `SpringSpec` / `FiniteAnimationSpec` → plain descriptors ──
  * There is no `Modifier` and no Compose animation runtime on the web, so every `IosMotion`
  * member becomes a **framework-agnostic descriptor**:
  *   - a `TweenSpec` carries `{ durationMillis, easing, css }` — enough for
@@ -102,7 +123,7 @@
  *
  * ── DIVERGENCE vs `src/styles/theme.css` (NOT edited here; reported to the main agent) ──
  *   L70-75 define `--motion-fast/normal/transition/header-collapse` + `--ease-out` +
- *   `--ease-out-quart`. Missing: **`--motion-sheet: 400ms`** and **`--ease-in-out`**.
+ *   `--ease-out-quart`. Missing: **`--motion-sheet: 280ms`** and **`--ease-in-out`**.
  */
 
 /** Kotlin L4 `androidx.compose.animation.core.Easing`. */
@@ -127,19 +148,19 @@ export interface TweenSpec {
 }
 
 export const IOS_MOTION = {
-  /** 即时反馈：按压、高亮、小图标切换 */
-  FAST: 150,
-  /** 常规：内容淡入淡出、行内展开收起 */
-  NORMAL: 250,
-  /** 页面/视图转场 */
-  TRANSITION: 350,
-  /** Sheet / 弹窗进出场 */
-  SHEET: 400,
+  /** 即时反馈：按压、高亮、小图标切换 —— `AppMotion.PRESS_MS` */
+  FAST: 110,
+  /** 常规：内容淡入淡出、行内展开收起 —— `AppMotion.CONTENT_MS` */
+  NORMAL: 200,
+  /** 页面/视图转场 —— `AppMotion.PAGE_MS` */
+  TRANSITION: 280,
+  /** Sheet / 弹窗进出场 —— 与 TRANSITION 同值（都是 `PAGE_MS`） */
+  SHEET: 280,
 } as const;
 
 export const IOS_EASINGS = {
-  /** easeOut：起步快、尾部缓 —— iOS 默认出场曲线 */
-  EaseOut: { x1: 0, y1: 0, x2: 0.58, y2: 1 },
+  /** easeOut：起步快、尾部缓 —— iOS 默认出场曲线（`AppMotion.easeOutCubic`） */
+  EaseOut: { x1: 0.215, y1: 0.61, x2: 0.355, y2: 1 },
   /** easeInOut：对称缓动，用于同一元素的位置迁移 */
   EaseInOut: { x1: 0.42, y1: 0, x2: 0.58, y2: 1 },
   /** easeOutQuart：更陡的尾部衰减，Sheet 上推、大位移用 */
@@ -190,14 +211,14 @@ function springSpec(
   };
 }
 
-/** Kotlin L45-L48 — the hoisted constant behind `spring()`. */
-export const SPRING: SpringSpec = springSpec(0.85, 320, 'cubic-bezier(0.25, 1, 0.5, 1)');
+/** Kotlin L46 `spring() = AppMotion.settle()` —— ζ=1（临界阻尼）、k=420。 */
+export const SPRING: SpringSpec = springSpec(1, 420, 'cubic-bezier(0.25, 0.1, 0.25, 1)');
 
-/** Kotlin L54-L57 — the hoisted constant behind `springSnappy()`. */
-export const SPRING_SNAPPY: SpringSpec = springSpec(0.78, 520, 'cubic-bezier(0.16, 1, 0.3, 1)');
+/** Kotlin L52 `springSnappy() = AppMotion.press()` —— ζ=0.85、k=650。 */
+export const SPRING_SNAPPY: SpringSpec = springSpec(0.85, 650, 'cubic-bezier(0.16, 1, 0.3, 1)');
 
-/** Kotlin L63-L66 — the hoisted constant behind `springSoft()`. */
-export const SPRING_SOFT: SpringSpec = springSpec(0.9, 220, 'cubic-bezier(0.32, 0.72, 0, 1)');
+/** Kotlin L58 `springSoft() = AppMotion.reorder()` —— ζ=0.88、k=210。 */
+export const SPRING_SOFT: SpringSpec = springSpec(0.88, 210, 'cubic-bezier(0.32, 0.72, 0, 1)');
 
 /**
  * iOS 标准弹簧（对应 `.spring(response: 0.35, dampingFraction: 0.85)`）。

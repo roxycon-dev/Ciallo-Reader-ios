@@ -274,15 +274,18 @@ function DayCell(props: {
   onClick: () => void;
 }) {
   const alpha = heatAlpha(props.seconds);
+  const read = props.seconds > 0;
   return (
     <button
       type="button"
       className="cal-day"
       style={{
-        background:
-          props.seconds > 0
-            ? withAlpha(MINT_PRIMARY, alpha)
-            : 'rgba(241, 243, 244, 0.45)',
+        // Kotlin L260-264 `if (seconds > 0) MintPrimary@heatAlpha else surfaceVariant@0.45`.
+        // surfaceVariant 是主题色（亮 `#F0EDE5` / 深 `#2D2D2D`），此前写死成一块浅灰，
+        // 深色主题下「没读的日子」比读过的还亮。
+        background: read
+          ? withAlpha(MINT_PRIMARY, alpha)
+          : 'color-mix(in srgb, var(--cal-surface-variant, #F0EDE5) 45%, transparent)',
         ...(props.isToday ? { border: `1.5px solid ${MINT_PRIMARY}` } : {}),
       }}
       onClick={props.onClick}
@@ -293,9 +296,17 @@ function DayCell(props: {
           style={{ background: MINT_GOLD }}
         />
       ) : null}
-      <span className="cal-day__num">{props.day}</span>
-      {props.seconds > 0 ? (
-        <span className="cal-day__dur">{formatShortDuration(props.seconds)}</span>
+      {/* Kotlin L288-293：读过 → 白字 + Bold；没读 → onSurfaceVariant + Normal。 */}
+      <span
+        className="cal-day__num"
+        style={{ color: read ? '#FFFFFF' : undefined, fontWeight: read ? 700 : 400 }}
+      >
+        {props.day}
+      </span>
+      {read ? (
+        <span className="cal-day__dur" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+          {formatShortDuration(props.seconds)}
+        </span>
       ) : null}
     </button>
   );
@@ -313,23 +324,27 @@ export interface YearGrid {
 /** Kotlin lines 509-553 `buildYearGrid(year)` — 列 = 周，行 = 星期（周一起始）. */
 export function buildYearGrid(year: number, today: Date): YearGrid {
   const first = new Date(year, 0, 1);
-  // Mon=0
+  // Mon=0 —— Kotlin `(Calendar.DAY_OF_WEEK + 5) % 7`（那里 SUNDAY=1、MONDAY=2），
+  // JS `getDay()` 是 SUNDAY=0、MONDAY=1，所以常量换成 +6 后逐日等价。
   const jan1Dow = (first.getDay() + 6) % 7;
-  const daysInYear =
-    (new Date(year + 1, 0, 1).getTime() - new Date(year, 0, 1).getTime()) / 86_400_000;
+  // 全年天数：Kotlin `getActualMaximum(DAY_OF_YEAR)`。
+  // **必须用 UTC 毫秒差** —— 用本地时间相减时，跨夏令时的年份会得到 365.958/366.041 天，
+  // 再 floor 就少一天，整个年视图会整体错开一列（`androidFormat.ts` 里记过同一个坑）。
+  const daysInYear = Math.round(
+    (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 86_400_000,
+  );
   const columns = Math.floor((jan1Dow + daysInYear + 6) / 7);
 
   const monthStartColumn: number[] = [];
   for (let m = 0; m <= 11; m++) {
-    const firstOfMonth = new Date(year, m, 1);
     monthStartColumn.push(
-      Math.floor((jan1Dow + dayOfYear(firstOfMonth) - 1) / 7),
+      Math.floor((jan1Dow + dayOfYear(year, m + 1, 1) - 1) / 7),
     );
   }
 
   const todayColumn =
     today.getFullYear() === year
-      ? Math.floor((jan1Dow + dayOfYear(today) - 1) / 7)
+      ? Math.floor((jan1Dow + dayOfYear(year, today.getMonth() + 1, today.getDate()) - 1) / 7)
       : -1;
 
   const cells: (string | null)[] = new Array<string | null>(columns * 7).fill(null);
@@ -342,8 +357,9 @@ export function buildYearGrid(year: number, today: Date): YearGrid {
   return { columns, daysInYear, todayColumn, monthStartColumn, cells };
 }
 
-function dayOfYear(d: Date): number {
-  return Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 1).getTime()) / 86_400_000) + 1;
+/** 一年中的第几天（1-based），同样走 UTC 免得被夏令时挪走一天。 */
+function dayOfYear(year: number, month1: number, day: number): number {
+  return Math.round((Date.UTC(year, month1 - 1, day) - Date.UTC(year, 0, 1)) / 86_400_000) + 1;
 }
 
 /** Kotlin lines 305-448 — YearHeatmap (GitHub contribution layout). */
@@ -507,9 +523,9 @@ function YearCell(props: {
         height: props.cell,
         background: filled
           ? withAlpha(MINT_PRIMARY, heatAlpha(props.seconds))
-          : // 2026-09-21 修复：原来是 surfaceVariant.copy(alpha = 0.35f)，
-            // 在浅色主题下淡到几乎与卡片同色，整片年视图看起来是"全空白"。
-            'rgba(24, 25, 28, 0.10)',
+          : // Kotlin L490 `onSurface.copy(alpha = 0.10f)` —— 亮色 #161613 / 深色 #F2F2F2。
+            // 此前写死成亮色墨（`rgba(24,25,28,0.10)`），深色主题下整片年视图糊在黑里。
+            'color-mix(in srgb, var(--cal-on-surface, #161613) 10%, transparent)',
         ...(props.isToday ? { border: `1.5px solid ${MINT_GOLD}` } : {}),
       }}
       onClick={() => props.onDayClick(dateStr)}

@@ -44,7 +44,8 @@
 
 /** 玻璃卡片内层：极淡的白雾填充 + 细描边（模块化区块分隔的"玻璃描边"）。
  *  Kotlin: `Color(0x0DFFFFFF)`（AARRGGBB）→ CSS `#FFFFFF0D`（RRGGBBAA）。 */
-export const PANEL_CARD_BG = '#FFFFFF0D'
+/** Kotlin `ComicPanelDesign.kt:95` `PanelCardBg = Color(0x12FFFFFF)` —— alpha **0x12**(18)。 */
+export const PANEL_CARD_BG = '#FFFFFF12'
 
 /** Kotlin: `Color(0x26FFFFFF)`（AARRGGBB）→ CSS `#FFFFFF26`。 */
 export const PANEL_CARD_STROKE = '#FFFFFF26'

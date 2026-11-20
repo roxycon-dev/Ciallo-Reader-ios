@@ -824,7 +824,8 @@
   width: 100%;
   padding: 14px;
   box-sizing: border-box;
-  border: 1px solid rgba(227, 229, 231, 0.45); /* outlineVariant.copy(alpha = .45f) */
+  /* Kotlin L134 `BorderStroke(1.dp, colorScheme…)` —— 用主题 token，不用 M3 基线。 */
+  border: 1px solid color-mix(in srgb, var(--lib-outline, #CAC4D0) 45%, transparent);
   border-radius: 20px;
   background: var(--lib-surface);
   box-shadow: 0 1px 2px rgba(24, 25, 28, 0.06);
@@ -1520,28 +1521,6 @@
   color: var(--lib-secondary);
 }
 
-.lib-login__field {
-  display: block;
-  width: 100%;
-  margin-top: 14px;
-  padding: 12px 14px;
-  box-sizing: border-box;
-  border: 1px solid rgba(24, 25, 28, 0.3); /* outline.copy(alpha = 0.3f) */
-  border-radius: 16px;
-  background: #ffffff;
-  font-size: 15px;
-  color: var(--lib-title);
-  outline: 0;
-}
-
-.lib-login__field:focus {
-  border-color: var(--lib-secondary);
-}
-
-.lib-login__field--password {
-  margin-top: 14px;
-}
-
 .lib-login__message {
   margin: 12px 0 0;
   font-size: 13px;
@@ -1934,7 +1913,8 @@
   margin-top: 18px;
   border-radius: 6px;
   overflow: hidden;
-  background: rgba(var(--lib-secondary-rgb), 0.12);
+  /* Kotlin L276：`secondaryContainer.copy(alpha = .6f)`。 */
+  background: color-mix(in srgb, var(--lib-secondary) 60%, transparent);
 }
 
 .lib-download-card__bar-fill {
@@ -2151,13 +2131,33 @@
 
 .lib-detail__hero {
   display: flex;
-  gap: 18px;
+  gap: 20px;
 }
 
+/* Kotlin L216-219：非 split 的 Row 是 20dp；≥720dp（Kotlin 的 `wide` 断点）放到 28dp。 */
+@media (min-width: 720px) {
+  .lib-detail__hero {
+    gap: 28px;
+  }
+
+  /* Kotlin L179-187 `coverWidth = if (wide) 150.dp else 118.dp`，高 = 宽 × 1.4。 */
+  .lib-detail__cover {
+    width: 150px;
+    height: calc(150px * 1.4);
+  }
+
+  /* Kotlin L194-196 `fontSize = if (wide) 28.sp else 24.sp`。 */
+  .lib-detail__title {
+    font-size: 28px;
+  }
+}
+
+/* Kotlin L179-187：`coverWidth = if (wide) 150.dp else 118.dp`，高 = 宽 × 1.4
+   （`size(coverWidth, coverWidth * 1.4f)`）。原先写死 106×150 —— 宽与比例都不对。 */
 .lib-detail__cover {
   flex: 0 0 auto;
-  width: 106px;
-  height: 150px;
+  width: 118px;
+  height: calc(118px * 1.4);
   border-radius: 12px;
   overflow: hidden;
   background: linear-gradient(
@@ -2169,14 +2169,14 @@
 
 .lib-detail__title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   color: var(--lib-title);
 }
 
 .lib-detail__author {
   margin: 10px 0 0;
-  font-size: 16px;
+  font-size: 14px;
   color: var(--lib-body);
 }
 
@@ -2192,7 +2192,11 @@
   color: var(--lib-error);
 }
 
+/* Kotlin L237-238：`padding(14.dp)` + `spacedBy(14.dp)`（行内与行间都是 14）。 */
 .lib-detail__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   padding: 14px;
   border-radius: 16px;
   background: var(--lib-surface-variant);
@@ -2201,10 +2205,6 @@
 .lib-detail__fact-row {
   display: flex;
   gap: 12px;
-}
-
-.lib-detail__fact-row + .lib-detail__fact-row {
-  margin-top: 14px;
 }
 
 .lib-detail__fact {
@@ -2244,6 +2244,7 @@
   color: var(--lib-body);
 }
 
+/* Kotlin L263-264：`maxLines = if (expanded) Int.MAX_VALUE else 7`，行高 23sp。 */
 .lib-detail__synopsis {
   margin: 0;
   font-size: 15px;
@@ -2570,11 +2571,6 @@
   box-shadow: 0 28px 56px rgba(0, 0, 0, 0.55);
 }
 
-[data-theme='dark'] .lib-login__field {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: color-mix(in srgb, var(--color-medium-gray, #9aa0a6) 40%, transparent);
-}
-
 /* ── 11. 底部 Sheet（L1592-1815）───────────────────────────────────────
    L1610 `background: rgba(255,255,255,0.66)` = Kotlin L1837-2113 SourcePickerSheet
    的 `surface@66%`；`border-top: 1px solid rgba(255,255,255,0.7)` 是白聚光棱
@@ -2786,9 +2782,6 @@
   [data-theme='dark'] .lib-login {
     background: rgba(34, 36, 40, 90%)
   }
-  [data-theme='dark'] .lib-login__field {
-    border-color: rgba(154, 160, 166, 40%)
-  }
   [data-theme='dark'] .lib-sheet {
     background: rgba(34, 36, 40, 66%)
     box-shadow: 0 32px 48px rgba(5, 150, 105, 18%), 0 8px 16px rgba(0, 0, 0, 0.5)
@@ -2955,4 +2948,63 @@
 [data-render-quality='MINIMAL'] .lib-search-skel__row,
 [data-render-quality='MINIMAL'] .lib-search-skel__lines {
   animation: none;
+}
+/* ══════════════════════════════════════════════════════════════════════════════
+   LibrarySearchNotice —— `library/LibraryScreen.kt` L1195-1231
+     L1204 Modifier.fillMaxWidth()            → width: 100%
+     L1210 Row(CenterVertically, spacedBy 12) → flex + gap（gap 由内联样式给）
+     L1217 Image(size 54.dp)                  → 54×54
+     L1219 Column(spacedBy 3.dp)              → flex column + gap
+     L1220 titleMedium + SemiBold             → 16px/600
+     L1221 bodySmall + onSurfaceVariant       → 12px + --color-medium-gray
+     L1227 Modifier.align(Alignment.End)      → justify-content: flex-end
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.library-search-notice {
+  width: 100%;
+}
+
+.library-search-notice__row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.library-search-notice__mascot {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+}
+
+.library-search-notice__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.library-search-notice__title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--color-on-light);
+  overflow-wrap: anywhere;
+}
+
+.library-search-notice__description {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  color: var(--color-medium-gray);
+  overflow-wrap: anywhere;
+}
+
+.library-search-notice__gap {
+  display: block;
+  width: 100%;
+}
+
+.library-search-notice__action {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
 }

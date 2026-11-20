@@ -104,12 +104,12 @@ export function readerTheme(index: number): {
 }
 
 export const MOTION = {
-  fast: 150,
-  normal: 250,
-  transition: 350,
-  sheet: 400,
+  fast: 110,
+  normal: 200,
+  transition: 280,
+  sheet: 280,
   headerCollapse: 220,
-  easeOut: 'cubic-bezier(0,0,0.58,1)',
+  easeOut: 'cubic-bezier(0.215,0.61,0.355,1)',
   easeInOut: 'cubic-bezier(0.42,0,0.58,1)',
   easeOutQuart: 'cubic-bezier(0.25,1,0.5,1)',
 } as const;

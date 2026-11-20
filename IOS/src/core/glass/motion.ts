@@ -24,6 +24,15 @@
  */
 
 import { getMediaQuerySource } from './mediaQuerySource';
+import {
+  OVERLAY_EASE_CSS,
+  OVERLAY_ENTER_MS,
+  OVERLAY_EXIT_MS,
+  OVERLAY_PLANE_CSS,
+  OVERLAY_SETTLE_CSS,
+  overlayEntranceSpec,
+  overlayScrimSpec,
+} from '../ui/overlayEntrance';
 
 /**
  * 全 App 动效与触觉的统一令牌（设计稿 §4）：
@@ -250,39 +259,46 @@ export class AppHaptics {
 /* ── OverlayAnimations.kt entrance tokens ─────────────────────────────────── */
 
 /**
- * `ui/components/OverlayAnimations.kt` — the animation token table for
- * `DialogEntrance` / `BottomSheetEntrance` / `ScrimEntrance`.
+ * `ui/components/OverlayAnimations.kt` 的入场参数。
  *
- * Kotlin:
- *   line 33 `MutableTransitionState(false).apply { targetState = true }` → from-state
- *   line 40 `fadeIn(tween(180, easing = IosMotion.EaseOut))`
- *   line 42 `scaleIn(initialScale = 0.92f, animationSpec = IosMotion.spring())`
- *   line 63 `fadeIn(tween(160, easing = IosMotion.EaseOut))`
- *   line 65 `slideInVertically({ it / 6 }, IosMotion.springSoft())`
- *   line 84 `fadeIn(tween(durationMillis))` — default 220
- *
- * ADAPTATION — Compose springs → CSS cubic-bezier
- * `IosMotion.spring()` (near-critical, snappy) maps to `cubic-bezier(0.25,1,0.5,1)`
- * and `springSoft()` (larger travel, softer) to `cubic-bezier(0.32,0.72,0,1)`.
- * The keyframe bodies live in `src/styles/components.css`; these tokens carry the
- * durations and the `animation` shorthand so the components stay declarative.
+ * 2026-11-17 更正：本常量原先照的是**旧版** Kotlin（`fadeIn(tween(180, IosMotion.EaseOut))`、
+ * `scaleIn(0.92f, IosMotion.spring())`、`slideInVertically({ it / 6 })`、遮罩 `tween(220)`），
+ * 而当前原文（86 行）已改成「线性进度 + `WenkuMotion` 三条曲线 + `graphicsLayer`」：
+ * 入场 420ms（`ENTER_MS`）、出场 320ms（`EXIT_MS`），面板**不淡入**、横向 −18/−8dp、
+ * 纵向 `(高度 + 24dp)` 与 `20dp × settle`，遮罩走 `plane` 曲线。真实实现在
+ * `@core/ui/overlayEntrance`，这里只转发，避免两处各写一份数字。
  */
+export {
+  OVERLAY_ENTER_MS as OVERLAY_ENTRANCE_ENTER_MS,
+  OVERLAY_EXIT_MS as OVERLAY_ENTRANCE_EXIT_MS,
+  OVERLAY_EASE_CSS,
+  OVERLAY_PLANE_CSS,
+  OVERLAY_SETTLE_CSS,
+  overlayEntranceSpec,
+  overlayScrimSpec,
+};
+
+/** 三档入场 token：时长取 Kotlin 的 420/320，缓动见 `@core/ui/overlayEntrance`。 */
 export const OVERLAY_ENTRANCE = {
   dialog: {
-    durationMs: 180,
-    scaleFrom: 0.92,
-    spring: 'cubic-bezier(0.25, 1, 0.5, 1)',
-    animation: 'overlay-dialog-in 180ms cubic-bezier(0.25, 1, 0.5, 1) both',
+    durationMs: OVERLAY_ENTER_MS,
+    exitMs: OVERLAY_EXIT_MS,
+    lateralDp: overlayEntranceSpec('dialog').lateralDp,
+    travelDp: overlayEntranceSpec('dialog').travelPx,
+    animation: `overlay-dialog-in ${String(OVERLAY_ENTER_MS)}ms linear both`,
   },
   bottomSheet: {
-    durationMs: 160,
-    translateFrom: '16.6667%',
-    springSoft: 'cubic-bezier(0.32, 0.72, 0, 1)',
-    animation: 'overlay-sheet-in 260ms cubic-bezier(0.32, 0.72, 0, 1) both',
+    durationMs: OVERLAY_ENTER_MS,
+    exitMs: OVERLAY_EXIT_MS,
+    lateralDp: overlayEntranceSpec('sheet').lateralDp,
+    bottomInsetDp: 24,
+    animation: `overlay-sheet-in ${String(OVERLAY_ENTER_MS)}ms linear both`,
   },
   scrim: {
-    durationMs: 220,
-    animation: 'overlay-scrim-in 220ms linear both',
+    durationMs: OVERLAY_ENTER_MS,
+    exitMs: OVERLAY_EXIT_MS,
+    easingCss: OVERLAY_PLANE_CSS,
+    animation: `overlay-scrim-in ${String(OVERLAY_ENTER_MS)}ms ${OVERLAY_PLANE_CSS} both`,
   },
 } as const;
 

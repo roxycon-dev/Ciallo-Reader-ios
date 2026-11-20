@@ -76,6 +76,9 @@ export const MascotAssetMap = {
 
 /** 吉祥物当前"情绪/动作"，用于静态图上的微动效。 */
 export type MascotMood = 'IDLE' | 'READING' | 'RUN' | 'HAPPY' | 'SAD';
+/** `MascotSpriteSheet.kt` L39 `enum class MascotMood { IDLE, READING, RUN, HAPPY, SAD }` —— 声明顺序。 */
+export const MASCOT_MOODS: readonly MascotMood[] = ['IDLE', 'READING', 'RUN', 'HAPPY', 'SAD'];
+
 
 /** 由素材 id 推断情绪，供空状态等组件选择动效。 */
 export function mascotMoodOf(drawableId: string): MascotMood {

@@ -1,0 +1,139 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   液态分段控件 / 普通控件 —— `LiquidSegmentedSelector.kt` + `LiquidSegmentView.kt`
+   + `OrdinaryControls.kt` 的 CSS 层。
+
+   数值来源（照抄 Kotlin，不新增设计值）：
+     Selector.kt L58  height 默认 48.dp        → 由组件内联 height 给
+     Selector.kt L148 透明文字层（不影响画面） → `.liquid-segment__label` 透明但仍可聚焦
+     Selector.kt L151 badge > 0 时 "N 项"      → aria-description
+     View.kt  L116     轨道圆角 = h/2          → border-radius: 999px
+     View.kt  L119-121 上沿内阴影 8dp          → canvas 内绘制（非 CSS）
+     View.kt  L210-211 液滴 1px 白描边 @.53    → canvas 内绘制
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.liquid-segment {
+  position: relative;
+  width: 100%;
+  isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+}
+
+.liquid-segment__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Kotlin L148-155：文字用透明色只承担无障碍，画面由 canvas 出。 */
+.liquid-segment__labels {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+}
+
+.liquid-segment__label {
+  flex: 1 1 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: transparent;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  outline: none;
+}
+
+.liquid-segment__label:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -3px;
+  border-radius: 999px;
+}
+
+/* ── OrdinaryControls.kt ───────────────────────────────────────────────────── */
+
+.ordinary-slider {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  gap: 4px;
+}
+
+.ordinary-slider__label {
+  padding: 0 16px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-medium-gray);
+}
+
+.ordinary-slider__input {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
+/*
+ * 滑杆的反向容器：Kotlin L43 的 `LocalLayoutDirection provides Rtl` **只包滑杆**
+ * （L44-59），label（L41）在它之外。所以 `direction: rtl` 落在这里，
+ * 而不是 `.ordinary-slider` 上 —— 否则 label 也会跟着变成右对齐。
+ */
+.ordinary-slider__lane {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.ordinary-slider__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ordinary-segment {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  border: 1px solid var(--color-divider-gray);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ordinary-segment__item {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-light);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ordinary-segment__item + .ordinary-segment__item {
+  border-left: 1px solid var(--color-divider-gray);
+}
+
+.ordinary-segment__item--on {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  font-weight: 600;
+}
+
+.ordinary-segment__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ordinary-segment__heart,
+.ordinary-segment__badge {
+  font-size: 0.85em;
+  opacity: 0.8;
+}

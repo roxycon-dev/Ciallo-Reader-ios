@@ -49,6 +49,9 @@
 
 /** 拉拽方向：决定光晕出现在哪条边。（GodPull.kt L51） */
 export type GodPullEdge = 'LEFT' | 'RIGHT' | 'TOP' | 'BOTTOM';
+/** `GodPull.kt` L51 `enum class GodPullEdge { LEFT, RIGHT, TOP, BOTTOM }` —— 声明顺序。 */
+export const GOD_PULL_EDGES: readonly GodPullEdge[] = ['LEFT', 'RIGHT', 'TOP', 'BOTTOM'];
+
 
 /** GodMotion.PULL_DAMPING = 0.55f —— 橡胶带阻尼系数（越大越费力）。（GodMotion.kt L78） */
 export const GOD_PULL_DAMPING = 0.55;

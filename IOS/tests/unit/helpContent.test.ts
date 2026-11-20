@@ -255,13 +255,75 @@ describe('HelpSection / FaqExpandableItem', () => {
     );
   });
 
-  it('the FAQ answer animation is a 250ms grid-template-rows transition (expand/shrink)', () => {
+  it('the FAQ answer reveal uses PullOutVisibility timings (进 420 / 出 320)', () => {
+    /*
+     * `FaqExpandableItem.kt` L71-72 调的是 `PullOutVisibility(visible = expanded)`，
+     * 而 `PullOutMotion.kt` L218-221 的 enter/exit 是：
+     *   enter = fadeIn(tween(420, easeOutCubic)) + scaleIn(tween(420, settle), initialScale = .985f)
+     *   exit  = fadeOut(tween(320, retract))      + scaleOut(tween(320, retract), targetScale = .985f)
+     *
+     * 旧断言钉的 `grid-template-rows … 250ms` 是编出来的：既不是 420 也不是 320，
+     * 而且 Kotlin 那条动画根本不是「竖直展开」（`expandVertically` 在本文件里一次都没出现）。
+     */
     const css = readFileSync(
       path.resolve(import.meta.dirname, '../../src/styles/help.css'),
       'utf8',
     );
-    expect(css).toContain("transition: grid-template-rows 250ms");
+    const faq = kotlinSource('help/FaqExpandableItem.kt');
+    const motion = kotlinSource('components/PullOutMotion.kt');
+    expect(faq).toContain('PullOutVisibility(');
+    /*
+     * L7-8 还 import 了 `expandVertically` / `shrinkVertically`，但**一次都没调用** ——
+     * 只是旧版残留的 import。所以负断言只能钉调用形状（`expandVertically(`），
+     * 钉裸标识符会被这两行 import 命中。
+     */
+    expect(faq).not.toContain('expandVertically(');
+    expect(faq).not.toContain('shrinkVertically(');
+    expect(motion).toContain('fadeIn(tween(420, easing = CubicBezierEasing(.215f, .61f, .355f, 1f)))');
+    expect(motion).toContain('scaleIn(tween(420, easing = CubicBezierEasing(.2f, 1.08f, .34f, 1f)), initialScale = .985f)');
+    expect(motion).toContain('fadeOut(tween(320, easing = CubicBezierEasing(.55f, .055f, .675f, .19f)))');
+    expect(motion).toContain('targetScale = .985f');
+    // 展开档：420ms + easeOutCubic / settle
+    expect(css).toContain('grid-template-rows 420ms cubic-bezier(0.215, 0.61, 0.355, 1)');
+    expect(css).toContain('transform 420ms cubic-bezier(0.2, 1.08, 0.34, 1)');
+    // 收起档：320ms + retract 曲线
+    expect(css).toContain('grid-template-rows 320ms cubic-bezier(0.55, 0.055, 0.675, 0.19)');
+    expect(css).toContain('transform: scale(0.985);');
     expect(css).toContain('grid-template-rows: 0fr');
-    expect(css).toContain("grid-template-rows: 1fr");
+    expect(css).toContain('grid-template-rows: 1fr');
+    // 箭头走 `AnimatedChevron` → `AppMotion.icon()` = tween(240, easeOutCubic)
+    expect(css).toContain('transition: transform 240ms cubic-bezier(0.215, 0.61, 0.355, 1);');
+    // 负断言：三处编出来的值都不许回来。只截 `.faq-item {` 到下一个分节标记那一段 ——
+    // `(0, 0, 0.58, 1)` 在 `.library-help-shortcut`（另一个组件）里仍有一处，不归本文件管。
+    const faqBlock = css.slice(css.indexOf('.faq-item {'), css.indexOf('/* ── JsonSourceGuideCard.kt'));
+    expect(faqBlock.length).toBeGreaterThan(200);
+    expect(faqBlock).not.toContain('grid-template-rows 250ms');
+    expect(faqBlock).not.toContain('transform 250ms var(--ease-out');
+    expect(faqBlock).not.toContain('cubic-bezier(0, 0, 0.58, 1)');
+  });
+
+  it('the FAQ card uses the theme surfaceVariant / outlineVariant (not Google grey)', () => {
+    const css = readFileSync(
+      path.resolve(import.meta.dirname, '../../src/styles/help.css'),
+      'utf8',
+    );
+    const theme = kotlinSource('theme/Theme.kt');
+    // L84 / L90 的浅色档
+    expect(theme).toContain('surfaceVariant = Color(0xFFF0EDE5)');
+    expect(theme).toContain('outlineVariant = Color(0xFFDAD5C9)');
+    expect(css).toContain('background: rgba(240, 237, 229, 0.4);');
+    expect(css).toContain('border: 1px solid rgba(218, 213, 201, 0.5);');
+    // 旧值：Google grey 100 的底 + 拿 onSurfaceVariant 当描边（比 outlineVariant 深一档）
+    expect(css).not.toContain('rgba(241, 243, 244, 0.4)');
+    expect(css).not.toContain('border: 1px solid rgba(97, 102, 109, 0.5);');
+    // 深色档：L104 `surfaceVariant = WenkuTokens.RaisedDark`、L110 `outlineVariant = RaisedHighDark`
+    expect(theme).toContain('surfaceVariant = com.example.ui.wenku.WenkuTokens.RaisedDark');
+    expect(theme).toContain('outlineVariant = com.example.ui.wenku.WenkuTokens.RaisedHighDark');
+    expect(kotlinSource('wenku/WenkuTokens.kt')).toContain('val RaisedDark = Color(0xFF2D2D2D)');
+    expect(css).toContain('background: rgba(45, 45, 45, 0.4);');
+    expect(css).toContain('border-color: rgba(58, 58, 58, 0.5);');
+    // 答案色 = onSurfaceVariant = InkSecondaryLight `#646B62`
+    expect(kotlinSource('wenku/WenkuTokens.kt')).toContain('val InkSecondaryLight = Color(0xFF646B62)');
+    expect(css).toContain('color: var(--color-medium-gray, #646b62);');
   });
 });

@@ -55,9 +55,11 @@
  *  L107    `rememberCoroutineScope` → `useRef`-free async handlers in the page component.
  *  L110-119 Compose `remember { mutableStateOf(...) }` → React `useState`.
  *  L165    `System.currentTimeMillis()` → injected `now` argument (pure-function shape).
- *  L254/281 `MascotAnimationController.play(MascotEvent.CleanComplete)` → SKIPPED: the mascot
- *          animation subsystem (`ui/mascot/**`) is owned by another agent and has no TS port yet;
- *          the success badge itself is ported.
+ *  L272-278 `freed < 0 / > 0 / else` 三态 → `clearRow()` 返回 `ClearResult` 的三个 kind
+ *  ⚠️ 端口此前在这里写着「L254/281 `MascotAnimationController.play(MascotEvent.CleanComplete)`
+ *          → SKIPPED」，那两条**都不存在**：`CacheManagementScreen.kt`（855 行）里
+ *          `Mascot` 与 `play(` 各 0 命中，`MascotEvent` 也没有 `CleanComplete` 这个 object
+ *          （见 E211）。清理成功的反馈是页面自己的 `CleanSuccessBadge` + `AppToast`。
  *  L347/377/411/347 StatFs / StorageStatsManager / PackageManager introspection → port members.
  *  L363    `StorageStatsManager.queryStatsForPackage` → `packageStats()`.
  *  L472-424 (L422-424) `catch (e: CancellationException) throw e` → AbortError re-throw inside
@@ -279,13 +281,13 @@ export interface StorageScanResult {
   readonly scanning: boolean;
 }
 
-/** Result of a clear operation — Kotlin L245-256 / L272-284. */
+/** Result of a clear operation — Kotlin L258-283（`clearRow` 的 `when` 在 L272-278）. */
 export type ClearResult =
-  /** `freed < 0` → `检测到下载正在进行，已取消删除` (Kotlin L253). */
+  /** `freed < 0` → `检测到下载正在进行，已取消删除` (Kotlin L273). */
   | { readonly kind: 'skipped-active-download'; readonly message: string }
-  /** `freed > 0` → success badge animation (Kotlin L254). */
+  /** `freed > 0` → success badge animation (Kotlin L274). */
   | { readonly kind: 'freed'; readonly freed: number }
-  /** `freed == 0` → `没有可释放的内容` (Kotlin L255). */
+  /** `freed == 0` → `没有可释放的内容` (Kotlin L275). */
   | { readonly kind: 'nothing-to-free'; readonly message: string };
 
 /* ══════════════════════════════════════════════════════════════════════════════

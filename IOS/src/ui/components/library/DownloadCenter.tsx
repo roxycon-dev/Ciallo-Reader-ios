@@ -5,6 +5,14 @@ import { DownloadStatePending, downloadingState, errorState, pausedState, succes
 import type { DownloadTaskRecord } from '@core/download/downloadTaskRepository';
 import { comicDownloadTaskId, type ComicDownloadTask } from '@core/library/libraryComicDownload';
 import { getLibraryRuntime, type LibraryRuntime } from '@core/library/libraryRuntime';
+import {
+  DOWNLOAD_COMIC_COMPLETION_LABEL,
+  DOWNLOAD_RING,
+  downloadBytes,
+  downloadRingArc,
+  sortDownloadTasks,
+} from '@core/library/uiHelpers';
+import { novelDownloadDeleteNotice } from '@core/ui/kotlinAuthorityConstants';
 import { createSearchBook } from '@core/source/searchBook';
 import { tr } from '@core/i18n';
 import { useAppStore } from '@ui/state/appStore';
@@ -58,8 +66,59 @@ export function downloadStatusLabel(state: DownloadState): string {
   }
 }
 
-const bytes = (n: number) => n < 0 ? tr('未知大小') : n < 1024 ? n + ' B' :
-  n < 1024 ** 2 ? (n / 1024).toFixed(1) + ' KB' : (n / 1024 ** 2).toFixed(1) + ' MB';
+const RING_RADIUS = (DOWNLOAD_RING.diameterDp - DOWNLOAD_RING.strokeWidthDp) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/**
+ * Kotlin L258-283 `Modifier.downloadRing(progress)` —— 25dp 细环（1.65dp 圆头描边），
+ * 底环 −84° 起扫 348°，`progress == null` 时是 80° 的不定态弧段。
+ *
+ * Compose 的 `drawArc` 角度与 SVG `<circle>` 的 dash 起点差 90°，所以旋转量是
+ * `startAngle + 90`（−84° → 6°，即缺口朝上）。
+ */
+function DownloadRing({ progress }: { progress: number | null }) {
+  const arc = downloadRingArc(progress);
+  const dash = (degrees: number): string =>
+    `${(degrees / 360) * RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`;
+  const label = progress === null ? tr('准备下载') : tr('下载进度');
+  return (
+    <svg
+      className="download-center__ring"
+      width={DOWNLOAD_RING.diameterDp}
+      height={DOWNLOAD_RING.diameterDp}
+      viewBox={`0 0 ${DOWNLOAD_RING.diameterDp} ${DOWNLOAD_RING.diameterDp}`}
+      role="progressbar"
+      aria-label={label}
+      {...(progress === null ? {} : { 'aria-valuemin': 0, 'aria-valuemax': 1, 'aria-valuenow': Math.min(1, Math.max(0, progress)) })}
+    >
+      <circle
+        cx={DOWNLOAD_RING.diameterDp / 2}
+        cy={DOWNLOAD_RING.diameterDp / 2}
+        r={RING_RADIUS}
+        fill="none"
+        stroke="currentColor"
+        strokeOpacity={DOWNLOAD_RING.trackAlpha}
+        strokeWidth={DOWNLOAD_RING.strokeWidthDp}
+        strokeLinecap="round"
+        strokeDasharray={dash(DOWNLOAD_RING.trackSweep)}
+        transform={`rotate(${DOWNLOAD_RING.startAngle + 90} ${DOWNLOAD_RING.diameterDp / 2} ${DOWNLOAD_RING.diameterDp / 2})`}
+      />
+      {arc.sweep > 0 && (
+        <circle
+          cx={DOWNLOAD_RING.diameterDp / 2}
+          cy={DOWNLOAD_RING.diameterDp / 2}
+          r={RING_RADIUS}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={DOWNLOAD_RING.strokeWidthDp}
+          strokeLinecap="round"
+          strokeDasharray={dash(arc.sweep)}
+          transform={`rotate(${arc.startAngle + arc.rotation + 90} ${DOWNLOAD_RING.diameterDp / 2} ${DOWNLOAD_RING.diameterDp / 2})`}
+        />
+      )}
+    </svg>
+  );
+}
 
 function novelState(task: DownloadTaskRecord): DownloadState {
   switch (task.status) {
@@ -80,22 +139,28 @@ function comicState(task: ComicDownloadTask): DownloadState {
   }
 }
 
-function DownloadRow({ title, subtitle, state, pause, resume, remove, retry }: {
+function DownloadRow({ title, subtitle, state, pause, resume, remove, retry, completionLabel }: {
   title: string; subtitle: string; state: DownloadState; pause(): void; resume(): void; remove(): void; retry(): void;
+  /** Kotlin L211 `completionLabel = "已完成 · 已存入书架"`；漫画章节传另一句（L167）。 */
+  completionLabel?: string;
 }) {
+  const statusText = state.kind === 'Success' && completionLabel !== undefined
+    ? completionLabel
+    : downloadStatusLabel(state);
   return <li className="download-center__task">
     <div className="download-center__row">
       <div className="download-center__book"><strong>{title}</strong><small>{subtitle}</small></div>
       {state.kind === 'Downloading' && <button type="button" className="lib-icon-button" aria-label={tr('暂停')} onClick={pause}>Ⅱ</button>}
       {state.kind === 'Paused' && <button type="button" className="lib-icon-button" aria-label={tr('继续')} onClick={resume}>▶</button>}
       {state.kind === 'Error' && <button type="button" className="lib-icon-button" aria-label={tr('重新获取并重试')} onClick={retry}>↻</button>}
+      {state.kind === 'Success' && <DownloadRing progress={1} />}
       <button type="button" className="lib-icon-button" aria-label={tr('删除记录')} onClick={remove}>×</button>
     </div>
-    <p className={state.kind === 'Error' ? 'download-center__error' : 'download-center__status'}>{downloadStatusLabel(state)}</p>
-    {state.kind === 'Pending' && <progress aria-label="准备下载" />}
+    <p className={state.kind === 'Error' ? 'download-center__error' : 'download-center__status'}>{statusText}</p>
+    {state.kind === 'Pending' && <DownloadRing progress={null} />}
     {state.kind === 'Downloading' && <>
-      <progress aria-label="下载进度" max={1} value={state.totalBytes > 0 || state.progress > 0 ? Math.min(1, Math.max(0, state.progress)) : undefined} />
-      {state.downloadedBytes > 0 && <small>{bytes(state.downloadedBytes)} / {bytes(state.totalBytes > 0 ? state.totalBytes : -1)}</small>}
+      <DownloadRing progress={state.totalBytes > 0 || state.progress > 0 ? Math.min(1, Math.max(0, state.progress)) : null} />
+      {state.downloadedBytes > 0 && <small>{downloadBytes(state.downloadedBytes)} / {state.totalBytes > 0 ? downloadBytes(state.totalBytes) : tr('未知大小')}</small>}
     </>}
     {state.kind === 'Error' && <small className="download-center__error">{state.message}</small>}
   </li>;
@@ -183,9 +248,10 @@ function DownloadCenter({ runtime, visible, origin, onDismissComplete }: {
     window.addEventListener('keydown', back, true);
     return () => window.removeEventListener('keydown', back, true);
   }, [deletion, dismiss, picking, visible]);
-  const sorted = [...tasks].sort((a, b) => Number(a.status === 'COMPLETED') - Number(b.status === 'COMPLETED') || b.updatedAt - a.updatedAt);
+  const sorted = sortDownloadTasks(tasks);
   const persisted = new Set(tasks.map((task) => taskId(task.sourceId, originalBookId(task.id, task.sourceId))));
   const preparations = [...preps].filter(([key]) => !persisted.has(key));
+  const count = preparations.length + sorted.length + comics.length;
   const actions = (key: string, title: string, retry: () => void) => ({
     pause: () => vm.pauseDownload(key), resume: () => vm.resumeDownload(key), retry,
     remove: () => setDeletion({ title, run: () => vm.cancelDownload(key) }),
@@ -194,7 +260,11 @@ function DownloadCenter({ runtime, visible, origin, onDismissComplete }: {
   return <div ref={overlayRef} className="download-center__overlay" aria-hidden={!visible} onClick={dismiss}>
     <section ref={sheetRef} className="download-center" role="dialog" aria-modal="true" aria-hidden={!visible} inert={!visible} aria-label={tr('下载任务')} data-testid="download_task_panel" onClick={(event) => event.stopPropagation()}>
       <header className="download-center__row"><h2>{tr('下载任务')}</h2><button type="button" className="lib-sheet__text-button" onClick={dismiss}>{tr('收起')}</button></header>
-      <p className="download-center__hint">后台继续下载，完成记录保留。</p>
+      <div className="download-center__row">
+        <h3 className="download-center__section">{tr('离线任务')}</h3>
+        <span className="download-center__count">{`${String(count)} 项`}</span>
+      </div>
+      <p className="download-center__hint">{tr('任务在后台继续，完成后可在书架阅读。')}</p>
       <ul className="download-center__list">
         {preparations.map(([key, prep]) => <DownloadRow key={'prep:' + key} title={prep.book.title} subtitle={prep.book.sourceId} state={prep.state}
           {...actions(key, prep.book.title, () => vm.startDownloadWithFormat(prep.book, prep.book.format || null))} />)}
@@ -208,16 +278,17 @@ function DownloadCenter({ runtime, visible, origin, onDismissComplete }: {
         {comics.map((task) => {
           const key = comicDownloadTaskId(task.book, task.chapterId), resume = () => vm.downloadComicChapter(task.book, task.chapter);
           return <DownloadRow key={'comic:' + key} title={task.book.title} subtitle={task.chapter.title + ' · ' + task.book.sourceId} state={comicState(task)}
+            completionLabel={tr(DOWNLOAD_COMIC_COMPLETION_LABEL)}
             pause={() => vm.pauseComicChapter(key)} resume={resume} retry={resume}
             remove={() => setDeletion({ title: task.book.title, run: () => vm.cancelComicChapter(key) })} />;
         })}
-        {!preparations.length && !sorted.length && !comics.length && <li className="download-center__empty">{tr('暂无下载任务')}</li>}
+        {count === 0 && <li className="download-center__empty"><strong>{tr('暂无下载任务')}</strong><small>{tr('从书库或漫画章节开始下载。')}</small></li>}
       </ul>
     </section>
     {deletion && visible && <div className="download-center__confirm-shade" onClick={(event) => { event.stopPropagation(); setDeletion(null); }}>
       <div className="lib-dialog" role="alertdialog" aria-modal="true" aria-label={tr('删除下载记录？')} onClick={(event) => event.stopPropagation()}>
         <h3 className="lib-dialog__title">{tr('删除下载记录？')}</h3>
-        <p className="lib-dialog__subtitle">“{deletion.title}”的记录将被删除；未完成的下载会停止，已存入书架的书籍保留。</p>
+        <p className="lib-dialog__subtitle">{novelDownloadDeleteNotice(deletion.title)}</p>
         <div className="download-center__confirm-actions">
           <button type="button" className="lib-sheet__text-button" onClick={() => setDeletion(null)}>{tr('保留')}</button>
           <button type="button" className="lib-sheet__text-button" onClick={() => { setDeletion(null); deletion.run(); }}>{tr('删除')}</button>

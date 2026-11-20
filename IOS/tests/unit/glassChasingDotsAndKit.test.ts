@@ -20,11 +20,15 @@ import {
   fractionTransitionCss,
 } from '../../src/core/glass/chasingDots';
 import {
+  GLASSKIT_CARD_PRESS_DEPTH,
   GLASSKIT_FALLBACK_SHADOW,
   GLASSKIT_PRESS_BEZIER,
   GLASSKIT_PRESS_MIN_SCALE,
   GLASSKIT_PRESS_MS,
   GlassTokens,
+  glassKitCardPressScale,
+  glassKitPressHighlightAlpha,
+  glassKitPressHighlightRadius,
   glassKitTint,
   pageOverlayColor,
   pressHighlightCss,
@@ -193,6 +197,7 @@ describe('chasingDots keyframes (ChasingDots.kt lines 30-104)', () => {
 
 describe('GlassKit.kt tokens', () => {
   it('are preserved verbatim', () => {
+    expect(GlassTokens.ManagementTitleHeight).toBe(152);
     expect(GlassTokens.Radius).toBe(24);
     expect(GlassTokens.InnerRadius).toBe(12);
     expect(GlassTokens.IconRadius).toBe(10);
@@ -303,13 +308,21 @@ describe('GlassKit.kt overlay + press tokens', () => {
     );
   });
 
-  it('press scale 0.98 ↔ 1.0 on spring(0.6, 400)', () => {
-    expect(GLASSKIT_PRESS_MIN_SCALE).toBe(0.98);
+  it('press scale 0.975 ↔ 1.0 on spring(0.6, 400)', () => {
+    // Kotlin L355 `1f - 0.02f * tweaks.pressStrength`；`CardTweaks.kt` L23 出厂 1.25
+    // → 1 − 0.02 × 1.25 = 0.975（此前这里写死 0.98，等于把 pressStrength 当成了 1.0）。
+    expect(GLASSKIT_CARD_PRESS_DEPTH).toBe(0.02);
+    expect(GLASSKIT_PRESS_MIN_SCALE).toBeCloseTo(1 - 0.02 * 1.25, 12);
+    expect(glassKitCardPressScale(true, false)).toBeCloseTo(0.975, 12);
     expect(GLASSKIT_PRESS_BEZIER).toBe('cubic-bezier(0.2, 1.4, 0.4, 1)');
     expect(GLASSKIT_PRESS_MS).toBe(Math.round((4.605 / (0.6 * Math.sqrt(400))) * 1000));
   });
 
-  it('pressHighlightCss puts a 0.55×min-dimension radial at the finger', () => {
+  it('pressHighlightCss puts a 0.5×pressRadius radial at the finger, alpha 0.16×pressStrength', () => {
+    // Kotlin L416 `size.minDimension * 0.5f * tweaks.pressRadius`（1.1）→ 55.0px @ 100
+    // Kotlin L420 `Color.White.copy(alpha = 0.16f * tweaks.pressStrength)`（1.25）→ 0.20
+    expect(glassKitPressHighlightRadius(100)).toBeCloseTo(55, 12);
+    expect(glassKitPressHighlightAlpha()).toBeCloseTo(0.2, 12);
     expect(pressHighlightCss(10, 20, 100)).toBe(
       'background-image:radial-gradient(circle 55.0px at 10.0px 20.0px,rgba(255,255,255,0.20) 0%,rgba(255,255,255,0) 100%);mix-blend-mode:screen;',
     );

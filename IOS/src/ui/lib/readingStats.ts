@@ -1,3 +1,4 @@
+import { AppLanguage, getAppLanguage } from '@core/i18n/locale';
 /**
  * readingStats.ts — port of Android components/ReadingStats.kt
  * Pure aggregation + formatting helpers used by StatisticsPage / WeeklyReadingChart.
@@ -31,16 +32,37 @@ export function readingRecordsToDailyTotals(
   return map;
 }
 
-/** formatReadDuration: "0小时18分钟" / "18分钟" / "0分钟" */
+/**
+ * Kotlin `ReadingStats.kt:64-75` `formatReadDuration(totalSeconds)`。
+ *
+ * 中英双语（此前 iOS 只有中文分支，英文界面会显示「0小时18分钟」）：
+ * ```
+ * 0        -> en ? "0 min"   : "0分钟"
+ * h > 0    -> en ? "\${h}h \${m}m" : "\${h}小时\${m}分钟"
+ * 其它      -> en ? "\${m} min" : "\${m}分钟"
+ * ```
+ */
 export function formatReadDuration(totalSeconds: number): string {
-  if (totalSeconds <= 0) return '0分钟';
+  const en = getAppLanguage() === AppLanguage.EN;
+  if (totalSeconds <= 0) return en ? '0 min' : '0分钟';
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
+  if (en) return h > 0 ? `${h}h ${m}m` : `${m} min`;
   return h > 0 ? `${h}小时${m}分钟` : `${m}分钟`;
 }
 
-/** formatShortDuration: "12秒" / "45分" / "3时26分" */
+/**
+ * Kotlin `ReadingStats.kt:78-89` `formatShortDuration(totalSeconds)`（日历格小标签）。
+ *
+ * 英文：`12s` / `45m` / `3h26m`；中文：`12秒` / `45分` / `3时26分`。
+ */
 export function formatShortDuration(totalSeconds: number): string {
+  const en = getAppLanguage() === AppLanguage.EN;
+  if (en) {
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const mins = Math.floor(totalSeconds / 60);
+    return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h${mins % 60}m`;
+  }
   if (totalSeconds < 60) return `${totalSeconds}秒`;
   const m = Math.floor(totalSeconds / 60);
   if (m < 60) return `${m}分`;
@@ -121,6 +143,25 @@ export function streakEndingAt(daily: Map<string, number>, end: Date): number {
 }
 
 /** 返回 [from,to] 之间每一天的 (dateStr, seconds) 序列。 */
+/**
+ * Kotlin `ReadingStats.kt:154-166` `longestStreakIn(daily, from, to)`：
+ * `[from, to]` 闭区间内**最长连续阅读天数**（逐日推进，断了就归零重数）。
+ *
+ * 与 `streakEndingAt` 的区别：那个只往回数到 `end` 为止的一段，这个扫整个区间取最长。
+ */
+export function longestStreakIn(daily: ReadonlyMap<string, number>, from: Date, to: Date): number {
+  let best = 0;
+  let current = 0;
+  const cal = new Date(from.getTime());
+  while (cal.getTime() <= to.getTime()) {
+    const v = daily.get(dateStrOf(cal)) ?? 0;
+    current = v > 0 ? current + 1 : 0;
+    if (current > best) best = current;
+    cal.setDate(cal.getDate() + 1);
+  }
+  return best;
+}
+
 export function dailySeries(
   daily: Map<string, number>,
   from: Date,

@@ -26,7 +26,8 @@ import {
 
 describe('令牌（L62-L64 / L239-L241 / L296-L315）', () => {
   it('PanelCardBg / PanelCardStroke 与 Kotlin 0x 值一致（Kotlin AARRGGBB → CSS RRGGBBAA）', () => {
-    expect(PANEL_CARD_BG).toBe('#FFFFFF0D')
+    // Kotlin `ComicPanelDesign.kt:95` `PanelCardBg = Color(0x12FFFFFF)` —— alpha 0x12(18)，不是 0x0D(13)
+  expect(PANEL_CARD_BG).toBe('#FFFFFF12')
     expect(PANEL_CARD_STROKE).toBe('#FFFFFF26')
   })
 

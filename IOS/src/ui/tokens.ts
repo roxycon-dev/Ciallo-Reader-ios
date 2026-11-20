@@ -120,11 +120,11 @@ export const DESIGN_TOKENS = {
      * `springSoft` 0.90/220（L64-65）。完整表见 `src/core/ui-theme/iosMotion.ts`。
      */
     spring: {
-      damping: 0.85,
-      stiffness: 320,
+      damping: 1,
+      stiffness: 420,
     },
-    springSnappy: { damping: 0.78, stiffness: 520 },
-    springSoft: { damping: 0.9, stiffness: 220 },
+    springSnappy: { damping: 0.85, stiffness: 650 },
+    springSoft: { damping: 0.88, stiffness: 210 },
     /** `Theme.kt` L42 `colorTransitionMs = 600` + L49 `tween(600, IosMotion.EaseOut)`。 */
     colorTransitionMs: 600,
   },

@@ -14,6 +14,8 @@ source = Path(sys.argv[1]) if len(sys.argv) > 1 else root.parent / 'novel-reader
 original = source.read_text(encoding='utf-8')
 version = re.search(r'PATCH_VERSION\s*=\s*(\d+)', original)
 assert version and version[1] == '49', 'Review the control-flow port before updating a different patch version'
+# 2026-11-20：上游升到 51，patchJm 与新增的 patchWnacgInit 改了两处补丁体。
+# 本脚本拒绝直接抽取 —— 先按 E218 同步 iOS 的补丁控制流，再把 51 加进来。
 start = original.index('    private fun patchWnacgSearch(')
 end = original.index('    private fun fetch(context:', start)
 body = original[start:end]

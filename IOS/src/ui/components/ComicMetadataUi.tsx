@@ -1,12 +1,12 @@
 /**
  * ComicMetadataUi.tsx — line-by-line port of Android `com/example/ui/ComicMetadataUi.kt`
- * (`novel-reader/app/src/main/java/com/example/ui/ComicMetadataUi.kt`, 86 lines / 82 non-blank).
+ * (`novel-reader/app/src/main/java/com/example/ui/ComicMetadataUi.kt`, **89 lines / 84 non-blank**).
  *
  * Line map (Kotlin → this file):
- *   1-15    package + Compose imports → React imports; Compose imports SKIPPED
- *   16-22   fun Modifier.comicSearchActions → comicSearchActions() (button props factory)
- *   24-83   fun ComicMetadataBlock     → ComicMetadataBlock
- *   85-86   private fun languageName   → languageName()
+ *   1-17    package + Compose imports → React imports; Compose imports SKIPPED
+ *   19-25   fun Modifier.comicSearchActions → comicSearchActions() (button props factory)
+ *   27-86   fun ComicMetadataBlock     → ComicMetadataBlock
+ *   88-89   private fun languageName   → languageName()
  *
  * ── Skipped lines with reasons ────────────────────────────────────────────────────
  *  L1      `package com.example.ui` — TS module system.
@@ -117,7 +117,13 @@ export function ComicMetadataBlock(props: ComicMetadataBlockProps) {
     else if (lower === 'hiatus') mapped = tr('休刊中');
     else if (lower === 'cancelled' || lower === 'canceled') mapped = tr('已中止');
     else mapped = status;
-    rows.push([tr('状态'), mapped]);
+    /*
+     * ⚠️ Kotlin L35 的 label 是**裸字面量** `"状态"`（同文件的 `"源站标注语言"` /
+     * `"原作语言"` / `"画师"` / `"源站更新信息"` / `"别名："` 也都是裸的），
+     * 只有**取值**与 `"标签"` / 两个折叠按钮包了 `tr()`。端口此前把 label 也包了
+     * `tr('状态')`，英文界面下会变成 "Status："，而 Android 仍是 "状态："。
+     */
+    rows.push(['状态', mapped]);
   }
   const language = book.language;
   if (language !== null && language !== undefined) rows.push(['源站标注语言', language]);
@@ -154,7 +160,15 @@ export function ComicMetadataBlock(props: ComicMetadataBlockProps) {
             <p className="comic-meta__row">{tr('标签')}</p>
             <div className="comic-meta__tags">
               {shownTags.map((tag) => {
-                const tagName = tagSubstringAfter(tag).trim() || tag;
+                /*
+                 * Kotlin L63 `tag.substringAfter('：', tag).trim().ifBlank { tag }`：
+                 * **先 trim 再判空**，空则回落**整个 tag**。端口此前是
+                 * `tagSubstringAfter(tag).trim() || tag`，对 `"：   "` 这种
+                 * 「冒号后只有空格」的标签会留下 `"   "`，随后 `tagName.trim() !== ''`
+                 * 判定为假 → 点了没反应；Kotlin 那边回落成整个 tag，是会搜的。
+                 */
+                const afterColon = tagSubstringAfter(tag).trim();
+                const tagName = afterColon !== '' ? afterColon : tag;
                 return (
                   <button
                     key={tag}

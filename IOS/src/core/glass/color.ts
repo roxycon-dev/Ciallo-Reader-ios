@@ -75,8 +75,20 @@ export function mixHex(a: string, b: string, ratio: number): string {
 export function desaturateHex(hex: string, amount: number): string {
   const c = parseHex(hex);
   if (!c) return hex;
-  const gray = toHexByte(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b);
-  return mixHex(hex, `#${gray}${gray}${gray}`, amount);
+  const t = Math.max(0, Math.min(1, amount));
+  /*
+   * Kotlin 全程在 **float** 通道上算：`gray = 0.2126r + 0.7152g + 0.0722b`，再
+   * `mix(Color(gray, gray, gray), amount)`，四舍五入只在最终落到 8-bit 像素时发生一次。
+   *
+   * 这里**不能**先把 gray 量化成 hex 再交给 `mixHex()` —— 那是两次量化
+   * （gray→byte→混→byte），边界上会比 Kotlin 偏 1。`PaperPalette` 的 face 色正是
+   * `mix(...).desaturate(...)` 的链式结果，两次量化会把它推进相邻档。
+   * 逐通道复现 Kotlin 的 float 路径，最后一次性 `toHexByte`。
+   */
+  const luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  return `#${toHexByte(c.r + (luma - c.r) * t)}${toHexByte(c.g + (luma - c.g) * t)}${toHexByte(
+    c.b + (luma - c.b) * t,
+  )}`;
 }
 
 /** `MaxFx.kt` line 192 `lerpColor(a, b, t)` — per-channel lerp keeping `a`'s alpha. */

@@ -138,9 +138,14 @@ function hasIsoControl(text: string): boolean {
 }
 
 /** Kotlin `Uri.parse(bookId).userInfo == null` → "does this id carry account info?". */
+/**
+ * Kotlin `Uri.parse(bookId).userInfo` —— Android 的 Uri 解析**接受相对形式**
+ * （`//user:pass@host/x` 也会解析出 userInfo），而 `new URL(bookId)` 遇到相对串会抛错。
+ * 给一个占位 base，让 authority-relative 形式同样能被检查出来。
+ */
 function carriesUserInfo(bookId: string): boolean {
   try {
-    const url = new URL(bookId);
+    const url = new URL(bookId, 'https://placeholder.invalid');
     return url.username !== '' || url.password !== '';
   } catch {
     return false;

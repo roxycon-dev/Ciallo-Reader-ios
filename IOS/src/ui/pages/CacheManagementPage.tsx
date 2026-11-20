@@ -57,9 +57,11 @@
  *  L69     `DesignTokens.SpacePage` (16.dp) → CSS `padding-inline: 16px`.
  *  L70     `AppToast.makeText(context, msg, Toast.LENGTH_SHORT)` → `showToast(msg)`.
  *  L107    `rememberCoroutineScope()` → async event handlers.
- *  L269/281 `MascotAnimationController.play(MascotEvent.CleanComplete)` → SKIPPED: the
- *          `ui/mascot/**` animation subsystem has no TS port and is owned elsewhere.
- *          `CleanSuccessBadge` itself is ported.
+ *  L272-278 清理结果三态（`freed < 0` / `> 0` / `else`）→ `clearRow()` 的 `ClearResult`；
+ *          `freed > 0` 时置 `successFreed` 交给 `CleanSuccessBadge`。
+ *  ⚠️ 此前这里写着「L269/281 `MascotAnimationController.play(MascotEvent.CleanComplete)`
+ *          → SKIPPED」——`CacheManagementScreen.kt` 里 `Mascot` / `play(` 各 0 命中，
+ *          `MascotEvent` 也没有 `CleanComplete`（见 E211）。
  *  FIXES applied by the cache review agent:
  *  * `requestRowDeletion` was missing the middle branch of Kotlin L656-658
  *    (`else if (row.confirmTip != null) confirmRow = row`). Without it the 漫画译文缓存 /

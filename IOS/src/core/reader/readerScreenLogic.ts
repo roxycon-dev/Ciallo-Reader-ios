@@ -1216,3 +1216,50 @@ export function scrollSliderPosition(scrollValue: number, scrollMaxValue: number
 export function scrollFromSliderPosition(pos: number, scrollMaxValue: number): number {
   return Math.trunc(pos * scrollMaxValue);
 }
+
+/**
+ * Kotlin `TtsManager.kt:647 internal fun speechChunkEnd(text, start, limit)`。
+ *
+ * 把长段落切成不超过 `limit` 的朗读块，但**优先在标点处断开**：从 `hardEnd - 1`
+ * 往回找到 `lowerBound`（块的中点），命中中英标点就切在它后面。
+ * 找不到标点时若 `hardEnd` 正好落在代理对中间，退一格 —— 否则会把一个 emoji
+ * 劈成两个孤立代理，合成器读出乱码。
+ */
+export function speechChunkEnd(text: string, start: number, limit: number): number {
+  const hardEnd = Math.min(start + Math.max(limit, 2), text.length);
+  if (hardEnd === text.length) return hardEnd;
+  const lowerBound = start + Math.floor((hardEnd - start) / 2);
+  const PUNCTUATION = "。！？!?；;，,、. ";
+  for (let i = hardEnd - 1; i >= lowerBound; i -= 1) {
+    if (PUNCTUATION.includes(text[i] as string)) return i + 1;
+  }
+  const last = text.charCodeAt(hardEnd - 1);
+  const next = text.charCodeAt(hardEnd);
+  const lastIsHigh = last >= 0xd800 && last <= 0xdbff;
+  const nextIsLow = next >= 0xdc00 && next <= 0xdfff;
+  return lastIsHigh && nextIsLow ? hardEnd - 1 : hardEnd;
+}
+
+/** Kotlin `Locale` → BCP-47 标签；`null` 表示「系统默认」。 */
+export type SpeechLocale = 'ja' | 'ko' | 'zh' | 'en' | null;
+
+/**
+ * Kotlin `TtsManager.kt:657 private fun speechLocale(text)`。
+ *
+ * 优先级：假名 → 日语；谚文 → 韩语；汉字 → 中文；只有拉丁字母 → 英语；都没有 → 系统默认。
+ * 注意假名/谚文是**遇到即返回**，而汉字只是打标记 —— 中英混排不会误判成英语。
+ */
+export function speechLocale(text: string): SpeechLocale {
+  let han = false;
+  let latin = false;
+  for (const char of text) {
+    const code = char.codePointAt(0) as number;
+    if (code >= 0x3040 && code <= 0x30ff) return 'ja';
+    if (code >= 0xac00 && code <= 0xd7af) return 'ko';
+    if (code >= 0x3400 && code <= 0x9fff) han = true;
+    if ((code >= 0x61 && code <= 0x7a) || (code >= 0x41 && code <= 0x5a)) latin = true;
+  }
+  if (han) return 'zh';
+  if (latin) return 'en';
+  return null;
+}

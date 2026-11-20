@@ -490,3 +490,139 @@ export function wenkuColors(isDark: boolean): ShelfColorsInput {
         inkSecondary: WENKU_TOKENS.inkSecondaryLight,
       };
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * `WenkuTokens.kt` 后半段（L97-348）的逐项移植
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+/** L97-106 `object WenkuShapes`：8 个命名圆角（dp）。 */
+export const WenkuShapes = {
+  Panel: WENKU_RADII_DP.panel,
+  Cover: WENKU_RADII_DP.cover,
+  Glass: WENKU_RADII_DP.glass,
+  IconButton: WENKU_RADII_DP.iconButton,
+  Pill: WENKU_RADII_DP.pill,
+  TextButton: WENKU_RADII_DP.textButton,
+  Menu: WENKU_RADII_DP.menu,
+  Sheet: WENKU_RADII_DP.sheet,
+} as const;
+
+/** L108-118 `object WenkuSpacing`。 */
+export const WenkuSpacing = {
+  Hairline: WENKU_SPACING_DP.hairline,
+  One: WENKU_SPACING_DP.one,
+  Two: WENKU_SPACING_DP.two,
+  Three: WENKU_SPACING_DP.three,
+  Four: WENKU_SPACING_DP.four,
+  Five: WENKU_SPACING_DP.five,
+  Six: WENKU_SPACING_DP.six,
+  Eight: WENKU_SPACING_DP.eight,
+  Page: WENKU_SPACING_DP.page,
+} as const;
+
+/** L222-238 `data class WenkuColors`。 */
+export interface WenkuColors {
+  readonly paper: number;
+  readonly panel: number;
+  readonly milk: number;
+  readonly raised: number;
+  readonly raisedHigh: number;
+  readonly outline: number;
+  readonly ink: number;
+  readonly inkSecondary: number;
+  readonly isDark: boolean;
+}
+
+/** L234 `glassTint = milk.copy(alpha = if (isDark) .024f else .010f)`。 */
+export function wenkuGlassTintAlpha(isDark: boolean): number {
+  return isDark ? 0.024 : 0.01;
+}
+
+/** L235 `hairline = ink.copy(alpha = if (isDark) .14f else .10f)`。 */
+export function wenkuHairlineAlpha(isDark: boolean): number {
+  return isDark ? 0.14 : 0.1;
+}
+
+/** L236 `selection = ink.copy(alpha = if (isDark) .10f else .07f)`。 */
+export function wenkuSelectionAlpha(isDark: boolean): number {
+  return isDark ? 0.1 : 0.07;
+}
+
+/** L240-266 `wenkuColors()` 的全字段版本（`ShelfColorsInput` 只带 kit 用到的那几个）。 */
+export function wenkuColorSet(isDark: boolean): WenkuColors {
+  return isDark
+    ? {
+        paper: WENKU_TOKENS.paperDark,
+        panel: WENKU_TOKENS.panelDark,
+        milk: WENKU_TOKENS.milkDark,
+        raised: WENKU_TOKENS.raisedDark,
+        raisedHigh: WENKU_TOKENS.raisedHighDark,
+        outline: WENKU_TOKENS.outlineDark,
+        ink: WENKU_TOKENS.inkDark,
+        inkSecondary: WENKU_TOKENS.inkSecondaryDark,
+        isDark: true,
+      }
+    : {
+        paper: WENKU_TOKENS.paperLight,
+        panel: WENKU_TOKENS.panelLight,
+        milk: WENKU_TOKENS.milkLight,
+        raised: WENKU_TOKENS.raisedLight,
+        raisedHigh: WENKU_TOKENS.raisedHighLight,
+        outline: WENKU_TOKENS.outlineLight,
+        ink: WENKU_TOKENS.inkLight,
+        inkSecondary: WENKU_TOKENS.inkSecondaryLight,
+        isDark: false,
+      };
+}
+
+/** L283-288 `data class WenkuAccessibility`。 */
+export interface WenkuAccessibility {
+  readonly highContrast: boolean;
+  readonly reduceMotion: boolean;
+  readonly blurEnabled: boolean;
+  readonly decorativeMotion: boolean;
+}
+
+/**
+ * L307-313 `readHighContrast(context)`：Android 读三个 `Settings.Secure/Global` 键。
+ * Web 等价物是系统对比度偏好 `prefers-contrast: more`（同一份无障碍设置）。
+ */
+export function readHighContrast(matches: (query: string) => boolean): boolean {
+  try {
+    return matches('(prefers-contrast: more)') || matches('(forced-colors: active)');
+  } catch {
+    return false;
+  }
+}
+
+/** L316-319 `wenkuSmooth(t) = x*x*(3 - 2x)`。 */
+export function wenkuSmooth(t: number): number {
+  const x = Math.min(Math.max(t, 0), 1);
+  return x * x * (3 - 2 * x);
+}
+
+/** L322-348 `object WenkuReaderPhysics`。 */
+export const WenkuReaderPhysics = {
+  /** L323-328 `commitDistancePx(viewportPx, density)`。 */
+  commitDistancePx(viewportPx: number, density: number): number {
+    return Math.min(
+      Math.max(viewportPx * WENKU_MOTION.readerCommitFraction, WENKU_MOTION.readerCommitMinDp * density),
+      WENKU_MOTION.readerCommitMaxDp * density,
+    );
+  },
+  /** L334-347 `commit(viewportPx, deltaPx, velocityPx, density)`。 */
+  commit(
+    viewportPx: number,
+    deltaPx: { readonly x: number; readonly y: number },
+    velocityPx: { readonly x: number; readonly y: number },
+    density: number,
+  ): boolean {
+    const distance = Math.abs(deltaPx.x);
+    const speed = Math.abs(velocityPx.x);
+    const velocityThreshold = WENKU_MOTION.readerVelocityThreshold * density;
+    const reversing = speed >= velocityThreshold && velocityPx.x * deltaPx.x < 0;
+    const fast = speed >= velocityThreshold && distance >= WENKU_MOTION.readerFastDistance * density;
+    const commitDistance = WenkuReaderPhysics.commitDistancePx(viewportPx, density);
+    return !reversing && (distance >= commitDistance || fast);
+  },
+};

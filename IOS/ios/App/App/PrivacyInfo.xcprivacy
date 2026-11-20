@@ -1,14 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Ciallo Reader — Apple 隐私清单（Privacy Manifest）
+  随 App bundle 一起打包，供 App Store Connect 与系统在运行时读取。
+  与 docs/IPA_SECURITY_DECLARATION.md 的第二、三节一一对应，改动需同步两处。
+
+  三项顶层声明的结论：
+    1. 不做跟踪（NSPrivacyTracking = false）—— 没有 IDFA / ATT / 任何跨 App 关联标识。
+    2. 不跟踪任何域名（NSPrivacyTrackingDomains 为空）。
+    3. 不收集数据（NSPrivacyCollectedDataTypes 为空）—— 书库、书源、阅读记录、
+       凭据全部留在设备本地沙箱；App 只作为客户端访问用户自己填写的书源地址，
+       不向开发者或第三方回传任何内容。
+-->
 <plist version="1.0">
 <dict>
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+
     <key>NSPrivacyAccessedAPITypes</key>
     <array>
+        <!--
+          DiskSpace —— 下载与解包前的可用空间预检。
+          代码位置：src/core/download/downloadWorker.ts（total - offset + 16 MiB 余量）、
+                   src/core/download/novelTextArchive.ts、src/core/transfer/transferSession.ts。
+          原因码 85F4.1：App 在写入自身容器前检查可用空间。
+        -->
         <dict>
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
             <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array><string>85F4.1</string></array>
+            <array>
+                <string>85F4.1</string>
+            </array>
+        </dict>
+
+        <!--
+          FileTimestamp —— 缓存清理按文件修改时间判断新鲜度。
+          代码位置：src/core/cache/cacheManagement.ts（lastModified 递归取最新）、
+                   ios/App/App/Plugins/ReaderMangaModelsPlugin.swift（contentModificationDate
+                   + creationDate 组成模型文件指纹）。
+          原因码 C617.1：访问 App 自己容器内文件的时间戳。
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string>
+            </array>
+        </dict>
+
+        <!--
+          UserDefaults —— @capacitor/preferences 的 iOS 后端，存 App 自身偏好
+          （阅读设置、节点域名、上次同步时间等），不与其他 App 共享、不出设备。
+          代码位置：@capacitor/preferences 插件 + src/core/settings/*。
+          原因码 CA92.1：仅 App 自身读取自己写入的 UserDefaults。
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
         </dict>
     </array>
 </dict>

@@ -1,0 +1,46 @@
+﻿/* ══════════════════════════════════════════════════════════════════════════════
+   缩放宿主与回弹覆盖层 —— `SnapBackZoomableBox.kt` + `Zoomable.kt`
+     L269 scrimAlphaForScale：opacity = clamp((scale-1)*2, 0, 1)（由组件内联给）
+     L204 默认 scrim = Black @0.6
+     L292-296 覆盖层铺满宿主（scrim 铺满，内容按锚点矩形定位）
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.snapback-host {
+  position: relative;
+  isolation: isolate;
+}
+
+.snapback-anchor {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.snapback-reserved {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.snapback-overlay,
+.snapback-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  pointer-events: none;
+}
+
+.snapback-overlay__scrim,
+.snapback-popup__scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.snapback-overlay__content,
+.snapback-popup__content {
+  position: absolute;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}

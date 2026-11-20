@@ -27,6 +27,8 @@
  *     from `../sourceException`.
  */
 
+import { tr } from '@core/i18n';
+
 import { AuthenticationState } from '../authenticationState';
 import { BookSource } from '../bookSource';
 import { createDownloadInfo } from '../downloadInfo';
@@ -68,7 +70,11 @@ export class MockBookSource extends BookSource {
     createSearchBook({
       id: 'mock/three-body',
       sourceId: this.id,
-      title: '三体 (The Three-Body Problem)',
+      // `MockBookSource.kt` L41 `title = tr("三体 (The Three-Body Problem)")` ——
+      // 这一条**包了 `tr()`**（同文件其它字面量都没有）。i18n 词表里有对应英文
+      // （`i18n/Strings.kt` L929 → `"The Three-Body Problem"`），所以英文界面下
+      // Kotlin 显示英文名。端口此前直接写中文字面量，英文界面永远显示中文 —— 已修。
+      title: tr('三体 (The Three-Body Problem)'),
       author: '刘慈欣',
       cover: null,
       format: 'epub',

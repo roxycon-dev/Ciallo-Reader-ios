@@ -140,33 +140,165 @@
 
 /* ══ Overlay entrances (OverlayAnimations.kt) ══════════════════════════════ */
 
+/*
+ * 帧表由 `@core/ui/overlayEntrance` 的三条曲线采样得出（源：`WenkuTokens.kt` L159-168）：
+ *   `plane`  = cubic-bezier(0.18, 0.72, 0.18, 1) → X 位移与面板 Y 位移
+ *   `ease`   = cubic-bezier(0.215, 0.61, 0.355, 1) → 对话框 alpha
+ *   `settle` = cubic-bezier(0.2, 1.08, 0.34, 1) → 对话框 Y 位移（y1 > 1，末段微过冲）
+ * 进度本身是线性的（`OverlayAnimations.kt` L41 `easing = LinearEasing`），所以时间函数
+ * 必须是 `linear`，缓动全在帧值里 —— 一条 bezier 表达不了「X 与 Y 走两条不同曲线」。
+ * `tests/parity/overlayEntranceAppBackgroundParity.test.ts` 逐帧对拍本块的每一行。
+ */
+
 .overlay-entrance {
   will-change: transform, opacity;
+  animation-fill-mode: both;
+  animation-timing-function: linear;
 }
 
+/* L43-44 `if (reduced) snap()`：时长归零，帧表不变（终点一致）。 */
+.overlay-entrance[data-duration-millis='0'] {
+  animation-duration: 0ms;
+}
+
+/* L56 `WenkuContentClock(progress, content)`：内容在 0.52 窗口内按 0.055 阶梯浮现。 */
+.overlay-entrance__content {
+  animation: overlay-content-in 200ms linear both;
+}
+
+@keyframes overlay-content-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* L46-54 `fromBottom = false`：alpha 走 `ease`，X −8dp，Y `20dp × (1 − settle)`。 */
 @keyframes overlay-dialog-in {
-  from {
+  0% {
     opacity: 0;
-    transform: scale(0.92);
+    transform: translateX(calc(-8px * 1)) translateY(calc(20px * 1));
   }
-  to {
+  5% {
+    opacity: 0.1408;
+    transform: translateX(calc(-8px * 0.7954)) translateY(calc(20px * 0.7492));
+  }
+  10% {
+    opacity: 0.2757;
+    transform: translateX(calc(-8px * 0.5989)) translateY(calc(20px * 0.5424));
+  }
+  15% {
+    opacity: 0.3992;
+    transform: translateX(calc(-8px * 0.4395)) translateY(calc(20px * 0.382));
+  }
+  20% {
+    opacity: 0.5077;
+    transform: translateX(calc(-8px * 0.3244)) translateY(calc(20px * 0.2637));
+  }
+  30% {
+    opacity: 0.6778;
+    transform: translateX(calc(-8px * 0.1847)) translateY(calc(20px * 0.1196));
+  }
+  40% {
+    opacity: 0.7953;
+    transform: translateX(calc(-8px * 0.1083)) translateY(calc(20px * 0.0498));
+  }
+  50% {
+    opacity: 0.8751;
+    transform: translateX(calc(-8px * 0.0628)) translateY(calc(20px * 0.0175));
+  }
+  60% {
+    opacity: 0.9287;
+    transform: translateX(calc(-8px * 0.0345)) translateY(calc(20px * 0.0038));
+  }
+  70% {
+    opacity: 0.9638;
+    transform: translateX(calc(-8px * 0.017)) translateY(calc(20px * -0.0007));
+  }
+  80% {
+    opacity: 0.9853;
+    transform: translateX(calc(-8px * 0.0068)) translateY(calc(20px * -0.0013));
+  }
+  90% {
+    opacity: 0.9966;
+    transform: translateX(calc(-8px * 0.0015)) translateY(calc(20px * -0.0005));
+  }
+  100% {
     opacity: 1;
-    transform: scale(1);
+    transform: translateX(calc(-8px * 0)) translateY(calc(20px * 0));
   }
 }
 
+/* L50-54 `fromBottom = true`：**alpha 恒 1**（不淡入），X −18dp，Y `(100% + 24px) × planeRemaining`。 */
 @keyframes overlay-sheet-in {
-  from {
-    opacity: 0;
-    transform: translateY(16.6667%);
-  }
-  to {
+  0% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(calc(-18px * 1)) translateY(calc((100% + 24px) * 1));
+  }
+  5% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.7954)) translateY(calc((100% + 24px) * 0.7954));
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.5989)) translateY(calc((100% + 24px) * 0.5989));
+  }
+  15% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.4395)) translateY(calc((100% + 24px) * 0.4395));
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.3244)) translateY(calc((100% + 24px) * 0.3244));
+  }
+  30% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.1847)) translateY(calc((100% + 24px) * 0.1847));
+  }
+  40% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.1083)) translateY(calc((100% + 24px) * 0.1083));
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.0628)) translateY(calc((100% + 24px) * 0.0628));
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.0345)) translateY(calc((100% + 24px) * 0.0345));
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.017)) translateY(calc((100% + 24px) * 0.017));
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.0068)) translateY(calc((100% + 24px) * 0.0068));
+  }
+  90% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0.0015)) translateY(calc((100% + 24px) * 0.0015));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(calc(-18px * 0)) translateY(calc((100% + 24px) * 0));
   }
 }
 
+/* L69-76 `ScrimEntrance`：alpha 单值，缓动 `plane`，入场 420ms / 出场 320ms。 */
 @keyframes overlay-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* L84-85 `fadeIn(PullOutConfig.spring(true))` / `fadeOut(spring(false))`：纯 alpha。 */
+@keyframes overlay-pull-out-in {
   from {
     opacity: 0;
   }
@@ -951,6 +1083,15 @@
   color: var(--color-primary, #059669);
 }
 
+/* 趋势卡网格色 = `colorScheme.outlineVariant`（亮 #CAC4D0 / 深 #49454F）。 */
+:root {
+  --trend-outline-variant: #CAC4D0;
+}
+
+[data-theme='dark'] {
+  --trend-outline-variant: #49454F;
+}
+
 .trend-card__chart {
   position: relative;
   width: 100%;
@@ -1034,9 +1175,10 @@
   width: 100%;
   margin: 0 0.5px;
   border-radius: 2px 2px 0 0;
+  /* Kotlin `tween(420, FastOutSlowInEasing)` + `tween(260)`（默认也是 FastOutSlowIn） */
   transition:
     height 420ms cubic-bezier(0.4, 0, 0.2, 1),
-    background 260ms ease-out;
+    background 260ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ══ ReadingCalendarCard.kt ═══════════════════════════════════════════════ */
@@ -1114,6 +1256,18 @@
   }
 }
 
+/* 阅读日历用到的两个 M3 角色（`Theme.kt` L84/L104 + `WenkuTokens` L35/L44）：
+   surfaceVariant = 亮 #F0EDE5 / 深 #2D2D2D，onSurface = 亮 #161613 / 深 #F2F2F2。 */
+:root {
+  --cal-surface-variant: #F0EDE5;
+  --cal-on-surface: #161613;
+}
+
+[data-theme='dark'] {
+  --cal-surface-variant: #2D2D2D;
+  --cal-on-surface: #F2F2F2;
+}
+
 .cal-month__weekdays,
 .cal-month__row {
   display: flex;
@@ -1131,10 +1285,14 @@
   flex: 1 1 0;
 }
 
+/* Kotlin `DayCell`：`.padding(2.dp).aspectRatio(1f)` —— 宽度驱动、正方形。
+   原来写的是 `height: 44px`（+ `flex: 1 1 0`），平板上一格宽 >200px 却只有 44 高，
+   正是 Kotlin L309-311 注释里被否掉的「长方形」。 */
 .cal-day {
   position: relative;
   flex: 1 1 0;
-  height: 44px;
+  aspect-ratio: 1;
+  height: auto;
   margin: 2px;
   border: 0;
   border-radius: 8px;

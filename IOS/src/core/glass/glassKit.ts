@@ -33,6 +33,8 @@ import type { RenderQualityName } from './renderQuality';
 
 /** GlassKit.kt lines 83-144 — design tokens for the GlassKit family. */
 export const GlassTokens = {
+  /** Kotlin L89 `val ManagementTitleHeight = 152.dp` —— 管理页大标题区（不含状态栏）。 */
+  ManagementTitleHeight: 152,
   /** 大卡圆角（连续曲率）。 */
   Radius: 24,
   /** 头像 / 输入框等小元素。 */
@@ -201,8 +203,14 @@ export function glassKitTint(options: {
 export const GLASSKIT_FALLBACK_SHADOW =
   '0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.12)';
 
-/** GlassKit.kt lines 339-343 — press scale 0.98 ↔ 1.0, spring(0.6, 400). */
-export const GLASSKIT_PRESS_MIN_SCALE = 0.98;
+/**
+ * GlassKit.kt lines 355 — 满强度按压的缩放：`1f - 0.02f * 1.25f = 0.975`。
+ *
+ * 修正：此处原先写 `0.98`（等于 `pressStrength = 1.0`），而 `CardTweaks.kt` L23 的
+ * 出厂值是 **1.25** —— 卡片实际比宣称的更深一点。保留常量给需要静态值的调用方，
+ * 动态推导用 `glassKitCardPressScale()`。
+ */
+export const GLASSKIT_PRESS_MIN_SCALE = 1 - 0.02 * 1.25;
 export const GLASSKIT_PRESS_BEZIER = 'cubic-bezier(0.2, 1.4, 0.4, 1)';
 export const GLASSKIT_PRESS_MS = springSettleMsLocal(0.6, 400);
 
@@ -210,12 +218,133 @@ function springSettleMsLocal(dampingRatio: number, stiffness: number): number {
   return Math.round((4.605 / (dampingRatio * Math.sqrt(stiffness))) * 1000);
 }
 
+/* ── 可判定参数：宿主 / 卡片 / 顶栏 / 降级 ─────────────────────────────── */
+
+/** Kotlin L198 `val k = r * 0.72f` —— 超椭圆控制点比例（0.5522 才是正圆）。 */
+export const SQUIRCLE_CONTROL_K = 0.72;
+
+/** Kotlin L255 `liquidGlass(…, saturation = 1.15f)` —— 宿主层的饱和度。 */
+export const GLASSKIT_HOST_SATURATION = 1.15;
+
+/**
+ * Kotlin L355 `targetValue = if (pressed && !reduceMotion) 1f - 0.02f * tweaks.pressStrength else 1f`
+ * —— 按压深度系数（满强度 0.02 → 0.98）。
+ */
+export const GLASSKIT_CARD_PRESS_DEPTH = 0.02;
+
+/** Kotlin L356 `spring(dampingRatio = 0.6f, stiffness = 400f)`。 */
+export const GLASSKIT_CARD_PRESS_SPRING = { dampingRatio: 0.6, stiffness: 400 } as const;
+
+/**
+ * Kotlin L393 `blur((tweaks.blurRadiusDp.dp * 0.5f).toPx())` ——
+ * 轻量档是**卡片模糊的一半**，不是独立的 8dp 常量。
+ */
+export const GLASSKIT_LIGHTWEIGHT_BLUR_FACTOR = 0.5;
+
+/**
+ * Kotlin L416/L420：高光半径 `size.minDimension * 0.5f * tweaks.pressRadius`、
+ * alpha `0.16f * tweaks.pressStrength`。两处都随外观设置联动。
+ */
+export const GLASSKIT_HIGHLIGHT_RADIUS_BASE = 0.5;
+export const GLASSKIT_HIGHLIGHT_ALPHA_BASE = 0.16;
+
+/** `CardTweaks.kt` L23-24 的出厂值（未 provide 时的回落）。 */
+export const CARD_TWEAK_PRESS_STRENGTH = 1.25;
+export const CARD_TWEAK_PRESS_RADIUS = 1.1;
+
+/** Kotlin L488-491 顶栏着色 alpha：降低透明度 0.92 / 常态 0.60。 */
+export const GLASSKIT_TOP_BAR_TINT_ALPHA = 0.6;
+export const GLASSKIT_TOP_BAR_TINT_ALPHA_REDUCE = 0.92;
+
+/** Kotlin L516 `cs.onSurface.copy(alpha = 0.10f * collapsedFraction)`。 */
+export const GLASSKIT_TOP_BAR_DIVIDER_ALPHA = 0.1;
+
+/**
+ * Kotlin L300-306：
+ * `Settings.Secure.getString(...)?.toFloatOrNull()?.let { it >= 0.5f } ?: false`，
+ * 两个 key 任一为真即视为「降低透明度 / 高对比度」开启。
+ */
+export const GLASSKIT_REDUCE_TRANSPARENCY_KEYS = [
+  'reduce_transparency',
+  'high_text_contrast_enabled',
+] as const;
+
+/** Kotlin L302 的 `it >= 0.5f`。 */
+export const GLASSKIT_REDUCE_THRESHOLD = 0.5;
+
+/**
+ * Kotlin `rememberReduceTransparency()` 的纯函数形态：读不到 / 解析失败一律 false
+ * （Kotlin 的 `catch (_: Throwable) { false }`）。
+ */
+export function glassKitReducesTransparency(
+  values: Readonly<Record<string, string | number | null | undefined>>,
+): boolean {
+  return GLASSKIT_REDUCE_TRANSPARENCY_KEYS.some((key) => {
+    const raw = values[key];
+    if (raw === null || raw === undefined || raw === '') return false;
+    const parsed = typeof raw === 'number' ? raw : Number.parseFloat(raw);
+    return Number.isFinite(parsed) && parsed >= GLASSKIT_REDUCE_THRESHOLD;
+  });
+}
+
+/**
+ * Kotlin L393/L396 —— 卡片这一帧的模糊半径（px）：
+ * `lightweight ? tweaks.blurRadiusDp * 0.5 : tweaks.blurRadiusDp`。
+ *
+ * 出厂 `blurRadiusDp = 22`（`CardTweaks.kt` L12），所以轻量档是 **11**，
+ * 不是 `GlassTokens.BlurLightweight` 那个 8（那个 token 在 Kotlin 里没被卡片消费）。
+ */
+export function glassCardBlurPx(blurRadiusDp: number, lightweight: boolean): number {
+  return lightweight ? blurRadiusDp * GLASSKIT_LIGHTWEIGHT_BLUR_FACTOR : blurRadiusDp;
+}
+
+/** Kotlin L416 `radius = size.minDimension * 0.5f * tweaks.pressRadius`。 */
+export function glassKitPressHighlightRadius(
+  minDimensionPx: number,
+  pressRadius: number = CARD_TWEAK_PRESS_RADIUS,
+): number {
+  return minDimensionPx * GLASSKIT_HIGHLIGHT_RADIUS_BASE * pressRadius;
+}
+
+/** Kotlin L420 `Color.White.copy(alpha = 0.16f * tweaks.pressStrength)`。 */
+export function glassKitPressHighlightAlpha(
+  pressStrength: number = CARD_TWEAK_PRESS_STRENGTH,
+): number {
+  return GLASSKIT_HIGHLIGHT_ALPHA_BASE * pressStrength;
+}
+
+/** Kotlin L355 `if (pressed && !reduceMotion) 1f - 0.02f * pressStrength else 1f`。 */
+export function glassKitCardPressScale(
+  pressed: boolean,
+  reduceMotion: boolean,
+  pressStrength: number = CARD_TWEAK_PRESS_STRENGTH,
+): number {
+  return pressed && !reduceMotion ? 1 - GLASSKIT_CARD_PRESS_DEPTH * pressStrength : 1;
+}
+
+/** Kotlin L488-492 `if (reduce) background@0.92 else background@0.60`。 */
+export function glassTopBarTintAlpha(reduceTransparency: boolean): number {
+  return reduceTransparency ? GLASSKIT_TOP_BAR_TINT_ALPHA_REDUCE : GLASSKIT_TOP_BAR_TINT_ALPHA;
+}
+
+/** Kotlin L516 `0.10f * collapsedFraction`（展开时分割线完全不可见）。 */
+export function glassTopBarDividerAlpha(collapsedFraction: number): number {
+  return GLASSKIT_TOP_BAR_DIVIDER_ALPHA * collapsedFraction;
+}
+
 /** GlassKit.kt lines 399-411 — interactive highlight follows the finger. */
-export function pressHighlightCss(xPx: number, yPx: number, minDimensionPx: number): string {
-  const r = minDimensionPx * 0.55;
+export function pressHighlightCss(
+  xPx: number,
+  yPx: number,
+  minDimensionPx: number,
+  pressRadius: number = CARD_TWEAK_PRESS_RADIUS,
+  pressStrength: number = CARD_TWEAK_PRESS_STRENGTH,
+): string {
+  const r = glassKitPressHighlightRadius(minDimensionPx, pressRadius);
+  const alpha = glassKitPressHighlightAlpha(pressStrength);
   return (
     `background-image:radial-gradient(circle ${r.toFixed(1)}px at ${xPx.toFixed(1)}px ${yPx.toFixed(1)}px,` +
-    `rgba(255,255,255,0.20) 0%,rgba(255,255,255,0) 100%);` +
+    `rgba(255,255,255,${alpha.toFixed(2)}) 0%,rgba(255,255,255,0) 100%);` +
     `mix-blend-mode:screen;`
   );
 }

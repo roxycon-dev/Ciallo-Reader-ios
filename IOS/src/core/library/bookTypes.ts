@@ -96,10 +96,47 @@ export interface DownloadTaskRow {
   updatedAt: number
 }
 
+/**
+ * `data/DownloadTaskEntity.kt` L23 `enum class DownloadStatus` —— **6 项**（含 `CANCELLED`）。
+ *
+ * 与 `download/downloadQueue.ts` 的同名联合类型必须完全一致；少一项就意味着
+ * 「用户取消的任务」在书库侧没有状态可落。`tests/parity/enumTablesParity.test.ts`
+ * 拿 Kotlin 原文逐项对拍。
+ */
 export const DownloadStatus = {
   PENDING: 'PENDING',
   DOWNLOADING: 'DOWNLOADING',
   PAUSED: 'PAUSED',
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
 } as const
+
+/** `DownloadStatus` 的声明顺序（= Kotlin 的 `ordinal`）。 */
+export const DOWNLOAD_STATUSES: readonly (typeof DownloadStatus)[keyof typeof DownloadStatus][] = [
+  'PENDING',
+  'DOWNLOADING',
+  'PAUSED',
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+]
+
+/**
+ * `Book.kt` L91-97 `@Entity(tableName = "categories") data class CategoryEntity`。
+ *
+ * 本条来自 `Book.kt`（Room 实体表 `categories`）：`id` 自增主键、`name` 分类名、
+ * `isProtected` 密码保护标记（隐私模式开启时生效；长按分类或隐私窗口切换）。
+ */
+export interface CategoryEntity {
+  readonly id: number
+  readonly name: string
+  readonly isProtected: boolean
+}
+
+/** `CategoryEntity` 的默认值（`id = 0` 表示尚未入库、`isProtected = false`）。 */
+export function categoryEntity(name: string, isProtected = false): CategoryEntity {
+  return { id: 0, name, isProtected }
+}
+
+/** `Book.kt` L89 `DEFAULT_CATEGORY = "默认"`（本文件契约/默认值区已有同名常量时会重复导出）。 */

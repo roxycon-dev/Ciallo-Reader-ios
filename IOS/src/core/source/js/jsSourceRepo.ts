@@ -32,7 +32,30 @@ import type { FileStoragePort, HttpClient, KeyValueStorage } from './jsPlatform'
 import { sha256 } from '@noble/hashes/sha2.js';
 
 /** 本地补丁版本：升级后尝试更新源脚本，失败时仍可使用旧缓存。 */
-const PATCH_VERSION = JS_SOURCE_PATCH_VERSION;
+/**
+ * 本端补丁载荷对应的 Android 基线版本（49）。
+ *
+ * ⚠️ 上游 `JsSourceRepo.kt:78` 现为 **51**，比这里多两处补丁体改动：
+ *   - `patchJm`：`init()` 先恢复 `jm_api_routes`，并用 try/catch 包住
+ *     `refreshApiDomains`（Kotlin `JsSourceRepo.kt:495`）；
+ *   - 新增 `patchWnacgInit`：`refreshDomainsOnStart` 前加 `originReady` 守卫
+ *     （Kotlin `JsSourceRepo.kt:826`）。
+ * 两者都会改变「源脚本被修补后的形状」，因此**不能**把版本号直接改成 51
+ * （JSON 载荷的行号索引也会随之位移）。差异登记在 `PARITY_EXCEPTIONS.md` E218。
+ *
+ * 名字故意不叫 `IOS_PATCH_BASELINE`：`constNameBinding` 按同名符号绑定，改名后它会被
+ * 计入 unbound（诚实反映「与上游同名常量对不上」），而不是假装 51。
+ */
+const IOS_PATCH_BASELINE = 49;
+
+/**
+ * 载荷版本自检：`jsSourcePatchLiterals49.json` 的 `androidPatchVersion` 必须等于
+ * 上面的基线。两者若漂移，说明有人重新跑了 `sync-js-source-patches.py` 却没同步
+ * 补丁控制流 —— 那会让行号索引对不上真实的 Kotlin 文本。
+ */
+if (JS_SOURCE_PATCH_VERSION !== IOS_PATCH_BASELINE) {
+  throw new Error(`补丁载荷版本 ${String(JS_SOURCE_PATCH_VERSION)} 与基线 ${String(IOS_PATCH_BASELINE)} 不一致`);
+}
 // Raw cache format stays stable when compatibility patches change.
 const RAW_CACHE_PREFIX = '// EASYREADER_RAW_SOURCE_V28\n';
 
@@ -312,7 +335,7 @@ export const JsSourceRepo = {
     deps.files.writeText(path, JSON.stringify([...records.values()]));
     await deps.files.flush?.();
   },
-  PATCH_VERSION,
+  IOS_PATCH_BASELINE,
   RAW_CACHE_PREFIX,
   ADULT_KEYS,
   LOGIN_KEYS,
@@ -380,7 +403,7 @@ export const JsSourceRepo = {
   /** 缓存中有脚本缺失或无效时，下次启动补拉，同时继续提供已加载的源。 */
   needsRepair(deps: JsSourceRepoDeps, includeAdult: boolean): boolean {
     try {
-      if (deps.metaPrefs.getInt('patch_version', 0) !== PATCH_VERSION) return true;
+      if (deps.metaPrefs.getInt('patch_version', 0) !== IOS_PATCH_BASELINE) return true;
       const index = JsSourceRepo.indexFile(deps);
       if (!deps.files.exists(index)) return true;
       const raw = deps.files.readText(index);
@@ -503,7 +526,7 @@ export const JsSourceRepo = {
       const installed = results.filter((it) => it !== null);
       if (installed.length === 0) return [];
       deps.files.writeText(JsSourceRepo.indexFile(deps), indexJson);
-      deps.metaPrefs.putInt('patch_version', PATCH_VERSION);
+      deps.metaPrefs.putInt('patch_version', IOS_PATCH_BASELINE);
       logInfo('JsRepo', `installed ${String(installed.length)} sources`);
       onStatus(`已安装 ${String(installed.length)} 个漫画源`);
       return installed

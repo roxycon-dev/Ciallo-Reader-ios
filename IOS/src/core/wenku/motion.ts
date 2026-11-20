@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Kotlin → TS 行号映射
  * ─────────────────────
  * `ui/wenku/WenkuTokens.kt`
@@ -361,3 +361,174 @@ export function wenkuCountUpValue(value: number, progress: number): number {
 export function wenkuCountUpDefaultFormat(value: number): string {
   return String(truncToInt(value));
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ * `WenkuMotion.kt` L125-565 的 Modifier → CSS / 纯几何映射
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * Kotlin 的 `Modifier.xxx` 在这里改成「吃 0..1 时钟、吐 CSSProperties / 变量表」的纯函数；
+ * 时钟由 React 侧的 `LocalWenkuSequence`（`WenkuAccessibility.tsx`）提供。
+ * 位移只做局部 translate，**不做整页位移动画**（`docs/HANDOFF_PROMPT.md` §4 第 4 条）。
+ */
+
+/** `WenkuMotion.ease` 的 Easing 实例（`CubicBezierEasing(0.215, 0.61, 0.355, 1)`）。 */
+const WENKU_EASE = cubicBezier(WENKU_CURVE_POINTS.ease[0], WENKU_CURVE_POINTS.ease[1], WENKU_CURVE_POINTS.ease[2], WENKU_CURVE_POINTS.ease[3]);
+/** `WenkuMotion.settle` 的 Easing 实例。 */
+export const WENKU_SETTLE = cubicBezier(
+  WENKU_CURVE_POINTS.settle[0],
+  WENKU_CURVE_POINTS.settle[1],
+  WENKU_CURVE_POINTS.settle[2],
+  WENKU_CURVE_POINTS.settle[3],
+);
+/** `WenkuMotion.plane` 的 Easing 实例。 */
+const WENKU_PLANE = cubicBezier(
+  WENKU_CURVE_POINTS.plane[0],
+  WENKU_CURVE_POINTS.plane[1],
+  WENKU_CURVE_POINTS.plane[2],
+  WENKU_CURVE_POINTS.plane[3],
+);
+/** `WenkuMotion.kt` L478 `readerLocationEase = CubicBezierEasing(.645f, .045f, .355f, 1f)`。 */
+export const readerLocationEase = cubicBezier(0.645, 0.045, 0.355, 1);
+
+/** L125 `enum class WenkuRevealAxis { Vertical, Horizontal }`。 */
+export const WenkuRevealAxis = ['Vertical', 'Horizontal'] as const;
+export type WenkuRevealAxis = (typeof WenkuRevealAxis)[number];
+
+/** L193-197 `revealProgress(raw, start, end)`。 */
+export function revealProgress(raw: number, start: number, end: number): number {
+  if (end <= start) return raw >= end ? 1 : 0;
+  const local = clamp((raw - start) / (end - start), 0, 1);
+  return clamp(WENKU_EASE(local), 0, 1);
+}
+
+export interface WenkuRevealVars {
+  readonly '--wenku-reveal-start': string;
+  readonly '--wenku-reveal-end': string;
+  readonly '--wenku-reveal-axis': string;
+  readonly '--wenku-reveal-travel': string;
+  readonly '--wenku-reveal-reverse': string;
+}
+
+/** L135-173 `Modifier.wenkuArchivePart(start, end, axis, reverse, travel = 6f)`。 */
+export function wenkuArchivePart(
+  start: number,
+  end: number,
+  axis: WenkuRevealAxis = 'Horizontal',
+  reverse = false,
+  travel = 6,
+): WenkuRevealVars {
+  return {
+    '--wenku-reveal-start': String(start),
+    '--wenku-reveal-end': String(end),
+    '--wenku-reveal-axis': axis,
+    '--wenku-reveal-travel': String(travel),
+    '--wenku-reveal-reverse': reverse ? '1' : '0',
+  };
+}
+
+/** L129-133 `Modifier.wenkuReveal(order, axis, reverse)`。 */
+export function wenkuReveal(
+  order: number,
+  axis: WenkuRevealAxis = 'Vertical',
+  reverse = false,
+): WenkuRevealVars {
+  return wenkuArchivePart(listStart(order), listEnd(order), axis, reverse);
+}
+
+/** L175-191 `Modifier.wenkuTabTitle(order, strength = 1f)`。 */
+export function wenkuTabTitle(
+  order: number,
+  strength = 1,
+): WenkuRevealVars & { readonly '--wenku-tab-strength': string } {
+  return {
+    ...wenkuArchivePart(0.05 + 0.11 * order, 0.8 + 0.09 * order, 'Vertical', false, 0),
+    '--wenku-tab-strength': String(strength),
+  };
+}
+
+/**
+ * L302-310 `Modifier.wenkuRetainedLayout(visible)`：不可见时不测量子项但保留状态。
+ * Web 等价物 `content-visibility: hidden`（跳过布局与绘制，DOM 与滚动状态不丢）。
+ */
+export function wenkuRetainedLayout(visible: boolean): { readonly contentVisibility: 'visible' | 'hidden' } {
+  return { contentVisibility: visible ? 'visible' : 'hidden' };
+}
+
+/** L346-399 `Modifier.wenkuPlaneLayer(progress, incoming, dir, occludeOutgoing)`。 */
+export function wenkuPlaneLayer(
+  progress: number,
+  incoming: boolean,
+  dir = 1,
+  occludeOutgoing = false,
+): { readonly clipPath: string | undefined; readonly transform: string | undefined } {
+  if (!incoming && !occludeOutgoing) return { clipPath: undefined, transform: undefined };
+  const p = WENKU_PLANE(clamp(progress, 0, 1));
+  if (p >= 1) return { clipPath: undefined, transform: undefined };
+  if (p <= 0) {
+    return incoming
+      ? { clipPath: 'inset(0 0 0 100%)', transform: undefined }
+      : { clipPath: undefined, transform: undefined };
+  }
+  const slant = 180;
+  const edge = `calc((100% + ${String(slant)}px) * ${String(Number(p.toFixed(4)))})`;
+  const clipPath =
+    dir >= 0
+      ? `polygon(0 0, ${edge} 0, calc(${edge} - ${String(slant)}px) 100%, 0 100%)`
+      : `polygon(100% 0, calc(100% - ${edge}) 0, calc(100% - ${edge} + ${String(slant)}px) 100%, 100% 100%)`;
+  const transform = incoming
+    ? `translate3d(${String(Number((-24 * dir * (1 - p)).toFixed(3)))}px, ${String(Number((12 * (1 - p)).toFixed(3)))}px, 0)`
+    : `translate3d(${String(Number((10 * dir * p).toFixed(3)))}px, ${String(Number((-4 * p).toFixed(3)))}px, 0)`;
+  return { clipPath, transform };
+}
+
+/** L401-412 `Modifier.wenkuBlockPointer()`：转场期间拦截输入。 */
+export function wenkuBlockPointer(): { readonly pointerEvents: 'none' } {
+  return { pointerEvents: 'none' };
+}
+
+/** L481-486 `Modifier.wenkuReaderLocation(phase)`。 */
+export function wenkuReaderLocation(phase: number): {
+  readonly opacity: number;
+  readonly transform: string;
+} {
+  const covered = readerLocationEase(clamp(phase, 0, 1));
+  return {
+    opacity: 1 - covered,
+    transform: `translateY(${String(Number((-6 * covered).toFixed(3)))}px)`,
+  };
+}
+
+/** L488-491 `Modifier.wenkuReaderCapsule(tint, outline)`。 */
+export function wenkuReaderCapsule(
+  tint: string,
+  outline: string,
+): { readonly borderRadius: string; readonly background: string; readonly border: string } {
+  return { borderRadius: '24px', background: tint, border: `0.5px solid ${outline}` };
+}
+
+/** L431-440 `WenkuReaderChromePart(start, end, travel, scaleFrom)`。 */
+export const WenkuReaderChromePart = ['Header', 'Progress', 'Dock'] as const;
+export type WenkuReaderChromePart = (typeof WenkuReaderChromePart)[number];
+
+/** L437-439 四个字段逐值。 */
+export const WENKU_READER_CHROME_PARTS: Record<
+  WenkuReaderChromePart,
+  { readonly start: number; readonly end: number; readonly travel: number; readonly scaleFrom: number }
+> = {
+  Header: { start: 0, end: 1, travel: -1, scaleFrom: 1 },
+  Progress: { start: 0.1, end: 1, travel: 1.28, scaleFrom: 0.9 },
+  Dock: { start: 0, end: 0.9, travel: 1, scaleFrom: 0.96 },
+};
+
+/** `WenkuMotion.jelly(t)`（`tokens.ts` 里已有同名实现时以那边为准，这里是 `WenkuMotion.kt` L210-213 的直译）。 */
+export function wenkuJelly(t: number): number {
+  const x = clamp(t, 0, 1);
+  return Math.sin(3 * Math.PI * x) * (1 - x) ** 2;
+}
+
+/**
+ * `WenkuMenuHost.kt` L798-799 `wenkuRevealProgress(raw, start, end)` 的同义导出
+ * （`WenkuMotion.kt` L193-197 的 `revealProgress` 加 Kotlin 侧的前缀名）。
+ * 菜单项错峰用这个名字，`WenkuSectionHeader` 用 `revealProgress`，两者同一实现。
+ */
+export const wenkuRevealProgress = revealProgress;

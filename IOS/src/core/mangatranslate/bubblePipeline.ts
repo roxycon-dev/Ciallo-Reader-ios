@@ -163,6 +163,14 @@ export const MIN_ANCHORED_SIZE_PX = 10;
 export const FREE_BLOCK_BG_COLOR = 0xfffdfbf7;
 /** Kotlin line 190: `0x14262626`. */
 export const OUTLINE_COLOR = 0x14262626;
+
+/**
+ * `MangaTranslationCore.kt` L286 `private const val TEXT_COLOR = 0xFF1A1A18.toInt()`。
+ *
+ * 与 `DEFAULT_TEXT_COLOR`（0xFF1B1B1B）是**两个不同的值**：那个是气泡内自动挑色的
+ * 兜底，这个是自由文本块 overlay 的固定墨色（比默认深 3 个灰阶）。
+ */
+export const TRANSLATION_OVERLAY_TEXT_COLOR = 0xff1a1a18;
 /** Kotlin line 343: `0xFFF4F4F2`. */
 export const LIGHT_ON_DARK_TEXT_COLOR = 0xfff4f4f2;
 /** Kotlin lines 112 / 224 / 225: the rasterisation bounds of `insetTextBounds`. */

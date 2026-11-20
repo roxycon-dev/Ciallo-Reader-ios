@@ -1,13 +1,29 @@
 /**
  * Kotlin → TS map
  * ──────────────
- * - `ui/mascot/MascotAnimationController.kt` (85 non-blank lines)
+ * - `ui/mascot/MascotAnimationController.kt` (99 lines, 85 non-blank)
  *
- *   lines 14-21   sealed class MascotEvent (5 objects) → MascotEvent union
- *   lines 26-33   data class MascotEventInstance + AtomicLong id → MascotEventInstance
- *   lines 38-43   data class MotionTransform → MotionTransform
- *   lines 56-63   object MascotAnimationController (MutableSharedFlow) → subscribe/play
- *   lines 70-100  @Composable MascotOverlay → src/ui/components/mascot/MascotAnimationController.tsx
+ *   lines 14-20   sealed class MascotEvent (**4 objects**) → MascotEvent union
+ *   lines 25-32   data class MascotEventInstance + AtomicLong id → MascotEventInstance
+ *   lines 37-42   data class MotionTransform → MotionTransform
+ *   lines 55-62   object MascotAnimationController (MutableSharedFlow) → subscribe/play
+ *   lines 68-99   @Composable MascotOverlay → src/ui/components/mascot/MascotAnimationController.tsx
+ *
+ * ⚠️ 端口此前多了一个 `'CleanComplete'` —— 它的来源是原文 L14-20 的一段**悬空 KDoc**：
+ *   L15 收尾了 `object BookComplete : MascotEvent()`；
+ *   L19 是一行孤零零的文档注释（描述「清理缓存成功」的吉祥物反馈）；
+ *   L20 的 `}` 直接收掉了 sealed class —— 也就是说那行 KDoc 后面**没有** object 声明，
+ *   它是 L14-19 那个 object 之前残留的、或者描述别的东西的注释。
+ *
+ * 那行 KDoc 描述的是 `CacheManagementScreen.kt` 里页面自己的 `CleanSuccessBadge`
+ * （L271「清理成功不再只弹 Toast，改为播放「打勾 + 释放量」动画」），与吉祥物无关 ——
+ * Android 侧 `MascotEvent` 只有四个 object，`MascotAnimationController.play(...)` 的四个
+ * 调用点分别是 `MainActivity.kt:962/966/1453` 与 `ReaderScreen.kt:1642`，
+ * `CacheManagementScreen.kt` 里**一次都没有** `play(`。
+ *
+ * 所以 `'CleanComplete'` 已删（E211）。多一个枚举值不只是「多一个分支」：
+ * `MascotOverlay` 的 `when` 在 Kotlin 里是穷尽的（没有 `else`），端口多一支就掩盖了
+ * 「这个事件到底存不存在」这个事实。
  *
  * ADAPTATION — `MutableSharedFlow(extraBufferCapacity = 16)` → a subscriber Set
  * ────────────────────────────────────────────────────────────────────────────
@@ -17,18 +33,16 @@
  * synchronous fan-out to subscribers reproduces it exactly.
  */
 
-/** MascotAnimationController.kt lines 14-21. */
+/** MascotAnimationController.kt lines 14-20 —— 四个 object。 */
 export type MascotEvent =
   | 'DeleteBook'
   | 'AddBookmark'
   | 'MoveBook'
-  | 'BookComplete'
-  /** 清理缓存成功（B6：原先只有 Toast + 打勾，缺吉祥物反馈）。 */
-  | 'CleanComplete';
+  | 'BookComplete';
 
 /**
  * Event wrapper with a unique ID for interruption tracking.
- * MascotAnimationController.kt lines 26-33.
+ * MascotAnimationController.kt lines 25-32.
  */
 export interface MascotEventInstance {
   event: MascotEvent;
@@ -37,7 +51,7 @@ export interface MascotEventInstance {
 
 let idCounter = 0;
 
-/** Kotlin `AtomicLong(0).incrementAndGet()` — starts at 1. */
+/** Kotlin `AtomicLong(0).incrementAndGet()` — 首个实例的 id 是 **1**，不是 0。 */
 function nextId(): number {
   idCounter += 1;
   return idCounter;

@@ -1,14 +1,14 @@
 import { type CSSProperties, type ReactNode } from 'react';
-import { withAlpha } from '../../core/glass/color';
-import { adaptiveDialogWidthStyle } from '../../core/glass/adaptiveSpec';
+import { parseHex, withAlpha } from '../../core/glass/color';
+import { adaptiveDialogWidthStyle, adaptiveSheetWidthStyle } from '../../core/glass/adaptiveSpec';
 import {
   GLASS_FALLBACK_ALPHA_BOOST,
-  crystalInnerBevelCss,
   filmGrainLayerCss,
   iridescentBorderCss,
   radialGlassScrimCss,
   supportsRealtimeBlur,
 } from '../../core/glass/liquidGlass';
+import { consistentShadow } from '../../core/glass/shadowGlow';
 import { crystalPrismColors } from '../../core/glass/color';
 import { DialogEntrance, ScrimEntrance, BottomSheetEntrance } from './OverlayAnimations';
 
@@ -62,20 +62,43 @@ export function acrylicPanelStyle(options: {
   surfaceAlpha?: number;
   primary: string;
   secondary: string;
+  /**
+   * Kotlin L53 `MaterialTheme.colorScheme.surface.copy(alpha = surfaceAlpha)` ——
+   * **主题的 surface**，不是写死的白色。深色主题下它是深灰（`Theme.kt` 的
+   * `surface = #1C1C1E`），此前端口写死 `#FFFFFF`，深色下弹窗变成一块白玻璃。
+   */
+  surface?: string;
 }): Record<string, string> {
   const radius = options.radius ?? 24;
   const surfaceAlpha = options.surfaceAlpha ?? 0.5;
+  const surface = options.surface ?? '#FFFFFF';
+  const primaryRgb = parseHex(options.primary) ?? { r: 5, g: 150, b: 105 };
+  const black = { r: 0, g: 0, b: 0 };
   return {
     borderRadius: `${radius}px`,
-    // Layer A: consistentShadow(32.dp, primary ambient 0.14 / spot 0.18)
-    // Layer B: consistentShadow(8.dp,  black   ambient 0.18 / spot 0.22)
+    // Kotlin L55-66 两次 `consistentShadow`：
+    //   32.dp → ambient primary@0.14 / spot primary@0.18
+    //    8.dp → ambient black@0.18   / spot black@0.22
+    // 每一层的有效 alpha 还要 × `SHADOW_*_ALPHA_GAIN = 0.10`（ShadowGlow.kt L229/L230），
+    // 且 spot 层额外下移 `elevation × 0.28`、模糊 `σ = elevation × 0.22`。
+    // 此前端口写的是 `0 32px 64px primary@0.14` —— alpha **没有 ×0.10**（浓 10 倍）
+    // 而且把 elevation 当成了「向下偏移 32px」。
     boxShadow:
-      `0 32px 64px ${withAlpha(options.primary, 0.14)}, ` +
-      `0 32px 64px ${withAlpha(options.primary, 0.18)}, ` +
-      '0 8px 16px rgba(0, 0, 0, 0.18), ' +
-      '0 8px 16px rgba(0, 0, 0, 0.22)',
+      `${consistentShadow({
+        elevationPx: 32,
+        ambientRgb: [primaryRgb.r, primaryRgb.g, primaryRgb.b],
+        ambientAlpha: 0.14,
+        spotRgb: [primaryRgb.r, primaryRgb.g, primaryRgb.b],
+        spotAlpha: 0.18,
+      })}, ${consistentShadow({
+        elevationPx: 8,
+        ambientRgb: [black.r, black.g, black.b],
+        ambientAlpha: 0.18,
+        spotRgb: [black.r, black.g, black.b],
+        spotAlpha: 0.22,
+      })}`,
     // 顶棱抛光聚光带 (2.5dp) 叠在 125° 对角镜面光束之上
-    backgroundColor: withAlpha('#FFFFFF', surfaceAlpha),
+    backgroundColor: withAlpha(surface, surfaceAlpha),
     backgroundImage:
       // 顶棱抛光聚光带
       'linear-gradient(90deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.50) 25%, ' +
@@ -104,6 +127,8 @@ export interface AcrylicDialogProps {
   /** Theme tokens; the app shell passes its live primary/secondary. */
   primary?: string;
   secondary?: string;
+  /** Kotlin `MaterialTheme.colorScheme.surface` —— 面板底色（深色主题别再用白）。 */
+  surface?: string;
   /** Test id passthrough. */
   'data-testid'?: string;
   childrenClassName?: string;
@@ -114,7 +139,12 @@ export function AcrylicDialog(props: AcrylicDialogProps) {
   const primary = props.primary ?? '#059669';
   const secondary = props.secondary ?? '#10B981';
   const shapeRadius = props.shapeRadius ?? 24;
-  const panel = acrylicPanelStyle({ radius: shapeRadius, primary, secondary });
+  const panel = acrylicPanelStyle({
+    radius: shapeRadius,
+    primary,
+    secondary,
+    ...(props.surface === undefined ? {} : { surface: props.surface }),
+  });
   const film = filmGrainLayerCss(0.035);
 
   return (
@@ -141,14 +171,17 @@ export function AcrylicDialog(props: AcrylicDialogProps) {
               // its milkiness exactly where the glass was working.
               ...(supportsRealtimeBlur()
                 ? {
-                    WebkitBackdropFilter: `blur(${ACRYLIC_BLUR_DP}px) saturate(1.15)`,
-                    backdropFilter: `blur(${ACRYLIC_BLUR_DP}px) saturate(1.15)`,
+                    // Kotlin `GlassDialogWindowEffect` 只做 `createBlurEffect(blurPx)`
+                    // （WindowBackdrop.kt L53 `GlassWindowBlur.acquire(…, blurRadiusPx * progress)`）——
+                    // 没有 `colorControls`/`vibrancy`，所以这里**不加** `saturate()`。
+                    WebkitBackdropFilter: `blur(${ACRYLIC_BLUR_DP}px)`,
+                    backdropFilter: `blur(${ACRYLIC_BLUR_DP}px)`,
                   }
                 : {
                     // API < 31 无 RenderEffect：面板本体加厚，弥补没有真实模糊
                     // （LiquidGlass.kt L199-206 同一口径）
                     backgroundColor: withAlpha(
-                      '#FFFFFF',
+                      props.surface ?? '#FFFFFF',
                       Math.min(1, 0.5 + GLASS_FALLBACK_ALPHA_BOOST),
                     ),
                   }),
@@ -157,8 +190,9 @@ export function AcrylicDialog(props: AcrylicDialogProps) {
           >
             {/* filmGrain(alpha = 0.035f) */}
             <span className="acrylic-panel__grain" style={{ ['--film-grain' as string]: film }} />
-            {/* iridescentBorder(prismColors, 1.5.dp, 0.38f) + crystalInnerBevel(1.dp) */}
-            <PrismBevelLayer shapeRadius={shapeRadius} primary={primary} secondary={secondary} />
+            {/* iridescentBorder(prismColors, 1.5.dp, 0.38f) —— Kotlin 在 acrylicPanel
+                里只画这一层（`crystalInnerBevel` 是 GodMomentSheet 自己的追加）。 */}
+            <PrismLayer shapeRadius={shapeRadius} primary={primary} secondary={secondary} />
             <div className="acrylic-panel__content" style={{ padding: 24 }}>
               {props.title}
               {props.title !== undefined && props.text !== undefined ? (
@@ -185,41 +219,28 @@ export function AcrylicDialog(props: AcrylicDialogProps) {
 }
 
 /**
- * `iridescentBorder(shape, prismColors, 1.5.dp, 0.38f)` **and**
- * `crystalInnerBevel(shape, 1.dp)`.
+ * `iridescentBorder(shape, prismColors, 1.5.dp, 0.38f)` —— **只有这一层**。
  *
- * REVIEW FIX (BUG): both layers were merged onto the same node, so
- * `bevelLayer()`'s `backgroundImage` overwrote `iridescentBorderCss()`'s
- * `conic-gradient` — the prism sweep disappeared entirely. They are now two
- * stacked nodes (Kotlin draws them as two separate `drawBehind` layers in that
- * order), and the bevel uses the mask-composite ring so it stays a 1dp edge
- * stroke instead of a full-box wash.
+ * 修正：过去这里还叠了一条 `crystalInnerBevel(1.dp)`。查 Kotlin：
+ * `Modifier.acrylicPanel`（AcrylicDialog.kt L69-75）只调用 `filmGrain` 与
+ * `iridescentBorder`，`crystalInnerBevel` 在全仓的唯一调用点是
+ * `GodMomentSheet.kt:221`（那是个更重的面板，另算）。所以亚克力面板上多出来的
+ * 那圈 1dp 内棱是端口自加的。
  */
-function PrismBevelLayer(props: {
-  shapeRadius: number;
-  primary: string;
-  secondary: string;
-}): ReactNode {
+function PrismLayer(props: { shapeRadius: number; primary: string; secondary: string }): ReactNode {
   return (
-    <>
-      <span
-        className="acrylic-panel__prism"
-        aria-hidden="true"
-        style={
-          iridescentBorderCss({
-            colors: crystalPrismColors(props.primary, props.secondary),
-            width: 1.5,
-            alpha: 0.38,
-            radius: props.shapeRadius,
-          }) as unknown as CSSProperties
-        }
-      />
-      <span
-        className="acrylic-panel__prism"
-        aria-hidden="true"
-        style={crystalInnerBevelCss({ width: 1, radius: props.shapeRadius }) as unknown as CSSProperties}
-      />
-    </>
+    <span
+      className="acrylic-panel__prism"
+      aria-hidden="true"
+      style={
+        iridescentBorderCss({
+          colors: crystalPrismColors(props.primary, props.secondary),
+          width: 1.5,
+          alpha: 0.38,
+          radius: props.shapeRadius,
+        }) as unknown as CSSProperties
+      }
+    />
   );
 }
 
@@ -230,51 +251,92 @@ export interface AcrylicBottomOverlayProps {
   shapeRadius?: number;
   primary?: string;
   secondary?: string;
+  /** Kotlin `MaterialTheme.colorScheme.surface` —— 面板底色。 */
+  surface?: string;
+  /** Kotlin L153 `dismissOnBackgroundClick`：点遮罩是否关闭（默认 true）。 */
+  dismissOnBackgroundClick?: boolean;
+  /** Kotlin L154 `fitAvailableHeight`：高度取 `maxHeight * 0.9`，底部留 16dp。 */
+  fitAvailableHeight?: boolean;
+  /** Kotlin L155 `decoratePanel`：false 时不挂亚克力面板（只保留内容）。 */
+  decoratePanel?: boolean;
+  /** Kotlin L156 `uniformScrim`：遮罩用纯黑而不是径向渐变。 */
+  uniformScrim?: boolean;
+  /** 视口是否为横屏（`adaptiveSheetWidth()` 的 840dp 分支）。 */
+  landscape?: boolean;
 }
 
-/** 底部悬浮亚克力面板（下载中心等）：Dialog + decorView 实时模糊 + 径向遮罩。 */
+/**
+ * 底部悬浮亚克力面板（下载中心等）：Dialog + decorView 实时模糊 + 径向遮罩。
+ *
+ * 修正：此前端口只有 `onDismissRequest` / `shapeRadius` / 主题色四个入参，
+ * Kotlin 的 `dismissOnBackgroundClick` / `fitAvailableHeight` / `decoratePanel` /
+ * `uniformScrim` 四个开关**全部没有**，`maxHeight * 0.9f` 与
+ * `padding(bottom = 16.dp)` 也没落 —— 内容高的面板会顶到安全区外。
+ */
 export function AcrylicBottomOverlay(props: AcrylicBottomOverlayProps) {
   const primary = props.primary ?? '#059669';
   const secondary = props.secondary ?? '#10B981';
   const shapeRadius = props.shapeRadius ?? 24;
-  const panel = acrylicPanelStyle({ radius: shapeRadius, surfaceAlpha: 0.4, primary, secondary });
+  const decoratePanel = props.decoratePanel !== false;
+  const fitAvailableHeight = props.fitAvailableHeight === true;
+  const panel = acrylicPanelStyle({
+    radius: shapeRadius,
+    surfaceAlpha: 0.4,
+    primary,
+    secondary,
+    ...(props.surface === undefined ? {} : { surface: props.surface }),
+  });
 
   return (
     <div className="acrylic-bottom-overlay" role="dialog" aria-modal="true">
       <ScrimEntrance>
         <div
           className="acrylic-dialog-scrim"
-          style={{ backgroundImage: radialGlassScrimCss() }}
-          onClick={props.onDismissRequest}
+          style={
+            props.uniformScrim === true
+              ? { background: 'rgba(0, 0, 0, 0.36)' }
+              : { backgroundImage: radialGlassScrimCss() }
+          }
+          onClick={() => {
+            if (props.dismissOnBackgroundClick !== false) props.onDismissRequest();
+          }}
         />
       </ScrimEntrance>
       <BottomSheetEntrance className="acrylic-bottom-overlay__sheet">
         <div
           className="acrylic-panel acrylic-panel--bottom"
           style={{
-            ...panel,
+            ...(decoratePanel ? panel : {}),
             borderBottomLeftRadius: 0,
             borderBottomRightRadius: 0,
-            ...(supportsRealtimeBlur()
+            ...(decoratePanel && supportsRealtimeBlur()
               ? {
-                  WebkitBackdropFilter: `blur(${ACRYLIC_BLUR_DP}px) saturate(1.15)`,
-                  backdropFilter: `blur(${ACRYLIC_BLUR_DP}px) saturate(1.15)`,
+                  WebkitBackdropFilter: `blur(${ACRYLIC_BLUR_DP}px)`,
+                  backdropFilter: `blur(${ACRYLIC_BLUR_DP}px)`,
                 }
               : {}),
-            maxWidth: 560,
-            width: '100%',
-            marginInline: 'auto',
-            // Kotlin `Modifier.navigationBarsPadding()` (AcrylicDialog.kt L193)
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            ...adaptiveSheetWidthStyle(props.landscape === true),
+            // Kotlin L185 `val sheetHeight = maxHeight * .9f`（配合
+            // L172 `padding(bottom = 16.dp)`），否则走 `navigationBarsPadding()`。
+            ...(fitAvailableHeight
+              ? {
+                  height: '90dvh',
+                  paddingBottom: 16,
+                }
+              : {}),
           }}
         >
-          <span
-            className="acrylic-panel__grain"
-            style={{ ['--film-grain' as string]: filmGrainLayerCss(0.035) }}
-          />
-          {/* AcrylicDialog.kt L192 `acrylicPanel(shape, surfaceAlpha = 0.40f)` also
-              mounts iridescentBorder + crystalInnerBevel — they were missing here. */}
-          <PrismBevelLayer shapeRadius={shapeRadius} primary={primary} secondary={secondary} />
+          {decoratePanel ? (
+            <span
+              className="acrylic-panel__grain"
+              style={{ ['--film-grain' as string]: filmGrainLayerCss(0.035) }}
+            />
+          ) : null}
+          {/* AcrylicDialog.kt L192 `acrylicPanel(shape, surfaceAlpha = 0.40f)` 的
+              iridescentBorder —— 此前还多挂了一条 Kotlin 没有的 bevel。 */}
+          {decoratePanel ? (
+            <PrismLayer shapeRadius={shapeRadius} primary={primary} secondary={secondary} />
+          ) : null}
           {props.children}
         </div>
       </BottomSheetEntrance>

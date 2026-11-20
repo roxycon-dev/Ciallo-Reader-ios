@@ -66,12 +66,12 @@
   --font-sans: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
   --font-serif: 'Noto Serif SC', 'Songti SC', Georgia, serif;
 
-  /* ── Motion (iOSMotion.kt) ── */
-  --motion-fast: 150ms;
-  --motion-normal: 250ms;
-  --motion-transition: 350ms;
+  /* ── Motion (IosMotion.kt → AppMotion：110 / 200 / 280 / 280 + easeOutCubic) ── */
+  --motion-fast: 110ms;
+  --motion-normal: 200ms;
+  --motion-transition: 280ms;
   --motion-header-collapse: 220ms;
-  --ease-out: cubic-bezier(0, 0, 0.58, 1);
+  --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 
   /* ── Tab bar ── */
