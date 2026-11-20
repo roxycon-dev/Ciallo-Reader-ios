@@ -101,8 +101,8 @@ ENTRY="$(grep -o 'src="/assets/[^"]*\.js"' ios/App/App/public/index.html | head 
 
 # ── 2. 解析 SPM 依赖 ──────────────────────────────────────────────────────
 step "解析 Swift Package 依赖"
-# capacitor-swift-pm 从 GitHub 拉，onnxruntime-swift-package-manager 是 ~90 MB 的
-# 二进制包。第一次要几分钟，之后走 DerivedData 缓存。
+# capacitor-swift-pm 从 GitHub 拉；onnxruntime-swift-package-manager 源码已 vendor
+# 到本地（微软原仓库已下架），SPM 只需从官方 CDN 下 ~52 MB 二进制。第一次要几分钟。
 xcodebuild -resolvePackageDependencies \
   -project "$PROJECT" \
   -scheme App \

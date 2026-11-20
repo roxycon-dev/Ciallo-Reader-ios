@@ -186,7 +186,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
-				A1000000000000000000001B /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
+				A1000000000000000000001B /* XCLocalSwiftPackageReference "onnxruntime-swift-package-manager" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -450,20 +450,16 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "CapApp-SPM";
 		};
-/* End XCLocalSwiftPackageReference section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		A1000000000000000000001B /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager";
-			requirement = {kind = exactVersion; version = 1.24.2; };
+		A1000000000000000000001B /* XCLocalSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "onnxruntime-swift-package-manager";
 		};
-/* End XCRemoteSwiftPackageReference section */
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		A1000000000000000000001C /* onnxruntime */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A1000000000000000000001B /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			package = A1000000000000000000001B /* XCLocalSwiftPackageReference "onnxruntime-swift-package-manager" */;
 			productName = onnxruntime;
 		};
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {

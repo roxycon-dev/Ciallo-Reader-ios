@@ -307,7 +307,7 @@ npx playwright test --project=iphone-14-pro-webkit
 | `npm run build` 报 tsc 错误 | 先 `npx tsc --noEmit` 看完整列表；`tsc -b` 会写 `tsconfig.tsbuildinfo`，删掉它再跑可以排除增量缓存 |
 | `cap sync` 后真机白屏 | `build-ipa.sh` 会自动查入口脚本是否存在；手工查：`grep -o 'src="/assets/[^"]*"' ios/App/App/public/index.html` 然后 `ls ios/App/App/public/<那个路径>` |
 | Mac 上 `build-ipa.sh` 说找不到 xcodebuild | `sudo xcode-select -s /Applications/Xcode.app`，且要求 Xcode 26+（Capacitor 8 的要求） |
-| Mac 上 SPM 解析卡住 | `onnxruntime-swift-package-manager` 是 ~90 MB 二进制包，第一次要几分钟；走 `build/SourcePackages` 缓存 |
+| Mac 上 SPM 解析卡住 | `onnxruntime-swift-package-manager` 源码已 vendor 到本地，SPM 只需从官方 CDN 下载 ~52 MB 二进制 zip，第一次要几分钟；走 `build/SourcePackages` 缓存。微软原 GitHub 仓库已下架，切勿改回远程引用，详见 `ONNXRUNTIME_VENDOR.md` |
 
 ---
 

@@ -16,7 +16,7 @@
 
 1. IPA 里是 `Payload/App.app/App` —— 一个 **arm64 Mach-O** 可执行文件，由 `swiftc`/`clang` + iOS SDK 交叉编译产出。Windows 上没有这条链路。
 2. 资源编译（`actool` 把 `Assets.xcassets` 编成 `Assets.car`、`ibtool` 编 storyboard）只有 Xcode 提供。
-3. `onnxruntime-swift-package-manager`（MangaJaNai 推理用）是 **xcframework**，只能在 macOS 上 resolve 并嵌入。
+3. `onnxruntime-swift-package-manager`（MangaJaNai 推理用）的源码已 vendor 进仓库（`ios/App/onnxruntime-swift-package-manager/`），二进制仍走微软官方 CDN `download.onnxruntime.ai`；SPM resolve 与 xcframework 嵌入只能在 macOS 上完成。详见 `ONNXRUNTIME_VENDOR.md`。
 4. `codesign` / 描述文件 / 权限绑定是 Apple 独占签名体系。
 
 任何声称「Windows 上生成 iOS 安装包」的做法，产出的都是不含二进制的空壳，装不上。
@@ -127,7 +127,7 @@ workflow 里的导入步骤走的是标准的临时 keychain 路径：`security 
 |---|---|---|
 | `The project named "App" does not contain a scheme named "App"` | shared scheme 缺失（scheme 平时只写进 `xcuserdata`，不进版本库） | 本仓库已补 `ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme` |
 | `App.xcworkspace does not exist` | Capacitor 8 走 SPM，没有 CocoaPods workspace | 用 `-project App.xcodeproj`，不要用 `-workspace` |
-| `Missing package product 'onnxruntime'` | `project.pbxproj` 的 target 依赖了 project-level 的 SPM 包，但 `packageReferences` 被删了 | 确认 `PBXProject` 段里有 `A1000000000000000000001B /* onnxruntime-swift-package-manager */` |
+| `Missing package product 'onnxruntime'` | `project.pbxproj` 的 target 依赖了 project-level 的 SPM 包，但 `packageReferences` 被删了 | 确认 `PBXProject` 段里有 `A1000000000000000000001B /* XCLocalSwiftPackageReference "onnxruntime-swift-package-manager" */`，且 `ios/App/onnxruntime-swift-package-manager/` 目录存在 |
 | 真机白屏、控制台无报错 | `ios/App/App/public/` 里是旧的 `dist` 或空目录 | 重新 `npx cap sync ios`；`build-ipa.sh` 第 4 步会直接 fail |
 | `Signing for "App" requires a development team` | 未签名归档漏传参数 | 必须同时传 `CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=""` |
 | IPA 体积异常大（>200 MB） | 用 `cp -R` 而不是 `ditto` 打包，framework 符号链接被展开 | 用 `ditto`，zip 加 `-y` |
